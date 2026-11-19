@@ -78,6 +78,7 @@ just build-iso      # output/tamagi.iso (6,9 GiB: cabe num pendrive de 8 GB)
 just test-iso       # instala sozinho numa VM e confere o sistema instalado
 just test-rollback  # simula uma atualização ruim e confere o rollback automático
 just run-iso        # abre a ISO numa VM com janela, para usar o instalador
+sudo bash live/write-usb.sh /dev/disk/by-id/usb-… --yes   # grava num pendrive e confere
 ```
 
 A ISO inicia (só UEFI) numa sessão COSMIC live e abre o instalador, em

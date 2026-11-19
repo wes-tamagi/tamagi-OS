@@ -56,5 +56,5 @@ podman run --rm \
 
 step "Pronto"
 ls -lh "$OUT_DIR/$OUT_NAME"
-echo "Gravar num pendrive:  sudo dd if=$OUT of=/dev/sdX bs=4M status=progress oflag=sync"
+echo "Gravar num pendrive:  sudo bash live/write-usb.sh /dev/disk/by-id/usb-<seu-pendrive> --yes"
 echo "Testar numa VM:       just test-iso   (instala sozinho)   ou   just run-iso"
