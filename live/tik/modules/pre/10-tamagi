@@ -1,0 +1,367 @@
+# Tamagi — módulo do tik (fase "pre"). O tik faz `source` deste arquivo.
+# shellcheck shell=bash disable=SC2154,SC2034
+#
+# O tik (https://github.com/sysrich/tik, o instalador do openSUSE Aeon) cuida
+# da conversa: janelas zenity e escolha do disco. Ele foi feito para gravar
+# uma imagem de disco pronta; o Tamagi é uma imagem bootc, então este módulo:
+#
+#   1. faz as perguntas (idioma, teclado, fuso, conta, criptografia), em
+#      português ou inglês;
+#   2. redefine as etapas do tik que gravariam a imagem de disco, para chamar
+#      /usr/libexec/tamagi-install (particiona e roda `bootc install`);
+#   3. redefine o encerramento: cancelar volta para o desktop live em vez de
+#      desligar o computador.
+#
+# Variáveis e funções do tik usadas aqui: gui, tik_log, d, log, error.
+#
+# Instalação sem perguntas (testes e automação), pela linha do kernel:
+#   tamagi.autoinstall=/dev/vda [tamagi.autoinstall.lang=en] [tamagi.autoinstall.user=nome]
+#   [tamagi.autoinstall.password=senha] [tamagi.autoinstall.luks=senha-do-disco]
+#   [tamagi.autoinstall.kargs=arg1,arg2]
+
+tamagi_dir="${XDG_RUNTIME_DIR:-/run}/tamagi-install"
+mkdir -p "${tamagi_dir}" && chmod 700 "${tamagi_dir}"
+tamagi_answers="${tamagi_dir}/answers"
+tamagi_luks_key="${tamagi_dir}/luks.key"
+tamagi_started=0
+tamagi_done=0
+
+# ── Idiomas do instalador: pt (padrão) e en ────────────────────────────────
+# T <chave> devolve o texto no idioma escolhido. As variáveis tamagi_t_* são
+# lidas pelo núcleo do tik (build-live.sh troca os textos fixos dele por elas).
+declare -A TXT_pt=(
+    [quit]="Sair do instalador?" [quit_yes]="Sair" [quit_no]="Continuar instalando"
+    [install_now]="Instalar agora"
+    [welcome]="<big><b>Bem-vindo ao Tamagi</b></big>\n\nEste assistente instala o Tamagi neste computador.\nSão poucas perguntas: teclado, fuso horário, a sua conta e o disco.\n\nPara só experimentar o sistema, feche esta janela.\nO instalador continua no lançador: <b>Instalar o Tamagi</b>."
+    [no_uefi]="O Tamagi precisa de um computador iniciado em modo UEFI.\nConfira nas opções da BIOS se o modo UEFI pode ser ligado."
+    [kbd_title]="Teclado" [kbd_text]="Qual é o teclado deste computador?"
+    [tz_title]="Fuso horário" [tz_text]="Onde este computador fica?" [tz_col]="Região"
+    [tz_other]="Outro país ou fuso…" [tz_pick]="Escolha o fuso horário" [tz_zone]="Fuso"
+    [user_title]="Sua conta" [user_text]="Esta será a conta de administrador do computador."
+    [user_full]="Nome completo" [user_name]="Usuário (ex.: maria)" [user_pass]="Senha" [user_pass2]="Repita a senha"
+    [bad_user]="O nome de usuário precisa começar com letra minúscula e ter só\nletras minúsculas, números, hífen ou sublinhado. Exemplo: <tt>maria</tt>"
+    [reserved]="Esse nome de usuário é reservado pelo sistema. Escolha outro."
+    [empty_pass]="A senha não pode ficar vazia." [pass_mismatch]="As duas senhas não são iguais. Digite de novo."
+    [enc_title]="Criptografia do disco" [enc_yes]="Criptografar" [enc_no]="Não criptografar"
+    [enc_text]="<b>Criptografar o disco?</b>\n\nCom criptografia (LUKS2), ninguém lê os seus arquivos se o computador\nfor perdido ou roubado. Em troca, uma senha é pedida a cada vez que ele liga.\nDepois de instalar, <tt>ujust setup-luks-tpm-unlock</tt> permite desbloquear pelo chip TPM.\n\n<b>Sem a senha do disco não há como recuperar os arquivos.</b>"
+    [luks_title]="Senha do disco" [luks_text]="Senha pedida ao ligar o computador (mínimo de 8 caracteres)."
+    [luks_short]="A senha do disco precisa de pelo menos 8 caracteres."
+    [begin_title]="Começar a instalação?" [begin_ok]="Apagar o disco e instalar" [cancel]="Cancelar"
+    [begin_text]="O disco abaixo será <b>totalmente apagado</b>:" [begin_enc]="Criptografia do disco" [yes]="sim" [no]="não"
+    [begin_warn]="Depois de começar não há como desfazer."
+    [prog_title]="Instalando o Tamagi" [prog_text]="Preparando…"
+    [failed]="A instalação falhou. O registro está em"
+    [done_title]="Instalação concluída" [done_text]="<b>O Tamagi foi instalado.</b>\n\nRetire a mídia de instalação quando o computador reiniciar."
+    [reboot]="Reiniciar agora" [stay]="Continuar no modo live"
+    [fail_title]="A instalação falhou" [fail_text]="A instalação não terminou e o disco escolhido pode ter ficado pela metade.\n\nVocê pode tentar de novo pelo lançador: <b>Instalar o Tamagi</b>.\nRegistro:"
+    [col_disk]="Disco" [col_size]="Tamanho" [col_parts]="Partições" [col_fs]="Conteúdo"
+    [disk_title]="Escolha o disco" [disk_text]="Escolha o disco onde o Tamagi será instalado. <b>Tudo o que está nele será apagado: confira se os seus arquivos têm cópia.</b>"
+    [no_disk]="Nenhum disco encontrado para a instalação."
+)
+declare -A TXT_en=(
+    [quit]="Quit the installer?" [quit_yes]="Quit" [quit_no]="Keep installing"
+    [install_now]="Install now"
+    [welcome]="<big><b>Welcome to Tamagi</b></big>\n\nThis assistant installs Tamagi on this computer.\nJust a few questions: keyboard, time zone, your account and the disk.\n\nTo only try the system, close this window.\nThe installer stays in the launcher: <b>Instalar o Tamagi</b>."
+    [no_uefi]="Tamagi needs a computer started in UEFI mode.\nCheck the BIOS options to see if UEFI can be enabled."
+    [kbd_title]="Keyboard" [kbd_text]="Which keyboard does this computer have?"
+    [tz_title]="Time zone" [tz_text]="Where is this computer?" [tz_col]="Region"
+    [tz_other]="Another country or zone…" [tz_pick]="Choose the time zone" [tz_zone]="Zone"
+    [user_title]="Your account" [user_text]="This will be the administrator account of the computer."
+    [user_full]="Full name" [user_name]="Username (e.g. mary)" [user_pass]="Password" [user_pass2]="Repeat the password"
+    [bad_user]="The username must start with a lowercase letter and contain only\nlowercase letters, digits, hyphen or underscore. Example: <tt>mary</tt>"
+    [reserved]="That username is reserved by the system. Choose another one."
+    [empty_pass]="The password cannot be empty." [pass_mismatch]="The two passwords are not the same. Type them again."
+    [enc_title]="Disk encryption" [enc_yes]="Encrypt" [enc_no]="Do not encrypt"
+    [enc_text]="<b>Encrypt the disk?</b>\n\nWith encryption (LUKS2), nobody can read your files if the computer\nis lost or stolen. In exchange, a password is asked every time it starts.\nAfter installing, <tt>ujust setup-luks-tpm-unlock</tt> allows unlocking with the TPM chip.\n\n<b>Without the disk password there is no way to recover the files.</b>"
+    [luks_title]="Disk password" [luks_text]="Password asked when the computer starts (at least 8 characters)."
+    [luks_short]="The disk password needs at least 8 characters."
+    [begin_title]="Start the installation?" [begin_ok]="Erase the disk and install" [cancel]="Cancel"
+    [begin_text]="The disk below will be <b>completely erased</b>:" [begin_enc]="Disk encryption" [yes]="yes" [no]="no"
+    [begin_warn]="Once it starts there is no way to undo it."
+    [prog_title]="Installing Tamagi" [prog_text]="Preparing…"
+    [failed]="The installation failed. The log is in"
+    [done_title]="Installation complete" [done_text]="<b>Tamagi has been installed.</b>\n\nRemove the installation media when the computer restarts."
+    [reboot]="Restart now" [stay]="Stay in live mode"
+    [fail_title]="The installation failed" [fail_text]="The installation did not finish and the chosen disk may be left half-written.\n\nYou can try again from the launcher: <b>Instalar o Tamagi</b>.\nLog:"
+    [col_disk]="Disk" [col_size]="Size" [col_parts]="Partitions" [col_fs]="Contents"
+    [disk_title]="Choose the disk" [disk_text]="Choose the disk where Tamagi will be installed. <b>Everything on it will be erased: make sure your files have a copy.</b>"
+    [no_disk]="No disk found for the installation."
+)
+tamagi_lang="pt"
+tamagi_locale="pt_BR.UTF-8"
+T() { local -n _txt="TXT_${tamagi_lang}"; printf '%s' "${_txt[$1]}"; }
+tamagi_set_lang() { # tamagi_set_lang pt|en
+    tamagi_lang="$1"
+    if [ "$1" = "en" ]; then tamagi_locale="en_US.UTF-8"; else tamagi_locale="pt_BR.UTF-8"; fi
+    # Botões padrão do zenity (OK, Cancelar) no mesmo idioma.
+    export LANG="${tamagi_locale}" LANGUAGE="${tamagi_locale%%.*}"
+    tamagi_t_quit="$(T quit)"; tamagi_t_col_disk="$(T col_disk)"; tamagi_t_col_size="$(T col_size)"
+    tamagi_t_col_parts="$(T col_parts)"; tamagi_t_col_fs="$(T col_fs)"
+    tamagi_t_disk_title="$(T disk_title)"; tamagi_t_disk_text="$(T disk_text)"; tamagi_t_no_disk="$(T no_disk)"
+}
+tamagi_set_lang pt
+
+tamagi_karg() { # valor de <nome>=valor na linha do kernel (vazio se não houver)
+    sed -nE "s/(^|.* )$1=([^ ]+).*/\2/p" /proc/cmdline
+}
+tamagi_auto="$(tamagi_karg tamagi.autoinstall)"
+
+tamagi_priv() { # roda como root: direto se já for root (modo sem perguntas), senão pkexec
+    if [ "$(id -u)" = "0" ]; then "$@"; else pkexec "$@"; fi
+}
+
+tamagi_msg() { # aviso simples, sem passar pelo log do tik
+    if $gui; then zenity --warning --no-wrap --title="Tamagi" --text="$1"; else echo "$1" >&2; fi
+}
+
+tamagi_cancel() { # o usuário fechou uma janela: sair ou continuar?
+    zenity --question --no-wrap --title="Tamagi" --text="$(T quit)" \
+        --ok-label="$(T quit_yes)" --cancel-label="$(T quit_no)" && exit 1
+    return 0
+}
+
+tamagi_ask_language() {
+    d --list --radiolist --title="Tamagi" --width=460 --height=260 \
+        --text="Idioma da instalação  ·  Installation language" \
+        --column="" --column="id" --column="Idioma / Language" --hide-column=2 --print-column=2 \
+        TRUE  "pt" "Português (Brasil)" \
+        FALSE "en" "English (United States)"
+    tamagi_set_lang "${result:-pt}"
+}
+
+tamagi_welcome() {
+    d --info --no-wrap --width=460 --ok-label="$(T install_now)" --title="Tamagi" \
+        --icon=system-software-install --text="$(T welcome)"
+    [ -d /sys/firmware/efi ] || error "$(T no_uefi)"
+}
+
+tamagi_ask_keyboard() {
+    # Coluna 2: layout|variante do xkb|mapa do console. O primeiro marcado
+    # acompanha o idioma escolhido.
+    local br=TRUE us=FALSE
+    [ "${tamagi_lang}" = "en" ] && { br=FALSE; us=TRUE; }
+    d --list --radiolist --title="$(T kbd_title)" --width=520 --height=400 \
+        --text="$(T kbd_text)" \
+        --column="" --column="id" --column="$(T kbd_title)" --hide-column=2 --print-column=2 \
+        "${br}" "br:-:br-abnt2"      "Português (Brasil, ABNT2)" \
+        "${us}" "us:-:us"            "English (US)" \
+        FALSE "us:intl:us-acentos" "English (US, international, with accents)" \
+        FALSE "pt:-:pt-latin1"     "Português (Portugal)" \
+        FALSE "es:-:es"            "Español (España)" \
+        FALSE "latam:-:la-latin1"  "Español (Latinoamérica)"
+    local fallback="br:-:br-abnt2"
+    [ "${tamagi_lang}" = "en" ] && fallback="us:-:us"
+    IFS=':' read -r tamagi_xkb_layout tamagi_xkb_variant tamagi_keymap <<< "${result:-${fallback}}"
+    [ "${tamagi_xkb_variant}" = "-" ] && tamagi_xkb_variant=""
+    # Vale já na sessão live: a senha é digitada com o teclado que será usado depois.
+    local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/cosmic/com.system76.CosmicComp/v1"
+    mkdir -p "${cfg}"
+    cat > "${cfg}/xkb_config" <<RON
+(
+    rules: "",
+    model: "",
+    layout: "${tamagi_xkb_layout}",
+    variant: "${tamagi_xkb_variant}",
+    options: None,
+    repeat_delay: 600,
+    repeat_rate: 25,
+)
+RON
+}
+
+tamagi_ask_timezone() {
+    tamagi_timezone="OUTRO"
+    if [ "${tamagi_lang}" = "pt" ]; then
+        d --list --radiolist --title="$(T tz_title)" --width=560 --height=520 \
+            --text="$(T tz_text)" \
+            --column="" --column="id" --column="$(T tz_col)" --hide-column=2 --print-column=2 \
+            TRUE  "America/Sao_Paulo"    "Brasília, São Paulo, Rio de Janeiro, Minas, Sul" \
+            FALSE "America/Bahia"        "Bahia" \
+            FALSE "America/Fortaleza"    "Ceará, Maranhão, Piauí, Rio Grande do Norte, Paraíba" \
+            FALSE "America/Recife"       "Pernambuco" \
+            FALSE "America/Maceio"       "Alagoas, Sergipe" \
+            FALSE "America/Belem"        "Pará (leste), Amapá" \
+            FALSE "America/Araguaina"    "Tocantins" \
+            FALSE "America/Cuiaba"       "Mato Grosso" \
+            FALSE "America/Campo_Grande" "Mato Grosso do Sul" \
+            FALSE "America/Manaus"       "Amazonas" \
+            FALSE "America/Porto_Velho"  "Rondônia" \
+            FALSE "America/Boa_Vista"    "Roraima" \
+            FALSE "America/Rio_Branco"   "Acre" \
+            FALSE "America/Noronha"      "Fernando de Noronha" \
+            FALSE "OUTRO"                "$(T tz_other)"
+        tamagi_timezone="${result:-America/Sao_Paulo}"
+    fi
+    if [ "${tamagi_timezone}" = "OUTRO" ]; then
+        # Em inglês não há lista curta: vai direto à lista completa.
+        # shellcheck disable=SC2046
+        d --list --title="$(T tz_title)" --width=460 --height=560 --text="$(T tz_pick)" \
+            --column="$(T tz_zone)" $(timedatectl list-timezones --no-pager)
+        tamagi_timezone="${result:-UTC}"
+    fi
+}
+
+tamagi_ask_user() {
+    # zenity direto, e não pelo d() do tik: o d() grava o resultado no tik.log,
+    # e aqui o resultado tem a senha.
+    local out fullname user pass1 pass2
+    while true; do
+        out=$(zenity --forms --title="$(T user_title)" --width=460 --separator=$'\x1f' \
+            --text="$(T user_text)" \
+            --add-entry="$(T user_full)" \
+            --add-entry="$(T user_name)" \
+            --add-password="$(T user_pass)" \
+            --add-password="$(T user_pass2)") || { tamagi_cancel; continue; }
+        IFS=$'\x1f' read -r fullname user pass1 pass2 <<< "${out}"
+        fullname=$(printf '%s' "${fullname}" | tr -d ':,\n' | sed -E 's/^ +| +$//g')
+        user=$(printf '%s' "${user}" | sed -E 's/^ +| +$//g')
+        if [ -z "${user}" ] && [ -n "${fullname}" ]; then
+            # Sem nome de usuário: sugere o primeiro nome, sem acentos.
+            user=$(printf '%s' "${fullname%% *}" | iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
+        fi
+        if ! [[ ${user} =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
+            tamagi_msg "$(T bad_user)"; continue
+        fi
+        if getent passwd "${user}" >/dev/null 2>&1 && [ "${user}" != "live" ]; then
+            tamagi_msg "$(T reserved)"; continue
+        fi
+        [ "${user}" != "live" ] || { tamagi_msg "$(T reserved)"; continue; }
+        [ -n "${pass1}" ] || { tamagi_msg "$(T empty_pass)"; continue; }
+        [ "${pass1}" = "${pass2}" ] || { tamagi_msg "$(T pass_mismatch)"; continue; }
+        break
+    done
+    tamagi_user="${user}"
+    tamagi_fullname="${fullname:-${user}}"
+    tamagi_hash=$(printf '%s' "${pass1}" | openssl passwd -6 -stdin)
+}
+
+tamagi_ask_encryption() {
+    local out pass1 pass2
+    rm -f "${tamagi_luks_key}"
+    while true; do
+        zenity --question --no-wrap --title="$(T enc_title)" --width=480 \
+            --ok-label="$(T enc_yes)" --cancel-label="$(T enc_no)" --text="$(T enc_text)" \
+            || return 0
+        # Cancelar o formulário volta à pergunta acima: quem pediu criptografia
+        # não fica sem ela por engano.
+        out=$(zenity --forms --title="$(T luks_title)" --width=460 --separator=$'\x1f' \
+            --text="$(T luks_text)" \
+            --add-password="$(T luks_title)" --add-password="$(T user_pass2)") || continue
+        IFS=$'\x1f' read -r pass1 pass2 <<< "${out}"
+        [ "${#pass1}" -ge 8 ] || { tamagi_msg "$(T luks_short)"; continue; }
+        [ "${pass1}" = "${pass2}" ] || { tamagi_msg "$(T pass_mismatch)"; continue; }
+        break
+    done
+    ( umask 077; printf '%s' "${pass1}" > "${tamagi_luks_key}" )
+}
+
+tamagi_write_answers() {
+    ( umask 077
+      {
+          echo "LOCALE=${tamagi_locale}"
+          echo "KEYMAP=${tamagi_keymap}"
+          echo "XKB_LAYOUT=${tamagi_xkb_layout}"
+          echo "XKB_VARIANT=${tamagi_xkb_variant}"
+          echo "TIMEZONE=${tamagi_timezone}"
+          echo "HOSTNAME=tamagi"
+          echo "USER=${tamagi_user}"
+          echo "FULLNAME=${tamagi_fullname}"
+          echo "PASSWORD_HASH=${tamagi_hash}"
+          [ -s "${tamagi_luks_key}" ] && echo "LUKS_KEYFILE=${tamagi_luks_key}"
+          [ -n "${tamagi_extra_kargs:-}" ] && echo "EXTRA_KARGS=${tamagi_extra_kargs}"
+      } > "${tamagi_answers}" )
+}
+
+# ── Etapas do tik redefinidas ───────────────────────────────────────────────
+
+get_img() { # o tik procuraria uma imagem de disco; aqui a origem é a imagem bootc
+    TIK_INSTALL_IMAGE="bootc"
+}
+
+dump_image() { # no tik: grava a imagem no disco. Aqui: bootc install.
+    local target=$2 info rc
+    info=$(lsblk -dno SIZE,MODEL "${target}" 2>/dev/null | sed -E 's/ +/ /g')
+    d --question --no-wrap --title="$(T begin_title)" --width=480 \
+        --ok-label="$(T begin_ok)" --cancel-label="$(T cancel)" \
+        --text="$(T begin_text)\n\n<tt>${target}</tt>\n${info}\n\n$(T begin_enc): <b>$([ -s "${tamagi_luks_key}" ] && T yes || T no)</b>\n$(T begin_warn)"
+    tamagi_started=1
+    log "[tamagi] instalando em ${target}"
+    if $gui && [ -z "${tamagi_auto}" ]; then
+        # O código de saída vai por arquivo, e a barra sempre recebe 100 no
+        # fim: assim a janela de progresso fecha também quando dá erro.
+        rm -f "${tamagi_dir}/rc"
+        {
+            tamagi_priv /usr/libexec/tamagi-install "${target}" "${tamagi_answers}"
+            echo "$?" > "${tamagi_dir}/rc"
+            echo "PROGRESS 100 Fim"
+        } | tee -a "${tik_log}" \
+            | sed -unE 's/^PROGRESS ([0-9]+) (.*)$/\1\n# \2/p' \
+            | zenity --progress --no-cancel --auto-close --width=520 \
+                --title="$(T prog_title)" --text="$(T prog_text)"
+        rc=$(cat "${tamagi_dir}/rc" 2>/dev/null || echo 1)
+    else
+        tamagi_priv /usr/libexec/tamagi-install "${target}" "${tamagi_answers}"
+        rc=$?
+    fi
+    log "[tamagi] tamagi-install terminou com código ${rc}"
+    [ "${rc}" = "0" ] || error "$(T failed) <tt>${tik_log}</tt>."
+    tamagi_done=1
+}
+
+# O tamagi-install já deixa o disco pronto; o bootc (bootupd) instala o
+# carregador de boot e registra a entrada na firmware.
+reread_partitiontable() { :; }
+wipe_keyfile() { :; }
+set_boot_target() { :; }
+
+cleanup() { # no tik: reinicia ou DESLIGA. Aqui: cancelar volta ao desktop live.
+    retval=$?
+    log "[STOP][${retval}] $0"
+    rm -f "${tamagi_luks_key}" "${tamagi_answers}"
+    if [ -n "${tamagi_auto}" ]; then
+        if [ "${tamagi_done}" = "1" ]; then echo "TAMAGI-AUTOINSTALL: OK"; else echo "TAMAGI-AUTOINSTALL: FALHOU (código ${retval})"; fi
+        sync
+        systemctl poweroff --no-block
+    elif [ "${tamagi_done}" = "1" ]; then
+        if zenity --question --no-wrap --title="$(T done_title)" --width=440 \
+                --ok-label="$(T reboot)" --cancel-label="$(T stay)" --text="$(T done_text)"; then
+            tamagi_priv systemctl reboot
+        fi
+    elif [ "${tamagi_started}" = "1" ]; then
+        zenity --error --no-wrap --title="$(T fail_title)" --width=480 \
+            --text="$(T fail_text) <tt>${tik_log}</tt>"
+    fi
+}
+
+# ── Perguntas ───────────────────────────────────────────────────────────────
+
+if [ -n "${tamagi_auto}" ]; then
+    log "[tamagi] instalação sem perguntas em ${tamagi_auto}"
+    # Sem ninguém para responder: nenhuma janela pode travar a instalação.
+    d() { log "[auto] janela ignorada: $*"; result=""; return 0; }
+    d_opt() { log "[auto] janela ignorada: $*"; result=""; return 0; }
+    TIK_INSTALL_DEVICE="${tamagi_auto}"
+    tamagi_keymap="br-abnt2"; tamagi_xkb_layout="br"; tamagi_xkb_variant=""
+    tamagi_timezone="America/Sao_Paulo"
+    if [ "$(tamagi_karg tamagi.autoinstall.lang)" = "en" ]; then
+        tamagi_set_lang en
+        tamagi_keymap="us"; tamagi_xkb_layout="us"; tamagi_timezone="UTC"
+    fi
+    tamagi_user="$(tamagi_karg tamagi.autoinstall.user)"; tamagi_user="${tamagi_user:-tamagi}"
+    tamagi_fullname="${tamagi_user}"
+    tamagi_password="$(tamagi_karg tamagi.autoinstall.password)"
+    tamagi_hash=$(printf '%s' "${tamagi_password:-tamagi}" | openssl passwd -6 -stdin)
+    tamagi_extra_kargs="$(tamagi_karg tamagi.autoinstall.kargs | tr ',' ' ')"
+    rm -f "${tamagi_luks_key}"
+    tamagi_luks="$(tamagi_karg tamagi.autoinstall.luks)"
+    [ -z "${tamagi_luks}" ] || ( umask 077; printf '%s' "${tamagi_luks}" > "${tamagi_luks_key}" )
+    [ -d /sys/firmware/efi ] || error "sem UEFI"
+else
+    tamagi_ask_language
+    tamagi_welcome
+    tamagi_ask_keyboard
+    tamagi_ask_timezone
+    tamagi_ask_user
+    tamagi_ask_encryption
+fi
+tamagi_write_answers

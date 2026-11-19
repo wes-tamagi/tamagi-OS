@@ -1,0 +1,14 @@
+[Unit]
+Description=Tamagi: conclui a instalação (usuário e teclado escolhidos no instalador)
+Documentation=file:///usr/share/doc/tamagi/README.md
+ConditionPathExists=/etc/tamagi/install.conf
+After=local-fs.target systemd-sysusers.service systemd-tmpfiles-setup.service
+Before=systemd-user-sessions.service display-manager.service cosmic-greeter.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/tamagi/firstboot
+
+[Install]
+WantedBy=multi-user.target

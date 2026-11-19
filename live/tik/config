@@ -1,0 +1,6 @@
+# Configuração do tik para a mídia de instalação do Tamagi.
+TIK_OS_NAME="Tamagi"
+TIK_BUG_URL="o repositório do Tamagi"
+# O tik procura imagens de disco aqui; o Tamagi não usa (instala com o bootc),
+# mas a pasta precisa existir.
+TIK_IMG_DIR="/usr/lib/tik/img"

@@ -1,0 +1,14 @@
+[Unit]
+Description=Instala os apps Flatpak padrão do Tamagi
+ConditionPathExists=!/var/lib/tamagi/flatpaks.done
+Wants=network-online.target
+After=network-online.target flatpak-add-fedora-repos.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tamagi/flatpak-setup
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

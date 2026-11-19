@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Agente de IA
+GenericName=Assistente local
+Comment=Agente de IA do Tamagi rodando localmente com llama.cpp
+Exec=/usr/libexec/tamagi/popup tamagi-agent
+Icon=tamagi-agent
+Terminal=false
+Categories=Utility;
+Keywords=ia;ai;llama;agente;assistente;

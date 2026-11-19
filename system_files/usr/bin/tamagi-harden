@@ -1,0 +1,167 @@
+#!/usr/bin/bash
+# tamagi-harden — níveis de endurecimento do sistema, inspirados no GrapheneOS.
+#
+#   equilibrado (padrão, já vem na imagem): sysctls e argumentos de kernel que
+#       não quebram jogos, distrobox, Flatpak, Waydroid nem GPU.
+#   estrito (opcional): troca desempenho e compatibilidade por segurança.
+#
+# O modo estrito só grava em /etc e nos argumentos do kernel do sistema
+# instalado; `tamagi-harden balanced` desfaz tudo.
+set -euo pipefail
+
+STRICT_SYSCTL=/etc/sysctl.d/90-tamagi-strict.conf
+STRICT_NM=/etc/NetworkManager/conf.d/90-tamagi-strict.conf
+PRELOAD=/etc/ld.so.preload
+MALLOC_LIB=/usr/lib64/libhardened_malloc.so
+# Argumentos do kernel do modo estrito. De fora, de propósito:
+#   ia32_emulation=0     quebra Steam/Wine (32 bits)
+#   fs.binfmt_misc=0     quebra a tradução ARM do Waydroid
+#   user namespaces=0    quebra distrobox, Flatpak e o sandbox dos navegadores
+# shellcheck disable=SC2054  # a vírgula faz parte de mitigations=auto,nosmt
+STRICT_KARGS=(
+    init_on_free=1
+    lockdown=integrity
+    mitigations=auto,nosmt
+    spec_store_bypass_disable=on
+    random.trust_cpu=off
+    random.trust_bootloader=off
+    debugfs=off
+    vdso32=0
+)
+
+die() { echo "erro: $*" >&2; exit 1; }
+yn() { "$@" >/dev/null 2>&1 && echo sim || echo não; }
+is_strict() { [[ -f $STRICT_SYSCTL ]]; }
+sysctl_now() { sysctl -n "$1" 2>/dev/null || echo "?"; }
+
+usage() {
+    cat <<'USAGE'
+tamagi-harden — endurecimento do sistema
+
+  status            o que está ativo agora
+  strict            liga o modo estrito (pede a senha; vale após reiniciar)
+  balanced          volta ao padrão equilibrado
+  usb on|off        USBGuard: só os aparelhos USB já conhecidos funcionam
+  malloc on|off     hardened_malloc em todos os programas (pode quebrar apps)
+
+Relacionados:
+  ujust setup-luks-tpm-unlock    desbloqueio do disco por TPM
+  bootc status                   imagem em uso (verificada por hash)
+USAGE
+}
+
+secure_boot() {
+    local state
+    state=$(mokutil --sb-state 2>&1 | head -1)
+    case "$state" in
+        *enabled*)  echo "ligado" ;;
+        *disabled*) echo "desligado" ;;
+        *)          echo "sem suporte nesta máquina" ;;
+    esac
+}
+
+cmd_status() {
+    local karg missing=0
+    echo "Modo                      : $(is_strict && echo estrito || echo equilibrado)"
+    echo "SELinux                   : $(getenforce 2>/dev/null || echo '?')"
+    echo "Secure Boot               : $(secure_boot)"
+    echo "Disco criptografado (LUKS): $(yn sh -c 'lsblk -no TYPE | grep -qx crypt')"
+    echo "Firewall                  : $(systemctl is-active firewalld 2>/dev/null || true)"
+    echo "USBGuard                  : $(systemctl is-active usbguard 2>/dev/null || true)"
+    echo "hardened_malloc global    : $(yn grep -qs hardened_malloc "$PRELOAD")"
+    echo "MAC do Wi-Fi              : $(is_strict && echo 'aleatório a cada conexão' || echo 'um por rede salva')"
+    echo "kptr_restrict / dmesg     : $(sysctl_now kernel.kptr_restrict) / $(sysctl_now kernel.dmesg_restrict)"
+    echo "ptrace_scope              : $(sysctl_now kernel.yama.ptrace_scope)"
+    echo "BPF sem privilégio        : $([[ $(sysctl_now kernel.unprivileged_bpf_disabled) != 0 ]] && echo bloqueado || echo liberado)"
+    if is_strict; then
+        for karg in "${STRICT_KARGS[@]}"; do
+            grep -qw -- "$karg" /proc/cmdline || missing=$((missing + 1))
+        done
+        (( missing )) && echo "Kernel                    : $missing argumento(s) do modo estrito entram no próximo boot"
+    fi
+    return 0
+}
+
+cmd_strict() {
+    local args=() karg
+    for karg in "${STRICT_KARGS[@]}"; do args+=("--append-if-missing=$karg"); done
+    cat <<'WARN'
+O modo estrito:
+  - desliga o SMT (hyper-threading) em CPUs vulneráveis: menos desempenho;
+  - bloqueia módulos de kernel sem assinatura reconhecida e a hibernação;
+  - restringe ptrace (depuradores só como root) e desliga core dumps;
+  - usa um MAC novo a cada conexão Wi-Fi (redes que liberam por MAC vão estranhar).
+Não mexe em distrobox, Flatpak, Waydroid nem nos navegadores.
+WARN
+    if [[ -t 0 ]]; then
+        read -r -p "Ligar o modo estrito? [s/N] " answer
+        [[ ${answer,,} == s || ${answer,,} == sim ]] || { echo "Nada foi alterado."; exit 1; }
+    fi
+    sudo bash -euo pipefail -c '
+        cat > "$1" <<SYSCTL
+# Gerado por tamagi-harden strict. Para desfazer: tamagi-harden balanced
+kernel.yama.ptrace_scope = 2
+kernel.perf_event_paranoid = 3
+kernel.sysrq = 0
+kernel.core_pattern = |/bin/false
+net.ipv4.tcp_timestamps = 0
+net.ipv4.icmp_echo_ignore_all = 1
+SYSCTL
+        mkdir -p "$(dirname "$2")"
+        cat > "$2" <<NM
+# Gerado por tamagi-harden strict.
+[connection]
+wifi.cloned-mac-address=random
+ethernet.cloned-mac-address=random
+NM
+        sysctl --system >/dev/null
+        systemctl reload NetworkManager 2>/dev/null || true
+        shift 2
+        rpm-ostree kargs "$@"
+    ' _ "$STRICT_SYSCTL" "$STRICT_NM" "${args[@]}"
+    echo "Modo estrito ligado. Os argumentos do kernel valem depois de reiniciar."
+}
+
+cmd_balanced() {
+    local args=() karg
+    for karg in "${STRICT_KARGS[@]}"; do args+=("--delete-if-present=$karg"); done
+    sudo bash -euo pipefail -c '
+        rm -f "$1" "$2"
+        sysctl --system >/dev/null
+        systemctl reload NetworkManager 2>/dev/null || true
+        shift 2
+        rpm-ostree kargs "$@"
+    ' _ "$STRICT_SYSCTL" "$STRICT_NM" "${args[@]}"
+    echo "Modo equilibrado. Reinicie para o kernel voltar aos argumentos padrão."
+}
+
+cmd_usb() {
+    case "${1:-}" in
+        on)  echo "Os aparelhos USB conectados AGORA ficam liberados; os novos serão bloqueados"
+             echo "até você liberar com: sudo usbguard list-devices / sudo usbguard allow-device <n> -p"
+             sudo sh -c 'usbguard generate-policy > /etc/usbguard/rules.conf && chmod 600 /etc/usbguard/rules.conf && systemctl enable --now usbguard.service' ;;
+        off) sudo systemctl disable --now usbguard.service ;;
+        *) die "uso: tamagi-harden usb on|off" ;;
+    esac
+}
+
+cmd_malloc() {
+    [[ -f $MALLOC_LIB ]] || die "hardened_malloc não está nesta imagem"
+    case "${1:-}" in
+        on)  echo "Todo programa novo passa a usar o hardened_malloc. Se algo deixar de abrir:"
+             echo "  tamagi-harden malloc off     (ou, num terminal de texto: sudo rm $PRELOAD)"
+             sudo sh -c "echo '$MALLOC_LIB' > '$PRELOAD'" ;;
+        off) sudo rm -f "$PRELOAD" ;;
+        *) die "uso: tamagi-harden malloc on|off" ;;
+    esac
+}
+
+case "${1:-status}" in
+    status)             cmd_status ;;
+    strict|estrito)     cmd_strict ;;
+    balanced|equilibrado) cmd_balanced ;;
+    usb)                shift; cmd_usb "$@" ;;
+    malloc)             shift; cmd_malloc "$@" ;;
+    help|-h|--help)     usage ;;
+    *)                  usage >&2; exit 2 ;;
+esac

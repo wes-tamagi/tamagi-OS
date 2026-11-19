@@ -1,0 +1,231 @@
+#!/usr/bin/bash
+# tamagi-browser — navegadores numa caixa AnduinOS (distrobox), fora do host.
+#
+# O host do Tamagi é somente-leitura e não traz navegador. O Chrome (e, se
+# você quiser, Firefox, Brave, Edge e Vivaldi) vive numa caixa distrobox
+# baseada no AnduinOS, que enxerga a placa de vídeo, o áudio, a webcam, as
+# chaves de segurança USB e a sua pasta pessoal — sem limitações de sandbox
+# de Flatpak. O Warsaw (internet banking) roda na mesma caixa.
+set -euo pipefail
+
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
+BOX="${TAMAGI_BROWSER_BOX:-navegadores}"
+IMAGE="${TAMAGI_BROWSER_IMAGE:-docker.io/aiursoft/anduinos:resolute}"
+# Caminho dos auxiliares visto de DENTRO da caixa (o distrobox monta o host em /run/host).
+LIBEXEC="${TAMAGI_BROWSER_LIBEXEC:-/run/host/usr/libexec/tamagi}"
+# Só para testes: home separado, sem integração com o menu do host.
+BOX_HOME="${TAMAGI_BROWSER_HOME:-}"
+READY="$CONF_DIR/browser-$BOX.ready"
+FLAGS_FILE="$CONF_DIR/browser-flags.conf"
+
+declare -A BIN=([chrome]=google-chrome-stable [firefox]=firefox [brave]=brave-browser
+                [edge]=microsoft-edge-stable [vivaldi]=vivaldi-stable)
+# Nome do .desktop de cada navegador dentro da caixa.
+declare -A APP=([chrome]=google-chrome [firefox]=firefox [brave]=brave-browser
+                [edge]=microsoft-edge [vivaldi]=vivaldi-stable)
+
+die() { echo "erro: $*" >&2; exit 1; }
+info() { echo -e "\033[1m$*\033[0m"; }
+box_exists() { podman container exists "$BOX" 2>/dev/null; }
+in_box() { distrobox enter "$BOX" -- "$@"; }
+installed() { in_box sh -c 'command -v "$1" >/dev/null' _ "${BIN[$1]}" 2>/dev/null; }
+has_gpu() { grep -qsi "^$1\$" /sys/class/drm/card*/device/vendor; }
+
+usage() {
+    cat <<'USAGE'
+tamagi-browser — navegadores na caixa AnduinOS (distrobox)
+
+  tamagi-browser [URL|opções]           abre o navegador padrão
+  tamagi-browser chrome [URL|opções]    abre um navegador específico
+                 (também: firefox, brave, edge, vivaldi)
+  setup                                 cria a caixa e instala o Chrome
+  install <navegador>                   chrome | firefox | brave | edge | vivaldi
+  default <navegador>                   define o navegador padrão do sistema
+  status                                caixa, navegadores e aceleração de vídeo
+  update                                atualiza a caixa e os navegadores
+  enter                                 abre um shell na caixa
+  remove                                apaga a caixa (perfis e downloads ficam)
+
+  --safe como primeira opção abre sem as opções de aceleração de vídeo.
+  Opções próprias: uma por linha em ~/.config/tamagi/browser-flags.conf
+  (o arquivo substitui as opções padrão dos navegadores Chromium).
+USAGE
+}
+
+chromium_flags() { # aceleração de vídeo e GPU sem as travas padrão do Linux
+    if [[ -f $FLAGS_FILE ]]; then
+        sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$FLAGS_FILE" | grep -v '^$' || true
+        return
+    fi
+    local features=AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks
+    [[ -e /proc/driver/nvidia/version ]] && features+=,VaapiOnNvidiaGPUs
+    printf '%s\n' "--enable-features=$features" --ignore-gpu-blocklist \
+        --enable-gpu-rasterization --enable-zero-copy
+}
+
+box_env() { # variáveis de ambiente para o navegador dentro da caixa
+    # Só NVIDIA (sem Intel/AMD junto): o VA-API passa pelo nvidia-vaapi-driver.
+    if [[ -e /proc/driver/nvidia/version ]] && ! has_gpu 0x8086 && ! has_gpu 0x1002; then
+        printf '%s\n' LIBVA_DRIVER_NAME=nvidia NVD_BACKEND=direct
+    fi
+    printf '%s\n' MOZ_ENABLE_WAYLAND=1
+}
+
+default_browser() {
+    local name
+    name=$(cat "$CONF_DIR/browser-default" 2>/dev/null || true)
+    if [[ -n $name && -n ${BIN[$name]:-} ]]; then echo "$name"; else echo chrome; fi
+}
+
+integrate() { # põe o navegador no menu do host
+    local name=$1 flags
+    [[ -n $BOX_HOME ]] && return 0
+    if [[ $name == chrome ]]; then
+        # O Chrome já tem entrada no menu (google-chrome.desktop da imagem);
+        # aqui ela ganha o ícone de verdade, copiado da caixa.
+        in_box sh -c 'for s in 16 24 32 48 64 128 256; do
+                          f=/opt/google/chrome/product_logo_$s.png
+                          [ -f "$f" ] && install -Dm644 "$f" "$1/icons/hicolor/${s}x${s}/apps/google-chrome.png"
+                      done; true' _ "$DATA_DIR"
+        mkdir -p "$DATA_DIR/applications"
+        sed 's/^Icon=tamagi-browser$/Icon=google-chrome/' /usr/share/applications/google-chrome.desktop \
+            > "$DATA_DIR/applications/google-chrome.desktop"
+        update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
+        return 0
+    fi
+    flags=""
+    [[ $name != firefox ]] && flags=$(chromium_flags | tr '\n' ' ')
+    in_box distrobox-export --app "${APP[$name]}" ${flags:+--extra-flags "$flags"} >/dev/null \
+        && echo "No menu: ${APP[$name]} (caixa $BOX)"
+}
+
+cmd_install() {
+    local name=${1:-}
+    [[ -n $name && -n ${BIN[$name]:-} ]] || die "navegador desconhecido: '$name' (use: ${!BIN[*]})"
+    ensure_box
+    info "Instalando $name na caixa $BOX"
+    in_box sudo "$LIBEXEC/browser-provision" install "$name"
+    integrate "$name"
+}
+
+ensure_box() {
+    box_exists && return 0
+    info "Criando a caixa de navegadores '$BOX' ($IMAGE) — só na primeira vez"
+    local args=(--yes --name "$BOX" --image "$IMAGE")
+    # NVIDIA proprietária: as bibliotecas do driver vêm do host.
+    [[ -e /proc/driver/nvidia/version ]] && args+=(--nvidia)
+    [[ -n $BOX_HOME ]] && args+=(--home "$BOX_HOME")
+    distrobox create "${args[@]}"
+    info "Preparando vídeo por hardware, fontes e idioma"
+    in_box sudo "$LIBEXEC/browser-provision" base
+}
+
+cmd_setup() {
+    ensure_box
+    installed chrome || cmd_install chrome
+    mkdir -p "$CONF_DIR"
+    touch "$READY"
+    info "Navegador pronto. Estado da aceleração: tamagi-browser status"
+}
+
+ready() { [[ -f $READY ]] && box_exists; }
+
+launch() {
+    local name=$1 safe=0; shift
+    [[ ${1:-} == --safe ]] && { safe=1; shift; }
+    local -a flags=() env=()
+    if ! ready; then
+        if [[ -t 0 && -t 1 ]]; then
+            cmd_setup
+        else
+            # Aberto pelo menu ou por um link: mostra o preparo numa janela.
+            exec /usr/libexec/tamagi/popup "$0" --setup-then-run "$name" "$@"
+        fi
+    fi
+    [[ $name == chrome ]] || installed "$name" || die "$name não está instalado. Rode: tamagi-browser install $name"
+    if [[ $name != firefox && $safe == 0 ]]; then mapfile -t flags < <(chromium_flags); fi
+    mapfile -t env < <(box_env)
+    # Internet banking: o Warsaw sobe junto, se você ligou (tamagi-warsaw ligar).
+    if [[ -f $CONF_DIR/warsaw-enabled ]]; then
+        { in_box sudo "$LIBEXEC/warsaw-box" start-root && in_box "$LIBEXEC/warsaw-box" start-user; } >/dev/null 2>&1 || true
+    fi
+    exec distrobox enter "$BOX" -- env "${env[@]}" "${BIN[$name]}" "${flags[@]}" "$@"
+}
+
+cmd_default() {
+    local name=${1:-} desktop
+    [[ -n $name && -n ${BIN[$name]:-} ]] || die "uso: tamagi-browser default <${!BIN[*]}>"
+    ready && installed "$name" || die "$name não está instalado. Rode: tamagi-browser install $name"
+    if [[ $name == chrome ]]; then desktop=google-chrome.desktop; else desktop="$BOX-${APP[$name]}.desktop"; fi
+    [[ $name == chrome || -f $DATA_DIR/applications/$desktop ]] || integrate "$name"
+    mkdir -p "$CONF_DIR"
+    echo "$name" > "$CONF_DIR/browser-default"
+    xdg-settings set default-web-browser "$desktop"
+    echo "Navegador padrão: $name"
+}
+
+cmd_status() {
+    if ! box_exists; then
+        echo "Caixa '$BOX': ainda não criada. Rode: tamagi-browser setup"
+        return 0
+    fi
+    echo "Caixa        : $BOX ($(podman inspect --format '{{.ImageName}}' "$BOX" 2>/dev/null))"
+    echo "Padrão       : $(default_browser)"
+    # shellcheck disable=SC2016
+    in_box sh -c '
+        . /etc/os-release; echo "Sistema      : $PRETTY_NAME"
+        for b in google-chrome-stable firefox brave-browser microsoft-edge-stable vivaldi-stable; do
+            command -v "$b" >/dev/null 2>&1 && echo "Navegador    : $("$b" --version 2>/dev/null | head -1)"
+        done
+        va=$(vainfo 2>/dev/null)
+        if [ -n "$va" ]; then
+            echo "Vídeo (VA-API): $(echo "$va" | sed -n "s/.*Driver version: //p" | head -1)"
+            echo "  decodifica : $(echo "$va" | awk "/VAEntrypointVLD/ {sub(/VAProfile/,\"\",\$1); sub(/:/,\"\",\$1); print \$1}" | sed -E "s/(ConstrainedBaseline|Main10|Main|High|Profile[0-9]|Baseline|Simple|Advanced)\$//" | sort -u | tr "\n" " ")"
+            echo "  codifica   : $(echo "$va" | awk "/VAEntrypointEncSlice/ {sub(/VAProfile/,\"\",\$1); sub(/:/,\"\",\$1); print \$1}" | sed -E "s/(ConstrainedBaseline|Main10|Main|High|Profile[0-9]|Baseline|Simple|Advanced)\$//" | sort -u | tr "\n" " ")"
+        else
+            echo "Vídeo (VA-API): sem driver de vídeo por hardware (decodificação por software)"
+        fi
+        vk=$(vulkaninfo --summary 2>/dev/null | sed -n "s/^[[:space:]]*deviceName[[:space:]]*= //p" | grep -vi llvmpipe | head -1)
+        echo "Vulkan       : ${vk:-indisponível}"
+    '
+    echo "Opções       : $([[ -f $FLAGS_FILE ]] && echo "$FLAGS_FILE" || echo 'padrão (aceleração de vídeo ligada)')"
+    if [[ -f $CONF_DIR/warsaw-enabled ]]; then echo "Warsaw       : ligado (tamagi-warsaw status)"; else echo "Warsaw       : desligado (tamagi-warsaw ligar)"; fi
+}
+
+cmd_remove() {
+    box_exists || { echo "A caixa '$BOX' não existe."; return 0; }
+    if [[ -t 0 ]]; then
+        read -r -p "Apagar a caixa '$BOX' e os navegadores dela? Perfis e downloads ficam na sua pasta pessoal. [s/N] " answer
+        [[ ${answer,,} == s || ${answer,,} == sim ]] || { echo "Nada foi alterado."; exit 1; }
+    fi
+    distrobox rm --force "$BOX"
+    rm -f -- "$READY" "$CONF_DIR/warsaw-enabled"
+    if [[ -z $BOX_HOME && -d $DATA_DIR/applications ]]; then
+        find "$DATA_DIR/applications" -maxdepth 1 \( -name "$BOX-*.desktop" -o -name google-chrome.desktop \) -delete
+    fi
+    echo "Caixa apagada. Para recriar: tamagi-browser setup"
+}
+
+case "${1:-}" in
+    setup)   cmd_setup ;;
+    install) shift; cmd_install "$@"; mkdir -p "$CONF_DIR"; touch "$READY" ;;
+    default) shift; cmd_default "$@" ;;
+    status)  cmd_status ;;
+    update)  box_exists || die "a caixa '$BOX' não existe"
+             in_box sudo "$LIBEXEC/browser-provision" upgrade ;;
+    enter)   ensure_box; exec distrobox enter "$BOX" ;;
+    remove)  cmd_remove ;;
+    help|-h|--help) usage ;;
+    --setup-then-run) # janela de preparo aberta pelo menu: prepara e abre o navegador
+        shift; name=$1; shift
+        if cmd_setup; then
+            setsid -f "$0" "$name" "$@" >/dev/null 2>&1
+            sleep 1
+        else
+            echo; read -rsn1 -p "Não consegui preparar o navegador (sem rede?). Qualquer tecla fecha."
+            exit 1
+        fi ;;
+    chrome|firefox|brave|edge|vivaldi) name=$1; shift; launch "$name" "$@" ;;
+    *)       launch "$(default_browser)" "$@" ;;
+esac

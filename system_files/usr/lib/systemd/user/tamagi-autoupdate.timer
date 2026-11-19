@@ -1,0 +1,11 @@
+[Unit]
+Description=Tamagi: atualização automática diária (subsistemas e mise)
+
+[Timer]
+OnStartupSec=20min
+OnUnitInactiveSec=1d
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

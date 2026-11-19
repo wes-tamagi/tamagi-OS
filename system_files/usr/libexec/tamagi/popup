@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+# Abre um comando de terminal numa janela própria do alacritty.
+#   popup <comando...>          janela flutuante (classe tamagi-popup; a regra
+#                               está em CosmicSettings.WindowRules)
+#   popup --tile <comando...>   janela comum, entra no tiling
+class=tamagi-popup
+[[ ${1:-} == --tile ]] && { class=tamagi-term; shift; }
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/alacritty.toml"
+[[ -f $cfg ]] || cfg=/usr/share/tamagi/alacritty.toml
+exec alacritty --config-file "$cfg" --class "$class" --title "Tamagi" -e "$@"

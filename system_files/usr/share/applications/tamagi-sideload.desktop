@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Instalar pacote (.deb / .rpm)
+Comment=Instala o pacote num subsistema distrobox e põe o app no menu
+Exec=/usr/libexec/tamagi/popup tamagi-pkg install --wait %f
+Icon=package-x-generic
+Terminal=false
+NoDisplay=true
+MimeType=application/vnd.debian.binary-package;application/x-deb;application/x-rpm;application/x-redhat-package-manager;

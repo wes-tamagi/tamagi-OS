@@ -1,0 +1,11 @@
+[Unit]
+Description=Tamagi: atualiza os subsistemas distrobox e as ferramentas do mise
+Documentation=file:///usr/share/doc/tamagi/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/tamagi-update --auto
+Nice=10
+IOSchedulingClass=idle

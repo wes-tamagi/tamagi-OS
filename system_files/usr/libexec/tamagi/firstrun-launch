@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+# Chamado pelo autostart da sessão: abre a configuração inicial uma única vez.
+[[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/firstrun-done" ]] && exit 0
+# Na mídia de instalação quem aparece é o instalador (tik), não o assistente.
+[[ -e /run/tamagi-live ]] && exit 0
+sleep 4
+# Se o assistente do COSMIC estiver aberto (alguém o religou), ele tem a vez.
+while pgrep -x cosmic-initial- >/dev/null 2>&1 || pgrep -f '(^|/)cosmic-initial-setup( |$)' >/dev/null 2>&1; do sleep 2; done
+exec /usr/libexec/tamagi/popup tamagi-firstrun

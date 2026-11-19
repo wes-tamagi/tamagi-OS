@@ -1,0 +1,99 @@
+#!/usr/bin/bash
+# Roda DENTRO da caixa de navegadores (AnduinOS/Ubuntu), como root. Quem chama
+# é o tamagi-browser, pelo /run/host.
+#   browser-provision base                  vídeo por hardware, fontes, pt-BR
+#   browser-provision install <navegador>   chrome | firefox | brave | edge | vivaldi
+#   browser-provision upgrade               apt full-upgrade
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+KEYRINGS=/etc/apt/keyrings
+
+die() { echo "erro: $*" >&2; exit 1; }
+apt_install() { apt-get install -y --no-install-recommends "$@"; }
+available() { apt-cache show "$1" >/dev/null 2>&1; }
+gpu_vendor() { grep -qsi "^$1\$" /sys/class/drm/card*/device/vendor; }
+
+fetch_key() { # fetch_key <url> <destino>: baixa a chave e guarda em formato binário
+    local tmp; tmp=$(mktemp)
+    curl -fsSL --retry 3 -o "$tmp" "$1"
+    if grep -q 'BEGIN PGP PUBLIC KEY BLOCK' "$tmp"; then gpg --dearmor < "$tmp" > "$2"; else cp "$tmp" "$2"; fi
+    chmod 644 "$2"; rm -f "$tmp"
+}
+
+base() {
+    # A caixa não tem init: pacotes não podem tentar subir serviços ao instalar.
+    printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
+    chmod 755 /usr/sbin/policy-rc.d
+    mkdir -p "$KEYRINGS"
+    apt-get update
+    apt_install ca-certificates curl gnupg xdg-utils locales pciutils procps \
+        libva2 libva-drm2 libva-wayland2 libva-x11-2 vainfo mesa-va-drivers \
+        mesa-vulkan-drivers libvulkan1 vulkan-tools libgl1 libegl1 libgles2 libgbm1 \
+        libpipewire-0.3-0 libpulse0 libnss3-tools \
+        fonts-liberation fonts-noto-core fonts-noto-color-emoji
+    # Vídeo por hardware conforme a placa do computador. AMD: mesa-va-drivers
+    # (radeonsi) já cobre. NVIDIA: as bibliotecas vêm do host (distrobox --nvidia).
+    if gpu_vendor 0x8086; then
+        if available intel-media-va-driver-non-free; then apt_install intel-media-va-driver-non-free
+        elif available intel-media-va-driver; then apt_install intel-media-va-driver; fi
+    fi
+    if gpu_vendor 0x10de && available nvidia-vaapi-driver; then apt_install nvidia-vaapi-driver; fi
+    if ! locale -a 2>/dev/null | grep -qi '^pt_BR\.utf-\?8$'; then
+        sed -i 's/^# *pt_BR.UTF-8/pt_BR.UTF-8/' /etc/locale.gen 2>/dev/null || true
+        grep -q '^pt_BR.UTF-8' /etc/locale.gen 2>/dev/null || echo 'pt_BR.UTF-8 UTF-8' >> /etc/locale.gen
+        locale-gen >/dev/null
+    fi
+}
+
+install_browser() {
+    [[ -d $KEYRINGS && -x /usr/sbin/policy-rc.d ]] || base
+    case "$1" in
+        chrome)
+            # Mesmo nome de arquivo que o pacote do Chrome usa, para não duplicar a fonte.
+            fetch_key https://dl.google.com/linux/linux_signing_key.pub "$KEYRINGS/google-chrome.gpg"
+            echo "deb [arch=amd64 signed-by=$KEYRINGS/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+                > /etc/apt/sources.list.d/google-chrome.list
+            apt-get update
+            apt_install google-chrome-stable ;;
+        firefox)
+            fetch_key https://packages.mozilla.org/apt/repo-signing-key.gpg "$KEYRINGS/packages.mozilla.org.gpg"
+            echo "deb [signed-by=$KEYRINGS/packages.mozilla.org.gpg] https://packages.mozilla.org/apt mozilla main" \
+                > /etc/apt/sources.list.d/mozilla.list
+            printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' > /etc/apt/preferences.d/mozilla
+            apt-get update
+            apt_install firefox firefox-l10n-pt-br
+            # Decodificação de vídeo por hardware (VA-API) ligada por padrão.
+            install -Dm644 /dev/stdin /usr/lib/firefox/defaults/pref/tamagi.js <<'JS'
+pref("media.ffmpeg.vaapi.enabled", true);
+pref("media.hardware-video-decoding.force-enabled", true);
+pref("gfx.webrender.all", true);
+JS
+            ;;
+        brave)
+            fetch_key https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg "$KEYRINGS/brave-browser.gpg"
+            echo "deb [arch=amd64 signed-by=$KEYRINGS/brave-browser.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" \
+                > /etc/apt/sources.list.d/brave-browser.list
+            apt-get update
+            apt_install brave-browser ;;
+        edge)
+            fetch_key https://packages.microsoft.com/keys/microsoft.asc "$KEYRINGS/microsoft.gpg"
+            echo "deb [arch=amd64 signed-by=$KEYRINGS/microsoft.gpg] https://packages.microsoft.com/repos/edge stable main" \
+                > /etc/apt/sources.list.d/microsoft-edge.list
+            apt-get update
+            apt_install microsoft-edge-stable ;;
+        vivaldi)
+            fetch_key https://repo.vivaldi.com/archive/linux_signing_key.pub "$KEYRINGS/vivaldi.gpg"
+            echo "deb [arch=amd64 signed-by=$KEYRINGS/vivaldi.gpg] https://repo.vivaldi.com/archive/deb/ stable main" \
+                > /etc/apt/sources.list.d/vivaldi.list
+            apt-get update
+            apt_install vivaldi-stable ;;
+        *) die "navegador desconhecido: $1 (use: chrome, firefox, brave, edge, vivaldi)" ;;
+    esac
+}
+
+case "${1:-}" in
+    base)    base ;;
+    install) [[ -n ${2:-} ]] || die "diga o navegador"; install_browser "$2" ;;
+    upgrade) apt-get update && apt-get full-upgrade -y ;;
+    *) die "uso: browser-provision base | install <navegador> | upgrade" ;;
+esac

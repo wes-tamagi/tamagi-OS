@@ -1,0 +1,31 @@
+# Prompt padrão do Tamagi: curto, e deixa claro quando você está num distrobox.
+add_newline = true
+format = "$container$directory$git_branch$git_status$cmd_duration$line_break$character"
+
+[container]
+symbol = "⬢"
+style = "bold yellow"
+format = "[$symbol $name]($style) "
+
+[directory]
+truncation_length = 3
+truncate_to_repo = true
+style = "bold blue"
+
+[git_branch]
+symbol = " "
+format = "[$symbol$branch]($style) "
+style = "purple"
+
+[git_status]
+format = "([$all_status$ahead_behind]($style) )"
+style = "yellow"
+
+[cmd_duration]
+min_time = 3000
+format = "[$duration]($style) "
+style = "dimmed white"
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"

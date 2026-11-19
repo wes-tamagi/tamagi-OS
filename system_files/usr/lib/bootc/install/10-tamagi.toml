@@ -1,0 +1,4 @@
+# Padrões de instalação (bootc install / bootc-image-builder).
+# btrfs: snapshots e compressão, como no Aeon e no Omarchy.
+[install.filesystem.root]
+type = "btrfs"

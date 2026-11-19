@@ -1,0 +1,240 @@
+#!/usr/bin/bash
+# tamagi-pkg — instala pacotes .deb, .rpm, do Arch e do Omarchy sem tocar no host.
+#
+# Mesma ideia do apx do Vanilla OS: cada formato de pacote tem um "subsistema"
+# (um contêiner distrobox com o gerenciador nativo daquela distro), criado na
+# primeira vez que é usado. Apps gráficos instalados são exportados para o
+# menu do host; comandos rodam com `tamagi-pkg run`.
+#
+# O subsistema deb é AnduinOS (Ubuntu sem snap); o do Arch já nasce com o
+# repositório de pacotes do Omarchy (pkgs.omarchy.org) configurado.
+set -euo pipefail
+
+declare -A IMAGE=(
+    [deb]=docker.io/aiursoft/anduinos:resolute
+    [rpm]=ghcr.io/ublue-os/fedora-toolbox:latest
+    [arch]=ghcr.io/ublue-os/arch-toolbox:latest
+)
+OMARCHY_CHANNEL="${TAMAGI_OMARCHY_CHANNEL:-stable}"
+PREFIX="${TAMAGI_PKG_PREFIX:-}"   # só para testes: prefixo no nome das caixas
+
+die() { echo "erro: $*" >&2; exit 1; }
+info() { echo -e "\033[1m$*\033[0m"; }
+
+usage() {
+    cat <<'USAGE'
+tamagi-pkg — pacotes deb, rpm, Arch e Omarchy em subsistemas (distrobox)
+
+  install [--deb|--rpm|--arch] <pacote|arquivo>...   instala e põe os apps no menu
+  remove  [--deb|--rpm|--arch] <pacote>...           remove
+  search  [--deb|--rpm|--arch] <termo>               procura
+  list    [--deb|--rpm|--arch]                       pacotes que você instalou
+  update  [--deb|--rpm|--arch]                       atualiza o(s) subsistema(s)
+  run     [--deb|--rpm|--arch] <comando> [args]      roda um comando do subsistema
+  export  [--deb|--rpm|--arch] <comando>             cria o comando no host (~/.local/bin)
+  enter   [--deb|--rpm|--arch]                       abre um shell no subsistema
+  status                                             subsistemas existentes
+  omarchy [stable|rc|edge]                           (re)configura o repositório do Omarchy
+
+Sem --deb/--rpm/--arch: um arquivo .deb ou .rpm decide sozinho; para nomes de
+pacote o padrão é --deb. --omarchy é o mesmo subsistema do --arch, que já tem
+o repositório do Omarchy. Exemplos:
+  tamagi-pkg install ./programa.deb
+  tamagi-pkg install --arch yazi
+  tamagi-pkg install --omarchy hype
+  tamagi-pkg search --omarchy oma
+  tamagi-pkg run --deb htop
+USAGE
+}
+
+box_name() { echo "${PREFIX}$1"; }
+box_exists() { podman container exists "$(box_name "$1")" 2>/dev/null; }
+
+ensure_box() {
+    local sub=$1
+    box_exists "$sub" && return 0
+    info "Criando o subsistema '$sub' (${IMAGE[$sub]}) — só na primeira vez"
+    local nvidia=()
+    [[ -e /proc/driver/nvidia/version ]] && nvidia=(--nvidia)
+    distrobox create --yes "${nvidia[@]}" --name "$(box_name "$sub")" --image "${IMAGE[$sub]}" >&2
+    if [[ $sub == arch ]]; then
+        # Repositório do Omarchy: falhar aqui não impede o uso do Arch puro.
+        in_box arch sudo /run/host/usr/libexec/tamagi/omarchy-repo "$OMARCHY_CHANNEL" >&2 \
+            || echo "aviso: não configurei o repositório do Omarchy (sem rede?). Depois: tamagi-pkg omarchy" >&2
+    fi
+}
+
+in_box() { # in_box <sub> comando...
+    local sub=$1; shift
+    distrobox enter "$(box_name "$sub")" -- "$@"
+}
+
+mark() { # registra o que o usuário pediu, para `list`
+    local sub=$1 action=$2 file; shift 2
+    file="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/pkg-$sub.list"
+    mkdir -p "$(dirname "$file")"; touch "$file"
+    for p in "$@"; do
+        sed -i "\|^$p\$|d" "$file"
+        [[ $action == add ]] && echo "$p" >> "$file"
+    done
+    return 0
+}
+
+pkg_name_of_file() { # nome do pacote dentro de um arquivo .deb/.rpm
+    case "$1" in
+        deb) in_box deb dpkg-deb -f "$2" Package ;;
+        rpm) in_box rpm rpm -qp --qf '%{NAME}\n' "$2" 2>/dev/null ;;
+    esac | tr -d '\r' | tail -1
+}
+
+export_apps() { # exporta para o menu os .desktop que o pacote instalou
+    local sub=$1 pkg=$2 files app
+    case "$sub" in
+        deb)  files=$(in_box deb dpkg -L "$pkg" 2>/dev/null || true) ;;
+        rpm)  files=$(in_box rpm rpm -ql "$pkg" 2>/dev/null || true) ;;
+        arch) files=$(in_box arch pacman -Qlq "$pkg" 2>/dev/null || true) ;;
+    esac
+    while read -r app; do
+        [[ -n $app ]] || continue
+        app=$(basename "$app" .desktop)
+        if in_box "$sub" distrobox-export --app "$app" >/dev/null 2>&1; then
+            echo "  app no menu: $app"
+        fi
+    done < <(tr -d '\r' <<<"$files" | grep -E '^/usr/share/applications/[^/]+\.desktop$' || true)
+}
+
+cmd_install() {
+    local sub=$1; shift
+    local -a names=() args=()
+    local item
+    for item in "$@"; do
+        if [[ -f $item ]]; then
+            item=$(realpath "$item")
+            case "$item" in
+                *.deb) [[ ${sub:-deb} == deb ]] || die "$item é .deb; use --deb"; sub=deb ;;
+                *.rpm) [[ ${sub:-rpm} == rpm ]] || die "$item é .rpm; use --rpm"; sub=rpm ;;
+                *) die "não sei instalar o arquivo $item (aceito .deb e .rpm)" ;;
+            esac
+        fi
+        args+=("$item")
+    done
+    sub=${sub:-deb}
+    (( ${#args[@]} )) || die "diga o que instalar"
+    ensure_box "$sub"
+    case "$sub" in
+        deb)  in_box deb sudo apt-get update -qq
+              in_box deb sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y "${args[@]}" ;;
+        rpm)  in_box rpm sudo dnf install -y "${args[@]}" ;;
+        arch) in_box arch sudo pacman -Sy --noconfirm --needed "${args[@]}" ;;
+    esac
+    for item in "${args[@]}"; do
+        [[ -f $item ]] && item=$(pkg_name_of_file "$sub" "$item")
+        [[ -n $item ]] && names+=("$item")
+    done
+    mark "$sub" add "${names[@]}"
+    for item in "${names[@]}"; do export_apps "$sub" "$item"; done
+    info "Instalado em '$sub': ${names[*]}"
+    echo "Comandos de terminal: tamagi-pkg run --$sub <comando>  (ou: tamagi-pkg export --$sub <comando>)"
+}
+
+cmd_remove() {
+    local sub=${1:-deb}; shift
+    (( $# )) || die "diga o que remover"
+    box_exists "$sub" || die "o subsistema '$sub' não existe"
+    local app
+    for app in "$@"; do  # tira do menu antes de desinstalar
+        while read -r f; do
+            [[ -n $f ]] && in_box "$sub" distrobox-export --app "$(basename "$f" .desktop)" --delete >/dev/null 2>&1 || true
+        done < <(case "$sub" in
+                    deb) in_box deb dpkg -L "$app" 2>/dev/null ;;
+                    rpm) in_box rpm rpm -ql "$app" 2>/dev/null ;;
+                    arch) in_box arch pacman -Qlq "$app" 2>/dev/null ;;
+                 esac | tr -d '\r' | grep -E '^/usr/share/applications/[^/]+\.desktop$' || true)
+    done
+    case "$sub" in
+        deb)  in_box deb sudo apt-get remove -y "$@" ;;
+        rpm)  in_box rpm sudo dnf remove -y "$@" ;;
+        arch) in_box arch sudo pacman -Rns --noconfirm "$@" ;;
+    esac
+    mark "$sub" del "$@"
+}
+
+cmd_search() {
+    local sub=${1:-deb}; shift
+    (( $# )) || die "diga o que procurar"
+    ensure_box "$sub"
+    case "$sub" in
+        deb)  in_box deb apt-cache search "$@" ;;
+        rpm)  in_box rpm dnf search "$@" ;;
+        arch) in_box arch pacman -Ss "$@" ;;
+    esac
+}
+
+cmd_update() {
+    local sub subs=("$@")
+    (( ${#subs[@]} )) || subs=(deb rpm arch)
+    for sub in "${subs[@]}"; do
+        box_exists "$sub" || continue
+        info "Atualizando o subsistema '$sub'"
+        case "$sub" in
+            deb)  in_box deb sudo apt-get update -qq
+                  in_box deb sudo env DEBIAN_FRONTEND=noninteractive apt-get full-upgrade -y ;;
+            rpm)  in_box rpm sudo dnf upgrade -y ;;
+            arch) in_box arch sudo pacman -Syu --noconfirm
+                  # pacotes do AUR, se a caixa tiver um helper
+                  if in_box arch sh -c 'command -v paru' >/dev/null 2>&1; then in_box arch paru -Sua --noconfirm
+                  elif in_box arch sh -c 'command -v yay' >/dev/null 2>&1; then in_box arch yay -Sua --noconfirm
+                  fi ;;
+        esac
+    done
+}
+
+cmd_list() {
+    local sub subs=("$@") file
+    (( ${#subs[@]} )) || subs=(deb rpm arch)
+    for sub in "${subs[@]}"; do
+        file="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/pkg-$sub.list"
+        [[ -s $file ]] && sed "s/^/$sub  /" "$file"
+    done
+    return 0
+}
+
+cmd_status() {
+    local sub
+    for sub in deb rpm arch; do
+        printf '%-5s %-45s %s\n' "$sub" "${IMAGE[$sub]}" "$(box_exists "$sub" && echo criado || echo '(criado no primeiro uso)')"
+    done
+}
+
+action=${1:-help}; [[ $# -gt 0 ]] && shift
+sub=""; wait_key=0
+rest=()
+for a in "$@"; do
+    case "$a" in
+        --deb|--rpm|--arch) sub=${a#--} ;;
+        --omarchy) sub=arch ;;
+        --wait) wait_key=1 ;;
+        *) rest+=("$a") ;;
+    esac
+done
+set -- "${rest[@]}"
+
+rc=0
+case "$action" in
+    install) cmd_install "$sub" "$@" || rc=$? ;;
+    remove)  cmd_remove "${sub:-deb}" "$@" ;;
+    search)  cmd_search "${sub:-deb}" "$@" ;;
+    list)    cmd_list ${sub:+"$sub"} ;;
+    update)  cmd_update ${sub:+"$sub"} ;;
+    run)     (( $# )) || die "diga o comando"; ensure_box "${sub:-deb}"; in_box "${sub:-deb}" "$@" ;;
+    export)  (( $# )) || die "diga o comando"; ensure_box "${sub:-deb}"
+             in_box "${sub:-deb}" sh -c 'distrobox-export --bin "$(command -v "$1")" --export-path "$HOME/.local/bin"' _ "$1" ;;
+    enter)   ensure_box "${sub:-deb}"; exec distrobox enter "$(box_name "${sub:-deb}")" ;;
+    status)  cmd_status ;;
+    omarchy) ensure_box arch   # (re)configura o repositório; aceita o canal: stable, rc, edge
+             in_box arch sudo /run/host/usr/libexec/tamagi/omarchy-repo "${1:-$OMARCHY_CHANNEL}" ;;
+    help|-h|--help) usage ;;
+    *)       usage >&2; exit 2 ;;
+esac
+if (( wait_key )); then echo; read -rsn1 -p "  (qualquer tecla fecha)"; fi
+exit "$rc"

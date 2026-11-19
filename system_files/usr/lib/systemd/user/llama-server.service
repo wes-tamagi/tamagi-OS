@@ -1,0 +1,14 @@
+[Unit]
+Description=llama.cpp server — IA local do Tamagi
+Documentation=https://github.com/ggml-org/llama.cpp/tree/master/tools/server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/tamagi-ai serve
+Restart=on-failure
+RestartSec=5
+# Um modelo local não deve derrubar a sessão quando faltar memória.
+OOMScoreAdjust=500
+
+[Install]
+WantedBy=default.target

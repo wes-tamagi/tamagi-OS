@@ -1,0 +1,126 @@
+#!/usr/bin/bash
+# tamagi-waydroid — Android no desktop (Waydroid), pronto com um comando.
+#
+# O Waydroid já vem na imagem, desligado. O kernel do Fedora traz o Binder
+# (em Rust) embutido, então não há módulo para instalar. O que falta é baixar
+# a imagem do Android (~1 GB), que fica em /var/lib/waydroid.
+set -euo pipefail
+
+SYSTEM_OTA=https://ota.waydro.id/system
+VENDOR_OTA=https://ota.waydro.id/vendor
+CFG=/var/lib/waydroid/waydroid.cfg
+
+die() { echo "erro: $*" >&2; exit 1; }
+info() { echo -e "\033[1m$*\033[0m"; }
+initialized() { [[ -f $CFG ]]; }
+active() { systemctl is-active --quiet waydroid-container.service; }
+has_binder() { grep -qw binder /proc/filesystems; }
+
+usage() {
+    cat <<'USAGE'
+tamagi-waydroid — Android no desktop (Waydroid)
+
+  setup [--gapps|--vanilla]   baixa o Android e liga o serviço (pede a senha)
+  open [--cage]               abre o Android (--cage: numa janela única isolada)
+  status                      estado do serviço, da imagem e do Binder
+  windows on|off              apps Android como janelas do desktop
+  install <arquivo.apk>       instala um APK
+  stop                        encerra a sessão e o serviço
+  reset                       apaga o Android e os dados dele
+
+--gapps traz a Play Store, mas o Google exige registrar o aparelho:
+  https://docs.waydro.id/faq/google-play-certification
+USAGE
+}
+
+cmd_setup() {
+    local type=${1:-}
+    has_binder || die "este kernel não tem o binderfs (necessário para o Waydroid)"
+    case "$type" in
+        --gapps) type=GAPPS ;;
+        --vanilla) type=VANILLA ;;
+        "") type=VANILLA
+            if [[ -t 0 ]] && command -v gum >/dev/null; then
+                gum confirm "Incluir os apps do Google (Play Store)? Exige registrar o aparelho no Google." \
+                    --affirmative "Com Google" --negative "Sem Google" --default=false && type=GAPPS
+            fi ;;
+        *) die "opção desconhecida: $type" ;;
+    esac
+    info "Preparando o Waydroid (Android $type) — baixa cerca de 1 GB"
+    # Um único sudo: serviço, download da imagem, rótulos SELinux e firewall
+    # (o Android pega IP e DNS do host pela interface waydroid0).
+    sudo bash -euo pipefail -c '
+        if [[ ! -f '"$CFG"' ]]; then
+            waydroid init -s '"$type"' -c '"$SYSTEM_OTA"' -v '"$VENDOR_OTA"'
+        fi
+        restorecon -R /var/lib/waydroid 2>/dev/null || true
+        if systemctl is-active --quiet firewalld; then
+            for scope in "" "--permanent"; do
+                firewall-cmd $scope --zone=trusted --add-interface=waydroid0 >/dev/null || true
+                firewall-cmd $scope --zone=trusted --add-port=53/udp --add-port=67/udp >/dev/null || true
+                firewall-cmd $scope --zone=trusted --add-forward >/dev/null || true
+            done
+        fi
+        systemctl enable --now waydroid-container.service
+    '
+    info "Pronto. Abra com: tamagi-waydroid open   (ou pelo ícone Waydroid no lançador)"
+    [[ $type == GAPPS ]] && echo "Play Store: registre o aparelho em https://docs.waydro.id/faq/google-play-certification"
+    return 0
+}
+
+ensure_running() {
+    initialized || die "o Waydroid ainda não foi preparado. Rode: tamagi-waydroid setup"
+    active || sudo systemctl start waydroid-container.service
+}
+
+cmd_open() {
+    ensure_running
+    if [[ ${1:-} == --cage ]]; then
+        # Compositor mínimo dentro de uma janela: contorna falhas de cursor e
+        # de foco do modo multi-janela.
+        exec cage -- waydroid show-full-ui
+    fi
+    exec waydroid show-full-ui
+}
+
+cmd_status() {
+    echo "Binder no kernel : $(has_binder && echo sim || echo NÃO)"
+    echo "Imagem do Android: $(initialized && echo "baixada ($(grep -m1 '^system_ota' "$CFG" 2>/dev/null | grep -oE 'GAPPS|VANILLA' || echo '?'))" || echo 'não baixada (rode: tamagi-waydroid setup)')"
+    echo "Serviço          : $(systemctl is-active waydroid-container.service 2>/dev/null || true)"
+    if initialized && active; then waydroid status 2>/dev/null | sed 's/^/  /' || true; fi
+}
+
+cmd_windows() {
+    ensure_running
+    case "${1:-}" in
+        on)  waydroid prop set persist.waydroid.multi_windows true ;;
+        off) waydroid prop set persist.waydroid.multi_windows false ;;
+        *) die "uso: tamagi-waydroid windows on|off" ;;
+    esac
+    echo "Feito. Reinicie a sessão do Android: waydroid session stop"
+}
+
+cmd_reset() {
+    if [[ -t 0 ]]; then
+        read -r -p "Apagar o Android e TODOS os dados dele? [s/N] " answer
+        [[ ${answer,,} == s || ${answer,,} == sim ]] || { echo "Nada foi alterado."; exit 1; }
+    fi
+    waydroid session stop 2>/dev/null || true
+    sudo sh -c 'systemctl disable --now waydroid-container.service; rm -rf /var/lib/waydroid'
+    rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/waydroid"
+    find "${XDG_DATA_HOME:-$HOME/.local/share}/applications" -maxdepth 1 -name 'waydroid.*.desktop' -delete 2>/dev/null || true
+    echo "Waydroid apagado. Para usar de novo: tamagi-waydroid setup"
+}
+
+case "${1:-help}" in
+    setup)   shift; cmd_setup "$@" ;;
+    open)    shift; cmd_open "$@" ;;
+    status)  cmd_status ;;
+    windows) shift; cmd_windows "$@" ;;
+    install) shift; [[ -f ${1:-} ]] || die "uso: tamagi-waydroid install <arquivo.apk>"
+             ensure_running; waydroid app install "$(realpath "$1")" ;;
+    stop)    waydroid session stop 2>/dev/null || true; sudo systemctl stop waydroid-container.service ;;
+    reset)   cmd_reset ;;
+    help|-h|--help) usage ;;
+    *)       usage >&2; exit 2 ;;
+esac

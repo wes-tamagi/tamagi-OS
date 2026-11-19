@@ -1,0 +1,23 @@
+[Desktop Entry]
+Type=Application
+Name=Google Chrome
+GenericName=Navegador web
+GenericName[pt_BR]=Navegador web
+Comment=Navegador na caixa AnduinOS (distrobox), com aceleração de vídeo e Warsaw
+Exec=/usr/bin/tamagi-browser chrome %U
+Icon=tamagi-browser
+Terminal=false
+StartupNotify=true
+StartupWMClass=google-chrome
+Categories=Network;WebBrowser;
+MimeType=text/html;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+Keywords=navegador;internet;web;chrome;browser;
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=Nova janela
+Exec=/usr/bin/tamagi-browser chrome --new-window
+
+[Desktop Action new-private-window]
+Name=Nova janela anônima
+Exec=/usr/bin/tamagi-browser chrome --incognito

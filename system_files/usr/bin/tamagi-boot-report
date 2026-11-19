@@ -1,0 +1,75 @@
+#!/usr/bin/bash
+# tamagi-boot-report — o boot que se explica.
+#
+# Depois de cada atualização, o greenboot confere se o sistema subiu direito
+# (/usr/lib/greenboot/check). Se não subiu, o computador tenta mais duas vezes
+# e então volta sozinho para a imagem anterior. Este comando mostra o que
+# aconteceu, com a explicação do agente de IA local quando há um modelo.
+#
+#   tamagi-boot-report            mostra os relatórios pendentes (e marca como vistos)
+#   tamagi-boot-report list       todos os relatórios guardados
+#   tamagi-boot-report status     estado da verificação de saúde deste boot
+#   tamagi-boot-report notify     (login) avisa se há relatório pendente
+set -uo pipefail
+
+DIR=${TAMAGI_BOOT_FAILURES:-/var/lib/tamagi/boot-failures}
+SEEN="${XDG_STATE_HOME:-$HOME/.local/state}/tamagi/boot-failures-seen"
+mkdir -p "$(dirname "$SEEN")"; touch "$SEEN"
+
+pending() { # relatórios que este usuário ainda não viu
+    local f
+    for f in "$DIR"/*.txt; do
+        [[ -r $f ]] || continue
+        grep -qxF "$(basename "$f")" "$SEEN" || echo "$f"
+    done
+}
+
+status() {
+    echo "Verificação de saúde : $(systemctl is-active greenboot-healthcheck.service 2>/dev/null || echo desconhecida)"
+    echo "Boot marcado como bom: $(systemctl is-active boot-complete.target 2>/dev/null || true)"
+    echo "Imagem em uso        : $(rpm-ostree status -b 2>/dev/null | grep -m1 Version | sed 's/^ *Version: *//')"
+    echo "Imagem anterior      : $(rpm-ostree status 2>/dev/null | grep Version | sed -n '2s/^ *Version: *//p' | grep . || echo 'nenhuma guardada')"
+    echo "Relatórios de falha  : $(find "$DIR" -name '*.txt' 2>/dev/null | wc -l) guardado(s), $(pending | wc -l) não visto(s)"
+}
+
+explain() { # explain <arquivo>: explicação do agente local, se houver modelo
+    if command -v tamagi-ai >/dev/null && [[ -n $(tamagi-ai list 2>/dev/null) ]]; then
+        echo; echo "── Explicação do agente de IA local ──"
+        tamagi-agent "Uma atualização do sistema falhou na verificação de saúde e o computador voltou sozinho para a imagem anterior. Abaixo está o relatório. Explique em português simples, em até seis frases, o que quebrou e o que o usuário pode fazer. Não rode comandos." < "$1" \
+            || echo "(o agente não respondeu; o relatório acima é o que há)"
+    else
+        echo; echo "Para ter a explicação do agente de IA local: tamagi-ai setup"
+    fi
+}
+
+show() {
+    local files f
+    mapfile -t files < <(pending)
+    if (( ${#files[@]} == 0 )); then
+        echo "Nenhuma falha de boot pendente."; status; return 0
+    fi
+    echo "Uma atualização não passou na verificação de saúde. O sistema reiniciou,"
+    echo "tentou de novo e voltou para a imagem anterior, que é a que está em uso."
+    # Cada tentativa de boot gera um relatório; o último conta a história toda.
+    echo "Tentativas registradas: ${#files[@]}"
+    echo; echo "════ $(basename "${files[-1]}" .txt) ════"
+    sed -n '1,45p' "${files[-1]}"
+    for f in "${files[@]}"; do basename "$f" >> "$SEEN"; done
+    explain "${files[-1]}"
+    echo
+    echo "A imagem com defeito não é reinstalada à mão; ela pode voltar numa próxima"
+    echo "atualização automática. Para pausar: ujust autoupdate off"
+}
+
+case "${1:-show}" in
+    show)   show; [[ -t 0 ]] && read -rsn1 -p "  (qualquer tecla fecha)" ;;
+    list)   ls -1 "$DIR"/*.txt 2>/dev/null || echo "Nenhum relatório guardado." ;;
+    status) status ;;
+    notify) # chamado no login: só incomoda se houver algo novo
+        [[ -n $(pending) ]] || exit 0
+        sleep 6
+        notify-send -a Tamagi -i dialog-warning "Uma atualização falhou e foi desfeita" \
+            "O sistema voltou para a versão anterior. Veja o que aconteceu." 2>/dev/null || true
+        exec /usr/libexec/tamagi/popup tamagi-boot-report show ;;
+    *) echo "uso: tamagi-boot-report [show|list|status]" >&2; exit 2 ;;
+esac

@@ -1,0 +1,141 @@
+#!/usr/bin/bash
+# Roda DENTRO da caixa de navegadores. Quem chama é o tamagi-warsaw (e o
+# tamagi-browser, ao abrir um navegador), pelo /run/host.
+#
+#   como root:    install <arquivo.deb> | start-root | stop | remove
+#   como usuário: start-user | status
+#
+# A caixa não tem systemd como init, e o Warsaw não precisa dele: o serviço é
+# só o binário `core`, uma vez como root (abre 127.0.0.1:30900) e uma vez como
+# usuário. O que o instalador faria via systemctl fica neutralizado.
+set -euo pipefail
+
+CORE=/usr/local/bin/warsaw/core
+ETC=/usr/local/etc/warsaw
+CA=$ETC/rootca.crt
+CA_NAME="Warsaw Personal CA"
+SHIM=/usr/local/lib/tamagi-shims
+DPKG_PATH="$SHIM:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+die() { echo "erro: $*" >&2; exit 1; }
+need_root() { [[ $(id -u) == 0 ]] || die "'$1' precisa de root dentro da caixa"; }
+root_core() { pgrep -u 0 -fx "$CORE" >/dev/null 2>&1; }
+user_core() { pgrep -u "$(id -u)" -fx "$CORE" >/dev/null 2>&1; }
+port_open() { ss -ltn 2>/dev/null | grep -q '127.0.0.1:30900'; }
+
+shims() {
+    mkdir -p "$SHIM"
+    printf '#!/bin/sh\n# A caixa nao tem systemd como init: nada a fazer.\nexit 0\n' > "$SHIM/systemctl"
+    chmod 755 "$SHIM/systemctl"
+    # Pacotes não sobem serviços durante a instalação.
+    [[ -x /usr/sbin/policy-rc.d ]] || { printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d; chmod 755 /usr/sbin/policy-rc.d; }
+}
+
+cmd_install() {
+    need_root install
+    local deb=${1:-}
+    [[ -f $deb ]] || die "arquivo .deb não encontrado: $deb"
+    [[ $(dpkg-deb -f "$deb" Package) == warsaw ]] || die "$deb não é o pacote do Warsaw"
+    shims
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq || true
+    # /usr/local/share/fonts é a pasta de fontes do HOST montada pelo distrobox
+    # (somente-leitura): a fonte do Warsaw vai para uma pasta da própria caixa.
+    apt-get install -y --no-install-recommends iproute2 libnss3-tools \
+        -o "DPkg::Path=$DPKG_PATH" \
+        -o 'Dpkg::Options::=--path-exclude=/usr/local/share/fonts/*' "$deb"
+    install -d /usr/share/fonts/truetype/warsaw
+    dpkg-deb --fsys-tarfile "$deb" | tar -xO ./usr/local/share/fonts/truetype/dbldwrsw.ttf \
+        > /usr/share/fonts/truetype/warsaw/dbldwrsw.ttf 2>/dev/null || true
+    fc-cache -f /usr/share/fonts/truetype/warsaw 2>/dev/null || true
+    [[ -x $CORE ]] || die "a instalação terminou sem $CORE"
+    # A licença foi aceita no host (tamagi-warsaw ligar) antes de chegar aqui.
+    touch "$ETC/EULA"
+    # Firefox: confia nas autoridades do sistema (onde a CA local do Warsaw entra).
+    install -Dm644 /dev/stdin /etc/firefox/policies/policies.json <<'JSON'
+{ "policies": { "Certificates": { "ImportEnterpriseRoots": true } } }
+JSON
+    echo "Warsaw $(dpkg-query -W -f '${Version}' warsaw) instalado na caixa."
+}
+
+cmd_start_root() {
+    need_root start-root
+    [[ -x $CORE ]] || die "o Warsaw não está instalado nesta caixa"
+    [[ -f $ETC/EULA ]] || die "a licença do Warsaw não foi aceita (rode: tamagi-warsaw ligar)"
+    if ! root_core; then
+        "$CORE"
+        for _ in $(seq 1 20); do port_open && [[ -s $CA ]] && break; sleep 0.5; done
+    fi
+    # A CA local do Warsaw também entra nas autoridades da caixa (Firefox e curl).
+    if [[ -s $CA ]] && ! cmp -s "$CA" /usr/local/share/ca-certificates/warsaw.crt 2>/dev/null; then
+        install -Dm644 "$CA" /usr/local/share/ca-certificates/warsaw.crt
+        update-ca-certificates >/dev/null 2>&1 || true
+    fi
+    port_open || die "o Warsaw subiu mas a porta 30900 não abriu"
+}
+
+cmd_start_user() {
+    [[ $(id -u) != 0 ]] || die "start-user roda como o seu usuário"
+    [[ -x $CORE ]] || die "o Warsaw não está instalado nesta caixa"
+    user_core || "$CORE"
+    # Navegadores Chromium só aceitam o https://127.0.0.1:30900 do Warsaw se a
+    # CA local dele estiver no banco NSS do usuário. O Warsaw nem sempre a
+    # coloca sozinho (numa caixa recém-criada, não coloca), então fica garantido aqui.
+    local db="sql:$HOME/.pki/nssdb"
+    [[ -s $CA ]] || return 0
+    if [[ ! -f $HOME/.pki/nssdb/cert9.db ]]; then
+        mkdir -p "$HOME/.pki/nssdb"
+        certutil -N -d "$db" --empty-password
+    fi
+    if ! certutil -L -d "$db" -n "$CA_NAME" -a 2>/dev/null | openssl x509 -outform DER 2>/dev/null \
+            | cmp -s - <(openssl x509 -in "$CA" -outform DER 2>/dev/null); then
+        certutil -D -d "$db" -n "$CA_NAME" 2>/dev/null || true
+        certutil -A -d "$db" -t "C,," -n "$CA_NAME" -i "$CA"
+    fi
+}
+
+cmd_stop() {
+    need_root stop
+    pkill -fx "$CORE" 2>/dev/null || true
+}
+
+cmd_status() {
+    if [[ ! -x $CORE ]]; then echo "Instalado     : não"; return 0; fi
+    echo "Instalado     : sim ($(dpkg-query -W -f '${Version}' warsaw 2>/dev/null || echo '?'))"
+    echo "Serviço (root): $(root_core && echo rodando || echo parado)"
+    echo "Sessão (você) : $(user_core && echo rodando || echo parada)"
+    local code
+    code=$(curl -ks -o /dev/null -w '%{http_code}' --max-time 4 https://127.0.0.1:30900/ 2>/dev/null || true)
+    if [[ $code == 426 ]]; then
+        echo "Porta 30900   : respondendo (os sites dos bancos conseguem falar com o Warsaw)"
+    else
+        echo "Porta 30900   : sem resposta"
+    fi
+    if certutil -L -d "sql:$HOME/.pki/nssdb" -n "$CA_NAME" >/dev/null 2>&1; then
+        echo "Certificado   : aceito pelos navegadores da caixa"
+    else
+        echo "Certificado   : ainda não registrado (rode: tamagi-warsaw ligar)"
+    fi
+}
+
+cmd_remove() {
+    need_root remove
+    cmd_stop
+    shims
+    if dpkg -s warsaw >/dev/null 2>&1; then
+        DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge -o "DPkg::Path=$DPKG_PATH" warsaw || true
+    fi
+    rm -f /usr/local/share/ca-certificates/warsaw.crt /usr/share/fonts/truetype/warsaw/dbldwrsw.ttf
+    update-ca-certificates >/dev/null 2>&1 || true
+}
+
+case "${1:-}" in
+    install)    shift; cmd_install "$@" ;;
+    start-root) cmd_start_root ;;
+    start-user) cmd_start_user ;;
+    stop)       cmd_stop ;;
+    status)     cmd_status ;;
+    remove)     cmd_remove ;;
+    forget-ca)  certutil -D -d "sql:$HOME/.pki/nssdb" -n "$CA_NAME" 2>/dev/null || true ;;
+    *) die "uso: warsaw-box install <deb> | start-root | start-user | stop | status | remove | forget-ca" ;;
+esac

@@ -1,0 +1,192 @@
+#!/usr/bin/bash
+# tamagi-install — a parte privilegiada da instalação. Quem chama é o módulo
+# do tik (/etc/tik/modules/pre/10-tamagi), via pkexec, depois que você
+# escolheu o disco e respondeu às perguntas.
+#
+#   tamagi-install <disco> <arquivo-de-respostas>
+#
+# O que faz: apaga o disco, cria ESP + /boot + raiz btrfs (com LUKS2, se
+# pedido) e chama `bootc install to-filesystem` para copiar a imagem do
+# sistema. Depois grava no sistema novo o idioma, o teclado, o fuso e o
+# arquivo que o primeiro boot usa para criar o usuário.
+#
+# Saída: linhas "PROGRESS <0-100> <mensagem>" (o tik mostra numa barra); o
+# resto vai para o log.
+set -euo pipefail
+
+DISK=${1:-}
+ANSWERS=${2:-}
+MNT=/run/tamagi-install/root
+LIVE_CONF=/etc/tamagi-live.conf
+
+progress() { echo "PROGRESS $1 $2"; }
+die() { echo "ERRO: $*" >&2; exit 1; }
+
+[[ $(id -u) == 0 ]] || die "precisa de root"
+[[ -b $DISK ]] || die "disco inválido: $DISK"
+[[ -f $ANSWERS ]] || die "arquivo de respostas não encontrado: $ANSWERS"
+[[ -d /sys/firmware/efi ]] || die "este computador não iniciou em modo UEFI"
+
+# Respostas: CHAVE=valor por linha, sem aspas e sem expansão.
+declare -A A=()
+while IFS='=' read -r key value; do
+    [[ $key =~ ^[A-Z_]+$ ]] && A[$key]=$value
+done < "$ANSWERS"
+# shellcheck disable=SC1090
+source "$LIVE_CONF"
+
+DISK=$(realpath "$DISK")
+live_src=$(findmnt -no SOURCE /run/initramfs/live 2>/dev/null || true)
+if [[ -n $live_src ]]; then
+    live_disk=$(lsblk -npo PKNAME "$live_src" 2>/dev/null | head -1)
+    [[ $DISK != "${live_disk:-$live_src}" && $DISK != "$live_src" ]] || die "$DISK é a própria mídia de instalação"
+fi
+
+# De onde vem o sistema: a imagem embutida na mídia; sem ela, o registry.
+if [[ -d $PAYLOAD_DIR ]]; then
+    SOURCE="oci:$PAYLOAD_DIR"
+elif [[ -n ${TARGET_IMGREF:-} ]]; then
+    SOURCE="docker://$TARGET_IMGREF"
+else
+    die "a mídia não traz a imagem do sistema e nenhum registry foi configurado"
+fi
+
+cleanup() {
+    set +e
+    [[ -n ${WATCHER:-} ]] && kill "$WATCHER" 2>/dev/null
+    umount -R "$MNT" 2>/dev/null
+    [[ -n ${MAPPER:-} ]] && cryptsetup close "$MAPPER" 2>/dev/null
+    return 0
+}
+trap cleanup EXIT
+
+progress 2 "Preparando o disco"
+swapoff -a 2>/dev/null || true
+# Solta o que estiver em uso neste disco (partições montadas automaticamente).
+while read -r mountpoint; do
+    [[ -n $mountpoint ]] && umount -R "$mountpoint" 2>/dev/null || true
+done < <(lsblk -nro MOUNTPOINT "$DISK" | sort -r)
+wipefs -af "$DISK" >/dev/null
+sfdisk --wipe always --wipe-partitions always "$DISK" >/dev/null <<'PARTS'
+label: gpt
+size=1GiB, type=uefi, name="EFI-SYSTEM"
+size=2GiB, type=linux, name="boot"
+type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name="root"
+PARTS
+udevadm settle
+partprobe "$DISK" 2>/dev/null || true
+udevadm settle
+mapfile -t PARTS < <(lsblk -nrpo NAME,TYPE "$DISK" | awk '$2 == "part" { print $1 }')
+(( ${#PARTS[@]} == 3 )) || die "esperava 3 partições em $DISK, achei ${#PARTS[@]}"
+ESP=${PARTS[0]} BOOT=${PARTS[1]} ROOT=${PARTS[2]}
+
+progress 6 "Formatando"
+mkfs.vfat -F 32 -n EFI-SYSTEM "$ESP" >/dev/null
+mkfs.ext4 -q -F -L boot "$BOOT"
+
+KARGS=(--karg rootflags=compress=zstd:1)
+ROOTDEV=$ROOT
+if [[ -n ${A[LUKS_KEYFILE]:-} ]]; then
+    [[ -s ${A[LUKS_KEYFILE]} ]] || die "senha do disco vazia"
+    progress 8 "Criptografando o disco (LUKS2)"
+    cryptsetup luksFormat --batch-mode --type luks2 --pbkdf argon2id \
+        --key-file "${A[LUKS_KEYFILE]}" "$ROOT"
+    LUKS_UUID=$(cryptsetup luksUUID "$ROOT")
+    MAPPER="luks-$LUKS_UUID"
+    cryptsetup open --key-file "${A[LUKS_KEYFILE]}" "$ROOT" "$MAPPER"
+    ROOTDEV=/dev/mapper/$MAPPER
+    # O initramfs pede a senha no boot; depois, `ujust setup-luks-tpm-unlock`
+    # liga o desbloqueio por TPM.
+    KARGS+=(--karg "rd.luks.uuid=$LUKS_UUID" --karg "rd.luks.options=discard")
+fi
+mkfs.btrfs -q -f -L tamagi "$ROOTDEV"
+udevadm settle
+
+# As pastas de ponto de montagem são criadas aqui, fora do bootc, então
+# recebem o rótulo SELinux à mão: sem ele ficam "unlabeled_t" e o
+# systemd-logind do sistema instalado é barrado ao olhar para /boot/efi.
+mountpoint_dir() {
+    mkdir -p "$1"
+    chcon system_u:object_r:boot_t:s0 "$1" 2>/dev/null || true
+}
+mkdir -p "$MNT"
+mount -o compress=zstd:1 "$ROOTDEV" "$MNT"
+mountpoint_dir "$MNT/boot"
+mount "$BOOT" "$MNT/boot"
+mountpoint_dir "$MNT/boot/efi"
+mount -o umask=0077 "$ESP" "$MNT/boot/efi"
+
+progress 12 "Copiando o sistema (leva alguns minutos)"
+TARGET=(--target-transport registry --target-imgref "${TARGET_IMGREF:-localhost/tamagi:latest}")
+# Sem registry configurado a imagem instalada não tem de onde se atualizar
+# ainda (`ujust switch-image` resolve depois); o bootc não precisa conferir.
+[[ -n ${TARGET_IMGREF:-} ]] || TARGET+=(--skip-fetch-check)
+[[ -n ${A[EXTRA_KARGS]:-} ]] && for karg in ${A[EXTRA_KARGS]}; do KARGS+=(--karg "$karg"); done
+echo "bootc install to-filesystem --source-imgref $SOURCE ${TARGET[*]} ${KARGS[*]} $MNT" >&2
+# O bootc não informa o andamento sem terminal: a barra acompanha quanto do
+# disco já foi escrito, contra o tamanho da imagem embutida na mídia (com a
+# compressão zstd do btrfs, o sistema instalado ocupa perto de COPY_RATIO/100 (medido: 2,0)
+# do tamanho da imagem comprimida).
+COPY_RATIO=200
+if [[ -d $PAYLOAD_DIR ]]; then
+    expected=$(( $(du -sb "$PAYLOAD_DIR" | cut -f1) * COPY_RATIO / 100 ))
+    (
+        while sleep 5; do
+            used=$(df --output=used -B1 "$MNT" 2>/dev/null | tail -1)
+            [[ $used =~ ^[0-9]+$ ]] || continue
+            pct=$(( 12 + 76 * used / expected ))
+            (( pct > 88 )) && pct=88
+            progress "$pct" "Copiando o sistema (leva alguns minutos)"
+        done
+    ) &
+    WATCHER=$!
+fi
+rc=0
+bootc install to-filesystem --source-imgref "$SOURCE" "${TARGET[@]}" "${KARGS[@]}" "$MNT" >&2 || rc=$?
+if [[ -n ${WATCHER:-} ]]; then kill "$WATCHER" 2>/dev/null || true; wait "$WATCHER" 2>/dev/null || true; WATCHER=""; fi
+(( rc == 0 )) || die "o bootc install falhou (código $rc)"
+echo "espaço usado no sistema novo: $(df --output=used -B1 "$MNT" | tail -1) bytes" >&2
+
+progress 90 "Configurando o sistema novo"
+mount -o remount,rw "$MNT"
+# ostree/deploy/<stateroot>/deploy/<commit>.0 é a raiz do sistema novo (ao lado
+# existe backing/<commit>.0, que não é).
+DEPLOY=""
+for candidate in "$MNT"/ostree/deploy/*/deploy/*.0; do
+    [[ -d $candidate/etc ]] && DEPLOY=$candidate
+done
+[[ -n $DEPLOY ]] || die "não achei o sistema instalado em $MNT/ostree/deploy"
+systemd-firstboot --root="$DEPLOY" --force \
+    --locale="${A[LOCALE]:-pt_BR.UTF-8}" \
+    --keymap="${A[KEYMAP]:-br-abnt2}" \
+    --timezone="${A[TIMEZONE]:-America/Sao_Paulo}" \
+    --hostname="${A[HOSTNAME]:-tamagi}" >&2
+
+# O usuário é criado no primeiro boot (tamagi-firstboot.service), com o
+# sistema rodando: home em /var/home e rótulos SELinux certos.
+install -d -m 700 "$DEPLOY/etc/tamagi"
+{
+    for key in USER FULLNAME PASSWORD_HASH XKB_LAYOUT XKB_VARIANT; do
+        [[ -n ${A[$key]:-} ]] && echo "$key=${A[$key]}"
+    done
+} > "$DEPLOY/etc/tamagi/install.conf"
+chmod 600 "$DEPLOY/etc/tamagi/install.conf"
+
+progress 96 "Finalizando"
+sync
+umount -R "$MNT"
+udevadm settle
+if [[ -n ${MAPPER:-} ]]; then
+    # Logo depois de desmontar, o volume ainda pode constar como "em uso" por
+    # um instante. O sistema já está instalado: se não fechar agora, fecha
+    # sozinho quando o último uso terminar (--deferred) ou no reinício.
+    closed=0
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        if cryptsetup close "$MAPPER" 2>/dev/null; then closed=1; break; fi
+        sleep 1
+    done
+    (( closed )) || cryptsetup close --deferred "$MAPPER" 2>/dev/null || true
+    MAPPER=""
+fi
+udevadm settle
+progress 100 "Instalação concluída"

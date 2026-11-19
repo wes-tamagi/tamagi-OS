@@ -1,0 +1,10 @@
+# Fora do contexto de build (o Containerfile só usa build_files, system_files
+# e README.md).
+.git
+.github
+.cache
+output
+tests
+disk_config
+*.run
+*.tar.zst

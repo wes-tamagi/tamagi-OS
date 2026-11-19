@@ -1,0 +1,17 @@
+# Apps Flatpak instalados no primeiro boot. Uma linha por app: <remote> <ID>.
+# Remotes: flathub e cosmic (repositório da System76 para o COSMIC).
+# Navegadores não entram aqui: vivem na caixa AnduinOS (tamagi-browser), onde
+# o Warsaw os enxerga. Terminal, arquivos, editor, loja e player são os do
+# COSMIC (RPM); calculadora e escrita são o omacalc e o omawrite.
+flathub org.onlyoffice.desktopeditors
+flathub com.github.tchx84.Flatseal
+flathub io.github.flattool.Warehouse
+flathub io.missioncenter.MissionCenter
+flathub org.gnome.Loupe
+flathub org.gnome.Papers
+flathub com.ranfdev.DistroShelf
+flathub dev.edfloreshz.CosmicTweaks
+flathub io.github.cosmic_utils.Examine
+cosmic io.github.cosmic_utils.minimon-applet
+cosmic io.github.cosmic_utils.weather-applet
+cosmic io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager

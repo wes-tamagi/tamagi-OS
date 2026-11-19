@@ -1,0 +1,22 @@
+#!/usr/bin/bash
+# Instala os apps Flatpak padrão do Tamagi (uma vez, no primeiro boot com rede).
+# Remotes: Flathub e o repositório COSMIC da System76 (applets e apps feitos
+# para o COSMIC; https://github.com/pop-os/cosmic-flatpak).
+set -uo pipefail
+
+LIST=/usr/share/tamagi/flatpaks.list
+STAMP=/var/lib/tamagi/flatpaks.done
+
+flatpak remote-add --system --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo
+flatpak remote-add --system --if-not-exists cosmic /etc/flatpak/remotes.d/cosmic.flatpakrepo
+
+failed=0
+while read -r remote app; do
+    [[ -z $remote || $remote == \#* ]] && continue
+    flatpak install --system --noninteractive --or-update "$remote" "$app" || failed=1
+done < "$LIST"
+
+# Sem o carimbo o serviço tenta de novo no próximo boot.
+(( failed )) && exit 1
+mkdir -p "$(dirname "$STAMP")"
+touch "$STAMP"

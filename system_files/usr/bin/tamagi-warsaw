@@ -1,0 +1,151 @@
+#!/usr/bin/bash
+# tamagi-warsaw — internet banking: o Warsaw (módulo de segurança dos bancos
+# brasileiros) dentro da caixa dos navegadores, não no host.
+#
+# O Warsaw é software proprietário da Topaz. Ele NÃO vem na imagem: é baixado
+# do site do fabricante quando você aceita a licença, conferido por SHA-256 e
+# instalado na caixa distrobox `navegadores`, ao lado do Chrome. Como a caixa
+# usa a rede do host, os sites dos bancos falam com ele em 127.0.0.1:30900
+# desde que você use um navegador da caixa (tamagi-browser).
+set -euo pipefail
+
+CONF="${TAMAGI_WARSAW_CONF:-/usr/share/tamagi/warsaw/warsaw.conf}"
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/tamagi"
+MARK="$CONF_DIR/warsaw-enabled"
+ACCEPTED="$CONF_DIR/warsaw-license-accepted"
+BOX="${TAMAGI_BROWSER_BOX:-navegadores}"
+LIBEXEC="${TAMAGI_BROWSER_LIBEXEC:-/run/host/usr/libexec/tamagi}"
+
+die() { echo "erro: $*" >&2; exit 1; }
+info() { echo -e "\033[1m$*\033[0m"; }
+box_exists() { podman container exists "$BOX" 2>/dev/null; }
+in_box() { distrobox enter "$BOX" -- "$@"; }
+confirm() { local answer; read -r -p "$1 [s/N] " answer; [[ ${answer,,} == s || ${answer,,} == sim ]]; }
+
+# shellcheck disable=SC1090
+source "$CONF"
+
+status() {
+    echo "Ligado        : $([[ -f $MARK ]] && echo sim || echo "não (rode: tamagi-warsaw ligar)")"
+    if ! box_exists; then
+        echo "Caixa '$BOX': ainda não criada (tamagi-browser setup)"
+        return 0
+    fi
+    in_box "$LIBEXEC/warsaw-box" status
+}
+
+download() { # baixa o .deb oficial e confere o SHA-256; devolve o caminho em $deb
+    deb="$CACHE/warsaw_setup_64.deb"
+    mkdir -p "$CACHE"
+    if [[ ! -f $deb ]] || ! echo "$WARSAW_SHA256  $deb" | sha256sum -c --status; then
+        info "Baixando o Warsaw do site do fabricante"
+        curl -fL --retry 3 --progress-bar -o "$deb.part" "$WARSAW_URL"
+        mv "$deb.part" "$deb"
+    fi
+    if ! echo "$WARSAW_SHA256  $deb" | sha256sum -c --status; then
+        echo "O arquivo baixado é diferente do que o Tamagi conhece (versão $WARSAW_VERSION)."
+        echo "  esperado: $WARSAW_SHA256"
+        echo "  baixado : $(sha256sum "$deb" | cut -d' ' -f1)"
+        echo "O mais provável é a Topaz ter publicado uma versão nova no mesmo endereço:"
+        echo "  $WARSAW_URL"
+        [[ -t 0 ]] && confirm "Instalar assim mesmo?" || { echo "Nada foi instalado."; exit 1; }
+    fi
+}
+
+license_text() { # baixa o instalador oficial e tira dele o texto da licença; imprime o caminho
+    local out="$CACHE/warsaw-license-pt.html"
+    mkdir -p "$CACHE"
+    if [[ ! -s $out ]]; then
+        curl -fsSL --retry 2 --max-time 180 -o "$CACHE/warsaw-installer.run" "$WARSAW_LICENSE_SOURCE" 2>/dev/null || return 0
+        python3 -c 'import sys, zipfile
+z = zipfile.ZipFile(sys.argv[1])
+name = next(n for n in z.namelist() if n.endswith("license-pt.html"))
+open(sys.argv[2], "wb").write(z.read(name))' "$CACHE/warsaw-installer.run" "$out" 2>/dev/null || true
+        rm -f -- "$CACHE/warsaw-installer.run"
+    fi
+    [[ -s $out ]] && echo "$out"
+    return 0
+}
+
+accept_license() { # o aceite fica registrado; vale para a caixa do dia a dia e para o modo banco
+    [[ -f $MARK || -f $ACCEPTED ]] && return 0
+    [[ -t 0 ]] || die "rode num terminal para ler e aceitar a licença"
+    local license
+    license=$(license_text)
+    echo "O Warsaw é um programa proprietário da Topaz. Para usá-lo é preciso aceitar o" >&2
+    if [[ -n $license ]]; then
+        echo "contrato de licença: $license" >&2
+        [[ -n ${DISPLAY:-}${WAYLAND_DISPLAY:-} ]] && xdg-open "$license" >/dev/null 2>&1 || true
+    else
+        echo "contrato de licença dela. Não consegui baixar o texto agora; ele acompanha o" >&2
+        echo "instalador oficial: $WARSAW_LICENSE_SOURCE" >&2
+    fi
+    confirm "Você leu e aceita a licença do Warsaw?" || { echo "Nada foi alterado." >&2; exit 1; }
+    mkdir -p "$CONF_DIR"
+    touch "$ACCEPTED"
+}
+
+fetch() { # usado pelo tamagi-bank: aceite + download conferido; imprime o caminho do .deb
+    local deb
+    accept_license
+    download >&2
+    echo "$deb"
+}
+
+enable() {
+    accept_license
+    box_exists && [[ -f $CONF_DIR/browser-$BOX.ready ]] || tamagi-browser setup
+    if ! in_box test -x /usr/local/bin/warsaw/core; then
+        local deb
+        download
+        info "Instalando o Warsaw na caixa '$BOX'"
+        # O distrobox monta o host em /run/host: o arquivo é o mesmo, visto de dentro.
+        in_box sudo "$LIBEXEC/warsaw-box" install "/run/host$deb"
+    fi
+    mkdir -p "$CONF_DIR"
+    touch "$MARK"
+    start
+    echo
+    status
+    echo
+    echo "Acesse o banco por um navegador da caixa (tamagi-browser). Se o navegador"
+    echo "perguntar se o site pode acessar dispositivos da rede local, permita: é o"
+    echo "site do banco falando com o Warsaw neste computador."
+}
+
+start() {
+    box_exists || die "a caixa '$BOX' não existe (rode: tamagi-warsaw ligar)"
+    in_box sudo "$LIBEXEC/warsaw-box" start-root
+    in_box "$LIBEXEC/warsaw-box" start-user
+}
+
+disable() {
+    rm -f -- "$MARK"
+    if box_exists; then
+        in_box sudo "$LIBEXEC/warsaw-box" stop
+        # Sem o Warsaw rodando, a CA local dele não precisa continuar confiável.
+        in_box "$LIBEXEC/warsaw-box" forget-ca
+    fi
+    echo "Warsaw desligado. Ele não sobe mais com o navegador até você rodar 'tamagi-warsaw ligar'."
+}
+
+remove() {
+    rm -f -- "$MARK"
+    if box_exists; then
+        in_box "$LIBEXEC/warsaw-box" forget-ca
+        in_box sudo "$LIBEXEC/warsaw-box" remove
+    fi
+    rm -f -- "$CACHE/warsaw_setup_64.deb"
+    echo "Warsaw removido da caixa '$BOX'."
+}
+
+case "${1:-status}" in
+    ligar|enable|on)      enable ;;
+    desligar|disable|off) disable ;;
+    iniciar|start)        start ;;
+    remover|remove)       remove ;;
+    status|testar|test)   status ;;
+    fetch)                fetch ;;
+    *) echo "uso: tamagi-warsaw [status|ligar|desligar|remover]" >&2; exit 2 ;;
+esac

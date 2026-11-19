@@ -1,0 +1,135 @@
+#!/usr/bin/bash
+# tamagi-bank — modo banco descartável.
+#
+# Abre o internet banking numa caixa que só existe enquanto a janela está
+# aberta: Chrome com perfil limpo e o Warsaw, numa caixa AnduinOS criada na
+# hora e destruída ao fechar. Histórico, cookies, extensões e a autoridade
+# certificadora do Warsaw não convivem com a navegação do dia a dia nem ficam
+# no computador depois.
+#
+#   tamagi-bank [URL]             abre (prepara o modelo na primeira vez)
+#   tamagi-bank --manter-registro [URL]
+#                                 guarda só a identificação do Warsaw entre as
+#                                 sessões, para o banco reconhecer o aparelho
+#   tamagi-bank prepare           (re)constrói o modelo: Chrome e Warsaw atuais
+#   tamagi-bank status | clean    estado | apaga o modelo e sobras
+#
+# Como fica rápido: a primeira vez monta um "modelo" (uma imagem local com
+# Chrome e Warsaw instalados, nunca executados). Cada sessão parte dele.
+set -euo pipefail
+
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi"
+RUN_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+BASE_IMAGE="${TAMAGI_BROWSER_IMAGE:-docker.io/aiursoft/anduinos:resolute}"
+TEMPLATE="${TAMAGI_BANK_TEMPLATE:-localhost/tamagi-banco:latest}"
+LIBEXEC="${TAMAGI_BROWSER_LIBEXEC:-/run/host/usr/libexec/tamagi}"
+WARSAW="${TAMAGI_WARSAW_BIN:-tamagi-warsaw}"
+PERSIST="$DATA_DIR/banco-warsaw"
+
+die() { echo "erro: $*" >&2; exit 1; }
+info() { echo -e "\033[1m$*\033[0m"; }
+nvidia_flag() { [[ -e /proc/driver/nvidia/version ]] && echo --nvidia || true; }
+template_exists() { podman image exists "$TEMPLATE"; }
+
+sweep() { # caixas de sessões que não fecharam direito (queda de energia, etc.)
+    local box
+    for box in $(podman ps -a --filter label=manager=distrobox --format '{{.Names}}' | grep -E '^banco-(modelo|[0-9]+)$' || true); do
+        [[ $box == "banco-$$" ]] && continue
+        # Sessão ainda aberta em outro terminal: o número é o PID dela.
+        [[ $box =~ ^banco-([0-9]+)$ ]] && kill -0 "${BASH_REMATCH[1]}" 2>/dev/null && continue
+        distrobox rm --force "$box" >/dev/null 2>&1 || true
+    done
+    find "$RUN_DIR" -maxdepth 1 -name 'tamagi-banco.*' -type d -mmin +1 2>/dev/null | while read -r dir; do
+        [[ -e $dir/.sessao && $(cat "$dir/.sessao") != "$$" ]] && kill -0 "$(cat "$dir/.sessao")" 2>/dev/null && continue
+        rm -rf -- "$dir"
+    done
+}
+
+cmd_prepare() {
+    local deb home box=banco-modelo
+    # Licença da Topaz e download conferido por SHA-256: os mesmos do tamagi-warsaw.
+    deb=$("$WARSAW" fetch | tail -1)
+    [[ -f $deb ]] || die "não consegui obter o pacote do Warsaw"
+    sweep
+    home=$(mktemp -d "$RUN_DIR/tamagi-banco.XXXXXX")
+    echo "$$" > "$home/.sessao"
+    info "Montando o modelo do modo banco (Chrome + Warsaw) — alguns minutos, só desta vez"
+    # shellcheck disable=SC2046
+    distrobox create --yes $(nvidia_flag) --name "$box" --image "$BASE_IMAGE" --home "$home" >/dev/null
+    distrobox enter "$box" -- sudo "$LIBEXEC/browser-provision" install chrome
+    distrobox enter "$box" -- sudo "$LIBEXEC/warsaw-box" install "/run/host$deb"
+    # O Warsaw NÃO é executado aqui: a identificação e a autoridade
+    # certificadora dele nascem em cada sessão, e morrem com ela.
+    podman stop "$box" >/dev/null
+    podman commit --quiet "$box" "$TEMPLATE" >/dev/null
+    distrobox rm --force "$box" >/dev/null
+    rm -rf -- "$home"
+    info "Modelo pronto: $TEMPLATE"
+}
+
+cmd_open() {
+    # box e home são globais de propósito: a limpeza roda na saída do script.
+    local keep=0 volume=() url rc=0
+    box="banco-$$"
+    [[ ${1:-} == --manter-registro ]] && { keep=1; shift; }
+    url=${1:-}
+    template_exists || cmd_prepare
+    sweep
+    # O Warsaw do dia a dia (caixa dos navegadores) usa a mesma porta 30900.
+    if podman container exists "${TAMAGI_BROWSER_BOX:-navegadores}" 2>/dev/null \
+            && [[ $(podman inspect -f '{{.State.Running}}' "${TAMAGI_BROWSER_BOX:-navegadores}") == true ]]; then
+        distrobox enter "${TAMAGI_BROWSER_BOX:-navegadores}" -- sudo "$LIBEXEC/warsaw-box" stop >/dev/null 2>&1 || true
+    fi
+    if (( keep )); then
+        if [[ ! -d $PERSIST ]]; then
+            mkdir -p "$PERSIST"
+            podman run --rm --entrypoint tar "$TEMPLATE" -C /usr/local/etc/warsaw -c . | tar -x -C "$PERSIST"
+        fi
+        volume=(--volume "$PERSIST:/usr/local/etc/warsaw")
+    fi
+    home=$(mktemp -d "$RUN_DIR/tamagi-banco.XXXXXX")     # em memória: some ao desligar
+    echo "$$" > "$home/.sessao"
+    cleanup() {
+        distrobox rm --force "$box" >/dev/null 2>&1 || true
+        [[ $home == "$RUN_DIR"/tamagi-banco.* ]] && rm -rf -- "$home"
+        echo "Sessão do banco encerrada: caixa e perfil apagados."
+    }
+    trap cleanup EXIT
+    info "Abrindo o modo banco (caixa $box, perfil descartável)"
+    # shellcheck disable=SC2046
+    distrobox create --yes $(nvidia_flag) --name "$box" --image "$TEMPLATE" --home "$home" "${volume[@]}" >/dev/null
+    distrobox enter "$box" -- sudo "$LIBEXEC/warsaw-box" start-root
+    distrobox enter "$box" -- "$LIBEXEC/warsaw-box" start-user
+    if [[ -n ${TAMAGI_BANK_CMD:-} ]]; then
+        distrobox enter "$box" -- sh -c "$TAMAGI_BANK_CMD" || rc=$?      # só para testes
+    else
+        distrobox enter "$box" -- google-chrome-stable --user-data-dir="$home/perfil" \
+            --no-first-run --no-default-browser-check --class=tamagi-banco ${url:+"$url"} || rc=$?
+    fi
+    return "$rc"
+}
+
+cmd_status() {
+    if template_exists; then
+        echo "Modelo       : pronto ($(podman image inspect -f '{{.Created}}' "$TEMPLATE" | cut -c1-10))"
+    else
+        echo "Modelo       : ainda não montado (tamagi-bank prepare, ou abra o modo banco)"
+    fi
+    echo "Sessão aberta: $(podman ps --format '{{.Names}}' | grep -cE '^banco-[0-9]+$' || true)"
+    echo "Registro do aparelho guardado: $([[ -d $PERSIST ]] && echo sim || echo não)"
+}
+
+cmd_clean() {
+    sweep
+    template_exists && podman rmi --force "$TEMPLATE" >/dev/null
+    [[ -d $PERSIST && $PERSIST == */tamagi/banco-warsaw ]] && rm -rf -- "$PERSIST"
+    echo "Modo banco limpo: modelo e registro apagados."
+}
+
+case "${1:-}" in
+    prepare) cmd_prepare ;;
+    status)  cmd_status ;;
+    clean)   cmd_clean ;;
+    help|-h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *)       cmd_open "$@" ;;
+esac

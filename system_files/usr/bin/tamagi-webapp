@@ -1,0 +1,81 @@
+#!/usr/bin/bash
+# tamagi-webapp — transforma um site em aplicativo com janela própria
+# (o Chrome da caixa de navegadores em modo --app), como os web apps do Omarchy.
+set -euo pipefail
+
+APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/tamagi-webapps"
+
+die() { echo "erro: $*" >&2; exit 1; }
+slug() { tr '[:upper:]' '[:lower:]' <<<"$1" | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g'; }
+
+install_app() {
+    local name=${1:-} url=${2:-} icon_url=${3:-} id icon origin candidate
+    if [[ -z $name || -z $url ]]; then
+        [[ -t 0 ]] || die "uso: tamagi-webapp install <nome> <url> [url-do-ícone]"
+        name=$(gum input --placeholder "Nome do app (ex.: WhatsApp)")
+        url=$(gum input --placeholder "Endereço (ex.: https://web.whatsapp.com)")
+    fi
+    [[ $url =~ ^https?:// ]] || die "o endereço precisa começar com http:// ou https://"
+    id="webapp-$(slug "$name")"
+    [[ $id != webapp- ]] || die "nome inválido"
+    mkdir -p "$APPS" "$ICONS"
+
+    # Ícone: o que você indicar, senão o que o próprio site publica.
+    icon=web-browser
+    origin=$(grep -oE '^https?://[^/]+' <<<"$url")
+    for candidate in "$icon_url" "$origin/apple-touch-icon.png" "$origin/favicon.ico"; do
+        [[ -n $candidate ]] || continue
+        if curl -fsSL --max-time 10 -o "$ICONS/$id.download" "$candidate" 2>/dev/null \
+                && file -b --mime-type "$ICONS/$id.download" | grep -q '^image/'; then
+            mv "$ICONS/$id.download" "$ICONS/$id.png"
+            icon="$ICONS/$id.png"
+            break
+        fi
+    done
+    rm -f "${ICONS:?}/${id:?}.download"
+
+    cat > "$APPS/$id.desktop" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=$name
+Comment=Web app: $url
+Exec=tamagi-browser chrome --app=$url --class=$id
+Icon=$icon
+Terminal=false
+Categories=Network;
+StartupWMClass=$id
+X-Tamagi-WebApp=true
+DESKTOP
+    update-desktop-database "$APPS" 2>/dev/null || true
+    echo "Web app '$name' criado. Ele já aparece no lançador (Super+Espaço)."
+}
+
+list_apps() {
+    local f
+    for f in "$APPS"/webapp-*.desktop; do
+        [[ -f $f ]] && grep -q '^X-Tamagi-WebApp=true' "$f" || continue
+        printf '%-24s %s\n' "$(grep -m1 '^Name=' "$f" | cut -d= -f2-)" \
+            "$(grep -m1 '^Comment=' "$f" | sed 's/^Comment=Web app: //')"
+    done
+}
+
+remove_app() {
+    local name=${1:-} id
+    if [[ -z $name ]]; then
+        [[ -t 0 ]] || die "uso: tamagi-webapp remove <nome>"
+        name=$(list_apps | gum choose --header "Remover qual?" | sed -E 's/ {2,}.*//') || exit 0
+    fi
+    id="webapp-$(slug "$name")"
+    [[ -f $APPS/$id.desktop ]] || die "não achei o web app '$name'"
+    rm -f "${APPS:?}/${id:?}.desktop" "${ICONS:?}/${id:?}.png"
+    update-desktop-database "$APPS" 2>/dev/null || true
+    echo "Web app '$name' removido."
+}
+
+case "${1:-}" in
+    install) shift; install_app "$@" ;;
+    remove)  shift; remove_app "$@" ;;
+    list)    list_apps ;;
+    *) echo "uso: tamagi-webapp install <nome> <url> [url-do-ícone] | remove <nome> | list" >&2; exit 2 ;;
+esac

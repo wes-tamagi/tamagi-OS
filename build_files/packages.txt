@@ -1,0 +1,136 @@
+# Pacotes RPM adicionados à base ghcr.io/ublue-os/base-main (um por linha;
+# '#' comenta). Regra do Tamagi: aqui só entra o que precisa estar no host.
+# Apps gráficos vão por Flatpak; navegadores, .deb, .rpm e Arch por distrobox.
+
+# ── Desktop COSMIC (System76, escrito em Rust; tiling nativo) ──
+@cosmic-desktop
+cosmic-greeter
+xdg-desktop-portal-cosmic
+xdg-desktop-portal-gtk
+adw-gtk3-theme
+xdg-terminal-exec
+wl-clipboard
+nm-connection-editor
+librsvg2-tools
+desktop-file-utils
+
+# ── Fontes ──
+jetbrains-mono-fonts
+cascadia-code-nf-fonts
+google-noto-sans-fonts
+google-noto-color-emoji-fonts
+
+# ── Rust no lugar de C onde o Fedora empacota ──
+# alacritty: janelas utilitárias do Tamagi (o cosmic-term não aceita comando
+# nem título pela linha de comando). sudo-rs e uutils ficam ao lado dos
+# originais; o shell interativo usa os de Rust (veja /etc/profile.d/tamagi.sh).
+alacritty
+sudo-rs
+uutils-coreutils
+ripgrep
+fd-find
+bat
+eza
+zoxide
+du-dust
+git-delta
+hyperfine
+difftastic
+uv
+
+# ── Terminal e desenvolvimento (estilo Omarchy) ──
+git
+gh
+neovim
+btop
+fastfetch
+gum
+glow
+lazygit
+direnv
+yq
+ShellCheck
+
+# ── Apps do Omarchy (omacalc, omawrite): runtime Qt Quick ──
+qt6-qtbase
+qt6-qtbase-gui
+qt6-qtdeclarative
+qt6-qtwayland
+
+# ── Android (Waydroid) ──
+# O kernel do Fedora já traz o Binder em Rust embutido; não há módulo extra.
+# cage/wlr-randr: modo janela única, para quando o multi-janela falhar.
+waydroid
+waydroid-selinux
+cage
+wlr-randr
+
+# ── Jogos e desempenho (o melhor do Bazzite que não depende de KDE/Steam Deck) ──
+# Steam, Lutris e Heroic entram sob demanda: ujust setup-gaming.
+gamescope
+mangohud
+gamemode
+steam-devices
+# Escalonadores sched_ext (scx_lavd, scx_bpfland…): COPR, veja 10-packages.sh.
+scx-scheds
+scx-tools
+
+# ── Boot que se conserta: verificação de saúde e rollback automático ──
+# Só o greenboot; as verificações são as do Tamagi (/usr/lib/greenboot/check).
+# O pacote greenboot-default-health-checks fica de fora de propósito: ele
+# exige rede, e um boot sem internet não pode provocar rollback.
+greenboot
+
+# ── Segurança (inspirado no GrapheneOS; veja tamagi-harden) ──
+usbguard
+# hardened_malloc: COPR do secureblue; instalado mas só ativado no modo estrito.
+hardened_malloc
+
+# ── Redes e conectividade (o que a base ainda não traz) ──
+# VPNs no NetworkManager. (vpnc e fortisslvpn foram aposentados no Fedora 45;
+# Cisco/Fortinet: use openconnect.)
+NetworkManager-openvpn-gnome
+NetworkManager-openconnect-gnome
+NetworkManager-l2tp-gnome
+NetworkManager-pptp-gnome
+NetworkManager-sstp-gnome
+NetworkManager-strongswan-gnome
+NetworkManager-libreswan-gnome
+NetworkManager-ssh-gnome
+NetworkManager-tui
+tailscale
+# Celulares, pastas remotas e nuvem
+gvfs-smb
+gvfs-mtp
+gvfs-afc
+gvfs-nfs
+gvfs-fuse
+gvfs-goa
+ifuse
+android-tools
+fuse-sshfs
+rclone
+# Diagnóstico
+iperf3
+nmap-ncat
+wol
+
+# ── Máquinas virtuais (KVM), nativo no host ──
+# virt-manager com os complementos: firmware UEFI, TPM virtual (Windows 11),
+# pastas compartilhadas (virtiofs), console SPICE e ferramentas de imagem.
+virt-manager
+virt-viewer
+virt-install
+libvirt-daemon-kvm
+libvirt-daemon-config-network
+libvirt-nss
+qemu-kvm
+qemu-img
+edk2-ovmf
+swtpm
+swtpm-tools
+virtiofsd
+guestfs-tools
+
+# ── IA local ──
+vulkan-tools

@@ -1,0 +1,11 @@
+# Argumentos do kernel aplicados pelo bootc na instalação e nas atualizações.
+# Endurecimento equilibrado: custo de desempenho desprezível, nada quebra.
+# (O modo estrito acrescenta outros: tamagi-harden strict.)
+kargs = [
+  "init_on_alloc=1",
+  "page_alloc.shuffle=1",
+  "randomize_kstack_offset=on",
+  "slab_nomerge",
+  "vsyscall=none",
+]
+match-architectures = ["x86_64"]

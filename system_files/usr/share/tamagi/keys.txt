@@ -1,0 +1,34 @@
+ JANELAS
+   Super + W                 fechar janela
+   Super + F / M             tela cheia / maximizar
+   Super + T                 alternar janela flutuante
+   Super + Y                 ligar/desligar o tiling
+   Super + O                 alternar divisão horizontal/vertical
+   Super + Setas             mover o foco
+   Super + Shift + Setas     mover a janela
+   Super + X                 trocar janelas de lugar
+   Super + S                 empilhar janelas (abas)
+
+ WORKSPACES
+   Super + 1…9               ir para o workspace
+   Super + Shift + 1…9       mandar a janela para o workspace
+
+ APLICATIVOS
+   Super                     lançador
+   Super + Espaço            lançador de aplicativos
+   Super + Enter             terminal
+   Super + B / E             navegador / arquivos
+   Super + Shift + N / T     neovim / btop
+   Super + Shift + C / W     calculadora (omacalc) / escrita (omawrite)
+
+ Tamagi
+   Super + A                 ações rápidas (uma tecla)
+   Super + Alt + Espaço      menu do sistema
+   Super + Shift + A         agente de IA local
+   Super + K                 esta lista
+   Super + Shift+Ctrl+Espaço próximo tema
+
+ SISTEMA
+   Super + Esc               bloquear a tela
+   Print                     captura de tela
+   Super + Ctrl + Espaço     trocar layout do teclado

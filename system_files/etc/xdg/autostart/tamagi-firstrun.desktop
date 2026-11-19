@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Configuração inicial do Tamagi
+Exec=/usr/libexec/tamagi/firstrun-launch
+OnlyShowIn=COSMIC;
+NoDisplay=true

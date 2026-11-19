@@ -1,0 +1,12 @@
+[Default Applications]
+x-scheme-handler/http=google-chrome.desktop
+x-scheme-handler/https=google-chrome.desktop
+text/html=google-chrome.desktop
+application/xhtml+xml=google-chrome.desktop
+text/markdown=omawrite.desktop
+text/plain=com.system76.CosmicEdit.desktop
+inode/directory=com.system76.CosmicFiles.desktop
+application/vnd.debian.binary-package=tamagi-sideload.desktop
+application/x-deb=tamagi-sideload.desktop
+application/x-rpm=tamagi-sideload.desktop
+application/x-redhat-package-manager=tamagi-sideload.desktop

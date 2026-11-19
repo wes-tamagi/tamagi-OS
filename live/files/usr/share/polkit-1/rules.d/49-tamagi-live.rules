@@ -1,0 +1,7 @@
+// Mídia de instalação: o usuário "live" não tem senha e pode tudo (é o que o
+// instalador precisa para particionar o disco). Só existe na imagem live.
+polkit.addRule(function(action, subject) {
+    if (subject.user == "live" && subject.local) {
+        return polkit.Result.YES;
+    }
+});

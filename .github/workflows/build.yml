@@ -1,0 +1,59 @@
+# Constrói o Tamagi e publica no GHCR. É de lá que as máquinas instaladas
+# puxam atualizações (bootc switch ghcr.io/<dono>/tamagi:latest).
+#
+# A imagem não contém Chrome nem Warsaw (são baixados na máquina do usuário),
+# então pode ser pública.
+name: build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  schedule:
+    - cron: "17 5 * * *" # todo dia, para pegar atualizações da base Fedora
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: tamagi
+  FEDORA_VERSION: "45"
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Liberar espaço em disco
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - name: Definir tags
+        id: meta
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "registry=ghcr.io/${owner}" >> "$GITHUB_OUTPUT"
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Construir
+        run: |
+          sudo podman build \
+            --build-arg FEDORA_VERSION=${FEDORA_VERSION} \
+            --build-arg IMAGE_VENDOR=${GITHUB_REPOSITORY_OWNER,,} \
+            --build-arg IMAGE_REF=${{ steps.meta.outputs.registry }}/${IMAGE_NAME} \
+            -t ${IMAGE_NAME}:latest \
+            -t ${IMAGE_NAME}:${FEDORA_VERSION} \
+            -t ${IMAGE_NAME}:${FEDORA_VERSION}.${{ steps.meta.outputs.date }} \
+            .
+
+      - name: Testar
+        run: sudo podman run --rm -v ./tests:/tests:ro ${IMAGE_NAME}:latest bash /tests/image.sh
+
+      - name: Publicar
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for tag in latest ${FEDORA_VERSION} ${FEDORA_VERSION}.${{ steps.meta.outputs.date }}; do
+            sudo podman push ${IMAGE_NAME}:${tag} ${{ steps.meta.outputs.registry }}/${IMAGE_NAME}:${tag}
+          done

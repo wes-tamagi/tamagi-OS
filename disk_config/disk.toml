@@ -1,0 +1,9 @@
+# Disco de teste para VM (just build-qcow2). NÃO use esta senha fora de testes.
+[[customizations.user]]
+name = "tamagi"
+password = "tamagi"
+groups = ["wheel"]
+
+[[customizations.filesystem]]
+mountpoint = "/"
+minsize = "30 GiB"

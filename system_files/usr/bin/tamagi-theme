@@ -1,0 +1,130 @@
+#!/usr/bin/bash
+# tamagi-theme — troca o tema do desktop com um comando: claro/escuro do
+# COSMIC, papel de parede, paleta das janelas do Tamagi (alacritty) e as cores
+# dos apps do Omarchy (omacalc, omawrite).
+set -euo pipefail
+
+THEMES=/usr/share/tamagi/themes
+WALLS=/usr/share/backgrounds/tamagi
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+STATE="$CONFIG/tamagi/theme"
+WALL_STATE="$CONFIG/tamagi/wallpaper"
+# Estilos de papel de parede (cada tema tem todos, nas cores dele):
+#   mon       brasão: anel (tamaki) com três joias (tama) sobre ondas seigaiha
+#   seigaiha  ondas em escamas    asanoha  folha de cânhamo
+#   byobu     biombo: nuvens, lua e monte    ondas  o papel de parede original
+STYLES=(mon seigaiha asanoha byobu ondas)
+
+list() { find "$THEMES" -name '*.conf' -printf '%f\n' | sed 's/\.conf$//' | sort; }
+current() { cat "$STATE" 2>/dev/null || echo tokyo-night; }
+style() { cat "$WALL_STATE" 2>/dev/null || echo mon; }
+wall_file() { # wall_file <tema>: caminho do PNG no estilo atual
+    local st; st=$(style)
+    if [[ $st == ondas ]]; then echo "$WALLS/$1.png"; else echo "$WALLS/$1-$st.png"; fi
+}
+
+load() {
+    local conf="$THEMES/$1.conf"
+    [[ -f $conf ]] || { echo "tema desconhecido: $1 (veja 'tamagi-theme list')" >&2; exit 1; }
+    # shellcheck disable=SC1090
+    source "$conf"
+}
+
+alacritty_config() { # configuração completa do alacritty com a paleta do tema
+    local names=(black red green yellow blue magenta cyan white) i
+    cat <<TOML
+# Gerado por tamagi-theme ($NAME). Usado pelas janelas do Tamagi
+# (/usr/libexec/tamagi/popup); para o seu alacritty, use ~/.config/alacritty.
+[window]
+dimensions = { columns = 104, lines = 30 }
+padding = { x = 14, y = 12 }
+
+[font]
+normal = { family = "JetBrains Mono" }
+size = 11.0
+
+[colors.primary]
+background = "$BG"
+foreground = "$FG"
+
+[colors.cursor]
+cursor = "$CURSOR"
+text = "$BG"
+
+[colors.normal]
+TOML
+    for i in "${!names[@]}"; do echo "${names[$i]} = \"${PALETTE[$i]}\""; done
+    echo
+    echo "[colors.bright]"
+    for i in "${!names[@]}"; do echo "${names[$i]} = \"${PALETTE[$((i + 8))]}\""; done
+}
+
+apply_omarchy_apps() { # omacalc e omawrite leem as cores do tema neste arquivo
+    local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme" i
+    mkdir -p "$dir"
+    {
+        echo "# Gerado por tamagi-theme ($NAME)"
+        echo "accent = \"${WALL[2]}\""
+        echo "cursor = \"$CURSOR\""
+        echo "foreground = \"$FG\""
+        echo "background = \"$BG\""
+        echo "selection_foreground = \"$BG\""
+        echo "selection_background = \"${WALL[2]}\""
+        for i in "${!PALETTE[@]}"; do echo "color$i = \"${PALETTE[$i]}\""; done
+    } > "$dir/colors.toml"
+}
+
+apply_cosmic() { # o COSMIC guarda a configuração em arquivos, um por chave
+    local name=$1 cfg="$CONFIG/cosmic"
+    mkdir -p "$cfg/com.system76.CosmicTheme.Mode/v1" "$cfg/com.system76.CosmicBackground/v1"
+    [[ $SCHEME == dark ]] && echo true > "$cfg/com.system76.CosmicTheme.Mode/v1/is_dark" \
+                          || echo false > "$cfg/com.system76.CosmicTheme.Mode/v1/is_dark"
+    cat > "$cfg/com.system76.CosmicBackground/v1/all" <<RON
+(
+    output: "all",
+    source: Path("$(wall_file "$name")"),
+    filter_by_theme: false,
+    rotation_frequency: 3600,
+    filter_method: Lanczos,
+    scaling_mode: Zoom,
+    sampling_method: Alphanumeric,
+)
+RON
+    # Apps GTK e o navegador seguem o esquema claro/escuro pelo portal.
+    gsettings set org.gnome.desktop.interface color-scheme \
+        "$([[ $SCHEME == dark ]] && echo prefer-dark || echo default)" 2>/dev/null || true
+}
+
+apply() {
+    local name=$1
+    load "$name"
+    apply_cosmic "$name"
+    mkdir -p "$CONFIG/tamagi"
+    alacritty_config > "$CONFIG/tamagi/alacritty.toml"
+    apply_omarchy_apps
+    echo "$name" > "$STATE"
+    echo "Tema aplicado: $NAME"
+}
+
+case "${1:-}" in
+    list)    list ;;
+    current) current ;;
+    set)     [[ -n ${2:-} ]] || { echo "uso: tamagi-theme set <tema>" >&2; exit 2; }; apply "$2" ;;
+    next)    # próximo tema em ordem alfabética (bom para um atalho)
+             mapfile -t all < <(list); cur=$(current)
+             for i in "${!all[@]}"; do [[ ${all[$i]} == "$cur" ]] && break; done
+             apply "${all[$(( (i + 1) % ${#all[@]} ))]}" ;;
+    pick)    choice=$(list | gum choose --header "Tema" --selected "$(current)") && apply "$choice" ;;
+    wallpaper|papel) # estilo do papel de parede: tamagi-theme wallpaper [estilo]
+             choice=${2:-}
+             if [[ -z $choice ]]; then
+                 choice=$(printf '%s\n' "${STYLES[@]}" | gum choose --header "Papel de parede" --selected "$(style)") || exit 0
+             fi
+             [[ " ${STYLES[*]} " == *" $choice "* ]] || { echo "estilo desconhecido: $choice (use: ${STYLES[*]})" >&2; exit 2; }
+             mkdir -p "$CONFIG/tamagi"; echo "$choice" > "$WALL_STATE"
+             apply "$(current)" >/dev/null; echo "Papel de parede: $choice" ;;
+    styles)  printf '%s\n' "${STYLES[@]}" ;;
+    alacritty) # imprime a configuração do alacritty de um tema (usado no build)
+             load "${2:-tokyo-night}"; alacritty_config ;;
+    *)       echo "uso: tamagi-theme [list|current|set <tema>|next|pick|wallpaper [estilo]|styles]" >&2; exit 2 ;;
+esac

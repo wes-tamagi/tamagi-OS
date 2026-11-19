@@ -1,0 +1,59 @@
+#!/usr/bin/bash
+# tamagi-firstboot — conclui, no primeiro boot, o que foi respondido no
+# instalador (tik). O instalador grava /etc/tamagi/install.conf no sistema
+# novo; aqui o usuário é criado com o sistema já rodando (home em /var/home,
+# rótulos SELinux certos) e o arquivo é apagado.
+#
+# Formato: uma CHAVE=valor por linha, sem aspas e sem expansão:
+#   USER  FULLNAME  PASSWORD_HASH  XKB_LAYOUT  XKB_VARIANT
+set -euo pipefail
+
+CONF=${TAMAGI_INSTALL_CONF:-/etc/tamagi/install.conf}
+[[ -f $CONF ]] || exit 0
+
+declare -A C=()
+while IFS='=' read -r key value; do
+    [[ $key =~ ^[A-Z_]+$ ]] && C[$key]=$value
+done < "$CONF"
+
+user=${C[USER]:-}
+if [[ -n $user ]]; then
+    [[ $user =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "nome de usuário inválido: $user" >&2; exit 1; }
+    if ! id "$user" >/dev/null 2>&1; then
+        useradd --create-home --shell /bin/bash --groups wheel \
+            --comment "${C[FULLNAME]:-$user}" --password "${C[PASSWORD_HASH]:-!}" "$user"
+        echo "usuário $user criado"
+    fi
+fi
+
+# Teclado: o padrão da imagem é ABNT2 (br). Se o instalador pediu outro, vale
+# para o usuário novo e para a tela de login.
+layout=${C[XKB_LAYOUT]:-}
+if [[ -n $layout && $layout =~ ^[a-z0-9_,-]+$ ]]; then
+    variant=${C[XKB_VARIANT]:-}
+    [[ $variant =~ ^[a-zA-Z0-9_,-]*$ ]] || variant=""
+    for account in "$user" cosmic-greeter; do
+        [[ -n $account ]] || continue
+        home=$(getent passwd "$account" | cut -d: -f6)
+        [[ -n $home && -d $home ]] || continue
+        dir="$home/.config/cosmic/com.system76.CosmicComp/v1"
+        install -d -o "$account" -g "$(id -gn "$account")" "$home/.config" "$home/.config/cosmic" \
+            "$home/.config/cosmic/com.system76.CosmicComp" "$dir"
+        cat > "$dir/xkb_config" <<RON
+(
+    rules: "",
+    model: "",
+    layout: "$layout",
+    variant: "$variant",
+    options: None,
+    repeat_delay: 600,
+    repeat_rate: 25,
+)
+RON
+        chown "$account:" "$dir/xkb_config"
+    done
+    command -v restorecon >/dev/null && restorecon -R "$(getent passwd "${user:-root}" | cut -d: -f6)/.config" 2>/dev/null || true
+fi
+
+rm -f "$CONF"
+rmdir --ignore-fail-on-non-empty "$(dirname "$CONF")" 2>/dev/null || true

@@ -1,0 +1,8 @@
+#!/usr/bin/bash
+# Mostra a tabela de atalhos do Tamagi.
+if [[ -t 1 ]]; then
+    gum style --border rounded --padding "0 2" --border-foreground 4 "$(cat /usr/share/tamagi/keys.txt)"
+    read -rsn1 -p "  (qualquer tecla fecha)"
+else
+    cat /usr/share/tamagi/keys.txt
+fi

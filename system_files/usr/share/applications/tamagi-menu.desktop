@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Menu do Tamagi
+Comment=Instalar apps, IA local, temas, sistema e internet banking
+Exec=/usr/libexec/tamagi/popup tamagi-menu
+Icon=tamagi-menu
+Terminal=false
+Categories=Settings;
+Keywords=menu;configurar;instalar;tema;atualizar;

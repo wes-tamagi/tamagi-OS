@@ -1,0 +1,138 @@
+#!/usr/bin/bash
+# tamagi-update — um comando para atualizar tudo (o "omarchy update" do Tamagi).
+#
+#   tamagi-update            sistema + Flatpaks + subsistemas/caixas + mise
+#   tamagi-update --arch     só pacotes do Arch (pacman e AUR)
+#   tamagi-update --system   só a imagem do sistema
+#   tamagi-update status     o que se atualiza sozinho e quando
+#   tamagi-update auto off   desliga (on religa) a atualização automática
+#
+# Sozinho, todo dia: a imagem do sistema (baixada e preparada, entra no próximo
+# boot), os Flatpaks, e — pelo tamagi-autoupdate.timer — as caixas e o mise.
+#
+# A imagem do sistema também se atualiza sozinha em segundo plano; aqui você
+# só antecipa. A troca é atômica: vale no próximo boot, e a versão anterior
+# fica guardada (ujust rollback).
+set -uo pipefail
+
+step() { echo; echo -e "\033[1;34m── $*\033[0m"; }
+failed=()
+
+update_system() {
+    step "Sistema (imagem atômica)"
+    if sudo bootc upgrade; then
+        if bootc status --format json 2>/dev/null | jq -e '.status.staged != null' >/dev/null 2>&1; then
+            echo "Nova imagem pronta: entra em uso no próximo boot."
+        fi
+    else
+        echo "Não consegui atualizar a imagem. Se ela foi instalada de um build local, publique-a"
+        echo "num registry e aponte o sistema para lá: sudo bootc switch <registry>/tamagi:latest"
+        failed+=(sistema)
+    fi
+}
+
+all_boxes() { podman ps -a --filter label=manager=distrobox --format '{{.Names}}' 2>/dev/null; }
+
+arch_boxes() { # caixas distrobox cuja distro é Arch
+    local name
+    for name in $(all_boxes); do
+        podman inspect --format '{{.ImageName}}' "$name" 2>/dev/null | grep -qi arch && echo "$name"
+    done
+}
+
+update_arch() {
+    local box found=0
+    for box in $(arch_boxes); do
+        found=1
+        step "Arch ($box): pacman"
+        distrobox enter "$box" -- sudo pacman -Syu --noconfirm || failed+=("arch:$box")
+        if distrobox enter "$box" -- sh -c 'command -v paru' >/dev/null 2>&1; then
+            step "Arch ($box): AUR (paru)"
+            distrobox enter "$box" -- paru -Sua --noconfirm || failed+=("aur:$box")
+        elif distrobox enter "$box" -- sh -c 'command -v yay' >/dev/null 2>&1; then
+            step "Arch ($box): AUR (yay)"
+            distrobox enter "$box" -- yay -Sua --noconfirm || failed+=("aur:$box")
+        fi
+    done
+    (( found )) || echo "Nenhuma caixa Arch. Crie com: tamagi-pkg install --arch <pacote>  ou  ujust devbox arch"
+}
+
+on_battery() { grep -qsx Discharging /sys/class/power_supply/*/status; }
+
+update_auto() { # chamado pelo tamagi-autoupdate.timer: sem perguntas e sem senha
+    if on_battery; then echo "Na bateria: fica para a próxima."; return 0; fi
+    local box
+    for box in $(all_boxes); do
+        step "Caixa $box"
+        distrobox upgrade "$box" </dev/null || failed+=("caixa:$box")
+    done
+    if command -v mise >/dev/null 2>&1 && [[ -n $(mise ls --installed 2>/dev/null) ]]; then
+        step "Runtimes (mise)"
+        mise upgrade --yes </dev/null || failed+=(mise)
+    fi
+    # A imagem nova é baixada pelo sistema em segundo plano; aqui só o aviso.
+    if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
+        notify-send -a Tamagi -i system-software-update "Atualização do sistema pronta" \
+            "Ela entra em uso quando você reiniciar o computador." 2>/dev/null || true
+    fi
+}
+
+timer_line() { # timer_line <rótulo> [--user] <unit>
+    local label=$1 scope=() unit; shift
+    [[ $1 == --user ]] && { scope=(--user); shift; }
+    unit=$1
+    printf '%-34s %-9s próxima: %s\n' "$label" \
+        "$(systemctl "${scope[@]}" is-enabled "$unit" 2>/dev/null || echo ausente)" \
+        "$(systemctl "${scope[@]}" show "$unit" -p NextElapseUSecRealtime --value 2>/dev/null | sed 's/^$/-/')"
+}
+
+status_auto() {
+    echo "Atualização automática:"
+    timer_line "  Sistema (imagem, entra no boot)" rpm-ostreed-automatic.timer
+    timer_line "  Flatpaks do sistema" flatpak-system-update.timer
+    timer_line "  Flatpaks do usuário" --user flatpak-user-update.timer
+    timer_line "  Subsistemas e mise" --user tamagi-autoupdate.timer
+    if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
+        echo "Há uma imagem nova pronta: reinicie para usar."
+    fi
+}
+
+set_auto() { # set_auto on|off
+    local verb=enable
+    [[ $1 == off ]] && verb=disable
+    sudo systemctl "$verb" --now rpm-ostreed-automatic.timer flatpak-system-update.timer
+    systemctl --user "$verb" --now flatpak-user-update.timer tamagi-autoupdate.timer
+    status_auto
+}
+
+case "${1:-all}" in
+    --arch)   update_arch ;;
+    --system) update_system ;;
+    --auto)   update_auto ;;
+    status)   status_auto; exit 0 ;;
+    auto)     case "${2:-}" in on|off) set_auto "$2"; exit 0 ;; *) echo "uso: tamagi-update auto on|off" >&2; exit 2 ;; esac ;;
+    all)
+        update_system
+        step "Flatpaks"
+        flatpak update -y || failed+=(flatpak)
+        step "Subsistemas e caixas distrobox (deb, rpm e outras)"
+        archs=$(arch_boxes)
+        for box in $(all_boxes); do
+            grep -qx "$box" <<<"$archs" && continue
+            distrobox upgrade "$box" || failed+=("caixa:$box")
+        done
+        update_arch
+        if command -v mise >/dev/null 2>&1 && [[ -n $(mise ls --installed 2>/dev/null) ]]; then
+            step "Runtimes (mise)"
+            mise upgrade || failed+=(mise)
+        fi
+        ;;
+    *) echo "uso: tamagi-update [--arch|--system|status|auto on|off]" >&2; exit 2 ;;
+esac
+
+echo
+if (( ${#failed[@]} )); then
+    echo "Terminou com falhas em: ${failed[*]}"
+    exit 1
+fi
+echo "Tudo atualizado."
