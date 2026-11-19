@@ -144,7 +144,6 @@ def current_state(with_browsers=True):
         "webapps": webapps(),
         "servicos": {
             "atualizacao_automatica": ok(["systemctl", "--user", "is-enabled", "tamagi-autoupdate.timer"]),
-            "android": pathlib.Path("/var/lib/waydroid/waydroid.cfg").exists(),
             "seguranca": "estrito" if pathlib.Path("/etc/sysctl.d/90-tamagi-strict.conf").exists() else "equilibrado",
         },
     }
@@ -164,8 +163,8 @@ def toml_value(v):
 
 def to_toml(state):
     notes = {
-        "aparencia": "tema: tamagi-theme list · papel: mon, seigaiha, asanoha, byobu, ondas",
-        "navegadores": "na caixa AnduinOS: chrome, firefox, brave, edge, vivaldi",
+        "aparencia": "tema: tamagi-theme list · papel: mon, seigaiha, asanoha, byobu, shippo, hinode, uroko, ondas",
+        "navegadores": "na caixa Ubuntu 26.04 LTS: chrome, firefox, brave, edge, vivaldi",
         "flatpak": "IDs do Flathub ou do repositório COSMIC",
         "mise": "linguagens e ferramentas globais, como em `mise use -g`",
         "pacotes": "subsistemas do tamagi-pkg (omarchy usa a caixa Arch)",
@@ -265,8 +264,6 @@ def plan(wanted):
     if "atualizacao_automatica" in sv and bool(sv["atualizacao_automatica"]) != now["servicos"]["atualizacao_automatica"]:
         steps.append((f"atualização automática: {'ligada' if sv['atualizacao_automatica'] else 'desligada'}",
                       ["tamagi-update", "auto", "on" if sv["atualizacao_automatica"] else "off"], True))
-    if sv.get("android") and not now["servicos"]["android"]:
-        steps.append(("Android (Waydroid): baixar e ligar", ["tamagi-waydroid", "setup", "--vanilla"], True))
     if "seguranca" in sv and sv["seguranca"] != now["servicos"]["seguranca"]:
         steps.append((f"segurança: {sv['seguranca']}",
                       ["tamagi-harden", "strict" if sv["seguranca"] == "estrito" else "balanced"], True))

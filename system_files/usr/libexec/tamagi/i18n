@@ -1,0 +1,30 @@
+# shellcheck shell=bash
+# Tamagi — textos das ferramentas em quatro idiomas: português (o original),
+# inglês (EUA), espanhol e francês. Para usar num script:
+#
+#   . /usr/libexec/tamagi/i18n
+#   echo "$(t "Texto em português")"        # ou: tl "Texto" (com quebra de linha)
+#
+# A chave é o próprio texto em português; as traduções ficam em
+# /usr/share/tamagi/i18n/<idioma>.tsv (português<TAB>tradução, uma por linha).
+# Sem tradução, sai o português. O idioma vem do sistema (LANG); outros
+# idiomas caem no inglês. TAMAGI_LANG=pt|en|es|fr força um.
+declare -gA TAMAGI_TR=()
+if [[ -z ${TAMAGI_LANG:-} ]]; then
+    case "${LC_ALL:-${LC_MESSAGES:-${LANG:-pt_BR}}}" in
+        pt*) TAMAGI_LANG=pt ;;
+        es*) TAMAGI_LANG=es ;;
+        fr*) TAMAGI_LANG=fr ;;
+        *)   TAMAGI_LANG=en ;;
+    esac
+fi
+if [[ $TAMAGI_LANG != pt && -r ${TAMAGI_I18N_DIR:-/usr/share/tamagi/i18n}/$TAMAGI_LANG.tsv ]]; then
+    while IFS=$'\t' read -r _k _v; do
+        [[ -n $_k && $_k != \#* && -n $_v ]] && TAMAGI_TR[$_k]=$_v
+    done < "${TAMAGI_I18N_DIR:-/usr/share/tamagi/i18n}/$TAMAGI_LANG.tsv"
+    unset _k _v
+fi
+t() { printf '%s' "${TAMAGI_TR[$1]:-$1}"; }
+tl() { printf '%s\n' "${TAMAGI_TR[$1]:-$1}"; }
+# Arquivo de texto traduzido: tfile /usr/share/tamagi/keys.txt -> keys.en.txt se existir.
+tfile() { local f="${1%.*}.$TAMAGI_LANG.${1##*.}"; [[ $TAMAGI_LANG != pt && -r $f ]] && echo "$f" || echo "$1"; }

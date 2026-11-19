@@ -1,0 +1,33 @@
+ FENÊTRES
+   Super + W                 fermer la fenêtre
+   Super + F / M             plein écran / maximiser
+   Super + T                 basculer en fenêtre flottante
+   Super + Y                 activer/désactiver le tiling
+   Super + O                 basculer la division horizontale/verticale
+   Super + Flèches           déplacer le focus
+   Super + Maj + Flèches     déplacer la fenêtre
+   Super + X                 échanger les fenêtres
+   Super + S                 empiler les fenêtres (onglets)
+
+ ESPACES DE TRAVAIL
+   Super + 1…9               aller à l'espace de travail
+   Super + Maj + 1…9         envoyer la fenêtre vers l'espace de travail
+
+ APPLICATIONS
+   Super                     lanceur
+   Super + Espace            lanceur d'applications
+   Super + Entrée            terminal
+   Super + B / E             navigateur / fichiers
+   Super + Maj + N / T       neovim / btop
+
+ Tamagi
+   Super + A                 actions rapides (une touche)
+   Super + Alt + Espace      menu du système
+   Super + Maj + A           agent d'IA local
+   Super + K                 cette liste
+   Super + Maj+Ctrl+Espace   thème suivant
+
+ SYSTÈME
+   Super + Échap             verrouiller l'écran
+   Impr. écran               capture d'écran
+   Super + Ctrl + Espace     changer la disposition du clavier

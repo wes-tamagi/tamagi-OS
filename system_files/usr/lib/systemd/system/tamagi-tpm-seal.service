@@ -1,0 +1,12 @@
+[Unit]
+Description=Tamagi: amarra a chave do disco no TPM ao estado do Secure Boot (PCR 7)
+Documentation=file:///usr/share/doc/tamagi/README.md
+ConditionPathExists=/etc/tamagi/tpm-seal
+After=local-fs.target tpm2.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tamagi/tpm-seal
+
+[Install]
+WantedBy=multi-user.target

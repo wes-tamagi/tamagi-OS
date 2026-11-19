@@ -1,0 +1,18 @@
+#!/usr/bin/bash
+# Amarra a chave do disco ao estado do Secure Boot (PCR 7).
+#
+# O instalador guarda a chave no chip TPM sem amarrar a nenhuma medição: as
+# medições feitas no boot pela mídia de instalação não são as mesmas do boot
+# pelo disco, e uma chave amarrada a elas não abriria no primeiro boot. Aqui,
+# já no sistema instalado, a chave é registrada de novo, agora presa ao PCR 7,
+# e o registro provisório é apagado. Se falhar, o registro provisório continua
+# valendo (o disco abre sozinho) e a tentativa se repete no próximo boot.
+set -euo pipefail
+FLAG=/etc/tamagi/tpm-seal
+uuid=$(<"$FLAG")
+dev=/dev/disk/by-uuid/$uuid
+[[ -b $dev ]] || { echo "disco $uuid não encontrado" >&2; exit 1; }
+systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=tpm2 \
+    --tpm2-device=auto --tpm2-pcrs=7 "$dev"
+rm -f "$FLAG"
+echo "chave do disco amarrada ao PCR 7"

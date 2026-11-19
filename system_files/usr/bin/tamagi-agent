@@ -62,7 +62,6 @@ READ_ONLY_SUB = {
     "mise": {"ls", "list", "current", "doctor", "settings", "version", "--version"},
     "tamagi-warsaw": {None, "status"},
     "tamagi-browser": {"status"},
-    "tamagi-waydroid": {"status"},
     "tamagi-harden": {None, "status"},
     "dnf": {"list", "info", "search", "repoquery", "provides"},
     "gsettings": {"get", "list-keys", "list-schemas"},
@@ -398,15 +397,27 @@ def run_turn(base, model, messages, auto_yes):
     print(f"{C['yellow']}Parei após {MAX_STEPS} passos; diga 'continue' para seguir.{C['reset']}")
 
 
+REPLY_LANG = {"pt": "português do Brasil", "en": "English", "es": "español", "fr": "français"}
+
+
+def reply_language():
+    """Idioma das respostas: o do sistema (ou TAMAGI_LANG); outros idiomas caem no inglês."""
+    code = os.environ.get("TAMAGI_LANG") or (
+        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG") or "pt_BR")[:2]
+    return REPLY_LANG.get(code, "English")
+
+
 def system_prompt():
     try:
         with open(SYSTEM_PROMPT_FILE, encoding="utf-8") as fh:
             base = fh.read()
     except OSError:
-        base = "Você é o assistente do sistema Tamagi. Responda em português."
+        base = "Você é o assistente do sistema Tamagi."
     facts = [f"Usuário: {os.environ.get('USER', '?')}", f"Diretório atual: {os.getcwd()}",
              f"Data: {time.strftime('%Y-%m-%d %H:%M')}"]
-    return base.rstrip() + "\n\n## Contexto desta sessão\n" + "\n".join(facts) + "\n"
+    # O idioma vai no fim do prompt, onde os modelos locais pequenos obedecem melhor.
+    return (base.rstrip() + "\n\n## Contexto desta sessão\n" + "\n".join(facts)
+            + f"\n\n## Idioma\nResponda sempre em {reply_language()}.\n")
 
 
 def main():

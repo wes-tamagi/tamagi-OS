@@ -1,7 +1,13 @@
 [Desktop Entry]
 Type=Application
-Name=Instalar o Tamagi
-Comment=Instala o Tamagi neste computador (tik + bootc)
+Name=Install Tamagi
+Name[pt_BR]=Instalar o Tamagi
+Name[es]=Instalar Tamagi
+Name[fr]=Installer Tamagi
+Comment=Installs Tamagi on this computer (tik + bootc)
+Comment[pt_BR]=Instala o Tamagi neste computador (tik + bootc)
+Comment[es]=Instala Tamagi en este equipo (tik + bootc)
+Comment[fr]=Installe Tamagi sur cet ordinateur (tik + bootc)
 Exec=/usr/libexec/tamagi-installer-launch
 Icon=system-software-install
 Terminal=false

@@ -10,8 +10,10 @@
 #                         `bootc install` copia, sem precisar de rede
 #   boot/ + partição EFI  kernel, initramfs live e GRUB (só UEFI)
 #
-# Compressão (padrão: a mais forte, para a ISO caber num pendrive de 8 GB):
-#   TAMAGI_ISO_SQUASH=xz|zstd     squashfs do ambiente live (zstd: build mais rápido, ISO maior)
+# Compressão (padrão: zstd nas duas partes — descompacta várias vezes mais
+# rápido que o xz, então a mídia inicia, o instalador responde e a cópia do
+# sistema anda no ritmo do pendrive, não do processador):
+#   TAMAGI_ISO_SQUASH=zstd|xz     squashfs do ambiente live (xz: ISO ~10% menor, bem mais lenta)
 #   TAMAGI_ISO_ZSTD_LEVEL=1..22   camadas da imagem embutida
 #
 # TAMAGI_ISO_NO_PAYLOAD=1 gera uma ISO menor, sem a imagem embutida: a
@@ -36,6 +38,9 @@ podman image exists "$LIVE" || { echo "imagem $LIVE não existe (rode: just buil
 # Pasta de trabalho recriada do zero; quem apaga é o contêiner (os arquivos
 # do squashfs saem com donos do espaço de usuário do podman).
 mkdir -p "$WORK"
+# Uma ISO antiga pode ter mudado de dono (o libvirt faz isso ao abri-la numa VM)
+# e o xorriso não consegue gravar por cima: sai antes de começar.
+rm -f -- "$OUT" 2>/dev/null || { echo "não consegui apagar a ISO antiga $OUT (dono: $(stat -c %U "$OUT")); apague-a e rode de novo" >&2; exit 1; }
 podman run --rm -v "$OUT_DIR":/out:Z "$LIVE" bash -c 'rm -rf /out/iso-work && mkdir -p /out/iso-work/tree'
 
 if [[ ${TAMAGI_ISO_NO_PAYLOAD:-0} != 1 ]]; then
@@ -51,7 +56,7 @@ step "Ambiente live em squashfs, kernel, initramfs e GRUB"
 podman run --rm \
     --mount "type=image,source=$LIVE,destination=/live" \
     -v "$OUT_DIR":/out:Z -v "$SCRIPT_DIR":/ctx:ro,Z \
-    -e LABEL="$LABEL" -e OUT_NAME="$OUT_NAME" -e SQUASH_COMP="${TAMAGI_ISO_SQUASH:-xz}" \
+    -e LABEL="$LABEL" -e OUT_NAME="$OUT_NAME" -e SQUASH_COMP="${TAMAGI_ISO_SQUASH:-zstd}" \
     "$LIVE" bash /ctx/mkiso-inner.sh
 
 step "Pronto"

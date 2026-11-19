@@ -1,8 +1,8 @@
 #!/usr/bin/bash
 # tamagi-theme — troca o tema do desktop com um comando: claro/escuro do
-# COSMIC, papel de parede, paleta das janelas do Tamagi (alacritty) e as cores
-# dos apps do Omarchy (omacalc, omawrite).
+# COSMIC, papel de parede e a paleta das janelas do Tamagi (alacritty).
 set -euo pipefail
+. /usr/libexec/tamagi/i18n
 
 THEMES=/usr/share/tamagi/themes
 WALLS=/usr/share/backgrounds/tamagi
@@ -12,8 +12,10 @@ WALL_STATE="$CONFIG/tamagi/wallpaper"
 # Estilos de papel de parede (cada tema tem todos, nas cores dele):
 #   mon       brasão: anel (tamaki) com três joias (tama) sobre ondas seigaiha
 #   seigaiha  ondas em escamas    asanoha  folha de cânhamo
-#   byobu     biombo: nuvens, lua e monte    ondas  o papel de parede original
-STYLES=(mon seigaiha asanoha byobu ondas)
+#   byobu     biombo: nuvens, lua e monte    shippo   círculos entrelaçados
+#   hinode    nascer do sol sobre o mar      uroko    escamas triangulares
+#   ondas     o papel de parede original
+STYLES=(mon seigaiha asanoha byobu shippo hinode uroko ondas)
 
 list() { find "$THEMES" -name '*.conf' -printf '%f\n' | sed 's/\.conf$//' | sort; }
 current() { cat "$STATE" 2>/dev/null || echo tokyo-night; }
@@ -59,7 +61,7 @@ TOML
     for i in "${!names[@]}"; do echo "${names[$i]} = \"${PALETTE[$((i + 8))]}\""; done
 }
 
-apply_omarchy_apps() { # omacalc e omawrite leem as cores do tema neste arquivo
+apply_omarchy_apps() { # apps do Omarchy (instalados pelo tamagi-pkg) leem as cores do tema neste arquivo
     local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme" i
     mkdir -p "$dir"
     {
@@ -103,7 +105,7 @@ apply() {
     alacritty_config > "$CONFIG/tamagi/alacritty.toml"
     apply_omarchy_apps
     echo "$name" > "$STATE"
-    echo "Tema aplicado: $NAME"
+    echo "$(t "Tema aplicado"): $NAME"
 }
 
 case "${1:-}" in
@@ -114,15 +116,15 @@ case "${1:-}" in
              mapfile -t all < <(list); cur=$(current)
              for i in "${!all[@]}"; do [[ ${all[$i]} == "$cur" ]] && break; done
              apply "${all[$(( (i + 1) % ${#all[@]} ))]}" ;;
-    pick)    choice=$(list | gum choose --header "Tema" --selected "$(current)") && apply "$choice" ;;
+    pick)    choice=$(list | gum choose --header "$(t "Tema")" --selected "$(current)") && apply "$choice" ;;
     wallpaper|papel) # estilo do papel de parede: tamagi-theme wallpaper [estilo]
              choice=${2:-}
              if [[ -z $choice ]]; then
-                 choice=$(printf '%s\n' "${STYLES[@]}" | gum choose --header "Papel de parede" --selected "$(style)") || exit 0
+                 choice=$(printf '%s\n' "${STYLES[@]}" | gum choose --header "$(t "Papel de parede")" --selected "$(style)") || exit 0
              fi
              [[ " ${STYLES[*]} " == *" $choice "* ]] || { echo "estilo desconhecido: $choice (use: ${STYLES[*]})" >&2; exit 2; }
              mkdir -p "$CONFIG/tamagi"; echo "$choice" > "$WALL_STATE"
-             apply "$(current)" >/dev/null; echo "Papel de parede: $choice" ;;
+             apply "$(current)" >/dev/null; echo "$(t "Papel de parede"): $choice" ;;
     styles)  printf '%s\n' "${STYLES[@]}" ;;
     alacritty) # imprime a configuração do alacritty de um tema (usado no build)
              load "${2:-tokyo-night}"; alacritty_config ;;

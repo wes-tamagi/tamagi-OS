@@ -1,0 +1,108 @@
+# Tamagi — traduções (en). Formato: português<TAB>tradução. Veja /usr/libexec/tamagi/i18n.
+# Nos estilos da barra (centro, classico, cosmic) a primeira palavra é o nome do estilo: não traduzir.
+Sim	Yes
+Não	No
+Bem-vindo ao Tamagi	Welcome to Tamagi
+Sistema atômico: o host é somente-leitura e se atualiza sozinho.	Atomic system: the host is read-only and updates itself.
+Apps por Flatpak, navegadores e pacotes em caixas distrobox, IA local.	Apps via Flatpak, browsers and packages in distrobox boxes, local AI.
+Aparência	Appearance
+Tema	Theme
+Barra	Bar
+centro — uma barra embaixo, apps no centro	centro — one bar at the bottom, apps in the center
+classico — uma barra embaixo, apps à esquerda	classico — one bar at the bottom, apps on the left
+cosmic — painel em cima e dock embaixo	cosmic — panel on top and dock at the bottom
+Janelas	Windows
+Organizar as janelas automaticamente lado a lado (tiling)?	Arrange windows side by side automatically (tiling)?
+Flutuantes	Floating
+Super+Y alterna entre os dois modos a qualquer momento.	Super+Y switches between the two modes at any time.
+Navegador	Browser
+Os navegadores vivem numa caixa Ubuntu 26.04 LTS (distrobox), com a placa de vídeo	Browsers live in an Ubuntu 26.04 LTS box (distrobox), with the computer's
+do computador e sem tocar no host. O Chrome é preparado no primeiro uso	graphics card and without touching the host. Chrome is set up on first use
+(baixa cerca de 600 MB).	(downloads about 600 MB).
+Não deu agora (sem rede?). Ele é preparado quando você abrir o navegador.	That didn't work (no network?). It will be set up when you open the browser.
+Depois: abra o navegador, ou rode tamagi-browser setup	Later: open the browser, or run tamagi-browser setup
+Caixa de desenvolvimento (distrobox)	Development box (distrobox)
+O host não recebe pacotes: ferramentas de linha de comando vivem numa caixa.	The host takes no packages: command-line tools live in a box.
+agora não	not now
+Criar a caixa 'dev' com qual distro?	Which distro for the 'dev' box?
+Não deu para criar agora (sem rede?). Depois: ujust devbox	Could not create it now (no network?). Later: ujust devbox
+Linguagens e ferramentas (mise)	Languages and tools (mise)
+O mise é o gerenciador padrão de linguagens e ferramentas de desenvolvimento:	mise is the default manager for languages and development tools:
+instala no seu usuário, troca de versão por pasta de projeto e se atualiza sozinho.	it installs into your user account, switches versions per project folder and updates itself.
+Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)	Install now? (space selects, Enter confirms; may be left empty)
+Não deu agora (sem rede?). Depois: mise use -g node@lts	That didn't work (no network?). Later: mise use -g node@lts
+Depois: mise use -g node@lts python@latest   ·   mise ls	Later: mise use -g node@lts python@latest   ·   mise ls
+Disco criptografado	Encrypted disk
+Depois: ujust setup-luks-tpm-unlock	Later: ujust setup-luks-tpm-unlock
+IA local (llama.cpp)	Local AI (llama.cpp)
+Depois: tamagi-ai setup	Later: tamagi-ai setup
+Internet banking (Warsaw)	Internet banking (Warsaw)
+O módulo de segurança dos bancos roda dentro da caixa dos navegadores.	The banks' security module runs inside the browsers' box.
+Depois: ujust warsaw ligar	Later: ujust warsaw ligar
+Pronto	Done
+Super+K mostra os atalhos · Super+A ações rápidas · Super+Alt+Espaço abre o menu.	Super+K shows the shortcuts · Super+A quick actions · Super+Alt+Space opens the menu.
+Jogos: ujust setup-gaming · Segurança: tamagi-harden status · Idioma: tamagi-lang pick	Games: ujust setup-gaming · Security: tamagi-harden status · Language: tamagi-lang pick
+qualquer tecla fecha	press any key to close
+Preparar o Chrome agora?	Set up Chrome now?
+Desbloquear o disco pelo chip TPM no boot, sem digitar a senha?	Unlock the disk with the TPM chip at boot, without typing the password?
+Baixar um modelo agora? (o download pode levar alguns minutos)	Download a model now? (the download may take a few minutes)
+Instalar e ligar o Warsaw agora? (exige aceitar a licença da Topaz)	Install and enable Warsaw now? (requires accepting Topaz's license)
+qualquer tecla continua	press any key to continue
+Formato	Format
+nome do pacote ou caminho do arquivo	package name or file path
+nome do app (ex.: gimp, spotify, vscode)	app name (e.g. gimp, spotify, vscode)
+Escolha o app	Choose the app
+ex.: node@lts, python@3.13, go, rust	e.g. node@lts, python@3.13, go, rust
+Reverter para a imagem anterior no próximo boot?	Roll back to the previous image on the next boot?
+Sair da sessão?	Log out?
+Reiniciar o computador?	Restart the computer?
+Desligar o computador?	Shut down the computer?
+App gráfico (Flatpak)	Graphical app (Flatpak)
+Pacote deb, rpm, Arch ou Omarchy (subsistema)	deb, rpm, Arch or Omarchy package (subsystem)
+Navegador (Chrome, Firefox, Brave, Edge, Vivaldi)	Browser (Chrome, Firefox, Brave, Edge, Vivaldi)
+Web app (site como aplicativo)	Web app (site as an application)
+Jogos (Steam, Lutris, Heroic)	Games (Steam, Lutris, Heroic)
+Linguagem ou runtime (mise)	Language or runtime (mise)
+LazyVim no Neovim	LazyVim on Neovim
+Outro agente de IA	Another AI agent
+Voltar	Back
+Conversar com o agente	Talk to the agent
+Chat na interface web	Chat in the web interface
+Programar com opencode	Code with opencode
+Claude Code	Claude Code
+Instalar ou trocar modelo	Install or change model
+Estado	Status
+Papel de parede	Wallpaper
+Estilo da barra	Bar style
+Idioma do sistema	System language
+Atualizar tudo	Update everything
+Estado da imagem	Image status
+Voltar para a versão anterior	Go back to the previous version
+Atualização automática	Automatic updates
+Máquinas virtuais	Virtual machines
+Saúde do boot	Boot health
+Sistema num arquivo (tamagi diff)	System in a file (tamagi diff)
+Segurança (endurecimento)	Security (hardening)
+Limpar espaço	Free up space
+Informações da máquina	Machine information
+Refazer a configuração inicial	Redo the initial setup
+Abrir o modo banco (descartável)	Open bank mode (disposable)
+Desligar	Shut down
+Bloquear	Lock
+Suspender	Suspend
+Sair da sessão	Log out
+Reiniciar	Restart
+Instalar	Install
+IA local	Local AI
+Atalhos	Shortcuts
+Sistema	System
+Internet banking	Internet banking
+Energia	Power
+Sair	Quit
+IA	AI
+Tamagi	Tamagi
+idioma desconhecido	unknown language
+vale no próximo login (saia da sessão e entre de novo).	takes effect at the next login (log out and back in).
+Ligar o Warsaw	Enable Warsaw
+Desligar o Warsaw	Disable Warsaw
+Tema aplicado	Theme applied

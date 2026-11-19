@@ -6,7 +6,7 @@
 # uma imagem de disco pronta; o Tamagi é uma imagem bootc, então este módulo:
 #
 #   1. faz as perguntas (idioma, teclado, fuso, conta, criptografia), em
-#      português ou inglês;
+#      português, inglês, espanhol ou francês;
 #   2. redefine as etapas do tik que gravariam a imagem de disco, para chamar
 #      /usr/libexec/tamagi-install (particiona e roda `bootc install`);
 #   3. redefine o encerramento: cancelar volta para o desktop live em vez de
@@ -15,8 +15,8 @@
 # Variáveis e funções do tik usadas aqui: gui, tik_log, d, log, error.
 #
 # Instalação sem perguntas (testes e automação), pela linha do kernel:
-#   tamagi.autoinstall=/dev/vda [tamagi.autoinstall.lang=en] [tamagi.autoinstall.user=nome]
-#   [tamagi.autoinstall.password=senha] [tamagi.autoinstall.luks=senha-do-disco]
+#   tamagi.autoinstall=/dev/vda [tamagi.autoinstall.lang=en|es|fr] [tamagi.autoinstall.user=nome]
+#   [tamagi.autoinstall.password=senha] [tamagi.autoinstall.luks=senha-do-disco] [tamagi.autoinstall.tpm=1]
 #   [tamagi.autoinstall.kargs=arg1,arg2]
 
 tamagi_dir="${XDG_RUNTIME_DIR:-/run}/tamagi-install"
@@ -26,7 +26,7 @@ tamagi_luks_key="${tamagi_dir}/luks.key"
 tamagi_started=0
 tamagi_done=0
 
-# ── Idiomas do instalador: pt (padrão) e en ────────────────────────────────
+# ── Idiomas do instalador: pt (padrão), en, es e fr ────────────────────────────────
 # T <chave> devolve o texto no idioma escolhido. As variáveis tamagi_t_* são
 # lidas pelo núcleo do tik (build-live.sh troca os textos fixos dele por elas).
 declare -A TXT_pt=(
@@ -43,9 +43,11 @@ declare -A TXT_pt=(
     [reserved]="Esse nome de usuário é reservado pelo sistema. Escolha outro."
     [empty_pass]="A senha não pode ficar vazia." [pass_mismatch]="As duas senhas não são iguais. Digite de novo."
     [enc_title]="Criptografia do disco" [enc_yes]="Criptografar" [enc_no]="Não criptografar"
-    [enc_text]="<b>Criptografar o disco?</b>\n\nCom criptografia (LUKS2), ninguém lê os seus arquivos se o computador\nfor perdido ou roubado. Em troca, uma senha é pedida a cada vez que ele liga.\nDepois de instalar, <tt>ujust setup-luks-tpm-unlock</tt> permite desbloquear pelo chip TPM.\n\n<b>Sem a senha do disco não há como recuperar os arquivos.</b>"
+    [enc_text]="<b>Criptografar o disco?</b>\n\nCom criptografia (LUKS2), ninguém lê os seus arquivos se o computador\nfor perdido ou roubado. Você cria uma senha do disco; se o computador tiver chip TPM, ela pode\nficar só de reserva e o disco se desbloqueia sozinho ao ligar.\n\n<b>Sem a senha do disco não há como recuperar os arquivos.</b>"
     [luks_title]="Senha do disco" [luks_text]="Senha pedida ao ligar o computador (mínimo de 8 caracteres)."
     [luks_short]="A senha do disco precisa de pelo menos 8 caracteres."
+    [tpm_title]="Desbloqueio automático" [tpm_yes]="Desbloquear sozinho (TPM)" [tpm_no]="Pedir a senha a cada boot"
+    [tpm_text]="<b>Desbloquear o disco sem digitar a senha?</b>\n\nEste computador tem um chip de segurança (TPM 2.0). A chave do disco pode\nficar guardada nele: o computador liga direto, e o disco continua ilegível\nfora desta máquina. A senha que você acabou de criar fica como reserva\n(troca de placa-mãe, atualização de firmware)."
     [begin_title]="Começar a instalação?" [begin_ok]="Apagar o disco e instalar" [cancel]="Cancelar"
     [begin_text]="O disco abaixo será <b>totalmente apagado</b>:" [begin_enc]="Criptografia do disco" [yes]="sim" [no]="não"
     [begin_warn]="Depois de começar não há como desfazer."
@@ -61,7 +63,7 @@ declare -A TXT_pt=(
 declare -A TXT_en=(
     [quit]="Quit the installer?" [quit_yes]="Quit" [quit_no]="Keep installing"
     [install_now]="Install now"
-    [welcome]="<big><b>Welcome to Tamagi</b></big>\n\nThis assistant installs Tamagi on this computer.\nJust a few questions: keyboard, time zone, your account and the disk.\n\nTo only try the system, close this window.\nThe installer stays in the launcher: <b>Instalar o Tamagi</b>."
+    [welcome]="<big><b>Welcome to Tamagi</b></big>\n\nThis assistant installs Tamagi on this computer.\nJust a few questions: keyboard, time zone, your account and the disk.\n\nTo only try the system, close this window.\nThe installer stays in the launcher: <b>Install Tamagi</b>."
     [no_uefi]="Tamagi needs a computer started in UEFI mode.\nCheck the BIOS options to see if UEFI can be enabled."
     [kbd_title]="Keyboard" [kbd_text]="Which keyboard does this computer have?"
     [tz_title]="Time zone" [tz_text]="Where is this computer?" [tz_col]="Region"
@@ -72,9 +74,11 @@ declare -A TXT_en=(
     [reserved]="That username is reserved by the system. Choose another one."
     [empty_pass]="The password cannot be empty." [pass_mismatch]="The two passwords are not the same. Type them again."
     [enc_title]="Disk encryption" [enc_yes]="Encrypt" [enc_no]="Do not encrypt"
-    [enc_text]="<b>Encrypt the disk?</b>\n\nWith encryption (LUKS2), nobody can read your files if the computer\nis lost or stolen. In exchange, a password is asked every time it starts.\nAfter installing, <tt>ujust setup-luks-tpm-unlock</tt> allows unlocking with the TPM chip.\n\n<b>Without the disk password there is no way to recover the files.</b>"
-    [luks_title]="Disk password" [luks_text]="Password asked when the computer starts (at least 8 characters)."
+    [enc_text]="<b>Encrypt the disk?</b>\n\nWith encryption (LUKS2), nobody can read your files if the computer\nis lost or stolen. You create a disk password; if the computer has a TPM chip, it can\nstay as a fallback and the disk unlocks by itself at startup.\n\n<b>Without the disk password there is no way to recover the files.</b>"
+    [luks_title]="Disk password" [luks_text]="Password requested when the computer starts (at least 8 characters)."
     [luks_short]="The disk password needs at least 8 characters."
+    [tpm_title]="Automatic unlock" [tpm_yes]="Unlock automatically (TPM)" [tpm_no]="Ask for the password at every boot"
+    [tpm_text]="<b>Unlock the disk without typing the password?</b>\n\nThis computer has a security chip (TPM 2.0). The disk key can be kept\nin it: the computer starts straight away, and the disk stays unreadable\noutside this machine. The password you just created remains as a fallback\n(motherboard replacement, firmware update)."
     [begin_title]="Start the installation?" [begin_ok]="Erase the disk and install" [cancel]="Cancel"
     [begin_text]="The disk below will be <b>completely erased</b>:" [begin_enc]="Disk encryption" [yes]="yes" [no]="no"
     [begin_warn]="Once it starts there is no way to undo it."
@@ -82,17 +86,83 @@ declare -A TXT_en=(
     [failed]="The installation failed. The log is in"
     [done_title]="Installation complete" [done_text]="<b>Tamagi has been installed.</b>\n\nRemove the installation media when the computer restarts."
     [reboot]="Restart now" [stay]="Stay in live mode"
-    [fail_title]="The installation failed" [fail_text]="The installation did not finish and the chosen disk may be left half-written.\n\nYou can try again from the launcher: <b>Instalar o Tamagi</b>.\nLog:"
+    [fail_title]="The installation failed" [fail_text]="The installation did not finish and the chosen disk may be left half-written.\n\nYou can try again from the launcher: <b>Install Tamagi</b>.\nLog:"
     [col_disk]="Disk" [col_size]="Size" [col_parts]="Partitions" [col_fs]="Contents"
-    [disk_title]="Choose the disk" [disk_text]="Choose the disk where Tamagi will be installed. <b>Everything on it will be erased: make sure your files have a copy.</b>"
+    [disk_title]="Choose the disk" [disk_text]="Choose the disk where Tamagi will be installed. <b>Everything on it will be erased: make sure your files are backed up.</b>"
     [no_disk]="No disk found for the installation."
+)
+declare -A TXT_es=(
+    [quit]="¿Salir del instalador?" [quit_yes]="Salir" [quit_no]="Seguir instalando"
+    [install_now]="Instalar ahora"
+    [welcome]="<big><b>Bienvenido a Tamagi</b></big>\n\nEste asistente instala Tamagi en este equipo.\nSon pocas preguntas: teclado, zona horaria, su cuenta y el disco.\n\nPara solo probar el sistema, cierre esta ventana.\nEl instalador sigue en el lanzador: <b>Instalar Tamagi</b>."
+    [no_uefi]="Tamagi necesita un equipo iniciado en modo UEFI.\nRevise en las opciones de la BIOS si el modo UEFI se puede activar."
+    [kbd_title]="Teclado" [kbd_text]="¿Qué teclado tiene este equipo?"
+    [tz_title]="Zona horaria" [tz_text]="¿Dónde está este equipo?" [tz_col]="Región"
+    [tz_other]="Otro país o zona…" [tz_pick]="Elija la zona horaria" [tz_zone]="Zona"
+    [user_title]="Su cuenta" [user_text]="Esta será la cuenta de administrador del equipo."
+    [user_full]="Nombre completo" [user_name]="Usuario (ej.: maria)" [user_pass]="Contraseña" [user_pass2]="Repita la contraseña"
+    [bad_user]="El nombre de usuario debe empezar con letra minúscula y tener solo\nletras minúsculas, números, guion o guion bajo. Ejemplo: <tt>maria</tt>"
+    [reserved]="Ese nombre de usuario está reservado por el sistema. Elija otro."
+    [empty_pass]="La contraseña no puede quedar vacía." [pass_mismatch]="Las dos contraseñas no son iguales. Escríbalas de nuevo."
+    [enc_title]="Cifrado del disco" [enc_yes]="Cifrar" [enc_no]="No cifrar"
+    [enc_text]="<b>¿Cifrar el disco?</b>\n\nCon cifrado (LUKS2), nadie lee sus archivos si el equipo\nse pierde o lo roban. Usted crea una contraseña del disco; si el equipo tiene chip TPM,\npuede quedar solo de reserva y el disco se desbloquea solo al encender.\n\n<b>Sin la contraseña del disco no hay forma de recuperar los archivos.</b>"
+    [luks_title]="Contraseña del disco" [luks_text]="Contraseña que se pide al encender el equipo (mínimo 8 caracteres)."
+    [luks_short]="La contraseña del disco necesita al menos 8 caracteres."
+    [tpm_title]="Desbloqueo automático" [tpm_yes]="Desbloquear automáticamente (TPM)" [tpm_no]="Pedir la contraseña en cada arranque"
+    [tpm_text]="<b>¿Desbloquear el disco sin escribir la contraseña?</b>\n\nEste equipo tiene un chip de seguridad (TPM 2.0). La clave del disco puede\nguardarse en él: el equipo arranca directo y el disco sigue ilegible\nfuera de esta máquina. La contraseña que acaba de crear queda como reserva\n(cambio de placa base, actualización de firmware)."
+    [begin_title]="¿Empezar la instalación?" [begin_ok]="Borrar el disco e instalar" [cancel]="Cancelar"
+    [begin_text]="El disco de abajo será <b>borrado por completo</b>:" [begin_enc]="Cifrado del disco" [yes]="sí" [no]="no"
+    [begin_warn]="Una vez iniciada no se puede deshacer."
+    [prog_title]="Instalando Tamagi" [prog_text]="Preparando…"
+    [failed]="La instalación falló. El registro está en"
+    [done_title]="Instalación terminada" [done_text]="<b>Tamagi fue instalado.</b>\n\nRetire el medio de instalación cuando el equipo se reinicie."
+    [reboot]="Reiniciar ahora" [stay]="Seguir en modo live"
+    [fail_title]="La instalación falló" [fail_text]="La instalación no terminó y el disco elegido puede haber quedado a medias.\n\nPuede intentarlo de nuevo desde el lanzador: <b>Instalar Tamagi</b>.\nRegistro:"
+    [col_disk]="Disco" [col_size]="Tamaño" [col_parts]="Particiones" [col_fs]="Contenido"
+    [disk_title]="Elija el disco" [disk_text]="Elija el disco donde se instalará Tamagi. <b>Todo lo que hay en él será borrado: compruebe que tiene copia de sus archivos.</b>"
+    [no_disk]="No se encontró ningún disco para la instalación."
+)
+declare -A TXT_fr=(
+    [quit]="Quitter l'installateur ?" [quit_yes]="Quitter" [quit_no]="Continuer l'installation"
+    [install_now]="Installer maintenant"
+    [welcome]="<big><b>Bienvenue dans Tamagi</b></big>\n\nCet assistant installe Tamagi sur cet ordinateur.\nQuelques questions seulement : clavier, fuseau horaire, votre compte et le disque.\n\nPour seulement essayer le système, fermez cette fenêtre.\nL'installateur reste dans le lanceur : <b>Installer Tamagi</b>."
+    [no_uefi]="Tamagi a besoin d'un ordinateur démarré en mode UEFI.\nVérifiez dans les options du BIOS si le mode UEFI peut être activé."
+    [kbd_title]="Clavier" [kbd_text]="Quel est le clavier de cet ordinateur ?"
+    [tz_title]="Fuseau horaire" [tz_text]="Où se trouve cet ordinateur ?" [tz_col]="Région"
+    [tz_other]="Autre pays ou fuseau…" [tz_pick]="Choisissez le fuseau horaire" [tz_zone]="Fuseau"
+    [user_title]="Votre compte" [user_text]="Ce sera le compte administrateur de l'ordinateur."
+    [user_full]="Nom complet" [user_name]="Utilisateur (ex. : marie)" [user_pass]="Mot de passe" [user_pass2]="Répétez le mot de passe"
+    [bad_user]="Le nom d'utilisateur doit commencer par une lettre minuscule et ne contenir que\ndes lettres minuscules, des chiffres, un tiret ou un tiret bas. Exemple : <tt>marie</tt>"
+    [reserved]="Ce nom d'utilisateur est réservé par le système. Choisissez-en un autre."
+    [empty_pass]="Le mot de passe ne peut pas être vide." [pass_mismatch]="Les deux mots de passe ne sont pas identiques. Saisissez-les de nouveau."
+    [enc_title]="Chiffrement du disque" [enc_yes]="Chiffrer" [enc_no]="Ne pas chiffrer"
+    [enc_text]="<b>Chiffrer le disque ?</b>\n\nAvec le chiffrement (LUKS2), personne ne lit vos fichiers si l'ordinateur\nest perdu ou volé. Vous créez un mot de passe du disque ; si l'ordinateur a une puce TPM,\nil peut rester en secours et le disque se déverrouille tout seul au démarrage.\n\n<b>Sans le mot de passe du disque, il est impossible de récupérer les fichiers.</b>"
+    [luks_title]="Mot de passe du disque" [luks_text]="Mot de passe demandé au démarrage de l'ordinateur (8 caractères au minimum)."
+    [luks_short]="Le mot de passe du disque doit avoir au moins 8 caractères."
+    [tpm_title]="Déverrouillage automatique" [tpm_yes]="Déverrouiller automatiquement (TPM)" [tpm_no]="Demander le mot de passe à chaque démarrage"
+    [tpm_text]="<b>Déverrouiller le disque sans saisir le mot de passe ?</b>\n\nCet ordinateur a une puce de sécurité (TPM 2.0). La clé du disque peut y être\nconservée : l'ordinateur démarre directement et le disque reste illisible\nhors de cette machine. Le mot de passe que vous venez de créer reste en secours\n(changement de carte mère, mise à jour du firmware)."
+    [begin_title]="Commencer l'installation ?" [begin_ok]="Effacer le disque et installer" [cancel]="Annuler"
+    [begin_text]="Le disque ci-dessous sera <b>entièrement effacé</b> :" [begin_enc]="Chiffrement du disque" [yes]="oui" [no]="non"
+    [begin_warn]="Une fois commencée, elle ne peut pas être annulée."
+    [prog_title]="Installation de Tamagi" [prog_text]="Préparation…"
+    [failed]="L'installation a échoué. Le journal se trouve dans"
+    [done_title]="Installation terminée" [done_text]="<b>Tamagi a été installé.</b>\n\nRetirez le support d'installation au redémarrage de l'ordinateur."
+    [reboot]="Redémarrer maintenant" [stay]="Rester en mode live"
+    [fail_title]="L'installation a échoué" [fail_text]="L'installation ne s'est pas terminée et le disque choisi est peut-être à moitié écrit.\n\nVous pouvez réessayer depuis le lanceur : <b>Installer Tamagi</b>.\nJournal :"
+    [col_disk]="Disque" [col_size]="Taille" [col_parts]="Partitions" [col_fs]="Contenu"
+    [disk_title]="Choisissez le disque" [disk_text]="Choisissez le disque où Tamagi sera installé. <b>Tout ce qu'il contient sera effacé : vérifiez que vos fichiers sont sauvegardés.</b>"
+    [no_disk]="Aucun disque trouvé pour l'installation."
 )
 tamagi_lang="pt"
 tamagi_locale="pt_BR.UTF-8"
-T() { local -n _txt="TXT_${tamagi_lang}"; printf '%s' "${_txt[$1]}"; }
-tamagi_set_lang() { # tamagi_set_lang pt|en
-    tamagi_lang="$1"
-    if [ "$1" = "en" ]; then tamagi_locale="en_US.UTF-8"; else tamagi_locale="pt_BR.UTF-8"; fi
+T() { local -n _txt="TXT_${tamagi_lang}"; printf '%s' "${_txt[$1]:-${TXT_en[$1]}}"; }
+tamagi_set_lang() { # tamagi_set_lang pt|en|es|fr
+    case "$1" in
+        en) tamagi_lang=en; tamagi_locale="en_US.UTF-8" ;;
+        es) tamagi_lang=es; tamagi_locale="es_ES.UTF-8" ;;
+        fr) tamagi_lang=fr; tamagi_locale="fr_FR.UTF-8" ;;
+        *)  tamagi_lang=pt; tamagi_locale="pt_BR.UTF-8" ;;
+    esac
     # Botões padrão do zenity (OK, Cancelar) no mesmo idioma.
     export LANG="${tamagi_locale}" LANGUAGE="${tamagi_locale%%.*}"
     tamagi_t_quit="$(T quit)"; tamagi_t_col_disk="$(T col_disk)"; tamagi_t_col_size="$(T col_size)"
@@ -100,6 +170,10 @@ tamagi_set_lang() { # tamagi_set_lang pt|en
     tamagi_t_disk_title="$(T disk_title)"; tamagi_t_disk_text="$(T disk_text)"; tamagi_t_no_disk="$(T no_disk)"
 }
 tamagi_set_lang pt
+# As janelas do instalador (zenity, GTK 4) desenham por software: o renderizador
+# por GPU do GTK deixa botões sem texto em algumas placas e VMs, e a instalação
+# não pode depender disso.
+export GSK_RENDERER=cairo
 
 tamagi_karg() { # valor de <nome>=valor na linha do kernel (vazio se não houver)
     sed -nE "s/(^|.* )$1=([^ ]+).*/\2/p" /proc/cmdline
@@ -121,11 +195,13 @@ tamagi_cancel() { # o usuário fechou uma janela: sair ou continuar?
 }
 
 tamagi_ask_language() {
-    d --list --radiolist --title="Tamagi" --width=460 --height=260 \
-        --text="Idioma da instalação  ·  Installation language" \
-        --column="" --column="id" --column="Idioma / Language" --hide-column=2 --print-column=2 \
+    d --list --radiolist --title="Tamagi" --width=460 --height=320 \
+        --text="Idioma  ·  Language  ·  Idioma  ·  Langue" \
+        --column="" --column="id" --column="Idioma / Language / Langue" --hide-column=2 --print-column=2 \
         TRUE  "pt" "Português (Brasil)" \
-        FALSE "en" "English (United States)"
+        FALSE "en" "English (United States)" \
+        FALSE "es" "Español" \
+        FALSE "fr" "Français"
     tamagi_set_lang "${result:-pt}"
 }
 
@@ -138,19 +214,31 @@ tamagi_welcome() {
 tamagi_ask_keyboard() {
     # Coluna 2: layout|variante do xkb|mapa do console. O primeiro marcado
     # acompanha o idioma escolhido.
-    local br=TRUE us=FALSE
-    [ "${tamagi_lang}" = "en" ] && { br=FALSE; us=TRUE; }
-    d --list --radiolist --title="$(T kbd_title)" --width=520 --height=400 \
+    local fallback="br:-:br-abnt2"
+    case "${tamagi_lang}" in
+        en) fallback="us:-:us" ;;
+        es) fallback="es:-:es" ;;
+        fr) fallback="fr:-:fr" ;;
+    esac
+    local rows=() id label
+    while IFS='|' read -r id label; do
+        rows+=("$([ "${id}" = "${fallback}" ] && echo TRUE || echo FALSE)" "${id}" "${label}")
+    done <<'KEYBOARDS'
+br:-:br-abnt2|Português (Brasil, ABNT2)
+us:-:us|English (US)
+us:intl:us-acentos|English (US, international, with accents)
+es:-:es|Español (España)
+latam:-:la-latin1|Español (Latinoamérica)
+fr:-:fr|Français (AZERTY)
+ca:-:cf|Français (Canada)
+ch:fr:fr_CH|Français (Suisse)
+be:-:be-latin1|Français (Belgique)
+pt:-:pt-latin1|Português (Portugal)
+KEYBOARDS
+    d --list --radiolist --title="$(T kbd_title)" --width=520 --height=460 \
         --text="$(T kbd_text)" \
         --column="" --column="id" --column="$(T kbd_title)" --hide-column=2 --print-column=2 \
-        "${br}" "br:-:br-abnt2"      "Português (Brasil, ABNT2)" \
-        "${us}" "us:-:us"            "English (US)" \
-        FALSE "us:intl:us-acentos" "English (US, international, with accents)" \
-        FALSE "pt:-:pt-latin1"     "Português (Portugal)" \
-        FALSE "es:-:es"            "Español (España)" \
-        FALSE "latam:-:la-latin1"  "Español (Latinoamérica)"
-    local fallback="br:-:br-abnt2"
-    [ "${tamagi_lang}" = "en" ] && fallback="us:-:us"
+        "${rows[@]}"
     IFS=':' read -r tamagi_xkb_layout tamagi_xkb_variant tamagi_keymap <<< "${result:-${fallback}}"
     [ "${tamagi_xkb_variant}" = "-" ] && tamagi_xkb_variant=""
     # Vale já na sessão live: a senha é digitada com o teclado que será usado depois.
@@ -253,6 +341,14 @@ tamagi_ask_encryption() {
         break
     done
     ( umask 077; printf '%s' "${pass1}" > "${tamagi_luks_key}" )
+    # Com chip TPM 2.0, a chave pode ficar nele: o disco abre sozinho no boot
+    # e a senha fica de reserva.
+    tamagi_tpm=0
+    if [ -e /sys/class/tpm/tpm0 ] && [ "$(cat /sys/class/tpm/tpm0/tpm_version_major 2>/dev/null)" = "2" ]; then
+        zenity --question --no-wrap --title="$(T tpm_title)" --width=520 \
+            --ok-label="$(T tpm_yes)" --cancel-label="$(T tpm_no)" --text="$(T tpm_text)" && tamagi_tpm=1
+    fi
+    return 0
 }
 
 tamagi_write_answers() {
@@ -268,7 +364,9 @@ tamagi_write_answers() {
           echo "FULLNAME=${tamagi_fullname}"
           echo "PASSWORD_HASH=${tamagi_hash}"
           [ -s "${tamagi_luks_key}" ] && echo "LUKS_KEYFILE=${tamagi_luks_key}"
+          [ -s "${tamagi_luks_key}" ] && [ "${tamagi_tpm:-0}" = "1" ] && echo "LUKS_TPM=1"
           [ -n "${tamagi_extra_kargs:-}" ] && echo "EXTRA_KARGS=${tamagi_extra_kargs}"
+          [ -n "${tamagi_imgref:-}" ] && echo "TARGET_IMGREF=${tamagi_imgref}"
       } > "${tamagi_answers}" )
 }
 
@@ -343,10 +441,11 @@ if [ -n "${tamagi_auto}" ]; then
     TIK_INSTALL_DEVICE="${tamagi_auto}"
     tamagi_keymap="br-abnt2"; tamagi_xkb_layout="br"; tamagi_xkb_variant=""
     tamagi_timezone="America/Sao_Paulo"
-    if [ "$(tamagi_karg tamagi.autoinstall.lang)" = "en" ]; then
-        tamagi_set_lang en
-        tamagi_keymap="us"; tamagi_xkb_layout="us"; tamagi_timezone="UTC"
-    fi
+    case "$(tamagi_karg tamagi.autoinstall.lang)" in
+        en) tamagi_set_lang en; tamagi_keymap="us"; tamagi_xkb_layout="us"; tamagi_timezone="UTC" ;;
+        es) tamagi_set_lang es; tamagi_keymap="es"; tamagi_xkb_layout="es"; tamagi_timezone="Europe/Madrid" ;;
+        fr) tamagi_set_lang fr; tamagi_keymap="fr"; tamagi_xkb_layout="fr"; tamagi_timezone="Europe/Paris" ;;
+    esac
     tamagi_user="$(tamagi_karg tamagi.autoinstall.user)"; tamagi_user="${tamagi_user:-tamagi}"
     tamagi_fullname="${tamagi_user}"
     tamagi_password="$(tamagi_karg tamagi.autoinstall.password)"
@@ -355,6 +454,9 @@ if [ -n "${tamagi_auto}" ]; then
     rm -f "${tamagi_luks_key}"
     tamagi_luks="$(tamagi_karg tamagi.autoinstall.luks)"
     [ -z "${tamagi_luks}" ] || ( umask 077; printf '%s' "${tamagi_luks}" > "${tamagi_luks_key}" )
+    tamagi_tpm="$(tamagi_karg tamagi.autoinstall.tpm)"
+    # Só para testes: outra origem de atualizações (um registry local).
+    tamagi_imgref="$(tamagi_karg tamagi.autoinstall.imgref)"
     [ -d /sys/firmware/efi ] || error "sem UEFI"
 else
     tamagi_ask_language

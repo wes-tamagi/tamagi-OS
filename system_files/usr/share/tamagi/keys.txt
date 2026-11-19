@@ -19,7 +19,6 @@
    Super + Enter             terminal
    Super + B / E             navegador / arquivos
    Super + Shift + N / T     neovim / btop
-   Super + Shift + C / W     calculadora (omacalc) / escrita (omawrite)
 
  Tamagi
    Super + A                 ações rápidas (uma tecla)

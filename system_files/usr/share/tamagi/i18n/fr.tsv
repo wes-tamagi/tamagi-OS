@@ -1,0 +1,108 @@
+# Tamagi — traduções (fr). Formato: português<TAB>tradução. Veja /usr/libexec/tamagi/i18n.
+# Nos estilos da barra (centro, classico, cosmic) a primeira palavra é o nome do estilo: não traduzir.
+Sim	Oui
+Não	Non
+Bem-vindo ao Tamagi	Bienvenue dans Tamagi
+Sistema atômico: o host é somente-leitura e se atualiza sozinho.	Système atomique : l'hôte est en lecture seule et se met à jour tout seul.
+Apps por Flatpak, navegadores e pacotes em caixas distrobox, IA local.	Applications par Flatpak, navigateurs et paquets dans des boîtes distrobox, IA locale.
+Aparência	Apparence
+Tema	Thème
+Barra	Barre
+centro — uma barra embaixo, apps no centro	centro — une barre en bas, applications au centre
+classico — uma barra embaixo, apps à esquerda	classico — une barre en bas, applications à gauche
+cosmic — painel em cima e dock embaixo	cosmic — panneau en haut et dock en bas
+Janelas	Fenêtres
+Organizar as janelas automaticamente lado a lado (tiling)?	Disposer automatiquement les fenêtres côte à côte (tiling) ?
+Flutuantes	Flottantes
+Super+Y alterna entre os dois modos a qualquer momento.	Super+Y bascule entre les deux modes à tout moment.
+Navegador	Navigateur
+Os navegadores vivem numa caixa Ubuntu 26.04 LTS (distrobox), com a placa de vídeo	Les navigateurs vivent dans une boîte Ubuntu 26.04 LTS (distrobox), avec la carte graphique
+do computador e sem tocar no host. O Chrome é preparado no primeiro uso	de l'ordinateur et sans toucher à l'hôte. Chrome est préparé à la première utilisation
+(baixa cerca de 600 MB).	(télécharge environ 600 Mo).
+Não deu agora (sem rede?). Ele é preparado quando você abrir o navegador.	Impossible pour l'instant (pas de réseau ?). Il sera préparé à l'ouverture du navigateur.
+Depois: abra o navegador, ou rode tamagi-browser setup	Plus tard : ouvrez le navigateur, ou lancez tamagi-browser setup
+Caixa de desenvolvimento (distrobox)	Boîte de développement (distrobox)
+O host não recebe pacotes: ferramentas de linha de comando vivem numa caixa.	L'hôte ne reçoit pas de paquets : les outils en ligne de commande vivent dans une boîte.
+agora não	pas maintenant
+Criar a caixa 'dev' com qual distro?	Créer la boîte « dev » avec quelle distribution ?
+Não deu para criar agora (sem rede?). Depois: ujust devbox	Création impossible pour l'instant (pas de réseau ?). Plus tard : ujust devbox
+Linguagens e ferramentas (mise)	Langages et outils (mise)
+O mise é o gerenciador padrão de linguagens e ferramentas de desenvolvimento:	mise est le gestionnaire par défaut des langages et outils de développement :
+instala no seu usuário, troca de versão por pasta de projeto e se atualiza sozinho.	il installe les outils dans votre compte, change de version par dossier de projet et se met à jour tout seul.
+Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)	Installer maintenant ? (espace coche, Entrée confirme ; peut rester vide)
+Não deu agora (sem rede?). Depois: mise use -g node@lts	Impossible pour l'instant (pas de réseau ?). Plus tard : mise use -g node@lts
+Depois: mise use -g node@lts python@latest   ·   mise ls	Plus tard : mise use -g node@lts python@latest   ·   mise ls
+Disco criptografado	Disque chiffré
+Depois: ujust setup-luks-tpm-unlock	Plus tard : ujust setup-luks-tpm-unlock
+IA local (llama.cpp)	IA locale (llama.cpp)
+Depois: tamagi-ai setup	Plus tard : tamagi-ai setup
+Internet banking (Warsaw)	Banque en ligne (Warsaw)
+O módulo de segurança dos bancos roda dentro da caixa dos navegadores.	Le module de sécurité des banques fonctionne dans la boîte des navigateurs.
+Depois: ujust warsaw ligar	Plus tard : ujust warsaw ligar
+Pronto	Terminé
+Super+K mostra os atalhos · Super+A ações rápidas · Super+Alt+Espaço abre o menu.	Super+K affiche les raccourcis · Super+A actions rapides · Super+Alt+Espace ouvre le menu.
+Jogos: ujust setup-gaming · Segurança: tamagi-harden status · Idioma: tamagi-lang pick	Jeux : ujust setup-gaming · Sécurité : tamagi-harden status · Langue : tamagi-lang pick
+qualquer tecla fecha	une touche pour fermer
+Preparar o Chrome agora?	Préparer Chrome maintenant ?
+Desbloquear o disco pelo chip TPM no boot, sem digitar a senha?	Déverrouiller le disque avec la puce TPM au démarrage, sans saisir le mot de passe ?
+Baixar um modelo agora? (o download pode levar alguns minutos)	Télécharger un modèle maintenant ? (le téléchargement peut prendre quelques minutes)
+Instalar e ligar o Warsaw agora? (exige aceitar a licença da Topaz)	Installer et activer Warsaw maintenant ? (exige d'accepter la licence de Topaz)
+qualquer tecla continua	une touche pour continuer
+Formato	Format
+nome do pacote ou caminho do arquivo	nom du paquet ou chemin du fichier
+nome do app (ex.: gimp, spotify, vscode)	nom de l'application (ex. : gimp, spotify, vscode)
+Escolha o app	Choisissez l'application
+ex.: node@lts, python@3.13, go, rust	ex. : node@lts, python@3.13, go, rust
+Reverter para a imagem anterior no próximo boot?	Revenir à l'image précédente au prochain démarrage ?
+Sair da sessão?	Fermer la session ?
+Reiniciar o computador?	Redémarrer l'ordinateur ?
+Desligar o computador?	Éteindre l'ordinateur ?
+App gráfico (Flatpak)	Application graphique (Flatpak)
+Pacote deb, rpm, Arch ou Omarchy (subsistema)	Paquet deb, rpm, Arch ou Omarchy (sous-système)
+Navegador (Chrome, Firefox, Brave, Edge, Vivaldi)	Navigateur (Chrome, Firefox, Brave, Edge, Vivaldi)
+Web app (site como aplicativo)	Application web (site utilisé comme une application)
+Jogos (Steam, Lutris, Heroic)	Jeux (Steam, Lutris, Heroic)
+Linguagem ou runtime (mise)	Langage ou runtime (mise)
+LazyVim no Neovim	LazyVim dans Neovim
+Outro agente de IA	Un autre agent d'IA
+Voltar	Retour
+Conversar com o agente	Discuter avec l'agent
+Chat na interface web	Chat dans l'interface web
+Programar com opencode	Programmer avec opencode
+Claude Code	Claude Code
+Instalar ou trocar modelo	Installer ou changer de modèle
+Estado	État
+Papel de parede	Fond d'écran
+Estilo da barra	Style de la barre
+Idioma do sistema	Langue du système
+Atualizar tudo	Tout mettre à jour
+Estado da imagem	État de l'image
+Voltar para a versão anterior	Revenir à la version précédente
+Atualização automática	Mises à jour automatiques
+Máquinas virtuais	Machines virtuelles
+Saúde do boot	Santé du démarrage
+Sistema num arquivo (tamagi diff)	Système dans un fichier (tamagi diff)
+Segurança (endurecimento)	Sécurité (durcissement)
+Limpar espaço	Libérer de l'espace
+Informações da máquina	Informations sur la machine
+Refazer a configuração inicial	Refaire la configuration initiale
+Abrir o modo banco (descartável)	Ouvrir le mode banque (jetable)
+Desligar	Éteindre
+Bloquear	Verrouiller
+Suspender	Mettre en veille
+Sair da sessão	Fermer la session
+Reiniciar	Redémarrer
+Instalar	Installer
+IA local	IA locale
+Atalhos	Raccourcis
+Sistema	Système
+Internet banking	Banque en ligne
+Energia	Alimentation
+Sair	Quitter
+IA	IA
+Tamagi	Tamagi
+idioma desconhecido	langue inconnue
+vale no próximo login (saia da sessão e entre de novo).	prend effet à la prochaine connexion (fermez la session et reconnectez-vous).
+Ligar o Warsaw	Activer Warsaw
+Desligar o Warsaw	Désactiver Warsaw
+Tema aplicado	Thème appliqué

@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """Gera os papéis de parede SVG de cada tema a partir das cores do .conf:
-o estilo "ondas" e quatro estilos do Japão do século XVII (veja STYLES).
+o estilo "ondas" e sete estilos do Japão do século XVII (veja STYLES).
 
 Uso: make-wallpapers.py <dir-temas> <dir-saida> <xml-gnome>
 Arte própria do Tamagi: faixas onduladas em degradê, sem imagens de terceiros.
@@ -203,7 +203,71 @@ def svg_byobu(colors):
             + crest(colors, int(W * 0.72), int(H * 0.34), 150, 0.55) + "\n</svg>\n")
 
 
-STYLES = {"mon": svg_mon, "seigaiha": svg_seigaiha, "asanoha": svg_asanoha, "byobu": svg_byobu}
+def svg_shippo(colors):
+    """Shippō (sete tesouros): círculos que se cruzam formando pétalas."""
+    deep, base, c1, c2, c3 = colors
+    r = 190
+    circles = []
+    row = 0
+    y = 0
+    while y < H + r:
+        x = r if row % 2 else 0
+        while x < W + r:
+            circles.append(f'<circle cx="{x}" cy="{y}" r="{r}"/>')
+            x += 2 * r
+        y += r
+        row += 1
+    dots = "".join(f'<circle cx="{x}" cy="{y}" r="{r * 0.09:.0f}"/>'
+                   for y in range(0, H + r, 2 * r) for x in range(0, W + r, 2 * r))
+    return (head(colors)
+            + f'  <g mask="url(#mside)" opacity="0.6">'
+              f'<g fill="none" stroke="{c1}" stroke-width="6">{"".join(circles)}</g>'
+              f'<g fill="{c3}">{dots}</g></g>\n'
+            + crest(colors, int(W * 0.78), int(H * 0.66), 260, 0.95) + "\n</svg>\n")
+
+
+def svg_hinode(colors):
+    """Hinode (nascer do sol): raios saindo do horizonte, sobre ondas."""
+    deep, base, c1, c2, c3 = colors
+    cx, cy = W * 0.5, H * 0.78
+    rays = []
+    n = 28
+    for i in range(n):
+        if i % 2:
+            continue
+        a0 = math.pi + math.pi * i / n
+        a1 = math.pi + math.pi * (i + 1) / n
+        rr = W * 0.9
+        rays.append(f'<path d="M{cx:.0f},{cy:.0f} L{cx + rr * math.cos(a0):.0f},{cy + rr * math.sin(a0):.0f} '
+                    f'L{cx + rr * math.cos(a1):.0f},{cy + rr * math.sin(a1):.0f} Z"/>')
+    sun = (f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="520" fill="{c1}" fill-opacity="0.9"/>'
+           f'<circle cx="{cx:.0f}" cy="{cy:.0f}" r="600" fill="none" stroke="{c3}" stroke-width="10" stroke-opacity="0.6"/>')
+    sea = "".join(f'<path d="{wave(H * y, amp, per, ph)}" fill="{c}" fill-opacity="{o}"/>'
+                  for c, o, y, amp, per, ph in ((c2, 0.55, 0.76, 60, 2300, 0.6), (deep, 0.75, 0.84, 50, 1900, 2.4),
+                                                (deep, 0.95, 0.92, 40, 2600, 4.1)))
+    return (head(colors) + f'  <g fill="{c2}" fill-opacity="0.16">{"".join(rays)}</g>\n  {sun}\n  {sea}\n'
+            + crest(colors, int(cx), int(cy - 150), 170, 0.6) + "\n</svg>\n")
+
+
+def svg_uroko(colors):
+    """Uroko (escamas): triângulos alternados, como em quimonos de teatro."""
+    deep, base, c1, c2, c3 = colors
+    a = 260.0
+    h = a * math.sqrt(3) / 2
+    tris = {c1: [], c2: [], c3: []}
+    order = (c1, c2, c1, c3)
+    for j in range(int(H / h) + 2):
+        for i in range(-1, int(W / a) + 2):
+            x = i * a + (j % 2) * a / 2
+            y = j * h
+            tris[order[(i + 2 * j) % 4]].append(f"M{x:.0f},{y + h:.0f}L{x + a / 2:.0f},{y:.0f}L{x + a:.0f},{y + h:.0f}Z")
+    body = "".join(f'<path d="{"".join(d)}" fill="{c}" fill-opacity="0.34"/>' for c, d in tris.items())
+    return (head(colors) + f'  <g mask="url(#mfade)">{body}</g>\n'
+            + crest(colors, int(W * 0.5), int(H * 0.36), 330) + "\n</svg>\n")
+
+
+STYLES = {"mon": svg_mon, "seigaiha": svg_seigaiha, "asanoha": svg_asanoha, "byobu": svg_byobu,
+          "shippo": svg_shippo, "hinode": svg_hinode, "uroko": svg_uroko}
 
 
 def main():

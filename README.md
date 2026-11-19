@@ -4,8 +4,7 @@
 desenvolvimento no Brasil. O host é uma imagem [bootc](https://github.com/bootc-dev/bootc)
 sobre o Fedora 45 com o desktop [COSMIC](https://github.com/pop-os/cosmic-epoch)
 (escrito em Rust). Navegadores, pacotes de outras distros e o Warsaw vivem em
-caixas [distrobox](https://distrobox.it/); Android roda pelo
-[Waydroid](https://waydro.id/); a IA é local, com [llama.cpp](https://llama-cpp.com/).
+caixas [distrobox](https://distrobox.it/); a IA é local, com [llama.cpp](https://llama-cpp.com/).
 
 O sistema inteiro é um contêiner OCI: `podman build` gera a imagem, a máquina
 troca de versão de forma atômica e a anterior fica guardada para rollback.
@@ -65,18 +64,36 @@ que chama o `bootc install`. A ISO é gerada sem root:
 just build-iso      # output/tamagi.iso (6,9 GiB: cabe num pendrive de 8 GB)
 just test-iso       # instala sozinho numa VM e confere o sistema instalado
 just test-rollback  # simula uma atualização ruim e confere o rollback automático
+just test-upgrade   # atualização automática de ponta a ponta (registry local, imagem nova, reinício, rollback)
 just run-iso        # abre a ISO numa VM com janela, para usar o instalador
 sudo bash live/write-usb.sh /dev/disk/by-id/usb-… --yes   # grava num pendrive e confere
 ```
 
 A ISO inicia (só UEFI) numa sessão COSMIC live e abre o instalador, em
-**português ou inglês (en_US)**: a primeira pergunta é o idioma, que vale para
-o instalador e para o sistema instalado. Depois: teclado, fuso horário, a sua conta, criptografar ou não o disco
-(LUKS2) e a confirmação do disco que será apagado. O sistema é copiado da
-própria mídia, sem rede, em cerca de 3 minutos numa VM. Quem quiser só
-experimentar fecha a janela; o instalador fica no lançador.
+**português (Brasil), inglês (EUA), espanhol ou francês**: a primeira pergunta
+é o idioma, que vale para o instalador, para o sistema instalado e para as
+ferramentas do Tamagi. Depois: teclado, fuso horário, a sua conta, criptografar
+ou não o disco (LUKS2) e a confirmação do disco que será apagado. O sistema é
+copiado da própria mídia, sem rede. Quem quiser só experimentar fecha a
+janela; o instalador fica no lançador.
 
-No primeiro login abre o assistente do Tamagi (tema, tiling, navegador, caixa
+**Instalação tudo-ou-nada:** antes de apagar o disco o instalador confere o
+tamanho dele e a imagem embutida inteira (SHA-256 de cada camada); mídia com
+defeito é recusada com o disco intacto. Se a cópia parar no meio, as partições
+criadas são limpas: o disco nunca fica com um sistema pela metade que pareça
+instalado. O resultado é um sistema atômico (deployment bootc/ostree): cada
+atualização entra como uma imagem inteira ao lado da atual, e a anterior fica
+guardada para rollback.
+
+**Disco criptografado sem digitar senha:** se o computador tem chip TPM 2.0,
+o instalador oferece guardar a chave do disco nele (`systemd-cryptenroll`).
+No primeiro boot o `tamagi-tpm-seal.service` amarra essa chave ao PCR 7
+(estado do Secure Boot). O computador liga direto e o disco continua ilegível fora daquela
+máquina; a senha criada na instalação fica de reserva (troca de placa-mãe,
+atualização de firmware). `just test-iso --tpm` confere isso com um TPM
+virtual.
+
+No primeiro login abre o assistente do Tamagi (tema, barra, tiling, navegador, caixa
 de desenvolvimento, IA, Android, Warsaw). O assistente inicial do COSMIC não
 abre sozinho, porque repete as perguntas do instalador; ele continua no
 lançador.
@@ -88,7 +105,7 @@ Como funciona por dentro:
   live e o usuário `live`.
 - O módulo faz as perguntas e substitui a etapa do tik que gravaria uma
   imagem de disco por `/usr/libexec/tamagi-install`: particiona (ESP, `/boot`
-  ext4, raiz btrfs com zstd, LUKS2 se pedido) e roda
+  ext4, raiz btrfs com zstd, LUKS2 e chave no TPM se pedidos) e roda
   `bootc install to-filesystem --source-imgref oci:…` com a imagem embutida.
 - O usuário é criado no primeiro boot (`tamagi-firstboot.service`), com o
   sistema já rodando.
@@ -101,9 +118,9 @@ Para o sistema instalado receber atualizações, publique a imagem num registry
 máquina já instalada: `ujust switch-image ghcr.io/SEU_USUARIO/tamagi:latest`.
 Em quem já roda Fedora atomic/Bazzite/Bluefin: `sudo bootc switch <imagem>`.
 
-## Navegadores (caixa AnduinOS)
+## Navegadores (caixa Ubuntu 26.04 LTS)
 
-O host não traz navegador. O Chrome vive numa caixa distrobox AnduinOS, criada
+O host não traz navegador. O Chrome vive numa caixa distrobox Ubuntu 26.04 LTS, criada
 no primeiro uso; ela enxerga a placa de vídeo, o áudio, a webcam, as chaves de
 segurança USB e a sua pasta pessoal.
 
@@ -161,7 +178,7 @@ tamagi-pkg list | remove | update | export | enter | status
 
 Cada formato tem um subsistema (um distrobox com o gerenciador nativo), criado
 no primeiro uso; apps gráficos vão para o menu do host. O subsistema `deb` é
-AnduinOS. O do Arch já nasce com o repositório `[omarchy]`
+Ubuntu 26.04 LTS. O do Arch já nasce com o repositório `[omarchy]`
 (`https://pkgs.omarchy.org/stable`, 264 pacotes) à frente dos do Arch; a chave
 pública do Omarchy vem na imagem e é conferida pela impressão digital. Outro
 canal: `tamagi-pkg omarchy rc`.
@@ -219,25 +236,24 @@ Tudo se atualiza sozinho, todo dia:
 esperando o reinício; `ujust autoupdate off` desliga e `on` religa.
 `tamagi-update` continua atualizando tudo na hora.
 
-## Android (Waydroid)
+A imagem só é baixada em rede não tarifada (regra da base Universal Blue) e a
+troca acontece no reinício: nada muda no sistema em uso. Se a imagem nova não
+passar na verificação de saúde do boot, o computador volta sozinho para a
+anterior. `just test-upgrade` prova o ciclo inteiro numa VM.
 
-```bash
-ujust setup-waydroid     # baixa o Android (~1 GB), ajusta firewall e SELinux, liga o serviço
-tamagi-waydroid open     # ou o ícone Waydroid no lançador; --cage abre numa janela isolada
-tamagi-waydroid status | windows on|off | install app.apk | stop | reset
-```
-
-O Waydroid vem na imagem, desligado. Não há módulo de kernel para instalar: o
-kernel do Fedora traz o Binder em Rust embutido.
+**Publique antes de gerar a ISO.** O sistema instalado segue a imagem do
+registry (`TAMAGI_TARGET_IMGREF`). Se a ISO for gerada de um build local mais
+novo que o publicado, a primeira atualização automática troca o sistema pela
+imagem do registry — mais antiga. A ordem certa: `git push` (o CI publica no
+GHCR), e só então `just build-iso`.
 
 ## Jogos
 
-`gamescope`, MangoHud, GameMode, as regras de controles (`steam-devices`) e os
-escalonadores sched_ext já vêm na imagem. O resto é sob demanda:
+`gamescope`, MangoHud, GameMode e as regras de controles (`steam-devices`) já
+vêm na imagem. O resto é sob demanda:
 
 ```bash
 ujust setup-gaming       # Steam, Lutris, Heroic, ProtonUp-Qt, Bottles (Flatpak)
-ujust scx on             # escalonador scx_lavd (volta ao padrão com: ujust scx off)
 ```
 
 ## Segurança
@@ -245,7 +261,7 @@ ujust scx on             # escalonador scx_lavd (volta ao padrão com: ujust scx
 O padrão é o nível **equilibrado**: sysctls de endurecimento, argumentos de
 kernel (`init_on_alloc`, `slab_nomerge`, `randomize_kstack_offset`…), MAC
 aleatório por rede Wi-Fi, firewall e SELinux ligados — nada que quebre jogos,
-distrobox, Flatpak, Waydroid ou GPU.
+distrobox, Flatpak ou GPU.
 
 ```bash
 tamagi-harden status
@@ -275,7 +291,7 @@ As ferramentas `tamagi-*` são bash e Python.
 tamagi-ai setup          # recomenda um modelo pelo hardware, baixa e liga o servidor
 ia "por que meu boot está lento?"    # agente do sistema, 100% local
 tamagi-ai chat | code    # interface web do llama.cpp | opencode no modelo local
-claude | qwen | antigravity          # agentes de terceiros, já instalados
+claude                   # Claude Code, já instalado (também no menu e na dock)
 ```
 
 - **llama.cpp v1.0.0** compilado na imagem com Vulkan e variantes de CPU
@@ -296,21 +312,30 @@ claude | qwen | antigravity          # agentes de terceiros, já instalados
 ## O que vem instalado
 
 - **Desktop:** COSMIC, com terminal, arquivos, editor, loja e player próprios;
-  tiling ligado, teclado ABNT2, pt-BR.
+  tiling ligado, teclado ABNT2.
+- **Barra:** uma só, embaixo, com os apps no centro, a bandeja e o relógio à
+  direita — o layout "Centered" do AnduinOS feito com os applets do COSMIC
+  (flutuante, cantos arredondados, levemente translúcida).
+  `tamagi-panel set centro|classico|cosmic` troca: `classico` põe os apps à
+  esquerda; `cosmic` volta ao painel em cima + dock.
+- **Idiomas:** português (Brasil), inglês (EUA), espanhol e francês, no
+  sistema, no instalador, no assistente de primeiro login, no menu e nos
+  atalhos. `tamagi-lang pick` troca depois de instalado.
+- **Fontes:** Noto Sans na interface, Roboto Slab como fonte com serifa
+  (documentos), JetBrains Mono no terminal.
 - **Flatpak (primeiro boot):** OnlyOffice, Flatseal, Warehouse, Mission Center,
   Loupe, Papers, DistroShelf, COSMIC Tweaks, Examine e três applets do COSMIC.
-- **Omarchy:** omacalc (`Super+Shift+C`) e omawrite (`Super+Shift+W`),
-  compilados do código-fonte; seguem o tema do Tamagi.
 - **Temas:** `tamagi-theme set <tema>` — tokyo-night, catppuccin, gruvbox,
   nord, everforest, rose-pine, kanagawa, matte-black, ristretto, latte. Trocam
   claro/escuro, papel de parede e a paleta das janelas do Tamagi (não as cores
   de destaque do COSMIC).
-- **Papéis de parede:** cinco estilos em cada tema, nas cores dele
+- **Papéis de parede:** oito estilos em cada tema, nas cores dele
   (`tamagi-theme wallpaper <estilo>`), desenhados por código com motivos do
   Japão do século XVII: `mon` (padrão; brasão no estilo dos kamon — um anel,
   *tamaki* 環, com três joias, *tama* 玉 — sobre ondas), `seigaiha` (ondas em
   escamas), `asanoha` (folha de cânhamo), `byobu` (biombo: nuvens, lua e
-  monte) e `ondas`.
+  monte), `shippo` (círculos entrelaçados), `hinode` (nascer do sol sobre o
+  mar), `uroko` (escamas triangulares) e `ondas`.
 - **Redes:** WireGuard, OpenVPN, OpenConnect, L2TP, PPTP, SSTP, IKEv2/IPsec,
   SSH, Tailscale (`ujust setup-tailscale`); SMB, NFS, SSHFS, MTP, iPhone,
   rclone; mDNS, impressoras e scanners sem driver.
@@ -335,7 +360,7 @@ Containerfile            estágios: llama.cpp → apps Omarchy → contexto → 
 build_files/             scripts numerados do build; packages.txt
 system_files/            árvore copiada para a raiz da imagem
   usr/bin/tamagi         o sistema num arquivo (init, diff, apply)
-  usr/bin/tamagi-*       bank, boot-report, browser, warsaw, pkg, waydroid, harden, ai, agent, update,
+  usr/bin/tamagi-*       bank, boot-report, browser, warsaw, pkg, harden, ai, agent, update,
                          webapp, theme, menu, assist, keys, firstrun
   usr/libexec/tamagi/    browser-provision, warsaw-box, omarchy-repo (rodam dentro
                          das caixas), firstboot, popup
@@ -387,17 +412,16 @@ O projeto agradece a todos os que tornaram esta distro possível.
 - **[Bazzite](https://bazzite.gg/):** ajustes de desempenho (memória, disco,
   rede), gamescope, MangoHud, GameMode e regras de controles. O kernel dele
   não é usado.
-- **[Omarchy](https://omarchy.org/):** uso por teclado, temas, web apps,
-  omacalc, omawrite e o repositório de pacotes, numa caixa Arch.
-- **[AnduinOS](https://www.anduinos.com/) no lugar do Ubuntu:** é Ubuntu sem
-  snap. No Ubuntu, Firefox e Chromium só existem como snap, que não funciona
-  dentro de contêiner.
+- **[Omarchy](https://omarchy.org/):** uso por teclado, temas, web apps
+  e o repositório de pacotes, numa caixa Arch.
+- **[Ubuntu](https://ubuntu.com/) 26.04 LTS** nas caixas `deb` e de
+  navegadores: o Chrome vem do repositório apt do Google e o Firefox do da
+  Mozilla (no Ubuntu eles só existem como snap, que não roda em contêiner).
 - **[COSMIC](https://github.com/pop-os/cosmic-epoch)** (System76): o desktop.
 - **Instalador:** [tik](https://github.com/sysrich/tik), do openSUSE Aeon.
 - **[GrapheneOS](https://grapheneos.org/):** o hardened_malloc (empacotado
   pelo [secureblue](https://secureblue.dev/)) e o modelo de segurança.
-- **Outros:** bootc, distrobox, Waydroid, llama.cpp, mise, sched-ext e Rust
-  for Linux.
+- **Outros:** bootc, distrobox, llama.cpp, mise e Rust for Linux.
 
 Nenhum desses projetos endossa o Tamagi.
 
@@ -414,13 +438,19 @@ fabricantes; o Warsaw, só depois do aceite da licença da Topaz.
 - Só x86_64 e só UEFI.
 - O tik lista discos internos; discos USB ficam de fora como destino (padrão
   do tik). A instalação apaga o disco inteiro: não há dual boot assistido.
-- O instalador e o idioma do sistema existem em português e inglês; as
-  ferramentas `tamagi-*` e o assistente de primeiro login falam só português.
+- Idiomas: o sistema, o instalador, o assistente de primeiro login, o menu
+  (`tamagi-menu`), as ações rápidas, os atalhos e as entradas do lançador
+  existem em pt-BR, en-US, es e fr. As mensagens das ferramentas de linha de
+  comando (`tamagi-browser`, `tamagi-pkg`, `tamagi-ai`, `tamagi-update`,
+  `tamagi-harden`, `ujust`…) ainda saem só em português; a camada de tradução
+  (`/usr/libexec/tamagi/i18n`, catálogos em `/usr/share/tamagi/i18n`) já está
+  pronta para elas.
+- Desbloqueio por TPM: a chave é selada no PCR 7 (estado do Secure Boot).
+  Ligar ou desligar o Secure Boot, ou trocar as chaves dele, faz o boot voltar
+  a pedir a senha do disco — é o comportamento esperado, não um defeito.
 - Testado em VM (QEMU/KVM), não em máquina física: a instalação automática
   sem e com LUKS (`just test-iso`), o instalador gráfico passo a passo até o
-  login no sistema instalado, `tamagi-harden strict` com reinício e
-  `tamagi-waydroid setup` (imagens baixadas, serviço e firewall prontos). O
-  Android em si não foi aberto: a VM de teste não tem GPU.
+  login no sistema instalado, e `tamagi-harden strict` com reinício.
 - A caixa de navegadores e o Warsaw foram testados na máquina de
   desenvolvimento (`just test-browser`), com GPU AMD. Intel e NVIDIA seguem o
   mesmo caminho, mas não foram medidos. O acesso a um banco de verdade não foi
@@ -432,9 +462,11 @@ fabricantes; o Warsaw, só depois do aceite da licença da Topaz.
   (é a conversa com o Warsaw em `127.0.0.1`): permita.
 - O Warsaw é baixado por um SHA-256 fixo; quando a Topaz troca o arquivo, o
   `tamagi-warsaw` avisa e pede confirmação até a imagem atualizar o valor.
-- Claude Code, Qwen Code e Antigravity só atualizam quando a imagem é
-  reconstruída (o build diário do CI cobre isso). O repositório RPM do
-  Antigravity não é assinado pelo Google.
+- O Claude Code tem versão fixa no `Containerfile` (`CLAUDE_CODE_VERSION`):
+  só muda quando esse número é trocado.
+- A imagem traz locales e traduções só de inglês, português, espanhol e
+  francês. Android (Waydroid), Qwen Code, Antigravity, omacalc/omawrite e os
+  escalonadores scx saíram da imagem para reduzir manutenção e tamanho.
 - O rollback automático só desfaz; ele não impede que a mesma imagem com
   defeito volte na atualização automática seguinte (`ujust autoupdate off`
   pausa). `ujust rollback` continua valendo para voltar à mão.

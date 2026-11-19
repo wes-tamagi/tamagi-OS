@@ -1,0 +1,87 @@
+#!/usr/bin/bash
+# tamagi-panel — estilo da barra do desktop (COSMIC), com um comando.
+#
+#   centro   (padrão) uma barra embaixo, apps no centro: o layout "Centered"
+#            do AnduinOS com os applets do COSMIC
+#   classico uma barra embaixo, menu e apps à esquerda (barra de tarefas clássica)
+#   cosmic   o layout original do COSMIC: painel em cima e dock embaixo
+#
+# O COSMIC guarda cada ajuste num arquivo; aqui só se escrevem os do painel,
+# em ~/.config/cosmic (o painel recarrega sozinho).
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}/cosmic"
+STATE="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/panel"
+LAYOUTS=(centro classico cosmic)
+
+START='"com.system76.CosmicPanelAppButton", "com.system76.CosmicPanelWorkspacesButton"'
+APPS='"com.system76.CosmicAppList", "com.system76.CosmicAppletMinimize"'
+TRAY='"com.system76.CosmicAppletInputSources", "com.system76.CosmicAppletStatusArea", "com.system76.CosmicAppletTiling", "com.system76.CosmicAppletAudio", "com.system76.CosmicAppletBluetooth", "com.system76.CosmicAppletNetwork", "com.system76.CosmicAppletBattery", "com.system76.CosmicAppletNotifications", "com.system76.CosmicAppletTime", "com.system76.CosmicAppletPower"'
+COSMIC_TRAY='"com.system76.CosmicAppletInputSources","com.system76.CosmicAppletA11y", "com.system76.CosmicAppletStatusArea", "com.system76.CosmicAppletTiling", "com.system76.CosmicAppletAudio", "com.system76.CosmicAppletBluetooth", "com.system76.CosmicAppletNetwork", "com.system76.CosmicAppletBattery", "com.system76.CosmicAppletNotifications", "com.system76.CosmicAppletPower"'
+
+write() { # write <raiz> <layout>
+    local root=$1 layout=$2 p="$1/com.system76.CosmicPanel.Panel/v1"
+    mkdir -p "$root/com.system76.CosmicPanel/v1" "$p"
+    # Os padrões do RPM do cosmic-panel são hardlinks entre si (Panel e Dock
+    # dividem arquivos iguais): gravar por cima com ">" mudaria os dois. Apaga antes.
+    put() { rm -f "$1"; printf '%s\n' "$2" > "$1"; }
+    set_key() { put "$p/$1" "$2"; }
+    # Iguais nos três estilos, gravadas sempre: nada fica ao acaso do pacote.
+    set_key layer Top
+    set_key padding 2
+    set_key spacing 4
+    case "$layout" in
+        centro|classico)
+            put "$root/com.system76.CosmicPanel/v1/entries" '["Panel"]'
+            set_key anchor Bottom
+            set_key size M
+            set_key expand_to_edges true
+            set_key anchor_gap true
+            set_key margin 4
+            set_key border_radius 14
+            set_key opacity 0.88
+            if [[ $layout == centro ]]; then
+                set_key plugins_center "Some([$APPS])"
+                set_key plugins_wings "Some(([$START], [$TRAY]))"
+            else
+                set_key plugins_center "None"
+                set_key plugins_wings "Some(([$START, $APPS], [$TRAY]))"
+            fi ;;
+        cosmic)
+            put "$root/com.system76.CosmicPanel/v1/entries" '["Panel","Dock"]'
+            set_key padding 0
+            set_key spacing 0
+            set_key anchor Top
+            set_key size XS
+            set_key expand_to_edges true
+            set_key anchor_gap false
+            set_key margin 0
+            set_key border_radius 0
+            set_key opacity 1.0
+            set_key plugins_center 'Some(["com.system76.CosmicAppletTime"])'
+            set_key plugins_wings "Some(([\"com.system76.CosmicPanelWorkspacesButton\", \"com.system76.CosmicPanelAppButton\"], [$COSMIC_TRAY]))" ;;
+        *) echo "estilo desconhecido: $layout (use: ${LAYOUTS[*]})" >&2; exit 2 ;;
+    esac
+}
+
+current() { cat "$STATE" 2>/dev/null || echo centro; }
+
+case "${1:-}" in
+    list)     printf '%s\n' "${LAYOUTS[@]}" ;;
+    current)  current ;;
+    defaults) write "${2:?raiz}" "${3:-centro}" ;;       # usado no build da imagem
+    pick)     # A primeira palavra de cada linha é o nome do estilo (não é traduzida).
+              opts=("$(t "centro — uma barra embaixo, apps no centro")"
+                    "$(t "classico — uma barra embaixo, apps à esquerda")"
+                    "$(t "cosmic — painel em cima e dock embaixo")")
+              sel=${opts[0]}; cur=$(current)
+              for o in "${opts[@]}"; do [[ ${o%% *} == "$cur" ]] && sel=$o; done
+              choice=$(gum choose --header "$(t "Barra")" --selected "$sel" "${opts[@]}") || exit 0
+              exec "$0" set "${choice%% *}" ;;
+    set)      [[ -n ${2:-} ]] || { echo "uso: tamagi-panel set <${LAYOUTS[*]}>" >&2; exit 2; }
+              write "$CFG" "$2"
+              mkdir -p "$(dirname "$STATE")"; echo "$2" > "$STATE"
+              echo "$(t "Barra"): $2" ;;
+    *)        echo "uso: tamagi-panel [list|current|pick|set <${LAYOUTS[*]// /|}>]" >&2; exit 2 ;;
+esac

@@ -18,7 +18,15 @@ desktop-file-utils
 jetbrains-mono-fonts
 cascadia-code-nf-fonts
 google-noto-sans-fonts
+# Roboto Slab: a fonte com serifa do sistema (títulos e documentos).
+google-roboto-slab-fonts
 google-noto-color-emoji-fonts
+
+# ── Idiomas do produto: inglês (EUA), português (Brasil), espanhol e francês ──
+# (os locales do glibc ficam só nesses quatro: veja 90-finalize.sh)
+langpacks-core-pt_BR
+langpacks-core-es
+langpacks-core-fr
 
 # ── Rust no lugar de C onde o Fedora empacota ──
 # alacritty: janelas utilitárias do Tamagi (o cosmic-term não aceita comando
@@ -51,29 +59,12 @@ direnv
 yq
 ShellCheck
 
-# ── Apps do Omarchy (omacalc, omawrite): runtime Qt Quick ──
-qt6-qtbase
-qt6-qtbase-gui
-qt6-qtdeclarative
-qt6-qtwayland
-
-# ── Android (Waydroid) ──
-# O kernel do Fedora já traz o Binder em Rust embutido; não há módulo extra.
-# cage/wlr-randr: modo janela única, para quando o multi-janela falhar.
-waydroid
-waydroid-selinux
-cage
-wlr-randr
-
 # ── Jogos e desempenho (o melhor do Bazzite que não depende de KDE/Steam Deck) ──
 # Steam, Lutris e Heroic entram sob demanda: ujust setup-gaming.
 gamescope
 mangohud
 gamemode
 steam-devices
-# Escalonadores sched_ext (scx_lavd, scx_bpfland…): COPR, veja 10-packages.sh.
-scx-scheds
-scx-tools
 
 # ── Boot que se conserta: verificação de saúde e rollback automático ──
 # Só o greenboot; as verificações são as do Tamagi (/usr/lib/greenboot/check).

@@ -33,17 +33,9 @@ tiling ACTION="toggle":
     echo "$new" > "$file"
     echo "Tiling: $new"
 
-# Navegadores na caixa AnduinOS: setup, install <navegador>, status, default, update
+# Navegadores na caixa Ubuntu 26.04 LTS: setup, install <navegador>, status, default, update
 browser *ARGS:
     @tamagi-browser {{ ARGS }}
-
-# Android (Waydroid): baixar a imagem e ligar o serviço
-setup-waydroid *ARGS:
-    @tamagi-waydroid setup {{ ARGS }}
-
-# Android (Waydroid): open, status, windows, install, stop, reset
-waydroid *ARGS:
-    @tamagi-waydroid {{ ARGS }}
 
 # Segurança: status, strict, balanced, usb on|off, malloc on|off
 harden *ARGS:
@@ -69,18 +61,6 @@ setup-gaming:
     (( ${#ids[@]} )) || { echo "Nada escolhido."; exit 0; }
     flatpak install -y flathub "${ids[@]}"
     echo "Pronto. MangoHud dentro do Steam Flatpak: flatpak install flathub org.freedesktop.Platform.VulkanLayer.MangoHud"
-    echo "Dica: 'ujust scx on' liga o escalonador scx_lavd, feito para jogos."
-
-# Escalonador sched_ext para jogos e desktop (scx_lavd): on, off ou status
-scx ACTION="status":
-    #!/usr/bin/bash
-    set -euo pipefail
-    case "{{ ACTION }}" in
-        on)  sudo sh -c 'mkdir -p /etc/scx_loader && printf "default_sched = \"scx_lavd\"\ndefault_mode = \"Auto\"\n" > /etc/scx_loader/config.toml && systemctl enable --now scx_loader.service' ;;
-        off) sudo systemctl disable --now scx_loader.service ;;
-    esac
-    echo "scx_loader: $(systemctl is-active scx_loader.service 2>/dev/null || true)"
-    echo "escalonador em uso: $(cat /sys/kernel/sched_ext/root/ops 2>/dev/null || echo 'padrão do kernel (EEVDF)')"
 
 # Criar uma caixa de desenvolvimento distrobox (fedora, arch, ubuntu, opensuse)
 devbox DISTRO="":
@@ -103,7 +83,7 @@ devbox DISTRO="":
     distrobox create --yes --name "$name" --image "${IMAGES[$distro]}"
     echo "Caixa '$name' criada. Entre com: distrobox enter $name"
 
-# Instalar outros agentes de IA no seu usuário (codex, gemini); Claude Code, Qwen Code, opencode e Antigravity já vêm na imagem
+# Instalar outros agentes de IA no seu usuário (codex, gemini); Claude Code e opencode já vêm na imagem
 install-agent AGENT="":
     #!/usr/bin/bash
     set -euo pipefail

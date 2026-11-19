@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=Claude Code
+GenericName=AI coding agent
+GenericName[pt_BR]=Agente de IA para programar
+GenericName[es]=Agente de IA para programar
+GenericName[fr]=Agent d'IA pour programmer
+Comment=Anthropic's coding agent, in the terminal
+Comment[pt_BR]=O agente de programação da Anthropic, no terminal
+Comment[es]=El agente de programación de Anthropic, en la terminal
+Comment[fr]=L'agent de programmation d'Anthropic, dans le terminal
+Exec=/usr/libexec/tamagi/popup --class claude-code --title "Claude Code" claude
+StartupWMClass=claude-code
+Icon=claude-code
+Terminal=false
+Categories=Development;
+Keywords=claude;ia;ai;agente;agent;code;

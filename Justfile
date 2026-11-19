@@ -17,7 +17,7 @@ build *ARGS:
         --build-arg IMAGE_REF={{ image }} \
         -t {{ image }}:{{ tag }} {{ ARGS }} .
 
-# Testes da imagem: arquivos, serviços, COSMIC, Rust, Waydroid, hardening, primeiro boot, llama.cpp
+# Testes da imagem: arquivos, serviços, COSMIC, Rust, hardening, primeiro boot, llama.cpp
 test:
     podman run --rm -v ./tests:/tests:ro,Z {{ image }}:{{ tag }} bash /tests/image.sh
 
@@ -64,6 +64,10 @@ build-iso: build-live
 # Instala a ISO numa VM sem ninguém clicar (disco output/vm-test.qcow2) e confere o boot do sistema instalado
 test-iso *ARGS:
     bash tests/iso.sh output/tamagi.iso {{ ARGS }}
+
+# Atualização automática de ponta a ponta numa VM (registry local, imagem nova, reinício, rollback)
+test-upgrade:
+    bash tests/iso.sh output/tamagi.iso --upgrade
 
 # Depois de `just test-iso`: simula uma atualização ruim e confere o rollback automático
 test-rollback:

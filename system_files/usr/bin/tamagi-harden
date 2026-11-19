@@ -2,7 +2,7 @@
 # tamagi-harden — níveis de endurecimento do sistema, inspirados no GrapheneOS.
 #
 #   equilibrado (padrão, já vem na imagem): sysctls e argumentos de kernel que
-#       não quebram jogos, distrobox, Flatpak, Waydroid nem GPU.
+#       não quebram jogos, distrobox, Flatpak nem GPU.
 #   estrito (opcional): troca desempenho e compatibilidade por segurança.
 #
 # O modo estrito só grava em /etc e nos argumentos do kernel do sistema
@@ -15,7 +15,7 @@ PRELOAD=/etc/ld.so.preload
 MALLOC_LIB=/usr/lib64/libhardened_malloc.so
 # Argumentos do kernel do modo estrito. De fora, de propósito:
 #   ia32_emulation=0     quebra Steam/Wine (32 bits)
-#   fs.binfmt_misc=0     quebra a tradução ARM do Waydroid
+#   fs.binfmt_misc=0     quebra emulação (qemu-user, Wine)
 #   user namespaces=0    quebra distrobox, Flatpak e o sandbox dos navegadores
 # shellcheck disable=SC2054  # a vírgula faz parte de mitigations=auto,nosmt
 STRICT_KARGS=(
@@ -89,9 +89,13 @@ cmd_strict() {
 O modo estrito:
   - desliga o SMT (hyper-threading) em CPUs vulneráveis: menos desempenho;
   - bloqueia módulos de kernel sem assinatura reconhecida e a hibernação;
-  - restringe ptrace (depuradores só como root) e desliga core dumps;
-  - usa um MAC novo a cada conexão Wi-Fi (redes que liberam por MAC vão estranhar).
-Não mexe em distrobox, Flatpak, Waydroid nem nos navegadores.
+  - restringe ptrace a root: gdb/strace só com sudo, e jogos do Wine/Proton com
+    anti-cheat ou launcher que mexe em outro processo podem não abrir;
+  - desliga core dumps e o debugfs;
+  - o computador deixa de responder a ping (IPv4);
+  - usa um MAC novo a cada conexão, no Wi-Fi e no cabo (redes que liberam ou
+    reservam IP por MAC vão estranhar).
+Não mexe em distrobox, Flatpak nem nos navegadores.
 WARN
     if [[ -t 0 ]]; then
         read -r -p "Ligar o modo estrito? [s/N] " answer
@@ -110,8 +114,14 @@ SYSCTL
         mkdir -p "$(dirname "$2")"
         cat > "$2" <<NM
 # Gerado por tamagi-harden strict.
-[connection]
+# Seções com nome: a [connection] pura é sempre a de menor prioridade e
+# perderia para a [connection.22-wifi-mac-addr] do Fedora (stable-ssid).
+[connection-90-tamagi-strict-wifi]
+match-device=type:wifi
 wifi.cloned-mac-address=random
+
+[connection-90-tamagi-strict-ethernet]
+match-device=type:ethernet
 ethernet.cloned-mac-address=random
 NM
         sysctl --system >/dev/null

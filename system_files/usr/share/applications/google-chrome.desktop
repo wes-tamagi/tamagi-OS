@@ -1,9 +1,14 @@
 [Desktop Entry]
 Type=Application
 Name=Google Chrome
-GenericName=Navegador web
+GenericName=Web browser
 GenericName[pt_BR]=Navegador web
-Comment=Navegador na caixa AnduinOS (distrobox), com aceleração de vídeo e Warsaw
+GenericName[es]=Navegador web
+GenericName[fr]=Navigateur web
+Comment=Browser in the Ubuntu 26.04 LTS box (distrobox), with video acceleration and Warsaw
+Comment[pt_BR]=Navegador na caixa Ubuntu 26.04 LTS (distrobox), com aceleração de vídeo e Warsaw
+Comment[es]=Navegador en la caja Ubuntu 26.04 LTS (distrobox), con aceleración de vídeo y Warsaw
+Comment[fr]=Navigateur dans la boîte Ubuntu 26.04 LTS (distrobox), avec accélération vidéo et Warsaw
 Exec=/usr/bin/tamagi-browser chrome %U
 Icon=tamagi-browser
 Terminal=false
@@ -15,9 +20,15 @@ Keywords=navegador;internet;web;chrome;browser;
 Actions=new-window;new-private-window;
 
 [Desktop Action new-window]
-Name=Nova janela
+Name=New window
+Name[pt_BR]=Nova janela
+Name[es]=Nueva ventana
+Name[fr]=Nouvelle fenêtre
 Exec=/usr/bin/tamagi-browser chrome --new-window
 
 [Desktop Action new-private-window]
-Name=Nova janela anônima
+Name=New incognito window
+Name[pt_BR]=Nova janela anônima
+Name[es]=Nueva ventana de incógnito
+Name[fr]=Nouvelle fenêtre de navigation privée
 Exec=/usr/bin/tamagi-browser chrome --incognito

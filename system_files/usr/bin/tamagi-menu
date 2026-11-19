@@ -1,126 +1,146 @@
 #!/usr/bin/bash
 # tamagi-menu — menu central do sistema (Super+Alt+Espaço).
 # Uso: tamagi-menu [seção]   seções: instalar ia tema sistema banco energia
+# Textos em pt/en/es/fr (veja /usr/libexec/tamagi/i18n).
 set -uo pipefail
+. /usr/libexec/tamagi/i18n
 
-pause() { echo; read -rsn1 -p "  (qualquer tecla continua)"; echo; }
-pick() { gum choose --header "$1" "${@:2}"; }
+pause() { echo; read -rsn1 -p "  ($(t "qualquer tecla continua"))"; echo; }
+confirm() { gum confirm "$(t "$1")" --affirmative "$(t "Sim")" --negative "$(t "Não")"; }
+input() { gum input --placeholder "$(t "$1")"; }
+# pick <título> <id=Texto>...: mostra os textos no idioma do sistema e devolve o id.
+pick() {
+    local header=$1 item choice i; shift
+    local -a ids=() labels=()
+    for item in "$@"; do ids+=("${item%%=*}"); labels+=("$(t "${item#*=}")"); done
+    choice=$(gum choose --header "$(t "$header")" "${labels[@]}") || return 1
+    for i in "${!labels[@]}"; do
+        [[ ${labels[$i]} == "$choice" ]] && { echo "${ids[$i]}"; return 0; }
+    done
+    return 1
+}
 
 menu_instalar() {
-    case "$(pick "Instalar" "App gráfico (Flatpak)" "Pacote deb, rpm, Arch ou Omarchy (subsistema)" \
-            "Navegador (Chrome, Firefox, Brave, Edge, Vivaldi)" "Web app (site como aplicativo)" \
-            "Android (Waydroid)" "Jogos (Steam, Lutris, Heroic)" \
-            "Caixa de desenvolvimento (distrobox)" \
-            "Linguagem ou runtime (mise)" "LazyVim no Neovim" "Outro agente de IA" "Voltar")" in
-        "Pacote"*)
+    case "$(pick "Instalar" "flatpak=App gráfico (Flatpak)" "pkg=Pacote deb, rpm, Arch ou Omarchy (subsistema)" \
+            "browser=Navegador (Chrome, Firefox, Brave, Edge, Vivaldi)" "webapp=Web app (site como aplicativo)" \
+            "games=Jogos (Steam, Lutris, Heroic)" \
+            "devbox=Caixa de desenvolvimento (distrobox)" \
+            "mise=Linguagem ou runtime (mise)" "lazyvim=LazyVim no Neovim" "agent=Outro agente de IA" "back=Voltar")" in
+        pkg)
             local kind pkg
-            kind=$(gum choose --header "Formato" deb rpm arch) || return
-            pkg=$(gum input --placeholder "nome do pacote ou caminho do arquivo") || return
+            kind=$(gum choose --header "$(t "Formato")" deb rpm arch) || return
+            pkg=$(input "nome do pacote ou caminho do arquivo") || return
             [[ -n $pkg ]] && tamagi-pkg install "--$kind" "$pkg"
             pause ;;
-        "Navegador"*)
+        browser)
             local b
-            b=$(gum choose --header "Navegador" chrome firefox brave edge vivaldi) || return
+            b=$(gum choose --header "$(t "Navegador")" chrome firefox brave edge vivaldi) || return
             tamagi-browser install "$b"
             pause ;;
-        "Android"*)     tamagi-waydroid setup; pause ;;
-        "Jogos"*)       ujust setup-gaming; pause ;;
-        "Web app"*)     tamagi-webapp install; pause ;;
-        "LazyVim"*)     ujust setup-lazyvim; pause ;;
-        "App gráfico"*)
+        games)   ujust setup-gaming; pause ;;
+        webapp)  tamagi-webapp install; pause ;;
+        lazyvim) ujust setup-lazyvim; pause ;;
+        flatpak)
             local term app
-            term=$(gum input --placeholder "nome do app (ex.: gimp, spotify, vscode)") || return
+            term=$(input "nome do app (ex.: gimp, spotify, vscode)") || return
             [[ -n $term ]] || return
             app=$(flatpak search --columns=application,name,description "$term" 2>/dev/null \
-                | gum filter --header "Escolha o app" | awk '{print $1}') || return
+                | gum filter --header "$(t "Escolha o app")" | awk '{print $1}') || return
             [[ -n $app ]] && flatpak install -y flathub "$app"
             pause ;;
-        "Caixa"*)       ujust devbox; pause ;;
-        "Linguagem"*)
+        devbox)  ujust devbox; pause ;;
+        mise)
             local tool
-            tool=$(gum input --placeholder "ex.: node@lts, python@3.13, go, rust") || return
+            tool=$(input "ex.: node@lts, python@3.13, go, rust") || return
             [[ -n $tool ]] && mise use -g "$tool"
             pause ;;
-        "Outro agente"*) ujust install-agent; pause ;;
+        agent)   ujust install-agent; pause ;;
     esac
 }
 
 menu_ia() {
-    case "$(pick "IA" "Conversar com o agente" "Chat na interface web" "Programar com opencode" \
-            "Claude Code" "Qwen Code" "Antigravity (IDE)" \
-            "Instalar ou trocar modelo" "Estado" "Voltar")" in
-        "Conversar"*)  tamagi-agent ;;
-        "Chat"*)       tamagi-ai chat ;;
-        "Programar"*)  tamagi-ai code ;;
-        "Claude Code") claude ;;
-        "Qwen Code")   qwen ;;
-        "Antigravity"*) setsid -f antigravity >/dev/null 2>&1 ;;
-        "Instalar"*)   tamagi-ai setup; pause ;;
-        "Estado")      tamagi-ai status; echo; tamagi-ai list; pause ;;
+    case "$(pick "IA" "agent=Conversar com o agente" "chat=Chat na interface web" "code=Programar com opencode" \
+            "claude=Claude Code" \
+            "setup=Instalar ou trocar modelo" "status=Estado" "back=Voltar")" in
+        agent)       tamagi-agent ;;
+        chat)        tamagi-ai chat ;;
+        code)        tamagi-ai code ;;
+        claude)      claude ;;
+        setup)       tamagi-ai setup; pause ;;
+        status)      tamagi-ai status; echo; tamagi-ai list; pause ;;
+    esac
+}
+
+menu_aparencia() {
+    case "$(pick "Aparência" "theme=Tema" "wallpaper=Papel de parede" "panel=Estilo da barra" "lang=Idioma do sistema" "back=Voltar")" in
+        theme)     tamagi-theme pick ;;
+        wallpaper) tamagi-theme wallpaper; pause ;;
+        panel)     tamagi-panel pick; pause ;;
+        lang)      tamagi-lang pick; pause ;;
     esac
 }
 
 menu_sistema() {
-    case "$(pick "Sistema" "Atualizar tudo" "Estado da imagem" "Voltar para a versão anterior" \
-            "Atualização automática" "Máquinas virtuais" "Papel de parede" \
-            "Saúde do boot" "Sistema num arquivo (tamagi diff)" \
-            "Segurança (endurecimento)" "Limpar espaço" "Informações da máquina" \
-            "Refazer a configuração inicial" "Voltar")" in
-        "Atualizar"*)   tamagi-update; pause ;;
-        "Estado"*)      bootc status 2>/dev/null || rpm-ostree status; pause ;;
-        "Voltar para"*) gum confirm "Reverter para a imagem anterior no próximo boot?" && sudo bootc rollback; pause ;;
-        "Atualização"*) tamagi-update status; pause ;;
-        "Máquinas"*)    setsid -f virt-manager >/dev/null 2>&1 ;;
-        "Papel"*)       tamagi-theme wallpaper; pause ;;
-        "Saúde"*)       tamagi-boot-report show ;;
-        "Sistema num"*) tamagi diff; pause ;;
-        "Segurança"*)   tamagi-harden status; pause ;;
-        "Limpar"*)      ujust clean-system; pause ;;
-        "Informações"*) fastfetch; pause ;;
-        "Refazer"*)     tamagi-firstrun --force ;;
+    case "$(pick "Sistema" "update=Atualizar tudo" "image=Estado da imagem" "rollback=Voltar para a versão anterior" \
+            "auto=Atualização automática" "vm=Máquinas virtuais" \
+            "boot=Saúde do boot" "diff=Sistema num arquivo (tamagi diff)" \
+            "harden=Segurança (endurecimento)" "clean=Limpar espaço" "info=Informações da máquina" \
+            "firstrun=Refazer a configuração inicial" "back=Voltar")" in
+        update)   tamagi-update; pause ;;
+        image)    bootc status 2>/dev/null || rpm-ostree status; pause ;;
+        rollback) confirm "Reverter para a imagem anterior no próximo boot?" && sudo bootc rollback; pause ;;
+        auto)     tamagi-update status; pause ;;
+        vm)       setsid -f virt-manager >/dev/null 2>&1 ;;
+        boot)     tamagi-boot-report show ;;
+        diff)     tamagi diff; pause ;;
+        harden)   tamagi-harden status; pause ;;
+        clean)    ujust clean-system; pause ;;
+        info)     fastfetch; pause ;;
+        firstrun) tamagi-firstrun --force ;;
     esac
 }
 
 menu_banco() {
-    case "$(pick "Internet banking (Warsaw)" "Abrir o modo banco (descartável)" "Estado" "Ligar" "Desligar" "Voltar")" in
-        "Abrir"*) tamagi-bank; pause ;;
-        Estado)   tamagi-warsaw status; pause ;;
-        Ligar)    tamagi-warsaw ligar; pause ;;
-        Desligar) tamagi-warsaw desligar; pause ;;
+    case "$(pick "Internet banking (Warsaw)" "open=Abrir o modo banco (descartável)" "status=Estado" "on=Ligar o Warsaw" "off=Desligar o Warsaw" "back=Voltar")" in
+        open)   tamagi-bank; pause ;;
+        status) tamagi-warsaw status; pause ;;
+        on)     tamagi-warsaw ligar; pause ;;
+        off)    tamagi-warsaw desligar; pause ;;
     esac
 }
 
 menu_energia() {
-    case "$(pick "Energia" "Bloquear" "Suspender" "Sair da sessão" "Reiniciar" "Desligar" "Voltar")" in
-        Bloquear)    loginctl lock-session ;;
-        Suspender)   systemctl suspend ;;
-        "Sair"*)     gum confirm "Sair da sessão?" && loginctl terminate-session "${XDG_SESSION_ID:-self}" ;;
-        Reiniciar)   gum confirm "Reiniciar o computador?" && systemctl reboot ;;
-        Desligar)    gum confirm "Desligar o computador?" && systemctl poweroff ;;
+    case "$(pick "Energia" "lock=Bloquear" "suspend=Suspender" "logout=Sair da sessão" "reboot=Reiniciar" "poweroff=Desligar" "back=Voltar")" in
+        lock)     loginctl lock-session ;;
+        suspend)  systemctl suspend ;;
+        logout)   confirm "Sair da sessão?" && loginctl terminate-session "${XDG_SESSION_ID:-self}" ;;
+        reboot)   confirm "Reiniciar o computador?" && systemctl reboot ;;
+        poweroff) confirm "Desligar o computador?" && systemctl poweroff ;;
     esac
 }
 
 case "${1:-}" in
-    instalar) menu_instalar; exit ;;
-    ia)       menu_ia; exit ;;
-    tema)     tamagi-theme pick; exit ;;
-    sistema)  menu_sistema; exit ;;
-    banco)    menu_banco; exit ;;
-    energia)  menu_energia; exit ;;
+    instalar)  menu_instalar; exit ;;
+    ia)        menu_ia; exit ;;
+    tema)      tamagi-theme pick; exit ;;
+    aparencia) menu_aparencia; exit ;;
+    sistema)   menu_sistema; exit ;;
+    banco)     menu_banco; exit ;;
+    energia)   menu_energia; exit ;;
 esac
 
 while true; do
     clear
-    choice=$(pick "Tamagi" "Instalar" "IA local" "Tema" "Atalhos" "Sistema" \
-        "Internet banking" "Energia" "Sair") || exit 0
+    choice=$(pick "Tamagi" "install=Instalar" "ai=IA local" "look=Aparência" "keys=Atalhos" "system=Sistema" \
+        "bank=Internet banking" "power=Energia" "quit=Sair") || exit 0
     case "$choice" in
-        Instalar)   menu_instalar ;;
-        "IA local") menu_ia ;;
-        Tema)       tamagi-theme pick ;;
-        Atalhos)    tamagi-keys ;;
-        Sistema)    menu_sistema ;;
-        "Internet banking") menu_banco ;;
-        Energia)    menu_energia; exit 0 ;;
-        Sair)       exit 0 ;;
+        install) menu_instalar ;;
+        ai)      menu_ia ;;
+        look)    menu_aparencia ;;
+        keys)    tamagi-keys ;;
+        system)  menu_sistema ;;
+        bank)    menu_banco ;;
+        power)   menu_energia; exit 0 ;;
+        quit)    exit 0 ;;
     esac
 done

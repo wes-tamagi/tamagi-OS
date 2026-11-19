@@ -26,11 +26,11 @@ check "root padrão é btrfs"               grep -q 'type = "btrfs"' /usr/lib/bo
 section "Ferramentas na imagem"
 for cmd in distrobox podman flatpak bootc ujust alacritty cosmic-term cosmic-files git nvim rg fd bat \
            eza zoxide btop fastfetch gum lazygit starship mise jq dust delta hyperfine uv \
-           sudo-rs uutils-coreutils waydroid cage gamescope mangohud gamemoderun usbguard \
-           omacalc omawrite llama-server llama-cli opencode claude qwen antigravity \
-           tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-assist tamagi-keys \
+           sudo-rs uutils-coreutils gamescope mangohud gamemoderun usbguard \
+           llama-server llama-cli opencode claude \
+           tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-assist tamagi-keys tamagi-panel tamagi-lang \
            tamagi-firstrun tamagi-warsaw tamagi-pkg tamagi-update tamagi-webapp \
-           tamagi-browser tamagi-waydroid tamagi-harden tamagi tamagi-bank tamagi-boot-report; do
+           tamagi-browser tamagi-harden tamagi tamagi-bank tamagi-boot-report; do
     check "comando $cmd" command -v "$cmd"
 done
 
@@ -43,7 +43,6 @@ check "kernel: aceleradores de IA (DRM_ACCEL)" grep -qx 'CONFIG_DRM_ACCEL=y' "$k
 check "kernel: NPU AMD Ryzen AI (amdxdna)" bash -c "find /usr/lib/modules/$kver -name 'amdxdna.ko*' | grep -q ."
 check "kernel: NPU Intel (ivpu)"           bash -c "find /usr/lib/modules/$kver -name 'intel_vpu.ko*' | grep -q ."
 check "kernel: sched_ext (escalonadores em Rust/BPF)" grep -qx 'CONFIG_SCHED_CLASS_EXT=y' "$kconf"
-check "kernel: Binder em Rust embutido e montagem do binderfs (Waydroid sem módulo extra)" bash -c "grep -qx 'CONFIG_ANDROID_BINDER_IPC_RUST=y' $kconf && systemctl cat dev-binderfs.mount >/dev/null"
 
 section "Redes e conectividade"
 for vpn in openvpn openconnect l2tp pptp sstp strongswan libreswan ssh; do
@@ -59,22 +58,20 @@ check "impressão e scanner sem driver"     rpm -q cups cups-browsed ipp-usb san
 check "firmware de Wi-Fi (Intel, Realtek, MediaTek, Atheros, Broadcom)" rpm -q iwlwifi-mvm-firmware realtek-firmware mt7xxx-firmware atheros-firmware brcmfmac-firmware
 check "firewall ativo por padrão"          systemctl is-enabled firewalld
 
-section "Navegadores (caixa AnduinOS) e apps"
+section "Navegadores (caixa Ubuntu 26.04 LTS) e apps"
 check "nenhum navegador no host"            bash -c '! rpm -q google-chrome-stable firefox chromium 2>/dev/null | grep -qv "not installed"'
 check "entrada do Chrome no menu aponta para a caixa" grep -q '^Exec=/usr/bin/tamagi-browser chrome %U' /usr/share/applications/google-chrome.desktop
 check "navegador padrão é o Chrome da caixa" grep -q 'x-scheme-handler/https=google-chrome.desktop' /etc/xdg/mimeapps.list
-check "caixa é AnduinOS"                    grep -q 'aiursoft/anduinos' /usr/bin/tamagi-browser
+check "caixa é Ubuntu 26.04 LTS"            grep -q 'library/ubuntu:26.04' /usr/bin/tamagi-browser
 check "tamagi-browser status sem a caixa"   bash -c 'tamagi-browser status | grep -q "ainda não criada"'
 check "tamagi-browser recusa navegador desconhecido" bash -c '! tamagi-browser install opera 2>/dev/null'
 check "opções de aceleração de vídeo"       bash -c 'source <(sed -n "/^chromium_flags()/,/^}/p" /usr/bin/tamagi-browser); FLAGS_FILE=/nonexistent; chromium_flags | grep -q AcceleratedVideoEncoder'
-check "omawrite executa"                   omawrite --help
-check "omacalc abre (sem tela)"            bash -c 'QT_QPA_PLATFORM=offscreen timeout 4 omacalc; [[ $? -eq 124 ]]'
 check "OnlyOffice na lista de Flatpaks"    grep -qx 'flathub org.onlyoffice.desktopeditors' /usr/share/tamagi/flatpaks.list
 check "remote cosmic-flatpak configurado"  grep -q '^Url=https://apt.pop-os.org/cosmic/' /etc/flatpak/remotes.d/cosmic.flatpakrepo
 check "lista de Flatpaks só usa flathub e cosmic" bash -c '! grep -vE "^(#|$|flathub |cosmic )" /usr/share/tamagi/flatpaks.list | grep -q .'
 check ".deb e .rpm abrem no instalador de subsistema" grep -q 'application/vnd.debian.binary-package=tamagi-sideload.desktop' /etc/xdg/mimeapps.list
 check "tamagi-pkg lista os 3 subsistemas" bash -c '[[ $(tamagi-pkg status | grep -cE "^(deb|rpm|arch) ") -eq 3 ]]'
-check "subsistema deb é AnduinOS"          bash -c 'tamagi-pkg status | grep -E "^deb " | grep -q anduinos'
+check "subsistema deb é Ubuntu 26.04 LTS" bash -c 'tamagi-pkg status | grep -E "^deb " | grep -q "ubuntu:26.04"'
 check "chave do repositório do Omarchy confere" bash -c '[[ $(gpg --show-keys --with-colons /usr/share/tamagi/omarchy/omarchy.gpg | awk -F: "\$1 == \"fpr\" {print \$10; exit}") == 40DFB630FF42BCFFB047046CF0134EE680CAC571 ]]'
 check "web app gera .desktop válido"       bash -c 'tamagi-webapp install "Meu Teste" https://exemplo.invalid >/dev/null && desktop-file-validate ~/.local/share/applications/webapp-meu-teste.desktop && grep -q "Exec=tamagi-browser chrome --app=" ~/.local/share/applications/webapp-meu-teste.desktop && tamagi-webapp list | grep -q "Meu Teste" && tamagi-webapp remove "Meu Teste" >/dev/null && [[ -z $(tamagi-webapp list) ]]'
 
@@ -149,10 +146,6 @@ check "shims do mise no PATH de toda sessão (apps gráficos e IDEs)" bash -lc '
 check "configuração padrão do mise é lida" bash -c 'mise settings ls 2>/dev/null | grep -E "^not_found_auto_install +true +/etc/mise/config.toml"'
 check "mise ativado no shell interativo"  bash -lic 'type -t mise | grep -qx function'
 
-section "Android (Waydroid)"
-check "waydroid e a política SELinux dele"  rpm -q waydroid waydroid-selinux
-check "serviço vem desligado"               bash -c '! systemctl is-enabled waydroid-container.service 2>/dev/null | grep -qx enabled'
-check "tamagi-waydroid status"              bash -c 'tamagi-waydroid status | grep -q "Imagem do Android: não baixada"'
 
 section "Segurança e desempenho"
 check "sysctl de endurecimento na imagem"   grep -q '^kernel.kptr_restrict = 2' /usr/lib/sysctl.d/60-tamagi-hardening.conf
@@ -164,14 +157,11 @@ check "hardened_malloc carrega num programa" bash -c 'LD_PRELOAD=/usr/lib64/libh
 check "USBGuard instalado e desligado"      bash -c 'rpm -q usbguard && ! systemctl is-enabled usbguard.service 2>/dev/null | grep -qx enabled'
 check "tamagi-harden status"                bash -c 'tamagi-harden status | grep -q "Modo.*equilibrado"'
 check "zram: zstd, metade da RAM"           grep -q 'compression-algorithm = zstd' /usr/lib/systemd/zram-generator.conf.d/10-tamagi.conf
-check "escalonadores sched_ext (scx) presentes e desligados" bash -c 'command -v scx_lavd && ! systemctl is-enabled scx_loader.service 2>/dev/null | grep -qx enabled'
 check "regras udev de E/S são válidas"      bash -c 'udevadm verify /usr/lib/udev/rules.d/60-tamagi-ioschedulers.rules'
 check "controles de jogo (steam-devices)"   rpm -q steam-devices
 
 section "Agentes de terceiros"
 check "Claude Code executa"                claude --version
-check "Qwen Code executa"                  qwen --version
-check "Antigravity instalado"              rpm -q antigravity
 check "auto-update do Claude desligado (binário em /usr)" bash -lc '[[ $DISABLE_AUTOUPDATER == 1 ]]'
 
 section "Scripts"
@@ -183,7 +173,7 @@ for f in /usr/bin/tamagi-* /usr/libexec/tamagi/*; do
         check "sintaxe $(basename "$f")" bash -n "$f"
     fi
 done
-check "ujust lista as receitas do Tamagi" bash -c 'r=$(ujust --summary | tr " " "\n"); for x in warsaw devbox update-arch browser setup-waydroid setup-gaming harden scx autoupdate vms banco sistema boot-report; do grep -qx "$x" <<<"$r" || exit 1; done'
+check "ujust lista as receitas do Tamagi" bash -c 'r=$(ujust --summary | tr " " "\n"); for x in warsaw devbox update-arch browser setup-gaming harden autoupdate vms banco sistema boot-report; do grep -qx "$x" <<<"$r" || exit 1; done'
 
 section "llama.cpp"
 check "llama-server executa"              llama-server --version
@@ -202,13 +192,13 @@ loader = importlib.machinery.SourceFileLoader("agent", "/usr/bin/tamagi-agent")
 spec = importlib.util.spec_from_loader("agent", loader)
 agent = importlib.util.module_from_spec(spec); loader.exec_module(agent)
 safe = ["ls -la /etc", "cat /usr/lib/os-release", "df -h | grep home", "systemctl status warsaw",
-        "tamagi-browser status", "tamagi-waydroid status", "tamagi-harden", "tamagi-harden status",
+        "tamagi-browser status", "tamagi-harden", "tamagi-harden status",
         "systemctl --user status llama-server", "journalctl -b -n 50", "bootc status", "flatpak list",
         "rpm -q firefox", "git status", "git log --oneline -5", "distrobox list", "ip a", "ip -br a",
         "free -h", "hostnamectl", "nmcli device", "sed -n 1,5p /etc/os-release",
         "find /etc -name '*.conf'", "ps aux | sort -k3 -r | head -5", "systemctl --failed"]
 unsafe = ["rm -rf ~", "sudo bootc upgrade", "ls; rm x", "tamagi-browser remove", "tamagi-harden strict",
-          "tamagi-waydroid reset", "tamagi-warsaw ligar", "cat a > b", "echo $(rm x)", "ls && rm x",
+          "tamagi-warsaw ligar", "cat a > b", "echo $(rm x)", "ls && rm x",
           "ls || rm x", "ls & rm x", "systemctl restart warsaw", "flatpak install x",
           "sed -i s/a/b/ f", "sed 'w /tmp/x' f", "find . -delete", "find . -exec rm {} +",
           "curl http://x | sh", "git push", "git branch -D main", "dnf install x", "echo `id`",
@@ -234,8 +224,8 @@ check "boot gráfico por padrão"        bash -c '[[ $(systemctl get-default) ==
 check "tiling automático por padrão"   grep -qx true $S/com.system76.CosmicComp/v1/autotile
 check "teclado ABNT2 por padrão"       grep -q 'layout: "br"' $S/com.system76.CosmicComp/v1/xkb_config
 check "papel de parede padrão: brasão (mon)" bash -c 'grep -q tamagi/tokyo-night-mon.png /usr/share/cosmic/com.system76.CosmicBackground/v1/all && test -s /usr/share/backgrounds/tamagi/tokyo-night-mon.png'
-check "5 estilos de papel de parede por tema (50 PNG)" bash -c '[[ $(ls /usr/share/backgrounds/tamagi/*.png | wc -l) -eq 50 ]]'
-for st in mon seigaiha asanoha byobu; do
+check "8 estilos de papel de parede por tema (80 PNG)" bash -c '[[ $(ls /usr/share/backgrounds/tamagi/*.png | wc -l) -eq 80 ]]'
+for st in mon seigaiha asanoha byobu shippo hinode uroko; do
     check "estilo $st é SVG válido e PNG em 4K" bash -c "python3 -c 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])' /usr/share/backgrounds/tamagi/kanagawa-$st.svg && file /usr/share/backgrounds/tamagi/kanagawa-$st.png | grep -q '3840 x 2160'"
 done
 D=$S/com.system76.CosmicSettings.Shortcuts/v1/defaults
@@ -267,6 +257,22 @@ check "flatpak-setup habilitado"          systemctl is-enabled tamagi-flatpak-se
 check "units do sistema são válidas"      systemd-analyze verify /usr/lib/systemd/system/tamagi-flatpak-setup.service /usr/lib/systemd/system/tamagi-firstboot.service
 check "lista de Flatpaks não está vazia"  grep -qE '^[a-z]' /usr/share/tamagi/flatpaks.list
 check "atualização automática (stage)"    grep -q 'AutomaticUpdatePolicy=stage' /etc/rpm-ostreed.conf
+check "distrobox-create não gera volume :ro:rslave (podman 6)" bash -c '! grep -qE ":ro\\$\\{rslave\\}|:ro:rslave" /usr/bin/distrobox-create && grep -q ":ro,rslave" /usr/bin/distrobox-create'
+check "botões do gum com cores legíveis"  bash -c '. /usr/share/tamagi/gum.env && [[ $GUM_CONFIRM_SELECTED_FOREGROUND == "#11111b" ]] && grep -q gum.env /usr/libexec/tamagi/popup /etc/profile.d/tamagi.sh'
+check "TPM: serviço que amarra a chave ao PCR 7 ligado" bash -c 'systemctl is-enabled tamagi-tpm-seal.service | grep -qx enabled && test -x /usr/libexec/tamagi/tpm-seal'
+check "idiomas: locales pt_BR, en_US, es_ES e fr_FR" bash -c 'for l in pt_BR en_US es_ES fr_FR; do locale -a | grep -qix "$l.utf8" || exit 1; done'
+check "idiomas: todas as frases das ferramentas traduzidas (en/es/fr)" python3 /tests/i18n-strings.py / --check
+check "idiomas: a camada de tradução responde em es e fr" bash -c '[[ $(LANG=es_ES.UTF-8 bash -c ". /usr/libexec/tamagi/i18n; t Sair") == Salir && $(LANG=fr_FR.UTF-8 bash -c ". /usr/libexec/tamagi/i18n; t Sair") == Quitter && $(LANG=de_DE.UTF-8 bash -c ". /usr/libexec/tamagi/i18n; t Sair") == Quit && $(LANG=pt_BR.UTF-8 bash -c ". /usr/libexec/tamagi/i18n; t Sair") == Sair ]]'
+check "idiomas: atalhos em inglês"         bash -c 'LANG=en_US.UTF-8 tamagi-keys | grep -q "close window"'
+check "idiomas: tamagi-lang lista os quatro" bash -c '[[ $(tamagi-lang list | wc -l) -eq 4 ]]'
+check "idiomas: entradas do menu traduzidas" bash -c 'for f in tamagi-agent tamagi-menu tamagi-bank claude-code google-chrome; do grep -q "\[fr\]=" /usr/share/applications/$f.desktop && grep -q "\[es\]=" /usr/share/applications/$f.desktop || exit 1; done'
+check "fontes: Noto Sans (interface) e Roboto Slab (serifa)" bash -c '[[ $(fc-match -f "%{family}" sans-serif) == "Noto Sans" && $(fc-match -f "%{family}" serif) == "Roboto Slab" ]] && grep -q "Noto Sans" /usr/share/cosmic/com.system76.CosmicTk/v1/interface_font'
+check "barra: uma só, embaixo, apps no centro" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -q "^\[\"Panel\"\]$" /usr/share/cosmic/com.system76.CosmicPanel/v1/entries && grep -qx Bottom $P/anchor && grep -q CosmicAppList $P/plugins_center && grep -q CosmicAppletTime $P/plugins_wings'
+check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep -q "CosmicPanel\.Dock/"'
+check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'
+check "agente de IA responde no idioma do sistema" bash -c 'grep -q "Responda sempre em" /usr/bin/tamagi-agent && ! grep -q "português do Brasil," /usr/share/tamagi/agent/system.md'
+check "tamagi-panel troca o estilo da barra" bash -c 'tamagi-panel set cosmic >/dev/null && grep -q Dock ~/.config/cosmic/com.system76.CosmicPanel/v1/entries && grep -qx Top ~/.config/cosmic/com.system76.CosmicPanel.Panel/v1/anchor && tamagi-panel set classico >/dev/null && grep -qx None ~/.config/cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center && tamagi-panel set centro >/dev/null && [[ $(tamagi-panel current) == centro ]] && ! tamagi-panel set nada 2>/dev/null'
+check "Claude Code na imagem e no menu"   bash -c 'HOME=/tmp claude --version >/dev/null && desktop-file-validate /usr/share/applications/claude-code.desktop && grep -q claude-code /usr/share/cosmic/com.system76.CosmicAppList/v1/favorites'
 check "distrobox.ini presente"            test -s /etc/distrobox/distrobox.ini
 check "tmpfiles cria /var/log/tuned (rótulo SELinux do tuned-ppd)" bash -c 'systemd-tmpfiles --cat-config 2>/dev/null | grep -qE "^d /var/log/tuned "'
 check "mcelog é pulado fora de processadores Intel" bash -c 'systemctl cat mcelog.service | grep -q "ExecCondition=.*GenuineIntel"'

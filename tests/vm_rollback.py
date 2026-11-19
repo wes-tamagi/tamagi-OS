@@ -13,7 +13,7 @@ n = [0]
 
 def login():
     con.read_until([rb"login: $"], 600)
-    con.send(user + "\n"); con.read_until([rb"[Pp]assword: ?$", rb"[Ss]enha: ?$"], 30); con.send(pw + "\n"); time.sleep(3)
+    con.send(user + "\n"); con.read_until([rb"[Pp]assword: ?$", rb"[Ss]enha: ?$", rb"[Cc]ontrase\xc3\xb1a: ?$", rb"[Mm]ot de passe ?: ?$"], 30); con.send(pw + "\n"); time.sleep(3)
     con.send("exec env TERM=dumb PS1='' bash --norc --noprofile\n"); time.sleep(1)
     con.send("stty -echo cols 250; echo __PRONTO__\n"); con.read_until([rb"__PRONTO__\n"], 30)
 

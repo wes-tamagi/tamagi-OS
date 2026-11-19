@@ -80,6 +80,7 @@ def main():
     ap.add_argument("--user", required=True)
     ap.add_argument("--password", required=True)
     ap.add_argument("--luks")
+    ap.add_argument("--tpm", action="store_true", help="disco criptografado que abre sozinho pelo TPM")
     ap.add_argument("--lang", default="pt")
     ap.add_argument("--screenshot")
     args = ap.parse_args()
@@ -94,7 +95,7 @@ def main():
     con.read_until([rb"login: $"], 420)
     print(f"   tela de login no console em {time.time() - start:.0f}s")
     con.send(args.user + "\n")
-    con.read_until([rb"[Pp]assword: ?$", rb"[Ss]enha: ?$"], 30)
+    con.read_until([rb"[Pp]assword: ?$", rb"[Ss]enha: ?$", rb"[Cc]ontrase\xc3\xb1a: ?$", rb"[Mm]ot de passe ?: ?$"], 30)
     con.send(args.password + "\n")
     time.sleep(3)
     # Shell sem prompt enfeitado, para o console ficar fácil de ler.
@@ -135,18 +136,32 @@ def main():
     check("sistema instalado é o Tamagi", "Tamagi" in out, out)
     out, _ = run("id -nG")
     check("usuário criado no primeiro boot, no grupo wheel", "wheel" in out.split(), out)
-    out, _ = run("ls /etc/tamagi/install.conf 2>&1")
-    check("arquivo de respostas do instalador foi apagado", "No such file" in out or "não" in out, out)
+    out, _ = sudo("sh -c 'test -e /etc/tamagi/install.conf && echo existe || echo apagado'")
+    check("arquivo de respostas do instalador foi apagado", out.endswith("apagado"), out)
     out, _ = run("findmnt -rno FSTYPE,OPTIONS /sysroot")
     check("raiz btrfs com compressão zstd", out.startswith("btrfs") and "compress=zstd" in out, out)
     out, _ = run("findmnt -rno FSTYPE /boot")
     check("/boot separado (ext4)", out == "ext4", out)
     out, _ = run("lsblk -rno TYPE,FSTYPE | sort -u | tr '\\n' ' '")
-    if args.luks:
+    if args.luks or args.tpm:
         check("disco criptografado (LUKS)", "crypt btrfs" in out and "crypto_LUKS" in out, out)
     else:
         check("disco sem criptografia (como pedido)", "crypt" not in out, out)
     cmdline, _ = run("cat /proc/cmdline")
+    if args.tpm:
+        # Chegar até aqui sem digitar a senha do disco já é o teste principal.
+        check("disco aberto pelo TPM, sem senha (rd.luks.options=...tpm2-device=auto)", "tpm2-device=auto" in cmdline, cmdline)
+        out, _ = sudo("sh -c 'systemd-cryptenroll $(blkid -t TYPE=crypto_LUKS -o device | head -1) 2>&1 | tr -s \" \" | tr \"\\n\" \";\"'")
+        check("LUKS com dois acessos: senha (reserva) e TPM", "password" in out and out.count("tpm2") == 1, out)
+        for _ in range(20):
+            seal, _ = run("systemctl is-active tamagi-tpm-seal.service; test -e /etc/tamagi/tpm-seal && echo pendente || echo feito")
+            if "activating" not in seal:
+                break
+            time.sleep(3)
+        detail, _ = sudo("journalctl -b -u tamagi-tpm-seal -o cat --no-pager | tail -5")
+        check("chave do TPM amarrada ao PCR 7 no primeiro boot", seal.endswith("feito") and "failed" not in seal, seal + " | " + detail)
+        out, _ = sudo("sh -c 'cryptsetup luksDump $(blkid -t TYPE=crypto_LUKS -o device | head -1) | grep -A12 systemd-tpm2 | grep -i pcrs | tr -s \" \"'")
+        check("o registro no TPM usa o PCR 7", bool(re.search(r"tpm2-hash-pcrs:\s*7\b", out)), out)
     for karg in ("init_on_alloc=1", "slab_nomerge", "vsyscall=none", "rootflags=compress=zstd:1"):
         check(f"argumento do kernel {karg}", karg in cmdline.split(), cmdline)
     out, _ = sudo("bootc status --format json 2>/dev/null | python3 -c 'import json,sys; s=json.load(sys.stdin)[\"status\"]; print(s[\"booted\"][\"image\"][\"image\"][\"image\"], s[\"type\"])'")
@@ -162,17 +177,16 @@ def main():
         check("bootc consulta o registry de atualizações", bool(re.search(r"No changes|Update available|Digest|Total", up)) and "rror" not in up, up)
     out, _ = run("getenforce")
     check("SELinux em modo Enforcing", out == "Enforcing", out)
-    out, _ = run("grep -cw binder /proc/filesystems")
-    check("binderfs no kernel (Waydroid)", out == "1", out)
     out, _ = run("sysctl -n kernel.kptr_restrict kernel.yama.ptrace_scope vm.max_map_count | tr '\\n' ' '")
     check("sysctls de endurecimento e desempenho aplicados", out.split() == ["2", "1", "2147483642"], out)
     out, _ = run("localectl status | tr -s ' ' | tr '\\n' ';'")
-    if args.lang == "en":
-        check("idioma en_US e teclado us", "LANG=en_US.UTF-8" in out and "Keymap: us" in out, out)
-    else:
-        check("idioma pt_BR e teclado br-abnt2", "LANG=pt_BR.UTF-8" in out and "br-abnt2" in out, out)
+    want = {"pt": ("pt_BR.UTF-8", "br-abnt2", "America/Sao_Paulo"), "en": ("en_US.UTF-8", "us", "UTC"),
+            "es": ("es_ES.UTF-8", "es", "Europe/Madrid"), "fr": ("fr_FR.UTF-8", "fr", "Europe/Paris")}[args.lang]
+    check(f"idioma {want[0]} e teclado {want[1]}", f"LANG={want[0]}" in out and f"Keymap: {want[1]}" in out, out)
+    out, _ = run("bash -lc '. /usr/libexec/tamagi/i18n; t Sair'")
+    check("ferramentas do Tamagi no idioma instalado", out.splitlines()[-1:] == [{"pt": "Sair", "en": "Quit", "es": "Salir", "fr": "Quitter"}[args.lang]], out)
     out, _ = run("timedatectl show -p Timezone --value")
-    zone = "UTC" if args.lang == "en" else "America/Sao_Paulo"
+    zone = want[2]
     check(f"fuso {zone}", out == zone, out)
     out, _ = run("hostnamectl hostname")
     check("nome do computador", out == "tamagi", out)
@@ -192,7 +206,7 @@ def main():
     check("nenhuma negação do SELinux por arquivo sem rótulo", out.splitlines()[-1:] == ["0"], out)
     out, _ = run("systemctl is-active virtqemud.socket virtnetworkd.socket | tr '\\n' ' '; ls -dZ /var/lib/libvirt/images | cut -d' ' -f1")
     check("libvirt pronto (sockets ativos, pasta de imagens rotulada)", out.split()[:2] == ["active", "active"] and "virt_image_t" in out, out)
-    out, _ = sudo("sh -c 'virsh -c qemu:///system list --all 2>&1 | head -1; virsh -c qemu:///system net-list --all 2>&1 | grep -c default'")
+    out, _ = sudo("sh -c 'export LC_ALL=C; virsh -c qemu:///system list --all 2>&1 | head -1; virsh -c qemu:///system net-list --all 2>&1 | grep -c default'")
     check("virsh fala com o QEMU do sistema e a rede default existe", "Id" in out and out.splitlines()[-1] == "1", out)
     out, _ = run("systemctl is-enabled rpm-ostreed-automatic.timer flatpak-system-update.timer; systemctl --user is-enabled tamagi-autoupdate.timer flatpak-user-update.timer")
     check("atualização automática: os quatro timers ligados", out.split() == ["enabled"] * 4, out)
@@ -202,8 +216,10 @@ def main():
     check("papel de parede padrão é o brasão", out == "1", out)
     out, _ = run("tamagi-harden status | head -1")
     check("tamagi-harden: modo equilibrado", "equilibrado" in out, out)
-    out, _ = run("tamagi-waydroid status | head -1")
-    check("tamagi-waydroid enxerga o Binder", "sim" in out, out)
+    # Caixas distrobox: no host somente-leitura o comando gerado tem de ser aceito
+    # pelo podman (o distrobox 1.8.2.5 gerava ":ro:rslave", que o podman 6 recusa).
+    out, _ = run("distrobox create --yes --dry-run --name teste --image docker.io/library/ubuntu:26.04 2>&1 | grep -c ':ro:rslave'")
+    check("distrobox gera volumes que o podman aceita", out.splitlines()[-1:] == ["0"], out)
     out, _ = run("cat /sys/block/vda/queue/scheduler")
     print(f"   info  escalonador de E/S do disco virtual: {out}")
     out, _ = sudo("bootc status 2>&1 | head -6")
@@ -213,6 +229,13 @@ def main():
         time.sleep(8)
         r = qmp(args.qmp, {"execute": "screendump", "arguments": {"filename": args.screenshot, "format": "png"}})
         print(f"   captura da tela: {args.screenshot}" if "return" in r[0] else f"   captura falhou: {r[0]}")
+
+    if args.tpm:
+        # Com a chave já presa ao PCR 7, o segundo boot também tem de abrir sozinho.
+        con.send(f"echo '{args.password}' | sudo -S -p '' systemctl reboot\n")
+        time.sleep(8)
+        i, _ = con.read_until([rb"login: $", rb"[Pp]lease enter passphrase[^\n]*:"], 420)
+        check("segundo boot abre o disco pelo TPM (PCR 7), sem senha", i == 0)
 
     qmp(args.qmp, {"execute": "quit"})
     print()

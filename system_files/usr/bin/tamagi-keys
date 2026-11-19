@@ -1,8 +1,10 @@
 #!/usr/bin/bash
-# Mostra a tabela de atalhos do Tamagi.
+# Mostra a tabela de atalhos do Tamagi, no idioma do sistema.
+. /usr/libexec/tamagi/i18n
+file=$(tfile /usr/share/tamagi/keys.txt)
 if [[ -t 1 ]]; then
-    gum style --border rounded --padding "0 2" --border-foreground 4 "$(cat /usr/share/tamagi/keys.txt)"
-    read -rsn1 -p "  (qualquer tecla fecha)"
+    gum style --border rounded --padding "0 2" --border-foreground 4 "$(cat "$file")"
+    read -rsn1 -p "  ($(t "qualquer tecla fecha"))"
 else
-    cat /usr/share/tamagi/keys.txt
+    cat "$file"
 fi

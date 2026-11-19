@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # Testa a caixa de navegadores DE VERDADE neste computador (precisa de podman
-# e distrobox): cria uma caixa AnduinOS, instala o Chrome com o tamagi-browser
+# e distrobox): cria uma caixa Ubuntu 26.04 LTS, instala o Chrome com o tamagi-browser
 # e confere a aceleração de vídeo. Roda fora da imagem porque depende da placa
 # de vídeo e do podman do host.
 #
@@ -40,12 +40,12 @@ ok()  { echo "  ok    $*"; pass=$((pass + 1)); }
 bad() { echo "  FALHA $*"; fail=$((fail + 1)); }
 check() { local desc=$1; shift; if "$@" >/dev/null 2>&1; then ok "$desc"; else bad "$desc"; fi; }
 
-echo "== Caixa de navegadores (AnduinOS)"
+echo "== Caixa de navegadores (Ubuntu 26.04 LTS)"
 browser setup </dev/null 2>&1 | tail -3
 check "caixa criada"                         podman container exists "$TAMAGI_BROWSER_BOX"
 status=$(browser status 2>/dev/null)
 echo "$status" | sed 's/^/    /'
-check "é AnduinOS"                           grep -q 'Sistema.*AnduinOS' <<<"$status"
+check "é Ubuntu 26.04"                       grep -q 'Sistema.*Ubuntu 26\.04' <<<"$status"
 check "Chrome instalado"                     grep -q 'Navegador.*Google Chrome' <<<"$status"
 check "Chrome abre com as opções de aceleração" bash -c "bash '$P/usr/bin/tamagi-browser' chrome --version | grep -q 'Google Chrome'"
 check "navegador desconhecido é recusado"    bash -c "! bash '$P/usr/bin/tamagi-browser' install opera"

@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # Habilita os serviços do Tamagi e limpa o que o build deixou para trás.
 
-systemctl enable tamagi-flatpak-setup.service tamagi-firstboot.service
+systemctl enable tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-tpm-seal.service
 
 # Verificação de saúde a cada boot e rollback automático da imagem (greenboot).
 systemctl enable greenboot-healthcheck.service greenboot-set-rollback-trigger.service
@@ -18,14 +18,23 @@ systemctl enable virtqemud.socket virtnetworkd.socket virtstoraged.socket \
 systemctl --global enable tamagi-autoupdate.timer
 
 # Sob demanda: ficam na imagem, desligados.
-#   waydroid  -> ujust setup-waydroid      scx  -> ujust scx
 #   usbguard  -> tamagi-harden usb on      tailscale -> ujust setup-tailscale
-systemctl disable waydroid-container.service scx_loader.service scx.service \
-    usbguard.service tailscaled.service 2>/dev/null || true
+systemctl disable usbguard.service tailscaled.service 2>/dev/null || true
 
 # hardened_malloc fica instalado, mas não é carregado em todo processo por
 # padrão (quebraria jogos e alguns apps); `tamagi-harden malloc on` liga.
 rm -f /etc/ld.so.preload
+
+# Idiomas: o produto tem quatro (en, pt, es, fr). A base traz os locales e as
+# traduções de todos os idiomas do mundo (~500 MB); ficam só os quatro.
+dnf5 -y install --setopt=install_weak_deps=False \
+    glibc-langpack-en glibc-langpack-pt glibc-langpack-es glibc-langpack-fr
+dnf5 -y remove glibc-all-langpacks
+for l in pt_BR.utf8 en_US.utf8 es_ES.utf8 fr_FR.utf8; do
+    locale -a | grep -qix "$l" || { echo "locale $l ausente depois do corte" >&2; exit 1; }
+done
+find /usr/share/locale -mindepth 1 -maxdepth 1 -type d \
+    ! -name 'en*' ! -name 'pt*' ! -name 'es*' ! -name 'fr*' ! -name C -exec rm -rf {} +
 
 dnf5 clean all
 

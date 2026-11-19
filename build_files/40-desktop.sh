@@ -66,6 +66,46 @@ PY
 # Paleta padrão das janelas do Tamagi (o tamagi-theme gera a do usuário).
 tamagi-theme alacritty tokyo-night > /usr/share/tamagi/alacritty.toml
 
+# ── Fontes: Noto Sans na interface do COSMIC (libcosmic) e nos apps GTK ──
+# Roboto Slab é a fonte com serifa do sistema (fontconfig, 55-tamagi-fonts.conf).
+install -d "$C/com.system76.CosmicTk/v1"
+rm -f "$C/com.system76.CosmicTk/v1/interface_font" "$C/com.system76.CosmicTk/v1/monospace_font"
+echo '(family: "Noto Sans", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/interface_font"
+echo '(family: "JetBrains Mono", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/monospace_font"
+# cosmic-term e cosmic-edit guardam a fonte na configuração do próprio app.
+for app in CosmicTerm CosmicEdit; do
+    install -d "$C/com.system76.$app/v1"
+    rm -f "$C/com.system76.$app/v1/font_name"
+    echo '"JetBrains Mono"' > "$C/com.system76.$app/v1/font_name"
+done
+# O libcosmic vai mudar a fonte de lugar (de CosmicTk para o tema): quando a
+# versão empacotada deixar de ler esta chave, o build avisa em vez de a
+# interface voltar para a fonte padrão em silêncio.
+grep -aq interface_font /usr/bin/cosmic-settings || { echo "o libcosmic desta versão não lê mais CosmicTk/interface_font: ajuste 40-desktop.sh" >&2; exit 1; }
+install -Dm644 /dev/stdin /etc/dconf/db/local.d/10-tamagi-fonts <<'DCONF'
+[org/gnome/desktop/interface]
+font-name='Noto Sans 11'
+document-font-name='Roboto Slab 11'
+monospace-font-name='JetBrains Mono 11'
+DCONF
+# (o perfil padrão do Fedora já lê o banco "local"; só cria se não existir)
+[[ -e /etc/dconf/profile/user ]] || printf 'user-db:user\nsystem-db:local\n' | install -Dm644 /dev/stdin /etc/dconf/profile/user
+dconf update
+fc-cache -f >/dev/null
+[[ $(fc-match -f '%{family}' sans-serif) == "Noto Sans" ]] || { echo "sans-serif não é Noto Sans" >&2; exit 1; }
+[[ $(fc-match -f '%{family}' serif) == "Roboto Slab" ]] || { echo "serif não é Roboto Slab" >&2; exit 1; }
+
+# ── Barra: uma só, embaixo, com os apps no centro ──
+# Junta o layout "Centered" do AnduinOS (barra de tarefas embaixo, apps no
+# meio, bandeja e relógio à direita) com os applets e o acabamento do COSMIC
+# (barra flutuante, cantos arredondados, um pouco translúcida). O layout
+# original do COSMIC (painel em cima + dock) e o clássico continuam a um
+# comando: tamagi-panel.
+tamagi-panel defaults "$C"
+# O Dock do COSMIC tem de continuar como veio do pacote (o estilo "cosmic" volta a ele).
+dock_changed=$(rpm -V cosmic-panel 2>/dev/null | grep -c 'CosmicPanel\.Dock/' || true)
+[[ $dock_changed -eq 0 ]] || { echo "tamagi-panel alterou os padrões do Dock (hardlink)" >&2; exit 1; }
+
 # ── Dock: o navegador é o Chrome da caixa (google-chrome.desktop do Tamagi) ──
 cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
 [
@@ -74,6 +114,7 @@ cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
     "com.system76.CosmicTerm",
     "com.system76.CosmicEdit",
     "tamagi-agent",
+    "claude-code",
     "com.system76.CosmicStore",
     "com.system76.CosmicSettings",
 ]
@@ -102,8 +143,6 @@ ours = [
     ("[Super]", "k", f'Spawn("{popup} tamagi-keys")'),
     ("[Super, Shift]", "t", f'Spawn("{popup} btop")'),
     ("[Super, Shift]", "n", f'Spawn("{popup} --tile nvim")'),
-    ("[Super, Shift]", "c", 'Spawn("omacalc")'),
-    ("[Super, Shift]", "w", 'Spawn("omawrite")'),
     ("[Super, Shift, Ctrl]", "space", 'Spawn("tamagi-theme next")'),
 ]
 
@@ -136,6 +175,7 @@ LIST
 gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 
 for f in /usr/share/applications/tamagi-*.desktop /usr/share/applications/google-chrome.desktop \
+         /usr/share/applications/claude-code.desktop \
          /etc/xdg/autostart/tamagi-*.desktop; do
     desktop-file-validate "$f"
 done

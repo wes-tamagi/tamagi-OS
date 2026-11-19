@@ -14,19 +14,18 @@ cp "/live/usr/lib/modules/$kver/initramfs-live.img" "$TREE/boot/initrd.img"
 
 echo "squashfs do ambiente live (kernel $kver)…"
 # /live é a raiz da imagem: sem /proc, /sys, /dev montados, nada a excluir.
-if [[ ${SQUASH_COMP:-xz} == xz ]]; then
+if [[ ${SQUASH_COMP:-zstd} == xz ]]; then
     comp=(-comp xz -Xbcj x86 -Xdict-size 1M)
 else
-    comp=(-comp zstd -Xcompression-level 15)
+    comp=(-comp zstd -Xcompression-level 19)
 fi
 # Fica fora do ambiente live o que não serve para instalar nem para
 # experimentar o desktop (o sistema INSTALADO vem da imagem embutida e
 # continua completo): os dois initramfs (o live já está em /boot da ISO), a
-# IDE Antigravity, os agentes de IA de terceiros, documentação e manuais.
+# os agentes de IA de terceiros, documentação e manuais.
 exclude=(
     'usr/lib/modules/*/initramfs.img' 'usr/lib/modules/*/initramfs-live.img'
-    usr/share/antigravity usr/bin/antigravity 'usr/share/applications/antigravity*.desktop'
-    usr/bin/claude usr/bin/opencode usr/bin/qwen usr/lib/node_modules/@qwen-code
+    usr/bin/claude usr/bin/opencode
     usr/share/doc usr/share/man
 )
 mksquashfs /live "$TREE/LiveOS/squashfs.img" -noappend -no-progress -b 1M "${comp[@]}" \

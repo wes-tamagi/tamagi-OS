@@ -1,95 +1,101 @@
 #!/usr/bin/bash
 # tamagi-firstrun — configuração inicial do usuário (roda uma vez no primeiro login).
+# Textos em pt/en/es/fr (veja /usr/libexec/tamagi/i18n).
 set -uo pipefail
+. /usr/libexec/tamagi/i18n
 
 STAMP="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/firstrun-done"
 [[ ${1:-} == --force ]] && rm -f "$STAMP"
 [[ -f $STAMP ]] && exit 0
 
-step() { echo; gum style --foreground 4 --bold "── $* "; }
+step() { echo; gum style --foreground 4 --bold "── $(t "$1") "; }
+ask() { # ask [--no] <pergunta>: Sim/Não no idioma do sistema
+    local def=()
+    [[ $1 == --no ]] && { def=(--default=false); shift; }
+    gum confirm "$(t "$1")" --affirmative "$(t "Sim")" --negative "$(t "Não")" "${def[@]}"
+}
 
 clear
 gum style --border double --padding "1 3" --border-foreground 4 \
-    "Bem-vindo ao Tamagi" "" \
-    "Sistema atômico: o host é somente-leitura e se atualiza sozinho." \
-    "Apps por Flatpak, navegadores e pacotes em caixas distrobox, IA local."
+    "$(t "Bem-vindo ao Tamagi")" "" \
+    "$(t "Sistema atômico: o host é somente-leitura e se atualiza sozinho.")" \
+    "$(t "Apps por Flatpak, navegadores e pacotes em caixas distrobox, IA local.")"
 
 step "Aparência"
-theme=$(tamagi-theme list | gum choose --header "Tema" --selected tokyo-night) && tamagi-theme set "$theme"
+theme=$(tamagi-theme list | gum choose --header "$(t "Tema")" --selected tokyo-night) && tamagi-theme set "$theme"
+panel=$(gum choose --header "$(t "Barra")" \
+    "$(t "centro — uma barra embaixo, apps no centro")" \
+    "$(t "classico — uma barra embaixo, apps à esquerda")" \
+    "$(t "cosmic — painel em cima e dock embaixo")") && tamagi-panel set "${panel%% *}" >/dev/null
 
 step "Janelas"
 tiling=false
-gum confirm "Organizar as janelas automaticamente lado a lado (tiling)?" \
-    --affirmative "Tiling" --negative "Flutuantes" && tiling=true
+gum confirm "$(t "Organizar as janelas automaticamente lado a lado (tiling)?")" \
+    --affirmative "Tiling" --negative "$(t "Flutuantes")" && tiling=true
 mkdir -p ~/.config/cosmic/com.system76.CosmicComp/v1
 echo "$tiling" > ~/.config/cosmic/com.system76.CosmicComp/v1/autotile
-echo "Super+Y alterna entre os dois modos a qualquer momento."
+tl "Super+Y alterna entre os dois modos a qualquer momento."
 
 step "Navegador"
-echo "Os navegadores vivem numa caixa AnduinOS (distrobox), com a placa de vídeo"
-echo "do computador e sem tocar no host. O Chrome é preparado no primeiro uso"
-echo "(baixa cerca de 600 MB)."
-if gum confirm "Preparar o Chrome agora?"; then
-    tamagi-browser setup || echo "Não deu agora (sem rede?). Ele é preparado quando você abrir o navegador."
+tl "Os navegadores vivem numa caixa Ubuntu 26.04 LTS (distrobox), com a placa de vídeo"
+tl "do computador e sem tocar no host. O Chrome é preparado no primeiro uso"
+tl "(baixa cerca de 600 MB)."
+if ask "Preparar o Chrome agora?"; then
+    tamagi-browser setup || tl "Não deu agora (sem rede?). Ele é preparado quando você abrir o navegador."
 else
-    echo "Depois: abra o navegador, ou rode tamagi-browser setup"
+    tl "Depois: abra o navegador, ou rode tamagi-browser setup"
 fi
 
 step "Caixa de desenvolvimento (distrobox)"
-echo "O host não recebe pacotes: ferramentas de linha de comando vivem numa caixa."
-box=$(gum choose --header "Criar a caixa 'dev' com qual distro?" \
-    "fedora" "arch" "ubuntu" "opensuse" "agora não")
-if [[ -n $box && $box != "agora não" ]]; then
-    ujust devbox "$box" || echo "Não deu para criar agora (sem rede?). Depois: ujust devbox"
+tl "O host não recebe pacotes: ferramentas de linha de comando vivem numa caixa."
+none=$(t "agora não")
+box=$(gum choose --header "$(t "Criar a caixa 'dev' com qual distro?")" \
+    "fedora" "arch" "ubuntu" "opensuse" "$none")
+if [[ -n $box && $box != "$none" ]]; then
+    ujust devbox "$box" || tl "Não deu para criar agora (sem rede?). Depois: ujust devbox"
 fi
 
 step "Linguagens e ferramentas (mise)"
-echo "O mise é o gerenciador padrão de linguagens e ferramentas de desenvolvimento:"
-echo "instala no seu usuário, troca de versão por pasta de projeto e se atualiza sozinho."
-langs=$(gum choose --no-limit --header "Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)" \
+tl "O mise é o gerenciador padrão de linguagens e ferramentas de desenvolvimento:"
+tl "instala no seu usuário, troca de versão por pasta de projeto e se atualiza sozinho."
+langs=$(gum choose --no-limit --header "$(t "Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)")" \
     "node@lts" "python@latest" "go@latest" "rust@latest" "java@lts" "bun@latest" "deno@latest") || langs=""
 if [[ -n $langs ]]; then
     # shellcheck disable=SC2086
-    mise use -g $langs || echo "Não deu agora (sem rede?). Depois: mise use -g node@lts"
+    mise use -g $langs || tl "Não deu agora (sem rede?). Depois: mise use -g node@lts"
 else
-    echo "Depois: mise use -g node@lts python@latest   ·   mise ls"
+    tl "Depois: mise use -g node@lts python@latest   ·   mise ls"
 fi
 
-if lsblk -no TYPE 2>/dev/null | grep -qx crypt && [[ -e /sys/class/tpm/tpm0 ]]; then
+if lsblk -no TYPE 2>/dev/null | grep -qx crypt && [[ -e /sys/class/tpm/tpm0 ]] \
+        && ! grep -qw 'tpm2-device=auto' /proc/cmdline; then
     step "Disco criptografado"
-    if gum confirm "Desbloquear o disco pelo chip TPM no boot, sem digitar a senha?" --default=false; then
+    if ask --no "Desbloquear o disco pelo chip TPM no boot, sem digitar a senha?"; then
         ujust setup-luks-tpm-unlock || true
     else
-        echo "Depois: ujust setup-luks-tpm-unlock"
+        tl "Depois: ujust setup-luks-tpm-unlock"
     fi
 fi
 
 step "IA local (llama.cpp)"
 tamagi-ai presets
-if gum confirm "Baixar um modelo agora? (o download pode levar alguns minutos)"; then
-    tamagi-ai setup || echo "Depois: tamagi-ai setup"
+if ask "Baixar um modelo agora? (o download pode levar alguns minutos)"; then
+    tamagi-ai setup || tl "Depois: tamagi-ai setup"
 else
-    echo "Depois: tamagi-ai setup"
-fi
-
-step "Android (Waydroid)"
-if gum confirm "Preparar o Android agora? (baixa cerca de 1 GB e pede a senha)" --default=false; then
-    tamagi-waydroid setup || echo "Depois: tamagi-waydroid setup"
-else
-    echo "Depois: tamagi-waydroid setup"
+    tl "Depois: tamagi-ai setup"
 fi
 
 step "Internet banking (Warsaw)"
-echo "O módulo de segurança dos bancos roda dentro da caixa dos navegadores."
-if gum confirm "Instalar e ligar o Warsaw agora? (exige aceitar a licença da Topaz)" --default=false; then
+tl "O módulo de segurança dos bancos roda dentro da caixa dos navegadores."
+if ask --no "Instalar e ligar o Warsaw agora? (exige aceitar a licença da Topaz)"; then
     tamagi-warsaw ligar || true
 else
-    echo "Depois: ujust warsaw ligar"
+    tl "Depois: ujust warsaw ligar"
 fi
 
 mkdir -p "$(dirname "$STAMP")"
 touch "$STAMP"
 step "Pronto"
-echo "Super+K mostra os atalhos · Super+A ações rápidas · Super+Alt+Espaço abre o menu."
-echo "Jogos: ujust setup-gaming · Segurança: tamagi-harden status"
-read -rsn1 -p "  (qualquer tecla fecha)"
+tl "Super+K mostra os atalhos · Super+A ações rápidas · Super+Alt+Espaço abre o menu."
+tl "Jogos: ujust setup-gaming · Segurança: tamagi-harden status · Idioma: tamagi-lang pick"
+read -rsn1 -p "  ($(t "qualquer tecla fecha"))"

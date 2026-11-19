@@ -2,7 +2,7 @@
 # tamagi-bank — modo banco descartável.
 #
 # Abre o internet banking numa caixa que só existe enquanto a janela está
-# aberta: Chrome com perfil limpo e o Warsaw, numa caixa AnduinOS criada na
+# aberta: Chrome com perfil limpo e o Warsaw, numa caixa Ubuntu 26.04 LTS criada na
 # hora e destruída ao fechar. Histórico, cookies, extensões e a autoridade
 # certificadora do Warsaw não convivem com a navegação do dia a dia nem ficam
 # no computador depois.
@@ -20,7 +20,7 @@ set -euo pipefail
 
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi"
 RUN_DIR="${XDG_RUNTIME_DIR:-/tmp}"
-BASE_IMAGE="${TAMAGI_BROWSER_IMAGE:-docker.io/aiursoft/anduinos:resolute}"
+BASE_IMAGE="${TAMAGI_BROWSER_IMAGE:-docker.io/library/ubuntu:26.04}"
 TEMPLATE="${TAMAGI_BANK_TEMPLATE:-localhost/tamagi-banco:latest}"
 LIBEXEC="${TAMAGI_BROWSER_LIBEXEC:-/run/host/usr/libexec/tamagi}"
 WARSAW="${TAMAGI_WARSAW_BIN:-tamagi-warsaw}"

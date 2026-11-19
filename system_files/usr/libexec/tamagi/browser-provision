@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# Roda DENTRO da caixa de navegadores (AnduinOS/Ubuntu), como root. Quem chama
+# Roda DENTRO da caixa de navegadores (Ubuntu 26.04 LTS), como root. Quem chama
 # é o tamagi-browser, pelo /run/host.
 #   browser-provision base                  vídeo por hardware, fontes, pt-BR
 #   browser-provision install <navegador>   chrome | firefox | brave | edge | vivaldi

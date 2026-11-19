@@ -5,6 +5,10 @@
 # O Claude Code da imagem fica em /usr (somente-leitura) e é atualizado com ela.
 [ -x /usr/bin/claude ] && [ ! -x "$HOME/.local/bin/claude" ] && export DISABLE_AUTOUPDATER=1
 
+# Botões do gum (Sim/Não) legíveis: vale para ujust e para as ferramentas tamagi-*.
+# shellcheck source=/dev/null
+[ -r /usr/share/tamagi/gum.env ] && . /usr/share/tamagi/gum.env
+
 [ -n "${BASH_VERSION:-}" ] || return 0
 case $- in *i*) ;; *) return 0 ;; esac
 [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/no-shell-setup" ] && return 0

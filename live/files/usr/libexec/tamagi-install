@@ -5,8 +5,8 @@
 #
 #   tamagi-install <disco> <arquivo-de-respostas>
 #
-# O que faz: apaga o disco, cria ESP + /boot + raiz btrfs (com LUKS2, se
-# pedido) e chama `bootc install to-filesystem` para copiar a imagem do
+# O que faz: apaga o disco, cria ESP + /boot + raiz btrfs (com LUKS2 e, se
+# pedido, a chave no TPM) e chama `bootc install to-filesystem` para copiar a imagem do
 # sistema. Depois grava no sistema novo o idioma, o teclado, o fuso e o
 # arquivo que o primeiro boot usa para criar o usuário.
 #
@@ -19,7 +19,25 @@ ANSWERS=${2:-}
 MNT=/run/tamagi-install/root
 LIVE_CONF=/etc/tamagi-live.conf
 
-progress() { echo "PROGRESS $1 $2"; }
+# Mensagens da barra de progresso, no idioma escolhido no instalador.
+# shellcheck disable=SC2034  # as tabelas são lidas por nome em progress()
+declare -A MSG_pt=([verify]="Conferindo a mídia de instalação" [disk]="Preparando o disco" [format]="Formatando" [luks]="Criptografando o disco (LUKS2)"
+    [tpm]="Guardando a chave do disco no chip TPM" [copy]="Copiando o sistema"
+    [config]="Configurando o sistema novo" [finish]="Finalizando" [end]="Instalação concluída")
+# shellcheck disable=SC2034
+declare -A MSG_en=([verify]="Checking the installation media" [disk]="Preparing the disk" [format]="Formatting" [luks]="Encrypting the disk (LUKS2)"
+    [tpm]="Storing the disk key in the TPM chip" [copy]="Copying the system"
+    [config]="Configuring the new system" [finish]="Finishing" [end]="Installation complete")
+# shellcheck disable=SC2034
+declare -A MSG_es=([verify]="Comprobando el medio de instalación" [disk]="Preparando el disco" [format]="Formateando" [luks]="Cifrando el disco (LUKS2)"
+    [tpm]="Guardando la clave del disco en el chip TPM" [copy]="Copiando el sistema"
+    [config]="Configurando el sistema nuevo" [finish]="Finalizando" [end]="Instalación terminada")
+# shellcheck disable=SC2034
+declare -A MSG_fr=([verify]="Vérification du support d'installation" [disk]="Préparation du disque" [format]="Formatage" [luks]="Chiffrement du disque (LUKS2)"
+    [tpm]="Enregistrement de la clé du disque dans la puce TPM" [copy]="Copie du système"
+    [config]="Configuration du nouveau système" [finish]="Finalisation" [end]="Installation terminée")
+MSG_LANG=pt
+progress() { local -n _m="MSG_${MSG_LANG}"; echo "PROGRESS $1 ${_m[$2]:-$2}"; }
 die() { echo "ERRO: $*" >&2; exit 1; }
 
 [[ $(id -u) == 0 ]] || die "precisa de root"
@@ -34,6 +52,7 @@ while IFS='=' read -r key value; do
 done < "$ANSWERS"
 # shellcheck disable=SC1090
 source "$LIVE_CONF"
+case "${A[LOCALE]:-pt_BR.UTF-8}" in en_*) MSG_LANG=en ;; es_*) MSG_LANG=es ;; fr_*) MSG_LANG=fr ;; esac
 
 DISK=$(realpath "$DISK")
 live_src=$(findmnt -no SOURCE /run/initramfs/live 2>/dev/null || true)
@@ -51,21 +70,72 @@ else
     die "a mídia não traz a imagem do sistema e nenhum registry foi configurado"
 fi
 
+# Tudo ou nada. A instalação só "vale" quando chega ao fim (COMMITTED=1). Se
+# parar depois de o disco ter sido apagado (WIPED=1), as assinaturas das
+# partições e a tabela são removidas: o disco fica vazio, nunca com um sistema
+# pela metade que pareça instalado ou que a firmware tente iniciar.
+WIPED=0
+COMMITTED=0
 cleanup() {
+    local rc=$?
     set +e
     [[ -n ${WATCHER:-} ]] && kill "$WATCHER" 2>/dev/null
     umount -R "$MNT" 2>/dev/null
     [[ -n ${MAPPER:-} ]] && cryptsetup close "$MAPPER" 2>/dev/null
+    if (( WIPED && ! COMMITTED )); then
+        echo "instalação interrompida (código $rc): limpando $DISK para não deixar um sistema pela metade" >&2
+        local part
+        for part in $(lsblk -nrpo NAME,TYPE "$DISK" | awk '$2 == "part" { print $1 }'); do
+            wipefs -af "$part" >/dev/null 2>&1
+        done
+        wipefs -af "$DISK" >/dev/null 2>&1
+        sync
+    fi
     return 0
 }
 trap cleanup EXIT
 
-progress 2 "Preparando o disco"
+# ── Antes de tocar no disco: tudo o que pode dar errado é conferido aqui ────
+# Tamanho: o sistema ocupa perto de 8 GB e a atualização A/B guarda duas imagens.
+MIN_BYTES=$(( 24 * 1024 * 1024 * 1024 ))
+disk_bytes=$(blockdev --getsize64 "$DISK")
+(( disk_bytes >= MIN_BYTES )) || die "o disco $DISK tem $(( disk_bytes / 1024 / 1024 / 1024 )) GiB; o Tamagi precisa de pelo menos 24 GiB"
+for tool in sfdisk wipefs mkfs.vfat mkfs.ext4 mkfs.btrfs bootc cryptsetup jq sha256sum; do
+    command -v "$tool" >/dev/null || die "ferramenta ausente na mídia: $tool"
+done
+
+# A imagem embutida é conferida inteira (SHA-256 de cada camada contra o
+# manifesto) ANTES de apagar o disco: mídia com defeito aparece aqui, e não
+# no meio da cópia. A leitura também deixa a imagem no cache de memória, então
+# a cópia seguinte não relê o pendrive.
+verify_payload() {
+    local dir=$1 manifest digest
+    digest=$(jq -r '.manifests[0].digest' "$dir/index.json") || return 1
+    manifest="$dir/blobs/${digest/://}"
+    [[ -f $manifest ]] || { echo "manifesto ausente: $digest" >&2; return 1; }
+    # Índice de vários manifestos: desce para o primeiro.
+    if jq -e '.manifests' "$manifest" >/dev/null 2>&1; then
+        digest=$(jq -r '.manifests[0].digest' "$manifest")
+        manifest="$dir/blobs/${digest/://}"
+    fi
+    { echo "$digest"; jq -r '.config.digest, .layers[].digest' "$manifest"; } \
+        | sed -E 's#^sha256:([0-9a-f]{64})$#\1  blobs/sha256/\1#' \
+        | ( cd "$dir" && xargs -d '\n' -n 8 -P "$(nproc)" sh -c 'printf "%s\n" "$@" | sha256sum --check --quiet --strict' _ )
+}
+if [[ $SOURCE == oci:* ]]; then
+    progress 1 verify
+    start=$SECONDS
+    verify_payload "$PAYLOAD_DIR" >&2 || die "a mídia de instalação está corrompida (a imagem do sistema não confere). O disco NÃO foi alterado. Grave a mídia de novo."
+    echo "imagem embutida conferida em $(( SECONDS - start )) s" >&2
+fi
+
+progress 2 disk
 swapoff -a 2>/dev/null || true
 # Solta o que estiver em uso neste disco (partições montadas automaticamente).
 while read -r mountpoint; do
     [[ -n $mountpoint ]] && umount -R "$mountpoint" 2>/dev/null || true
 done < <(lsblk -nro MOUNTPOINT "$DISK" | sort -r)
+WIPED=1
 wipefs -af "$DISK" >/dev/null
 sfdisk --wipe always --wipe-partitions always "$DISK" >/dev/null <<'PARTS'
 label: gpt
@@ -80,7 +150,7 @@ mapfile -t PARTS < <(lsblk -nrpo NAME,TYPE "$DISK" | awk '$2 == "part" { print $
 (( ${#PARTS[@]} == 3 )) || die "esperava 3 partições em $DISK, achei ${#PARTS[@]}"
 ESP=${PARTS[0]} BOOT=${PARTS[1]} ROOT=${PARTS[2]}
 
-progress 6 "Formatando"
+progress 6 format
 mkfs.vfat -F 32 -n EFI-SYSTEM "$ESP" >/dev/null
 mkfs.ext4 -q -F -L boot "$BOOT"
 
@@ -88,16 +158,34 @@ KARGS=(--karg rootflags=compress=zstd:1)
 ROOTDEV=$ROOT
 if [[ -n ${A[LUKS_KEYFILE]:-} ]]; then
     [[ -s ${A[LUKS_KEYFILE]} ]] || die "senha do disco vazia"
-    progress 8 "Criptografando o disco (LUKS2)"
+    progress 8 luks
     cryptsetup luksFormat --batch-mode --type luks2 --pbkdf argon2id \
         --key-file "${A[LUKS_KEYFILE]}" "$ROOT"
     LUKS_UUID=$(cryptsetup luksUUID "$ROOT")
     MAPPER="luks-$LUKS_UUID"
     cryptsetup open --key-file "${A[LUKS_KEYFILE]}" "$ROOT" "$MAPPER"
     ROOTDEV=/dev/mapper/$MAPPER
-    # O initramfs pede a senha no boot; depois, `ujust setup-luks-tpm-unlock`
-    # liga o desbloqueio por TPM.
-    KARGS+=(--karg "rd.luks.uuid=$LUKS_UUID" --karg "rd.luks.options=discard")
+    LUKS_OPTS=discard
+    # Desbloqueio sem senha: a chave do disco fica selada no chip TPM 2.0 deste
+    # computador. Aqui ela NÃO é amarrada a nenhuma medição (PCR): as medições
+    # do boot pela mídia de instalação diferem das do boot pelo disco, e o
+    # primeiro boot pediria a senha. Quem amarra ao PCR 7 (estado do Secure
+    # Boot) é o tamagi-tpm-seal.service, no primeiro boot. A senha continua valendo como
+    # reserva: se o TPM recusar (firmware atualizado, disco em outra máquina),
+    # o boot volta a pedir a senha. Sem TPM, ou se o registro falhar, a
+    # instalação segue só com a senha.
+    if [[ ${A[LUKS_TPM]:-0} == 1 ]]; then
+        progress 10 tpm
+        if systemd-cryptenroll --unlock-key-file="${A[LUKS_KEYFILE]}" \
+                --tpm2-device=auto --tpm2-pcrs= "$ROOT" >&2; then
+            LUKS_OPTS+=,tpm2-device=auto
+            TPM_SEAL=$LUKS_UUID
+            echo "TPM: chave do disco registrada (o PCR 7 entra no primeiro boot)" >&2
+        else
+            echo "TPM: não foi possível registrar a chave; o disco fica só com a senha" >&2
+        fi
+    fi
+    KARGS+=(--karg "rd.luks.uuid=$LUKS_UUID" --karg "rd.luks.options=$LUKS_OPTS")
 fi
 mkfs.btrfs -q -f -L tamagi "$ROOTDEV"
 udevadm settle
@@ -110,13 +198,19 @@ mountpoint_dir() {
     chcon system_u:object_r:boot_t:s0 "$1" 2>/dev/null || true
 }
 mkdir -p "$MNT"
-mount -o compress=zstd:1 "$ROOTDEV" "$MNT"
+# Só durante a instalação: sem barreiras de escrita (cada fsync do ostree deixa
+# de esperar o disco) e sem atime. Se faltar energia no meio, a instalação
+# recomeça do zero de qualquer forma; o sistema instalado monta com as opções
+# normais (rootflags na linha do kernel).
+mount -o compress=zstd:1,noatime,nobarrier "$ROOTDEV" "$MNT" 2>/dev/null \
+    || mount -o compress=zstd:1,noatime "$ROOTDEV" "$MNT"
 mountpoint_dir "$MNT/boot"
 mount "$BOOT" "$MNT/boot"
 mountpoint_dir "$MNT/boot/efi"
 mount -o umask=0077 "$ESP" "$MNT/boot/efi"
 
-progress 12 "Copiando o sistema (leva alguns minutos)"
+progress 12 copy
+[[ -n ${A[TARGET_IMGREF]:-} ]] && TARGET_IMGREF=${A[TARGET_IMGREF]}
 TARGET=(--target-transport registry --target-imgref "${TARGET_IMGREF:-localhost/tamagi:latest}")
 # O sistema vem da mídia e a instalação tem de funcionar sem rede: o bootc não
 # confere o registry agora. Sem registry configurado a imagem instalada ainda
@@ -137,7 +231,7 @@ if [[ -d $PAYLOAD_DIR ]]; then
             [[ $used =~ ^[0-9]+$ ]] || continue
             pct=$(( 12 + 76 * used / expected ))
             (( pct > 88 )) && pct=88
-            progress "$pct" "Copiando o sistema (leva alguns minutos)"
+            progress "$pct" copy
         done
     ) &
     WATCHER=$!
@@ -148,8 +242,10 @@ if [[ -n ${WATCHER:-} ]]; then kill "$WATCHER" 2>/dev/null || true; wait "$WATCH
 (( rc == 0 )) || die "o bootc install falhou (código $rc)"
 echo "espaço usado no sistema novo: $(df --output=used -B1 "$MNT" | tail -1) bytes" >&2
 
-progress 90 "Configurando o sistema novo"
-mount -o remount,rw "$MNT"
+progress 90 config
+# Daqui em diante com as barreiras de escrita de volta: o que for gravado e o
+# sync final chegam de fato ao disco.
+mount -o remount,rw,barrier "$MNT" 2>/dev/null || mount -o remount,rw "$MNT"
 # ostree/deploy/<stateroot>/deploy/<commit>.0 é a raiz do sistema novo (ao lado
 # existe backing/<commit>.0, que não é).
 DEPLOY=""
@@ -172,10 +268,17 @@ install -d -m 700 "$DEPLOY/etc/tamagi"
     done
 } > "$DEPLOY/etc/tamagi/install.conf"
 chmod 600 "$DEPLOY/etc/tamagi/install.conf"
+if [[ -n ${TPM_SEAL:-} ]]; then echo "$TPM_SEAL" > "$DEPLOY/etc/tamagi/tpm-seal"; fi
 
-progress 96 "Finalizando"
+progress 96 finish
+# Só é sucesso se o sistema novo está completo: deployment, entrada de boot e
+# carregador na partição EFI.
+ls "$MNT"/boot/loader/entries/*.conf >/dev/null 2>&1 || die "o sistema novo ficou sem entrada de boot"
+[[ -n $(find "$MNT/boot/efi/EFI" -iname '*.efi' -print -quit 2>/dev/null) ]] || die "o carregador de boot não foi instalado na partição EFI"
 sync
 umount -R "$MNT"
+blockdev --flushbufs "$DISK" 2>/dev/null || true
+COMMITTED=1
 udevadm settle
 if [[ -n ${MAPPER:-} ]]; then
     # Logo depois de desmontar, o volume ainda pode constar como "em uso" por
@@ -190,4 +293,4 @@ if [[ -n ${MAPPER:-} ]]; then
     MAPPER=""
 fi
 udevadm settle
-progress 100 "Instalação concluída"
+progress 100 end

@@ -2,9 +2,8 @@
 # Instala os pacotes de packages.txt e as ferramentas sem pacote no Fedora.
 
 # COPRs só para o build: o que vem deles está marcado em packages.txt.
-#   bieszczaders/kernel-cachyos-addons  scx-scheds, scx-tools (sched_ext)
 #   secureblue/packages                 hardened_malloc
-COPRS=(bieszczaders/kernel-cachyos-addons secureblue/packages)
+COPRS=(secureblue/packages)
 for copr in "${COPRS[@]}"; do dnf5 -y copr enable "$copr"; done
 
 mapfile -t PACKAGES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' /ctx/build_files/packages.txt | grep -v '^$')
@@ -13,7 +12,22 @@ dnf5 -y install --setopt=install_weak_deps=False "${PACKAGES[@]}"
 # A imagem não consulta COPR depois de pronta: tudo se atualiza pelo rebuild.
 for copr in "${COPRS[@]}"; do dnf5 -y copr disable "$copr"; done
 
-# Navegadores não vivem no host (tamagi-browser cria a caixa AnduinOS).
+# distrobox 1.8.2.5 x podman 6: em host somente-leitura (o caso do Tamagi) o
+# distrobox-create monta cada pasta da raiz com a opção ":ro:rslave", e o
+# podman 6 recusa ("incorrect volume format"): nenhuma caixa era criada. As
+# opções de um volume se separam por vírgula. Conferido: se uma versão nova
+# do distrobox mudar este trecho, o build avisa em vez de a correção sumir.
+DBX=/usr/bin/distrobox-create
+if grep -qF ':ro${rslave}"' "$DBX"; then
+    sed -i 's/:ro${rslave}"/:ro,rslave"/' "$DBX"
+    echo "distrobox-create: volume somente-leitura corrigido (:ro,rslave)"
+fi
+if grep -qE ':ro\$\{rslave\}|:ro:rslave' "$DBX"; then
+    echo "distrobox-create ainda gera ':ro:rslave' (o podman 6 recusa)" >&2; exit 1
+fi
+sh -n "$DBX"
+
+# Navegadores não vivem no host (tamagi-browser cria a caixa Ubuntu 26.04 LTS).
 dnf5 -y remove firefox firefox-langpacks 2>/dev/null || true
 
 # Ferramentas sem pacote no Fedora: binários oficiais, com checksum conferido.

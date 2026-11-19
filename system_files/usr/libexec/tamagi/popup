@@ -3,8 +3,27 @@
 #   popup <comando...>          janela flutuante (classe tamagi-popup; a regra
 #                               está em CosmicSettings.WindowRules)
 #   popup --tile <comando...>   janela comum, entra no tiling
+#   popup --class <id> --title <texto> <comando...>   janela com identidade
+#                               própria (o dock reconhece o app fixado)
 class=tamagi-popup
-[[ ${1:-} == --tile ]] && { class=tamagi-term; shift; }
+title=Tamagi
+while [[ ${1:-} == --* ]]; do
+    case $1 in
+        --tile)  class=tamagi-term; shift ;;
+        --class) class=$2; shift 2 ;;
+        --title) title=$2; shift 2 ;;
+        *) break ;;
+    esac
+done
+# Botões do gum (Sim/Não) legíveis em qualquer tema.
+# shellcheck source=/dev/null
+. /usr/share/tamagi/gum.env
 cfg="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/alacritty.toml"
 [[ -f $cfg ]] || cfg=/usr/share/tamagi/alacritty.toml
-exec alacritty --config-file "$cfg" --class "$class" --title "Tamagi" -e "$@"
+# Tema claro: o botão selecionado precisa ser o mais forte dos dois.
+bg=$(sed -n 's/^background = "#\(......\)".*/\1/p' "$cfg" | head -1)
+if [[ $bg =~ ^[0-9a-fA-F]{6}$ ]] && (( (0x${bg:0:2} * 299 + 0x${bg:2:2} * 587 + 0x${bg:4:2} * 114) / 1000 > 140 )); then
+    export GUM_CONFIRM_SELECTED_FOREGROUND="#ffffff" GUM_CONFIRM_SELECTED_BACKGROUND="#1e66f5"
+    export GUM_CONFIRM_UNSELECTED_FOREGROUND="#4c4f69" GUM_CONFIRM_UNSELECTED_BACKGROUND="#ccd0da"
+fi
+exec alacritty --config-file "$cfg" --class "$class" --title "$title" -e "$@"

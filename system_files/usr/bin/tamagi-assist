@@ -2,24 +2,12 @@
 # tamagi-assist — ações rápidas por uma tecla (Super+A, depois a letra).
 # Inspirado no instantASSIST do instantOS.
 set -uo pipefail
+. /usr/libexec/tamagi/i18n
 
 run() { setsid -f "$@" >/dev/null 2>&1; }
 term() { run /usr/libexec/tamagi/popup --tile "$@"; }
 
-gum style --border rounded --padding "0 2" --border-foreground 4 "$(cat <<'MENU'
- Tamagi · ações rápidas
-
-  t  terminal            b  navegador
-  f  arquivos            n  neovim
-  a  agente de IA        c  chat de IA (web)
-  d  entrar no distrobox i  instalar app (Flatpak)
-  w  próximo tema        k  atalhos
-  u  atualizar sistema   m  menu completo
-  l  bloquear tela       p  energia
-
-  Esc  fechar
-MENU
-)"
+gum style --border rounded --padding "0 2" --border-foreground 4 "$(cat "$(tfile /usr/share/tamagi/assist.txt)")"
 read -rsn1 key
 case "$key" in
     t) run cosmic-term ;;
@@ -33,7 +21,7 @@ case "$key" in
     i) exec tamagi-menu instalar ;;
     w) tamagi-theme next ;;
     k) exec tamagi-keys ;;
-    u) tamagi-update; read -rsn1 -p "  (qualquer tecla fecha)" ;;
+    u) tamagi-update; read -rsn1 -p "  ($(t "qualquer tecla fecha"))" ;;
     m) exec tamagi-menu ;;
     l) loginctl lock-session ;;
     p) exec tamagi-menu energia ;;

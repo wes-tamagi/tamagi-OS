@@ -6,12 +6,12 @@
 # primeira vez que é usado. Apps gráficos instalados são exportados para o
 # menu do host; comandos rodam com `tamagi-pkg run`.
 #
-# O subsistema deb é AnduinOS (Ubuntu sem snap); o do Arch já nasce com o
+# O subsistema deb é Ubuntu 26.04 LTS; o do Arch já nasce com o
 # repositório de pacotes do Omarchy (pkgs.omarchy.org) configurado.
 set -euo pipefail
 
 declare -A IMAGE=(
-    [deb]=docker.io/aiursoft/anduinos:resolute
+    [deb]=docker.io/library/ubuntu:26.04
     [rpm]=ghcr.io/ublue-os/fedora-toolbox:latest
     [arch]=ghcr.io/ublue-os/arch-toolbox:latest
 )
