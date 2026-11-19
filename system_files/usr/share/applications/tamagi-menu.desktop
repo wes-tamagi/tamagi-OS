@@ -2,10 +2,12 @@
 Type=Application
 Name=Tamagi Menu
 Name[pt_BR]=Menu do Tamagi
+Name[pt]=Menu do Tamagi
 Name[es]=Menú de Tamagi
 Name[fr]=Menu de Tamagi
 Comment=Install apps, local AI, themes, system and internet banking
 Comment[pt_BR]=Instalar apps, IA local, temas, sistema e internet banking
+Comment[pt]=Instalar apps, IA local, temas, sistema e internet banking
 Comment[es]=Instalar apps, IA local, temas, sistema y banca por internet
 Comment[fr]=Installer des applications, IA locale, thèmes, système et banque en ligne
 Exec=/usr/libexec/tamagi/popup tamagi-menu

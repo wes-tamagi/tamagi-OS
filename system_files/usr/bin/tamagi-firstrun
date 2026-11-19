@@ -16,7 +16,11 @@ ask() { # ask [--no] <pergunta>: Sim/Não no idioma do sistema
 }
 
 clear
-gum style --border double --padding "1 3" --border-foreground 4 \
+# Largura fixa menor que a janela: sem ela, uma frase longa (francês, espanhol)
+# passa da borda do terminal e a moldura quebra em pedaços.
+cols=$(tput cols 2>/dev/null || echo 80)
+width=$(( cols - 12 )); (( width > 72 )) && width=72; (( width < 30 )) && width=30
+gum style --border double --padding "0 2" --border-foreground 4 --width "$width" \
     "$(t "Bem-vindo ao Tamagi")" "" \
     "$(t "Sistema atômico: o host é somente-leitura e se atualiza sozinho.")" \
     "$(t "Apps por Flatpak, navegadores e pacotes em caixas distrobox, IA local.")"
@@ -27,6 +31,11 @@ panel=$(gum choose --header "$(t "Barra")" \
     "$(t "centro — uma barra embaixo, apps no centro")" \
     "$(t "classico — uma barra embaixo, apps à esquerda")" \
     "$(t "cosmic — painel em cima e dock embaixo")") && tamagi-panel set "${panel%% *}" >/dev/null
+
+# Relógio: 24 horas, menos em inglês (EUA), que usa AM/PM.
+mkdir -p ~/.config/cosmic/com.system76.CosmicAppletTime/v1
+[[ $TAMAGI_LANG == en ]] && clock24=false || clock24=true
+echo "$clock24" > ~/.config/cosmic/com.system76.CosmicAppletTime/v1/military_time
 
 step "Janelas"
 tiling=false

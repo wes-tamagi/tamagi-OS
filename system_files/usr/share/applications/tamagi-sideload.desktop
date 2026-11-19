@@ -2,10 +2,12 @@
 Type=Application
 Name=Install package (.deb / .rpm)
 Name[pt_BR]=Instalar pacote (.deb / .rpm)
+Name[pt]=Instalar pacote (.deb / .rpm)
 Name[es]=Instalar paquete (.deb / .rpm)
 Name[fr]=Installer un paquet (.deb / .rpm)
 Comment=Installs the package in a distrobox subsystem and adds the app to the menu
 Comment[pt_BR]=Instala o pacote num subsistema distrobox e põe o app no menu
+Comment[pt]=Instala o pacote num subsistema distrobox e põe o app no menu
 Comment[es]=Instala el paquete en un subsistema distrobox y pone la app en el menú
 Comment[fr]=Installe le paquet dans un sous-système distrobox et ajoute l'application au menu
 Exec=/usr/libexec/tamagi/popup tamagi-pkg install --wait %f

@@ -1,0 +1,9 @@
+[Desktop Entry]
+# Sem entrada no menu: só dá nome e ícone às janelas utilitárias do Tamagi
+# (classe tamagi-popup) na dock e na lista de janelas.
+Type=Application
+Name=Tamagi
+Icon=tamagi-menu
+Exec=/usr/libexec/tamagi/popup tamagi-menu
+StartupWMClass=tamagi-popup
+NoDisplay=true

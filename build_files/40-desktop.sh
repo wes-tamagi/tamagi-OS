@@ -106,17 +106,21 @@ tamagi-panel defaults "$C"
 dock_changed=$(rpm -V cosmic-panel 2>/dev/null | grep -c 'CosmicPanel\.Dock/' || true)
 [[ $dock_changed -eq 0 ]] || { echo "tamagi-panel alterou os padrões do Dock (hardlink)" >&2; exit 1; }
 
+# ── Relógio do painel em 24 horas (o primeiro uso troca para AM/PM em inglês) ──
+mkdir -p "$C/com.system76.CosmicAppletTime/v1"
+echo true > "$C/com.system76.CosmicAppletTime/v1/military_time"
+
+# Seis favoritos: é o que cabe à vista numa tela de 1280 px; com mais, os
+# últimos somem atrás da seta. Loja e Configurações ficam no lançador.
 # ── Dock: o navegador é o Chrome da caixa (google-chrome.desktop do Tamagi) ──
 cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
 [
     "google-chrome",
     "com.system76.CosmicFiles",
     "com.system76.CosmicTerm",
-    "com.system76.CosmicEdit",
-    "tamagi-agent",
     "claude-code",
-    "com.system76.CosmicStore",
-    "com.system76.CosmicSettings",
+    "tamagi-agent",
+    "com.system76.CosmicEdit",
 ]
 RON
 

@@ -35,7 +35,7 @@ write() { # write <raiz> <layout>
         centro|classico)
             put "$root/com.system76.CosmicPanel/v1/entries" '["Panel"]'
             set_key anchor Bottom
-            set_key size M
+            set_key size S
             set_key expand_to_edges true
             set_key anchor_gap true
             set_key margin 4
