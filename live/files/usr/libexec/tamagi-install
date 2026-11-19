@@ -118,9 +118,10 @@ mount -o umask=0077 "$ESP" "$MNT/boot/efi"
 
 progress 12 "Copiando o sistema (leva alguns minutos)"
 TARGET=(--target-transport registry --target-imgref "${TARGET_IMGREF:-localhost/tamagi:latest}")
-# Sem registry configurado a imagem instalada não tem de onde se atualizar
-# ainda (`ujust switch-image` resolve depois); o bootc não precisa conferir.
-[[ -n ${TARGET_IMGREF:-} ]] || TARGET+=(--skip-fetch-check)
+# O sistema vem da mídia e a instalação tem de funcionar sem rede: o bootc não
+# confere o registry agora. Sem registry configurado a imagem instalada ainda
+# não tem de onde se atualizar (`ujust switch-image` resolve depois).
+TARGET+=(--skip-fetch-check)
 [[ -n ${A[EXTRA_KARGS]:-} ]] && for karg in ${A[EXTRA_KARGS]}; do KARGS+=(--karg "$karg"); done
 echo "bootc install to-filesystem --source-imgref $SOURCE ${TARGET[*]} ${KARGS[*]} $MNT" >&2
 # O bootc não informa o andamento sem terminal: a barra acompanha quanto do

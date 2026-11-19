@@ -17,7 +17,7 @@ systemctl enable virtqemud.socket virtnetworkd.socket virtstoraged.socket \
 # imagem e a dos Flatpaks já vêm ligadas pela base).
 systemctl --global enable tamagi-autoupdate.timer
 
-# Sob demanda (astrOS chama de "features"): ficam na imagem, desligados.
+# Sob demanda: ficam na imagem, desligados.
 #   waydroid  -> ujust setup-waydroid      scx  -> ujust scx
 #   usbguard  -> tamagi-harden usb on      tailscale -> ujust setup-tailscale
 systemctl disable waydroid-container.service scx_loader.service scx.service \

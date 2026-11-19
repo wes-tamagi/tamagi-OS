@@ -151,6 +151,15 @@ def main():
         check(f"argumento do kernel {karg}", karg in cmdline.split(), cmdline)
     out, _ = sudo("bootc status --format json 2>/dev/null | python3 -c 'import json,sys; s=json.load(sys.stdin)[\"status\"]; print(s[\"booted\"][\"image\"][\"image\"][\"image\"], s[\"type\"])'")
     check("bootc reconhece o sistema (bootcHost)", "bootcHost" in out, out)
+    # O console serial mistura mensagens do kernel na saída: procura a referência.
+    ref = re.search(r"^(\S+/\S+) bootcHost", out, re.M)
+    ref = ref.group(1) if ref else ""
+    check("origem das atualizações identificada", bool(ref), out)
+    print("   info  origem das atualizações: " + ref)
+    if ref and not ref.startswith("localhost/"):
+        up, _ = sudo("timeout 180 bootc upgrade --check 2>&1 | tail -4")
+        print("   info  bootc upgrade --check:\n      " + up.replace("\n", "\n      "))
+        check("bootc consulta o registry de atualizações", bool(re.search(r"No changes|Update available|Digest|Total", up)) and "rror" not in up, up)
     out, _ = run("getenforce")
     check("SELinux em modo Enforcing", out == "Enforcing", out)
     out, _ = run("grep -cw binder /proc/filesystems")

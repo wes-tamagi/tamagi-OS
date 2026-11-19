@@ -10,20 +10,8 @@ caixas [distrobox](https://distrobox.it/); Android roda pelo
 O sistema inteiro é um contêiner OCI: `podman build` gera a imagem, a máquina
 troca de versão de forma atômica e a anterior fica guardada para rollback.
 
-## De onde vem cada ideia
-
-| Origem | O que o Tamagi usa |
-|---|---|
-| [bootc](https://github.com/bootc-dev/bootc) / Universal Blue | Sistema como imagem OCI, atualização atômica com rollback, `ujust`, codecs e firmware |
-| [COSMIC](https://github.com/pop-os/cosmic-epoch) + [cosmic-flatpak](https://github.com/pop-os/cosmic-flatpak) | Desktop em Rust com tiling nativo; o remote `cosmic` da System76 já vem configurado, ao lado do Flathub |
-| [Bazzite](https://bazzite.gg/) | Ajustes de desempenho (sysctl, zram, escalonador de E/S, BBR), sched_ext (`scx_lavd`), gamescope, MangoHud, GameMode, regras de controles; Steam e afins sob demanda |
-| [Omarchy](https://omarchy.org/) | Fluxo por teclado, temas com um comando, **omacalc** e **omawrite**, web apps, LazyVim, mise — e o **repositório de pacotes do Omarchy** (`pkgs.omarchy.org`) pronto numa caixa Arch |
-| [AnduinOS](https://www.anduinos.com/) | A caixa dos navegadores e o subsistema `.deb` são AnduinOS (Ubuntu sem snap), pela imagem oficial `aiursoft/anduinos` |
-| [GrapheneOS](https://grapheneos.org/) | Endurecimento em dois níveis (`tamagi-harden`): sysctls e argumentos de kernel, MAC aleatório por rede, hardened_malloc e USBGuard opcionais |
-| [astrOS](https://astros-linux.org/astros/) | Recursos opcionais ligados por um comando (Android, jogos, escalonador) em vez de tudo ativo; COSMIC como desktop único |
-| [Rust for Linux](https://rust-for-linux.com/) | Kernel com `CONFIG_RUST=y`: o Binder que o Waydroid usa é o driver em Rust |
-| [tik](https://github.com/sysrich/tik) (openSUSE Aeon) | Instalador de poucas perguntas, aqui com um módulo que instala pelo `bootc` |
-| Vanilla OS (`apx`) | Subsistemas por formato de pacote: `tamagi-pkg` |
+Veja também: [por que mais uma distro?](#por-que-mais-uma-distro) e os
+[agradecimentos](#agradecimentos).
 
 ## Três ideias próprias
 
@@ -357,6 +345,61 @@ tests/                   image.sh, desktop.sh, agent.sh, browser.sh, iso.sh + vm
                          (--luks, --en)
 disk_config/             disco de VM pelo bootc-image-builder (alternativa, pede sudo)
 ```
+
+## Por que mais uma distro?
+
+*Um texto curto, inspirado em Max Weber.*
+
+Weber observou que o mundo moderno troca o costume pela regra: tudo passa a
+ser planejado, previsível e igual para todos. O Linux seguiu esse caminho.
+Antes, cada computador era ajustado à mão pelo dono. Hoje existe o sistema
+que não se altera: o mesmo em todas as máquinas, atualizado de uma vez e com
+volta garantida se algo der errado. O Tamagi adota esse modelo porque ele
+cumpre o que promete: o computador liga amanhã igual a hoje.
+
+Weber também avisou do preço. Regra demais vira uma jaula: tudo funciona, mas
+a pessoa já não decide nada. No sistema que não se altera, isso aparece
+quando o programa do banco não instala ou o navegador de que você precisa não
+existe ali. O Tamagi mantém o centro do sistema fechado e protegido, e em
+volta dele deixa espaços livres onde você instala o que quiser. A regra
+protege o sistema, mas não manda em quem usa.
+
+Ele distinguia ainda quem age pela pureza do princípio de quem age pensando
+nas consequências. Pelo princípio, a resposta seria "troque de banco". O
+Tamagi fica com as consequências: as pessoas no Brasil precisam pagar contas
+e declarar imposto hoje, com os bancos que existem. Então o programa do banco
+roda, mas isolado, longe do sistema e dos seus arquivos.
+
+Fazer mais uma distro quase nunca é o caminho mais barato; seria mais fácil
+se adaptar a uma que já existe. O Tamagi existe por causa de uma ideia: um
+sistema seguro e previsível não deveria obrigar ninguém a abrir mão da sua
+língua, do seu banco e das suas ferramentas. Nenhuma das distros de que ele
+descende foi feita para esse caso. Alguém precisava juntar as peças.
+
+## Agradecimentos
+
+O projeto agradece a todos os que tornaram esta distro possível.
+
+- **Base: Fedora 45.** Pacotes e kernel são do Fedora, sem modificação. A
+  imagem de partida é a `base-main` do
+  [Universal Blue](https://universal-blue.org/), que é o Fedora com codecs,
+  firmware e `ujust` já incluídos.
+- **[Bazzite](https://bazzite.gg/):** ajustes de desempenho (memória, disco,
+  rede), gamescope, MangoHud, GameMode e regras de controles. O kernel dele
+  não é usado.
+- **[Omarchy](https://omarchy.org/):** uso por teclado, temas, web apps,
+  omacalc, omawrite e o repositório de pacotes, numa caixa Arch.
+- **[AnduinOS](https://www.anduinos.com/) no lugar do Ubuntu:** é Ubuntu sem
+  snap. No Ubuntu, Firefox e Chromium só existem como snap, que não funciona
+  dentro de contêiner.
+- **[COSMIC](https://github.com/pop-os/cosmic-epoch)** (System76): o desktop.
+- **Instalador:** [tik](https://github.com/sysrich/tik), do openSUSE Aeon.
+- **[GrapheneOS](https://grapheneos.org/):** o hardened_malloc (empacotado
+  pelo [secureblue](https://secureblue.dev/)) e o modelo de segurança.
+- **Outros:** bootc, distrobox, Waydroid, llama.cpp, mise, sched-ext e Rust
+  for Linux.
+
+Nenhum desses projetos endossa o Tamagi.
 
 ## Licença
 
