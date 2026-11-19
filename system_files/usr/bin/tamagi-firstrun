@@ -26,7 +26,7 @@ gum style --border double --padding "0 2" --border-foreground 4 --width "$width"
     "$(t "Apps por Flatpak, navegadores e pacotes em caixas distrobox, IA local.")"
 
 step "Aparência"
-theme=$(tamagi-theme list | gum choose --header "$(t "Tema")" --selected tokyo-night) && tamagi-theme set "$theme"
+theme=$(tamagi-theme list | gum choose --header "$(t "Tema")   $(t "↑↓ escolher · Enter confirma · Esc volta")" --selected tokyo-night) && tamagi-theme set "$theme"
 panel=$(gum choose --header "$(t "Barra")" \
     "$(t "centro — uma barra embaixo, apps no centro")" \
     "$(t "classico — uma barra embaixo, apps à esquerda")" \

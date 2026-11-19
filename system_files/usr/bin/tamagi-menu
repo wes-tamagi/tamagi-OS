@@ -13,7 +13,7 @@ pick() {
     local header=$1 item choice i; shift
     local -a ids=() labels=()
     for item in "$@"; do ids+=("${item%%=*}"); labels+=("$(t "${item#*=}")"); done
-    choice=$(gum choose --header "$(t "$header")" "${labels[@]}") || return 1
+    choice=$(gum choose --header "$(t "$header")   $(t "↑↓ escolher · Enter confirma · Esc volta")" "${labels[@]}") || return 1
     for i in "${!labels[@]}"; do
         [[ ${labels[$i]} == "$choice" ]] && { echo "${ids[$i]}"; return 0; }
     done
