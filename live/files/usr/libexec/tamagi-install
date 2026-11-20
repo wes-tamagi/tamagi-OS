@@ -70,6 +70,14 @@ else
     die "a mídia não traz a imagem do sistema e nenhum registry foi configurado"
 fi
 
+# Instalação atômica. A partição EFI nasce com o atributo GPT "a firmware não
+# deve ler esta partição" (NoBlockIOProtocol, bit 1). Enquanto ele está lá, o
+# computador não inicia por este disco: nem durante a cópia, nem se faltar
+# energia, nem se o instalador for morto. O atributo só é retirado no último
+# passo, depois de tudo gravado e conferido: essa única escrita na tabela de
+# partições é o que transforma o disco num Tamagi instalado. (O Linux ignora o
+# atributo, então o bootc instala o carregador de boot normalmente.)
+#
 # Tudo ou nada. A instalação só "vale" quando chega ao fim (COMMITTED=1). Se
 # parar depois de o disco ter sido apagado (WIPED=1), as assinaturas das
 # partições e a tabela são removidas: o disco fica vazio, nunca com um sistema
@@ -139,7 +147,7 @@ WIPED=1
 wipefs -af "$DISK" >/dev/null
 sfdisk --wipe always --wipe-partitions always "$DISK" >/dev/null <<'PARTS'
 label: gpt
-size=1GiB, type=uefi, name="EFI-SYSTEM"
+size=1GiB, type=uefi, name="EFI-SYSTEM", attrs="NoBlockIOProtocol"
 size=2GiB, type=linux, name="boot"
 type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name="root"
 PARTS
@@ -278,7 +286,6 @@ ls "$MNT"/boot/loader/entries/*.conf >/dev/null 2>&1 || die "o sistema novo fico
 sync
 umount -R "$MNT"
 blockdev --flushbufs "$DISK" 2>/dev/null || true
-COMMITTED=1
 udevadm settle
 if [[ -n ${MAPPER:-} ]]; then
     # Logo depois de desmontar, o volume ainda pode constar como "em uso" por
@@ -292,5 +299,16 @@ if [[ -n ${MAPPER:-} ]]; then
     (( closed )) || cryptsetup close --deferred "$MAPPER" 2>/dev/null || true
     MAPPER=""
 fi
+udevadm settle
+# ── O passo que vale: libera a partição EFI para a firmware ──
+# Uma única atualização da tabela GPT (a cópia principal e a de reserva). Antes
+# dela o disco não inicia; depois dela, inicia o sistema completo.
+sfdisk --no-reread --no-tell-kernel --part-attrs "$DISK" 1 "" >/dev/null \
+    || die "não consegui liberar a partição EFI (o disco continua sem iniciar)"
+sync
+blockdev --flushbufs "$DISK" 2>/dev/null || true
+[[ -z $(sfdisk --part-attrs "$DISK" 1) ]] || die "a partição EFI continua marcada como não iniciável"
+COMMITTED=1
+partprobe "$DISK" 2>/dev/null || true
 udevadm settle
 progress 100 end

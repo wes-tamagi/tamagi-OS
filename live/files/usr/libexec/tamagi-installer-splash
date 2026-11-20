@@ -1,0 +1,100 @@
+#!/usr/bin/python3
+"""Tela de abertura do instalador do Tamagi.
+
+    tamagi-installer-splash <texto com marcação Pango> <rótulo do botão> [<rótulo de fechar>]
+
+Mostra o brasão do Tamagi, o nome e a versão do sistema e o texto de boas-vindas.
+Sai com 0 se a pessoa escolheu instalar, 1 se fechou a janela (só experimentar)
+e 3 se a janela não pôde ser aberta (quem chama cai na janela simples)."""
+import pathlib
+import sys
+
+try:
+    import gi
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw, Gtk
+except (ImportError, ValueError):
+    sys.exit(3)
+
+TEXT = sys.argv[1] if len(sys.argv) > 1 else ""
+INSTALL = sys.argv[2] if len(sys.argv) > 2 else "Instalar"
+CLOSE = sys.argv[3] if len(sys.argv) > 3 else ""
+BANNERS = [pathlib.Path("/usr/share/backgrounds/tamagi/ipe-mon.png"),
+           pathlib.Path("/usr/share/backgrounds/tamagi/tokyo-night-mon.png")]
+
+
+def os_release():
+    info = {}
+    for line in pathlib.Path("/usr/lib/os-release").read_text(encoding="utf-8").splitlines():
+        key, _, value = line.partition("=")
+        info[key] = value.strip('"')
+    return info
+
+
+class Splash(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="Tamagi", default_width=720, default_height=600, resizable=False)
+        self.result = 1
+        info = os_release()
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+
+        # Faixa de cima: o papel de parede com o brasão (anel e três joias).
+        banner = next((b for b in BANNERS if b.is_file()), None)
+        if banner:
+            picture = Gtk.Picture.new_for_filename(str(banner))
+            picture.set_content_fit(Gtk.ContentFit.COVER)
+            picture.set_size_request(720, 280)
+            picture.set_can_shrink(True)
+            box.append(picture)
+
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
+                       margin_top=22, margin_bottom=22, margin_start=32, margin_end=32)
+        name = Gtk.Label(xalign=0)
+        name.set_markup(f'<span size="xx-large" weight="bold">{info.get("NAME", "Tamagi")}</span>'
+                        f'  <span size="large" alpha="70%">{info.get("VERSION", "")}</span>')
+        body.append(name)
+        text = Gtk.Label(xalign=0, wrap=True, use_markup=True)
+        try:
+            text.set_markup(TEXT.replace("\\n", "\n"))
+        except Exception:  # marcação inválida: mostra o texto cru
+            text.set_text(TEXT)
+        body.append(text)
+
+        buttons = Gtk.Box(spacing=12, halign=Gtk.Align.END, margin_top=10)
+        if CLOSE:
+            close = Gtk.Button(label=CLOSE)
+            close.connect("clicked", lambda _b: self.close())
+            buttons.append(close)
+        install = Gtk.Button(label=INSTALL, css_classes=["suggested-action", "pill"])
+        install.connect("clicked", self.on_install)
+        buttons.append(install)
+        body.append(buttons)
+        box.append(body)
+        self.set_content(box)
+        self.set_default_widget(install)
+
+    def on_install(self, _button):
+        self.result = 0
+        self.close()
+
+
+def main():
+    app = Adw.Application(application_id="br.tamagi.Instalador.Abertura")
+    state = {"rc": 1}
+
+    def activate(a):
+        win = Splash(a)
+        win.connect("close-request", lambda w: state.update(rc=w.result) or False)
+        win.present()
+
+    app.connect("activate", activate)
+    try:
+        app.run([])
+    except Exception:
+        return 3
+    return state["rc"]
+
+
+if __name__ == "__main__":
+    sys.exit(main())

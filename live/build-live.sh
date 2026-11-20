@@ -60,7 +60,7 @@ for f in /usr/lib/tik/lib/* /etc/tik/modules/pre/10-tamagi; do bash -n "$f"; don
 
 # ── Arquivos da sessão live ─────────────────────────────────────────────
 cp -a "$CTX/files/." /
-chmod 755 /usr/libexec/tamagi-install /usr/libexec/tamagi-installer-launch
+chmod 755 /usr/libexec/tamagi-install /usr/libexec/tamagi-installer-launch /usr/libexec/tamagi-installer-splash
 desktop-file-validate /usr/share/applications/tamagi-installer.desktop /etc/xdg/autostart/tamagi-installer.desktop
 cat > /etc/tamagi-live.conf <<CONF
 # De onde o instalador tira o sistema e para onde o sistema instalado olha.
