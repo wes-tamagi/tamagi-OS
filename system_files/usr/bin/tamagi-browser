@@ -265,10 +265,15 @@ cmd_fido() {
         echo "  não a reconheceu como FIDO: falta uma regra udev para o modelo."
         return 1
     fi
-    box_exists || echo "A caixa '$BOX' ainda não existe: tamagi-browser setup"
-    echo "Se tudo acima diz 'sim' e o site ainda não vê a chave: feche o navegador por"
-    echo "completo e abra de novo com a chave já conectada (a caixa não recebe o aviso"
-    echo "de que um dispositivo foi conectado depois)."
+    box_exists || { echo "A caixa '$BOX' ainda não existe: tamagi-browser setup"; return 0; }
+    # Limite conhecido (medido): o aviso de "dispositivo conectado" vem do root
+    # do host, que dentro da caixa aparece como o usuário 65534; como esse
+    # número faz parte do mapa de usuários da caixa, a libudev descarta o aviso.
+    # Tirar o 65534 do mapa resolve a chave, mas quebra o apt do Ubuntu (ele
+    # troca para o grupo 65534 ao baixar pacotes), então a caixa fica como está.
+    echo "Conecte a chave ANTES de abrir o navegador. Se ela foi conectada depois,"
+    echo "feche o navegador por completo e abra de novo: a caixa não recebe o aviso"
+    echo "de dispositivo conectado com o navegador já aberto."
 }
 
 cmd_default() {

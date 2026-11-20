@@ -161,9 +161,9 @@ Cada perfil é uma pasta de dados separada do navegador: logins, cookies,
 extensões, histórico e senhas não se misturam, e cada um abre como um
 aplicativo próprio na barra. Vale para Chrome, Brave, Edge, Vivaldi e Firefox.
 
-**Chave de segurança (FIDO2/passkey):** `tamagi-browser fido` mostra se a
-chave USB é vista pelo sistema e pela caixa dos navegadores, e se o navegador
-consegue abri-la.
+**Chave de segurança (FIDO2/passkey):** conecte a chave antes de abrir o
+navegador (veja [Limites conhecidos](#limites-conhecidos)). `tamagi-browser
+fido` mostra se ela é vista pelo sistema e pela caixa dos navegadores.
 
 **Internet banking:** o Tamagi não traz mais o módulo de segurança dos bancos
 (Warsaw). Para banco, use uma máquina virtual: o virt-manager vem nativo na
@@ -537,9 +537,13 @@ na imagem: é baixado na máquina de quem usa, do site do fabricante.
 - A caixa de navegadores foi testada na máquina de desenvolvimento
   (`just test-browser`), com GPU AMD. Intel e NVIDIA seguem o mesmo caminho,
   mas não foram medidos.
-- Chave de segurança FIDO2 no navegador da caixa: há relato de a chave não
-  ser lida. `tamagi-browser fido` faz o diagnóstico; a causa ainda não foi
-  confirmada.
+- Chave de segurança FIDO2 no navegador da caixa: funciona se a chave já
+  estiver conectada quando o navegador abre. Conectada depois, o navegador não
+  a vê até ser fechado e aberto de novo. Causa medida: o aviso de dispositivo
+  conectado chega à caixa como vindo do usuário 65534, que faz parte do mapa de
+  usuários do contêiner, e a libudev o descarta. Tirar esse usuário do mapa
+  resolve a chave mas quebra o `apt` do Ubuntu, então não foi adotado.
+  `tamagi-browser fido` faz o diagnóstico.
 - A tela de login usa o papel de parede padrão do COSMIC, não o do Tamagi.
 - HDR não existe no COSMIC; VRR e `gamescope` embutido têm falhas conhecidas
   no compositor.
