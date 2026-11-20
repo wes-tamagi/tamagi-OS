@@ -1,9 +1,8 @@
 #!/usr/bin/bash
 # tamagi-panel — estilo da barra do desktop (COSMIC), com um comando.
 #
-#   centro   (padrão) uma barra embaixo, apps no centro: o layout "Centered"
-#            do AnduinOS com os applets do COSMIC
-#   classico uma barra embaixo, menu e apps à esquerda (barra de tarefas clássica)
+#   centro   (padrão) uma barra embaixo, menu iniciar à esquerda e apps no centro
+#   classico uma barra embaixo, menu iniciar e apps à esquerda (barra de tarefas clássica)
 #   cosmic   o layout original do COSMIC: painel em cima e dock embaixo
 #
 # O COSMIC guarda cada ajuste num arquivo; aqui só se escrevem os do painel,
@@ -15,7 +14,10 @@ CFG="${XDG_CONFIG_HOME:-$HOME/.config}/cosmic"
 STATE="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/panel"
 LAYOUTS=(centro classico cosmic)
 
-START='"com.system76.CosmicPanelAppButton", "com.system76.CosmicPanelWorkspacesButton"'
+# Menu iniciar: applet que abre o menu junto ao próprio botão (como o Kickoff
+# ou o Windows 11). É sempre o primeiro botão da barra, à esquerda.
+MENU='"com.championpeak87.cosmic-ext-classic-menu"'
+WORKSPACES='"com.system76.CosmicPanelWorkspacesButton"'
 APPS='"com.system76.CosmicAppList", "com.system76.CosmicAppletMinimize"'
 TRAY='"com.system76.CosmicAppletInputSources", "com.system76.CosmicAppletStatusArea", "com.system76.CosmicAppletTiling", "com.system76.CosmicAppletAudio", "com.system76.CosmicAppletBluetooth", "com.system76.CosmicAppletNetwork", "com.system76.CosmicAppletBattery", "com.system76.CosmicAppletNotifications", "com.system76.CosmicAppletTime", "com.system76.CosmicAppletPower"'
 COSMIC_TRAY='"com.system76.CosmicAppletInputSources","com.system76.CosmicAppletA11y", "com.system76.CosmicAppletStatusArea", "com.system76.CosmicAppletTiling", "com.system76.CosmicAppletAudio", "com.system76.CosmicAppletBluetooth", "com.system76.CosmicAppletNetwork", "com.system76.CosmicAppletBattery", "com.system76.CosmicAppletNotifications", "com.system76.CosmicAppletPower"'
@@ -43,10 +45,10 @@ write() { # write <raiz> <layout>
             set_key opacity 0.88
             if [[ $layout == centro ]]; then
                 set_key plugins_center "Some([$APPS])"
-                set_key plugins_wings "Some(([$START], [$TRAY]))"
+                set_key plugins_wings "Some(([$MENU, $WORKSPACES], [$TRAY]))"
             else
                 set_key plugins_center "None"
-                set_key plugins_wings "Some(([$START, $APPS], [$TRAY]))"
+                set_key plugins_wings "Some(([$MENU, $WORKSPACES, $APPS], [$TRAY]))"
             fi ;;
         cosmic)
             put "$root/com.system76.CosmicPanel/v1/entries" '["Panel","Dock"]'

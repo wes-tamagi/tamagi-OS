@@ -2,8 +2,8 @@
 
 **Tamagi 1.0 "Kazunobu M"** — distro Linux atômica e imutável para uso diário e
 desenvolvimento no Brasil. O host é uma imagem [bootc](https://github.com/bootc-dev/bootc)
-sobre o Fedora 45 com o desktop [COSMIC](https://github.com/pop-os/cosmic-epoch)
-(escrito em Rust). Navegadores, pacotes de outras distros e o Warsaw vivem em
+sobre o [Universal Blue](https://universal-blue.org/) com o desktop [COSMIC](https://github.com/pop-os/cosmic-epoch)
+(escrito em Rust). Navegadores e pacotes de outras distros vivem em
 caixas [distrobox](https://distrobox.it/); a IA é local, com [llama.cpp](https://llama-cpp.com/).
 
 O sistema inteiro é um contêiner OCI: `podman build` gera a imagem, a máquina
@@ -27,13 +27,11 @@ tamagi apply     # faz o que falta
 Copie o arquivo para outro computador com Tamagi e rode `tamagi apply`.
 Ele só acrescenta, nunca remove, e avisa o que pede senha.
 
-**2. Modo banco descartável.** `tamagi-bank` (ou "Banco" no lançador) abre o
-Chrome com perfil limpo e o Warsaw numa caixa criada na hora e apagada ao
-fechar a janela. O perfil fica em memória; a identificação e a autoridade
-certificadora do Warsaw nascem e morrem com a sessão. A primeira vez monta um
-modelo (alguns minutos); depois cada sessão abre em segundos.
-`tamagi-bank --manter-registro` guarda só a identificação do Warsaw, para o
-banco reconhecer o aparelho.
+**2. Mexer no sistema sem mexer na imagem.** `tamagi-layer add <nome>
+<pacote>` põe pacotes por cima da imagem numa camada somente-leitura que sai
+com um comando, e `tamagi-app` cria aplicativos isolados (Flatpak) só para o
+seu usuário, com as permissões mostradas antes de instalar. A imagem continua
+idêntica à publicada, e o rollback continua valendo.
 
 **3. Boot que se conserta e se explica.** A cada boot, o
 [greenboot](https://github.com/fedora-iot/greenboot) roda as verificações de
@@ -48,9 +46,9 @@ Precisa de `podman` e `just`. Nada aqui pede root.
 
 ```bash
 just build          # imagem do sistema (~20 min na primeira vez)
-just test           # 272 verificações dentro da imagem
+just test           # 299 verificações dentro da imagem
 just test-desktop   # sobe a sessão COSMIC sem monitor e salva output/desktop.png
-just test-browser   # cria de verdade a caixa de navegadores neste computador (--warsaw, --bank)
+just test-browser   # cria de verdade a caixa de navegadores neste computador
 just test-agent     # baixa o preset mini (2,8 GB) e testa o agente de IA
 just lint
 ```
@@ -77,13 +75,17 @@ ou não o disco (LUKS2) e a confirmação do disco que será apagado. O sistema 
 copiado da própria mídia, sem rede. Quem quiser só experimentar fecha a
 janela; o instalador fica no lançador.
 
-**Instalação tudo-ou-nada:** antes de apagar o disco o instalador confere o
+**Instalação atômica:** antes de apagar o disco o instalador confere o
 tamanho dele e a imagem embutida inteira (SHA-256 de cada camada); mídia com
-defeito é recusada com o disco intacto. Se a cópia parar no meio, as partições
-criadas são limpas: o disco nunca fica com um sistema pela metade que pareça
-instalado. O resultado é um sistema atômico (deployment bootc/ostree): cada
-atualização entra como uma imagem inteira ao lado da atual, e a anterior fica
-guardada para rollback.
+defeito é recusada com o disco intacto. Depois, a partição EFI é criada com o
+atributo GPT que manda a firmware ignorá-la (`NoBlockIOProtocol`): enquanto a
+cópia acontece, e também se faltar energia ou o instalador for interrompido, o
+computador não inicia por aquele disco. O atributo só sai no último passo, com
+tudo gravado e conferido: essa única escrita na tabela de partições é o que
+transforma o disco num Tamagi instalado. Se a instalação falhar por erro, as
+partições criadas ainda são limpas. O resultado é um sistema atômico
+(deployment bootc/ostree): cada atualização entra como uma imagem inteira ao
+lado da atual, e a anterior fica guardada para rollback.
 
 **Disco criptografado sem digitar senha:** se o computador tem chip TPM 2.0,
 o instalador oferece guardar a chave do disco nele (`systemd-cryptenroll`).
@@ -94,7 +96,7 @@ atualização de firmware). `just test-iso --tpm` confere isso com um TPM
 virtual.
 
 No primeiro login abre o assistente do Tamagi (tema, barra, tiling, navegador, caixa
-de desenvolvimento, IA, Android, Warsaw). O assistente inicial do COSMIC não
+de desenvolvimento, IA, Android). O assistente inicial do COSMIC não
 abre sozinho, porque repete as perguntas do instalador; ele continua no
 lançador.
 
@@ -116,7 +118,8 @@ Para o sistema instalado receber atualizações, publique a imagem num registry
 (`.github/workflows/build.yml` faz isso no GHCR) e gere a ISO com
 `TAMAGI_TARGET_IMGREF=ghcr.io/SEU_USUARIO/tamagi:latest just build-iso`. Numa
 máquina já instalada: `ujust switch-image ghcr.io/SEU_USUARIO/tamagi:latest`.
-Em quem já roda Fedora atomic/Bazzite/Bluefin: `sudo bootc switch <imagem>`.
+Em quem já roda Bluefin, Aurora, Bazzite ou outro sistema da família Universal
+Blue: `sudo bootc switch <imagem>`.
 
 ## Navegadores (caixa Ubuntu 26.04 LTS)
 
@@ -145,24 +148,27 @@ o `vainfo` lista H.264, HEVC, VP9 e AV1 (decodificação) e H.264, HEVC e AV1
 (codificação); o Chrome 158 usou o `VaapiVideoDecoder` para H.264, VP9 e AV1,
 com WebGL e WebGPU ligados e o sandbox do Chrome ativo (sem `--no-sandbox`).
 
-## Internet banking (Warsaw)
+## Perfis isolados: pessoal e trabalho
 
 ```bash
-ujust warsaw ligar      # mostra a licença, pede aceite, instala na caixa e sobe
-ujust warsaw            # estado e teste da porta 30900
-ujust warsaw desligar   # para o serviço   ·   ujust warsaw remover
+tamagi-browser profile add trabalho     # cria o perfil e um atalho "Chrome (trabalho)" no menu
+tamagi-browser profile add pessoal
+tamagi-browser chrome --perfil trabalho # abre direto
+tamagi-browser profile list | remove <nome>
 ```
 
-O Warsaw **não vem na imagem** e não roda no host. Quando você aceita a licença
-da Topaz, o `.deb` oficial é baixado do site do fabricante, conferido por
-SHA-256 e instalado na caixa dos navegadores. A caixa não tem systemd como
-init; o serviço é só o binário `core`, que o `tamagi-browser` sobe junto com o
-navegador. Como a caixa usa a rede do host, o site do banco fala com ele em
-`127.0.0.1:30900` — desde que o navegador seja o da caixa.
+Cada perfil é uma pasta de dados separada do navegador: logins, cookies,
+extensões, histórico e senhas não se misturam, e cada um abre como um
+aplicativo próprio na barra. Vale para Chrome, Brave, Edge, Vivaldi e Firefox.
 
-O Warsaw gera uma autoridade certificadora local. O Tamagi a registra no banco
-NSS do seu usuário enquanto o Warsaw está ligado (sem isso o Chrome recusa a
-conexão) e a remove ao desligar.
+**Chave de segurança (FIDO2/passkey):** `tamagi-browser fido` mostra se a
+chave USB é vista pelo sistema e pela caixa dos navegadores, e se o navegador
+consegue abri-la.
+
+**Internet banking:** o Tamagi não traz mais o módulo de segurança dos bancos
+(Warsaw). Para banco, use uma máquina virtual: o virt-manager vem nativo na
+imagem, com KVM, firmware UEFI, TPM virtual e pastas compartilhadas
+(veja [Máquinas virtuais](#máquinas-virtuais)).
 
 ## Pacotes deb, rpm, Arch e Omarchy
 
@@ -193,6 +199,56 @@ execuções do `mise` 1,87 s × 1,87 s; 20 mil arquivos na pasta pessoal 1,06 s 
 1,10 s. A única diferença é escrever muitos arquivos pequenos na raiz da
 própria caixa (overlay): 1,51 s contra 1,06 s. Não há virtualização: é o mesmo
 kernel, a mesma CPU e o mesmo disco.
+
+## Camadas: pacotes do Fedora por cima da imagem
+
+Para o que precisa estar no sistema de verdade (um driver, um serviço, uma
+ferramenta de baixo nível), sem refazer a imagem:
+
+```bash
+tamagi-layer add ferramentas strace ltrace   # cria a camada e liga (pede senha)
+tamagi-layer list                            # camadas, pacotes e estado
+tamagi-layer remove ferramentas              # o sistema volta a ser a imagem
+tamagi-layer off | on                        # desliga / religa todas
+tamagi-layer temp                            # /usr gravável até reiniciar
+```
+
+Cada camada é um arquivo erofs somente-leitura em `/var/lib/extensions`, que o
+[systemd-sysext](https://www.freedesktop.org/software/systemd/man/latest/systemd-sysext.html)
+sobrepõe ao `/usr`. A imagem não é alterada. A construção não pede senha: o
+dnf resolve as dependências contra os pacotes da imagem e a camada leva só o
+que ainda não existe nela. `--copr dono/projeto` acrescenta um COPR.
+
+Limites, de propósito: os scripts de instalação dos pacotes não rodam (pacote
+que cria usuário ou mexe no boot pede imagem nova); uma camada que atualizaria
+um pacote da imagem é recusada (`--allow-upgrade` força); depois de uma
+atualização do sistema a camada fica "desatualizada" e o `tamagi-update` a
+refaz; se um boot falha na verificação de saúde, as camadas são desligadas
+antes de qualquer rollback. No `tamagi.toml`: `[camadas]` com
+`nome = ["pacote", …]`.
+
+App gráfico continua sendo Flatpak; pacote de outra distro, `tamagi-pkg`;
+ferramenta de desenvolvimento, mise.
+
+## Apps feitos na máquina (por você ou por um agente de IA)
+
+```bash
+tamagi-app new notas --titulo "Minhas notas"   # projeto em ~/Aplicativos/notas
+tamagi-app install notas                       # mostra as permissões, pergunta e instala
+tamagi-app run notas | remove notas | list
+```
+
+O projeto é uma pasta com `app.toml` (id, nome, comando e permissões),
+`src/main.py` (Python + GTK4/libadwaita, sem compilar) e `icone.svg`. O
+`install` empacota como Flatpak e instala só para o seu usuário: não pede
+senha e não toca na imagem. Antes, mostra em português o que o app pode
+acessar e marca com `!` o que sai do isolamento (rede, pasta pessoal, barramento
+da sessão). Não precisa de SDK nem de flatpak-builder: o runtime
+`org.gnome.Platform` já traz Python e GTK.
+
+É o caminho indicado para agentes de IA criarem aplicativos: o agente local
+(`tamagi-agent`) já sabe usar, e o controle fica com você na hora de aprovar as
+permissões.
 
 ## mise: linguagens, ferramentas e tarefas
 
@@ -276,7 +332,8 @@ ujust setup-luks-tpm-unlock    # desbloqueio do disco por TPM
 
 - **Desktop:** COSMIC 1.11 inteiro (compositor, painel, terminal, arquivos,
   editor, loja, player, tela de login).
-- **Kernel:** Fedora 7.3, `CONFIG_RUST=y`, Binder em Rust, sched_ext.
+- **Kernel:** 7.3, o da base, assinado pelo Fedora e pelo Universal Blue
+  (inicia com Secure Boot em qualquer máquina); `CONFIG_RUST=y`, Binder em Rust, sched_ext.
 - **Terminal:** `sudo` é o sudo-rs e `ls`, `cp`, `mv` etc. são os do uutils no
   shell interativo (os originais continuam em `/usr/bin` para serviços e
   scripts; desligar: `touch ~/.config/tamagi/no-rust-defaults`). Também:
@@ -318,6 +375,11 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   (flutuante, cantos arredondados, levemente translúcida).
   `tamagi-panel set centro|classico|cosmic` troca: `classico` põe os apps à
   esquerda; `cosmic` volta ao painel em cima + dock.
+- **Menu iniciar:** o primeiro botão da barra abre um menu junto ao próprio
+  botão, com o brasão do Tamagi como ícone: lista de apps, lugares (pasta
+  pessoal, documentos, configurações), busca e os botões de energia
+  ([cosmic-ext-classic-menu](https://github.com/championpeak87/cosmic-ext-classic-menu),
+  GPL-3.0, layout "Retro"; os outros layouts ficam nas configurações do menu). O lançador do COSMIC continua no `Super+Espaço`.
 - **Idiomas:** português (Brasil), inglês (EUA), espanhol e francês, no
   sistema, no instalador, no assistente de primeiro login, no menu e nos
   atalhos. `tamagi-lang pick` troca depois de instalado.
@@ -326,9 +388,12 @@ claude                   # Claude Code, já instalado (também no menu e na dock
 - **Flatpak (primeiro boot):** OnlyOffice, Flatseal, Warehouse, Mission Center,
   Loupe, Papers, DistroShelf, COSMIC Tweaks, Examine e três applets do COSMIC.
 - **Temas:** `tamagi-theme set <tema>` — tokyo-night, catppuccin, gruvbox,
-  nord, everforest, rose-pine, kanagawa, matte-black, ristretto, latte. Trocam
-  claro/escuro, papel de parede e a paleta das janelas do Tamagi (não as cores
-  de destaque do COSMIC).
+  nord, everforest, rose-pine, kanagawa, matte-black, ristretto, latte e ipe
+  (o tema próprio do Tamagi: verde-noite com destaque no amarelo do ipê).
+  Trocam as cores do COSMIC (fundo, destaque e texto), o claro/escuro, o papel
+  de parede e a paleta das janelas do Tamagi. Cada tema vira um arquivo em
+  `/usr/share/cosmic-themes/tamagi-<tema>.ron`, que também aparece em
+  Configurações > Aparência > Importar.
 - **Papéis de parede:** oito estilos em cada tema, nas cores dele
   (`tamagi-theme wallpaper <estilo>`), desenhados por código com motivos do
   Japão do século XVII: `mon` (padrão; brasão no estilo dos kamon — um anel,
@@ -353,6 +418,25 @@ claude                   # Claude Code, já instalado (também no menu e na dock
 | `Super+T` / `Super+Y` | janela flutuante / ligar-desligar tiling |
 | `Super+B` / `E` | navegador / arquivos |
 
+## Kernel, módulos e assinatura
+
+- **Módulos do Universal Blue** ([ublue-os/akmods](https://github.com/ublue-os/akmods)),
+  prontos e assinados para o kernel da imagem: `xone` e `xpadneo` (controles
+  Xbox por cabo, adaptador e Bluetooth) e `v4l2loopback` (câmera virtual). Com
+  o Secure Boot ligado, eles só carregam depois de registrar a chave do
+  Universal Blue, uma vez: `ujust enroll-secure-boot-key`. Sem isso o sistema
+  inicia normalmente, só esses módulos ficam de fora.
+- **Kernel opcional do [Open Gaming Collective](https://github.com/OpenGamingCollective/linux):**
+  `KERNEL_FLAVOR=ogc TAMAGI_TAG=ogc just build`. Ele é assinado só pelo
+  Universal Blue, então com Secure Boot ligado exige a mesma chave registrada
+  **antes** de trocar de imagem (`mokutil --test-key /etc/pki/akmods/certs/akmods-ublue.der`).
+  O padrão é o kernel da base justamente por não ter essa exigência.
+- **Imagem assinada (cosign):** o CI segue o
+  [ublue-os/image-template](https://github.com/ublue-os/image-template) e
+  assina cada imagem publicada com a chave do repositório. Conferir:
+  `cosign verify --key cosign.pub ghcr.io/wes-tamagi/tamagi:latest`. A chave
+  privada fica só no segredo `SIGNING_SECRET` do GitHub.
+
 ## Estrutura do repositório
 
 ```
@@ -360,9 +444,9 @@ Containerfile            estágios: llama.cpp → apps Omarchy → contexto → 
 build_files/             scripts numerados do build; packages.txt
 system_files/            árvore copiada para a raiz da imagem
   usr/bin/tamagi         o sistema num arquivo (init, diff, apply)
-  usr/bin/tamagi-*       bank, boot-report, browser, warsaw, pkg, harden, ai, agent, update,
+  usr/bin/tamagi-*       app, layer, boot-report, browser, pkg, harden, ai, agent, update,
                          webapp, theme, menu, assist, keys, firstrun
-  usr/libexec/tamagi/    browser-provision, warsaw-box, omarchy-repo (rodam dentro
+  usr/libexec/tamagi/    browser-provision, omarchy-repo (rodam dentro
                          das caixas), firstboot, popup
 live/                    mídia de instalação: Containerfile, módulo do tik, tamagi-install,
                          build-iso.sh
@@ -393,7 +477,7 @@ Ele distinguia ainda quem age pela pureza do princípio de quem age pensando
 nas consequências. Pelo princípio, a resposta seria "troque de banco". O
 Tamagi fica com as consequências: as pessoas no Brasil precisam pagar contas
 e declarar imposto hoje, com os bancos que existem. Então o programa do banco
-roda, mas isolado, longe do sistema e dos seus arquivos.
+roda, mas numa máquina virtual, longe do sistema e dos seus arquivos.
 
 Fazer mais uma distro quase nunca é o caminho mais barato; seria mais fácil
 se adaptar a uma que já existe. O Tamagi existe por causa de uma ideia: um
@@ -405,10 +489,10 @@ descende foi feita para esse caso. Alguém precisava juntar as peças.
 
 O projeto agradece a todos os que tornaram esta distro possível.
 
-- **Base: Fedora 45.** Pacotes e kernel são do Fedora, sem modificação. A
-  imagem de partida é a `base-main` do
-  [Universal Blue](https://universal-blue.org/), que é o Fedora com codecs,
-  firmware e `ujust` já incluídos.
+- **Base: [Universal Blue](https://universal-blue.org/).** A imagem de partida
+  é a `base-main`: sistema atômico com codecs, firmware, distrobox e `ujust` já
+  incluídos, a mesma fundação do Bluefin, do Aurora e do Bazzite. Os pacotes e
+  o kernel vêm do Fedora 45, sem modificação.
 - **[Bazzite](https://bazzite.gg/):** ajustes de desempenho (memória, disco,
   rede), gamescope, MangoHud, GameMode e regras de controles. O kernel dele
   não é usado.
@@ -429,9 +513,8 @@ Nenhum desses projetos endossa o Tamagi.
 
 O código deste repositório é BSD de 3 cláusulas (veja `LICENSE`). A imagem
 construída reúne software de terceiros, cada um com a sua licença (Fedora,
-COSMIC, llama.cpp, tik e outros). Chrome e Warsaw são proprietários e não
-estão aqui nem na imagem: são baixados na máquina de quem usa, dos sites dos
-fabricantes; o Warsaw, só depois do aceite da licença da Topaz.
+COSMIC, llama.cpp, tik e outros). O Chrome é proprietário e não está aqui nem
+na imagem: é baixado na máquina de quem usa, do site do fabricante.
 
 ## Limites conhecidos
 
@@ -451,17 +534,15 @@ fabricantes; o Warsaw, só depois do aceite da licença da Topaz.
 - Testado em VM (QEMU/KVM), não em máquina física: a instalação automática
   sem e com LUKS (`just test-iso`), o instalador gráfico passo a passo até o
   login no sistema instalado, e `tamagi-harden strict` com reinício.
-- A caixa de navegadores e o Warsaw foram testados na máquina de
-  desenvolvimento (`just test-browser`), com GPU AMD. Intel e NVIDIA seguem o
-  mesmo caminho, mas não foram medidos. O acesso a um banco de verdade não foi
-  testado: só a porta, o certificado e o navegador aceitando a conexão local.
+- A caixa de navegadores foi testada na máquina de desenvolvimento
+  (`just test-browser`), com GPU AMD. Intel e NVIDIA seguem o mesmo caminho,
+  mas não foram medidos.
+- Chave de segurança FIDO2 no navegador da caixa: há relato de a chave não
+  ser lida. `tamagi-browser fido` faz o diagnóstico; a causa ainda não foi
+  confirmada.
 - A tela de login usa o papel de parede padrão do COSMIC, não o do Tamagi.
 - HDR não existe no COSMIC; VRR e `gamescope` embutido têm falhas conhecidas
   no compositor.
-- O Chrome pode pedir permissão para o site do banco acessar a rede local
-  (é a conversa com o Warsaw em `127.0.0.1`): permita.
-- O Warsaw é baixado por um SHA-256 fixo; quando a Topaz troca o arquivo, o
-  `tamagi-warsaw` avisa e pede confirmação até a imagem atualizar o valor.
 - O Claude Code tem versão fixa no `Containerfile` (`CLAUDE_CODE_VERSION`):
   só muda quando esse número é trocado.
 - A imagem traz locales e traduções só de inglês, português, espanhol e
@@ -470,10 +551,8 @@ fabricantes; o Warsaw, só depois do aceite da licença da Topaz.
 - O rollback automático só desfaz; ele não impede que a mesma imagem com
   defeito volte na atualização automática seguinte (`ujust autoupdate off`
   pausa). `ujust rollback` continua valendo para voltar à mão.
-- O modo banco sem `--manter-registro` se apresenta ao banco como um aparelho
-  novo a cada sessão; alguns bancos pedem para autorizar o aparelho de novo.
 - NVIDIA com driver proprietário: a base atual não traz o driver. É preciso
   trocar `BASE_IMAGE` por uma base que o traga; não foi testado.
 
-> **Licenças:** Chrome e Warsaw são proprietários e não fazem parte da
-> imagem — são baixados na sua máquina, dos sites dos fabricantes.
+> **Licenças:** o Chrome é proprietário e não faz parte da imagem — é baixado
+> na sua máquina, do site do fabricante.

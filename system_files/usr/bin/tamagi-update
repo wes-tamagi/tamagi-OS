@@ -31,6 +31,14 @@ update_system() {
     fi
 }
 
+update_layers() { # camadas do tamagi-layer feitas para uma versão anterior da imagem
+    local stale
+    stale=$(tamagi-layer stale 2>/dev/null) || return 0
+    [[ -n $stale ]] || return 0
+    step "Camadas sobre a imagem (tamagi-layer)"
+    tamagi-layer rebuild || failed+=(camadas)
+}
+
 all_boxes() { podman ps -a --filter label=manager=distrobox --format '{{.Names}}' 2>/dev/null; }
 
 arch_boxes() { # caixas distrobox cuja distro é Arch
@@ -57,7 +65,15 @@ update_arch() {
     (( found )) || echo "Nenhuma caixa Arch. Crie com: tamagi-pkg install --arch <pacote>  ou  ujust devbox arch"
 }
 
-on_battery() { grep -qsx Discharging /sys/class/power_supply/*/status; }
+on_battery() { # só a bateria do computador conta: a de mouse, teclado ou fone sem fio (scope=Device) não
+    local s
+    for s in /sys/class/power_supply/*; do
+        [[ $(cat "$s/type" 2>/dev/null) == Battery ]] || continue
+        [[ $(cat "$s/scope" 2>/dev/null) == Device ]] && continue
+        [[ $(cat "$s/status" 2>/dev/null) == Discharging ]] && return 0
+    done
+    return 1
+}
 
 update_auto() { # chamado pelo tamagi-autoupdate.timer: sem perguntas e sem senha
     if on_battery; then echo "Na bateria: fica para a próxima."; return 0; fi
@@ -113,6 +129,7 @@ case "${1:-all}" in
     auto)     case "${2:-}" in on|off) set_auto "$2"; exit 0 ;; *) echo "uso: tamagi-update auto on|off" >&2; exit 2 ;; esac ;;
     all)
         update_system
+        update_layers
         step "Flatpaks"
         flatpak update -y || failed+=(flatpak)
         step "Subsistemas e caixas distrobox (deb, rpm e outras)"

@@ -5,7 +5,11 @@
 # você quiser, Firefox, Brave, Edge e Vivaldi) vive numa caixa distrobox
 # baseada no Ubuntu 26.04 LTS, que enxerga a placa de vídeo, o áudio, a webcam, as
 # chaves de segurança USB e a sua pasta pessoal — sem limitações de sandbox
-# de Flatpak. O Warsaw (internet banking) roda na mesma caixa.
+# de Flatpak.
+#
+# Perfis isolados (pessoal, trabalho…): cada perfil é uma pasta de dados
+# própria do navegador (logins, cookies, extensões e histórico separados) e
+# abre como um aplicativo à parte na barra.
 set -euo pipefail
 
 CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi"
@@ -39,6 +43,10 @@ tamagi-browser — navegadores na caixa Ubuntu 26.04 LTS (distrobox)
   tamagi-browser [URL|opções]           abre o navegador padrão
   tamagi-browser chrome [URL|opções]    abre um navegador específico
                  (também: firefox, brave, edge, vivaldi)
+  tamagi-browser chrome --perfil <nome> abre num perfil isolado (cria se não existir)
+  profile add <nome> [navegador]        cria o perfil e um atalho no menu
+  profile list | remove <nome> [navegador]
+  fido                                  diagnóstico da chave de segurança USB (FIDO2)
   setup                                 cria a caixa e instala o Chrome
   install <navegador>                   chrome | firefox | brave | edge | vivaldi
   default <navegador>                   define o navegador padrão do sistema
@@ -132,8 +140,15 @@ cmd_setup() {
 ready() { [[ -f $READY ]] && box_exists; }
 
 launch() {
-    local name=$1 safe=0; shift
-    [[ ${1:-} == --safe ]] && { safe=1; shift; }
+    local name=$1 safe=0 profile=""; shift
+    while :; do
+        case "${1:-}" in
+            --safe) safe=1; shift ;;
+            --perfil|--profile) profile=${2:-}; valid_profile "$profile"; shift 2 ;;
+            --perfil=*|--profile=*) profile=${1#*=}; valid_profile "$profile"; shift ;;
+            *) break ;;
+        esac
+    done
     local -a flags=() env=()
     if ! ready; then
         if [[ -t 0 && -t 1 ]]; then
@@ -146,11 +161,114 @@ launch() {
     [[ $name == chrome ]] || installed "$name" || die "$name não está instalado. Rode: tamagi-browser install $name"
     if [[ $name != firefox && $safe == 0 ]]; then mapfile -t flags < <(chromium_flags); fi
     mapfile -t env < <(box_env)
-    # Internet banking: o Warsaw sobe junto, se você ligou (tamagi-warsaw ligar).
-    if [[ -f $CONF_DIR/warsaw-enabled ]]; then
-        { in_box sudo "$LIBEXEC/warsaw-box" start-root && in_box "$LIBEXEC/warsaw-box" start-user; } >/dev/null 2>&1 || true
+    if [[ -n $profile ]]; then
+        local dir; dir=$(profile_dir "$name" "$profile")
+        mkdir -p "$dir"
+        if [[ $name == firefox ]]; then
+            flags+=(--new-instance --profile "$dir" --name "tamagi-$name-$profile")
+        else
+            flags+=("--user-data-dir=$dir" "--class=tamagi-$name-$profile")
+        fi
     fi
     exec distrobox enter "$BOX" -- env "${env[@]}" "${BIN[$name]}" "${flags[@]}" "$@"
+}
+
+# ── Perfis isolados ─────────────────────────────────────────────────────────
+PROFILES_DIR="$DATA_DIR/tamagi/browser-profiles"
+valid_profile() { [[ ${1:-} =~ ^[a-z][a-z0-9-]{0,30}$ ]] || die "nome de perfil inválido: '${1:-}' (letras minúsculas, números e hífen)"; }
+profile_dir() { echo "$PROFILES_DIR/$1-$2"; }   # <navegador> <perfil>
+profile_desktop() { echo "$DATA_DIR/applications/tamagi-$1-$2.desktop"; }
+
+cmd_profile() {
+    local action=${1:-list} profile=${2:-} name=${3:-chrome} d
+    case "$action" in
+        list)
+            local found=0
+            for d in "$PROFILES_DIR"/*/; do
+                [[ -d $d ]] || continue
+                found=1; d=$(basename "$d")
+                printf '%-10s %s\n' "${d%%-*}" "${d#*-}"
+            done
+            (( found )) || echo "Nenhum perfil. Crie com: tamagi-browser profile add trabalho"
+            ;;
+        add)
+            valid_profile "$profile"
+            [[ -n ${BIN[$name]:-} ]] || die "navegador desconhecido: '$name' (use: ${!BIN[*]})"
+            mkdir -p "$(profile_dir "$name" "$profile")" "$DATA_DIR/applications"
+            local icon=tamagi-browser
+            [[ $name == chrome && -f $DATA_DIR/icons/hicolor/128x128/apps/google-chrome.png ]] && icon=google-chrome
+            cat > "$(profile_desktop "$name" "$profile")" <<DESKTOP
+[Desktop Entry]
+Type=Application
+Name=${name^} ($profile)
+Comment=Perfil isolado "$profile": logins, cookies e extensões separados
+Exec=/usr/bin/tamagi-browser $name --perfil $profile %U
+Icon=$icon
+Terminal=false
+Categories=Network;WebBrowser;
+StartupWMClass=tamagi-$name-$profile
+X-Tamagi-Browser-Profile=$profile
+DESKTOP
+            update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
+            echo "Perfil '$profile' criado para o $name. No menu: ${name^} ($profile)"
+            echo "Abrir agora: tamagi-browser $name --perfil $profile"
+            ;;
+        remove)
+            valid_profile "$profile"
+            d=$(profile_dir "$name" "$profile")
+            [[ -d $d || -f $(profile_desktop "$name" "$profile") ]] || die "não existe o perfil '$profile' do $name"
+            if [[ -t 0 ]]; then
+                read -r -p "Apagar o perfil '$profile' do $name, com logins, histórico e extensões? [s/N] " answer
+                [[ ${answer,,} == s || ${answer,,} == sim ]] || { echo "Nada foi alterado."; exit 1; }
+            else
+                die "rode num terminal para confirmar a remoção do perfil"
+            fi
+            rm -rf -- "$d" "$(profile_desktop "$name" "$profile")"
+            update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
+            echo "Perfil '$profile' apagado."
+            ;;
+        *) die "uso: tamagi-browser profile [list | add <nome> [navegador] | remove <nome> [navegador]]" ;;
+    esac
+}
+
+# ── Chave de segurança USB (FIDO2 / passkey) ────────────────────────────────
+# O navegador da caixa fala com a chave pelo /dev/hidrawN do host. Para isso a
+# chave precisa (1) ser reconhecida como FIDO pelo udev do host, (2) estar
+# liberada para o seu usuário e (3) abrir de dentro da caixa.
+cmd_fido() {
+    local n dev found=0 props acl
+    echo "Chaves de segurança vistas pelo sistema:"
+    for dev in /dev/hidraw*; do
+        [[ -e $dev ]] || continue
+        props=$(udevadm info -q property "$dev" 2>/dev/null)
+        grep -qE '^ID_(FIDO|SECURITY)_TOKEN=1' <<<"$props" || continue
+        found=1; n=$(basename "$dev")
+        acl=no; [[ -r $dev && -w $dev ]] && acl=sim
+        echo "  $dev  $(sed -n 's/^HID_NAME=//p' "/sys/class/hidraw/$n/device/uevent" 2>/dev/null)"
+        echo "    liberada para você no sistema : $acl"
+        if box_exists; then
+            # shellcheck disable=SC2016
+            if in_box sh -c 'exec 3<>"$1"' _ "$dev" 2>/dev/null; then
+                echo "    abre de dentro da caixa $BOX : sim"
+            else
+                echo "    abre de dentro da caixa $BOX : NÃO"
+            fi
+        fi
+    done
+    if (( ! found )); then
+        echo "  nenhuma. Conecte a chave e rode de novo."
+        echo "  Dispositivos HID presentes (a chave deveria aparecer aqui):"
+        for dev in /sys/class/hidraw/hidraw*; do
+            [[ -e $dev ]] && echo "    $(basename "$dev")  $(sed -n 's/^HID_NAME=//p' "$dev/device/uevent" 2>/dev/null)"
+        done
+        echo "  Se ela aparece na lista acima mas não como chave de segurança, o sistema"
+        echo "  não a reconheceu como FIDO: falta uma regra udev para o modelo."
+        return 1
+    fi
+    box_exists || echo "A caixa '$BOX' ainda não existe: tamagi-browser setup"
+    echo "Se tudo acima diz 'sim' e o site ainda não vê a chave: feche o navegador por"
+    echo "completo e abra de novo com a chave já conectada (a caixa não recebe o aviso"
+    echo "de que um dispositivo foi conectado depois)."
 }
 
 cmd_default() {
@@ -190,7 +308,7 @@ cmd_status() {
         echo "Vulkan       : ${vk:-indisponível}"
     '
     echo "Opções       : $([[ -f $FLAGS_FILE ]] && echo "$FLAGS_FILE" || echo 'padrão (aceleração de vídeo ligada)')"
-    if [[ -f $CONF_DIR/warsaw-enabled ]]; then echo "Warsaw       : ligado (tamagi-warsaw status)"; else echo "Warsaw       : desligado (tamagi-warsaw ligar)"; fi
+    echo "Perfis       : $(cmd_profile list | awk '$2 { printf "%s(%s) ", $2, $1 } END { if (!NR) printf "nenhum" }')"
 }
 
 cmd_remove() {
@@ -200,7 +318,7 @@ cmd_remove() {
         [[ ${answer,,} == s || ${answer,,} == sim ]] || { echo "Nada foi alterado."; exit 1; }
     fi
     distrobox rm --force "$BOX"
-    rm -f -- "$READY" "$CONF_DIR/warsaw-enabled"
+    rm -f -- "$READY"
     if [[ -z $BOX_HOME && -d $DATA_DIR/applications ]]; then
         find "$DATA_DIR/applications" -maxdepth 1 \( -name "$BOX-*.desktop" -o -name google-chrome.desktop \) -delete
     fi
@@ -212,6 +330,8 @@ case "${1:-}" in
     install) shift; cmd_install "$@"; mkdir -p "$CONF_DIR"; touch "$READY" ;;
     default) shift; cmd_default "$@" ;;
     status)  cmd_status ;;
+    profile|perfil) shift; cmd_profile "$@" ;;
+    fido)    cmd_fido ;;
     update)  box_exists || die "a caixa '$BOX' não existe"
              in_box sudo "$LIBEXEC/browser-provision" upgrade ;;
     enter)   ensure_box; exec distrobox enter "$BOX" ;;

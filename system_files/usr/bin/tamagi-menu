@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # tamagi-menu — menu central do sistema (Super+Alt+Espaço).
-# Uso: tamagi-menu [seção]   seções: instalar ia tema sistema banco energia
+# Uso: tamagi-menu [seção]   seções: instalar ia tema sistema energia
 # Textos em pt/en/es/fr (veja /usr/libexec/tamagi/i18n).
 set -uo pipefail
 . /usr/libexec/tamagi/i18n
@@ -100,15 +100,6 @@ menu_sistema() {
     esac
 }
 
-menu_banco() {
-    case "$(pick "Internet banking (Warsaw)" "open=Abrir o modo banco (descartável)" "status=Estado" "on=Ligar o Warsaw" "off=Desligar o Warsaw" "back=Voltar")" in
-        open)   tamagi-bank; pause ;;
-        status) tamagi-warsaw status; pause ;;
-        on)     tamagi-warsaw ligar; pause ;;
-        off)    tamagi-warsaw desligar; pause ;;
-    esac
-}
-
 menu_energia() {
     case "$(pick "Energia" "lock=Bloquear" "suspend=Suspender" "logout=Sair da sessão" "reboot=Reiniciar" "poweroff=Desligar" "back=Voltar")" in
         lock)     loginctl lock-session ;;
@@ -125,21 +116,19 @@ case "${1:-}" in
     tema)      tamagi-theme pick; exit ;;
     aparencia) menu_aparencia; exit ;;
     sistema)   menu_sistema; exit ;;
-    banco)     menu_banco; exit ;;
     energia)   menu_energia; exit ;;
 esac
 
 while true; do
     clear
     choice=$(pick "Tamagi" "install=Instalar" "ai=IA local" "look=Aparência" "keys=Atalhos" "system=Sistema" \
-        "bank=Internet banking" "power=Energia" "quit=Sair") || exit 0
+        "power=Energia" "quit=Sair") || exit 0
     case "$choice" in
         install) menu_instalar ;;
         ai)      menu_ia ;;
         look)    menu_aparencia ;;
         keys)    tamagi-keys ;;
         system)  menu_sistema ;;
-        bank)    menu_banco ;;
         power)   menu_energia; exit 0 ;;
         quit)    exit 0 ;;
     esac

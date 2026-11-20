@@ -1,11 +1,15 @@
-# Tamagi — imagem bootc (Fedora atomic / Universal Blue) com o desktop COSMIC,
-# distrobox e IA local (llama.cpp + agentes). Navegadores e Warsaw
+# Tamagi — imagem bootc sobre o Universal Blue (base-main) com o desktop COSMIC,
+# distrobox e IA local (llama.cpp + agentes). Navegadores
 # não entram aqui: vivem numa caixa distrobox (tamagi-browser).
 #
 #   podman build -t tamagi .          (ou: just build)
 
 ARG FEDORA_VERSION=45
 ARG BASE_IMAGE=ghcr.io/ublue-os/base-main
+# Kernel: main (padrão: o da base, assinado pelo Fedora e pelo Universal Blue) |
+# ogc (Open Gaming Collective, assinado só pelo Universal Blue).
+# Veja build_files/12-kernel.sh, em especial a nota sobre Secure Boot.
+ARG KERNEL_FLAVOR=main
 
 # ── Estágio 1: compila o llama.cpp (CPU + Vulkan) ──────────────────────────
 FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS llama
@@ -38,6 +42,10 @@ RUN cmake -B build -G Ninja \
     && rm -rf /out/usr/include /out/usr/lib64/cmake /out/usr/lib64/pkgconfig \
     && install -Dm644 LICENSE /out/usr/share/licenses/llama.cpp/LICENSE
 
+# ── Kernel e módulos prontos e assinados do Universal Blue (ublue-os/akmods) ──
+# build_files/12-kernel.sh troca o kernel (se o sabor pedir) e instala os módulos.
+FROM ghcr.io/ublue-os/akmods:${KERNEL_FLAVOR}-${FEDORA_VERSION} AS akmods
+
 # ── Estágio 2: contexto de build (scripts + arquivos) ──────────────────────
 FROM scratch AS ctx
 COPY build_files /build_files
@@ -59,11 +67,13 @@ ARG STARSHIP_VERSION=v1.27.0
 # Versão fixa: uma versão nova só entra quando alguém troca este número.
 ARG CLAUDE_CODE_VERSION=2.1.328
 ARG MISE_VERSION=v2026.11.9
+ARG KERNEL_FLAVOR=main
 
 COPY --from=llama /out/usr /usr
 COPY --from=ctx /system_files /
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
+    --mount=type=bind,from=akmods,source=/,target=/akmods \
     --mount=type=cache,dst=/var/cache/libdnf5 \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/run \
@@ -73,6 +83,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     OPENCODE_VERSION=${OPENCODE_VERSION} OPENCODE_SHA256=${OPENCODE_SHA256} \
     STARSHIP_VERSION=${STARSHIP_VERSION} \
     MISE_VERSION=${MISE_VERSION} CLAUDE_CODE_VERSION=${CLAUDE_CODE_VERSION} \
+    KERNEL_FLAVOR=${KERNEL_FLAVOR} \
     /ctx/build_files/build.sh
 
 RUN bootc container lint

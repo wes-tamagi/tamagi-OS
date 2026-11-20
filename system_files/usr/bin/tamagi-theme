@@ -1,6 +1,7 @@
 #!/usr/bin/bash
-# tamagi-theme — troca o tema do desktop com um comando: claro/escuro do
-# COSMIC, papel de parede e a paleta das janelas do Tamagi (alacritty).
+# tamagi-theme — troca o tema do desktop com um comando: as cores do COSMIC
+# (fundo, destaque, claro/escuro), o papel de parede e a paleta das janelas do
+# Tamagi (alacritty).
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
@@ -92,6 +93,13 @@ apply_cosmic() { # o COSMIC guarda a configuração em arquivos, um por chave
     sampling_method: Alphanumeric,
 )
 RON
+    # Cores do próprio COSMIC (fundo, destaque, texto): cada tema do Tamagi tem
+    # um tema do COSMIC gerado no build (make-cosmic-themes.py). Só dentro da
+    # sessão gráfica; fora dela ficam o claro/escuro e o papel de parede.
+    local ron="${TAMAGI_COSMIC_THEMES:-/usr/share/cosmic-themes}/tamagi-$name.ron"
+    if [[ -r $ron && -n ${WAYLAND_DISPLAY:-} ]] && command -v cosmic-settings >/dev/null 2>&1; then
+        timeout 20 cosmic-settings appearance import "$ron" >/dev/null 2>&1 || true
+    fi
     # Apps GTK e o navegador seguem o esquema claro/escuro pelo portal.
     gsettings set org.gnome.desktop.interface color-scheme \
         "$([[ $SCHEME == dark ]] && echo prefer-dark || echo default)" 2>/dev/null || true

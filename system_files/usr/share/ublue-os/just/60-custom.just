@@ -1,10 +1,6 @@
 # vim: set ft=make :
 # Receitas do Tamagi (aparecem em `ujust --list`).
 
-# Internet banking (na caixa dos navegadores): status, ligar, desligar, remover
-warsaw ACTION="status":
-    @tamagi-warsaw {{ ACTION }}
-
 # IA local (llama.cpp): setup, presets, pull, list, use, status, chat...
 ai *ARGS:
     @tamagi-ai {{ ARGS }}
@@ -108,10 +104,6 @@ autoupdate ACTION="status":
         *)      tamagi-update status ;;
     esac
 
-# Modo banco descartável: Chrome + Warsaw numa caixa apagada ao fechar (prepare, status, clean)
-banco *ARGS:
-    @tamagi-bank {{ ARGS }}
-
 # O sistema num arquivo: init, export, diff, apply (~/.config/tamagi/tamagi.toml)
 sistema *ARGS:
     @tamagi {{ ARGS }}
@@ -150,7 +142,7 @@ setup-lazyvim:
     git clone --depth 1 https://github.com/LazyVim/starter "$dir"
     echo "LazyVim instalado. Abra o nvim: os plugins são baixados na primeira vez."
 
-# Refazer a configuração inicial (tema, tiling, navegador, distrobox, IA, Android, Warsaw)
+# Refazer a configuração inicial (tema, tiling, navegador, distrobox, IA, Android)
 tamagi-setup:
     @tamagi-firstrun --force
 

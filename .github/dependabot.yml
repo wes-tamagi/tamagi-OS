@@ -1,0 +1,8 @@
+# Atualizações semanais das ações do GitHub usadas no CI (fixadas por commit),
+# como no ublue-os/image-template.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -94,13 +94,7 @@ else
     tl "Depois: tamagi-ai setup"
 fi
 
-step "Internet banking (Warsaw)"
-tl "O módulo de segurança dos bancos roda dentro da caixa dos navegadores."
-if ask --no "Instalar e ligar o Warsaw agora? (exige aceitar a licença da Topaz)"; then
-    tamagi-warsaw ligar || true
-else
-    tl "Depois: ujust warsaw ligar"
-fi
+
 
 mkdir -p "$(dirname "$STAMP")"
 touch "$STAMP"

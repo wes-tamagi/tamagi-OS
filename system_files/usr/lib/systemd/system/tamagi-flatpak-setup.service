@@ -6,6 +6,12 @@ After=network-online.target flatpak-add-fedora-repos.service
 
 [Service]
 Type=oneshot
+# Roda uma vez, no primeiro boot, e baixa bastante coisa: com prioridade mínima
+# de CPU e de disco, para não pesar no primeiro login.
+Nice=19
+CPUWeight=20
+IOSchedulingClass=idle
+IOWeight=20
 ExecStart=/usr/libexec/tamagi/flatpak-setup
 Restart=on-failure
 RestartSec=60

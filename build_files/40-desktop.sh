@@ -35,6 +35,12 @@ cat > "$C/com.system76.CosmicBackground/v1/all" <<'RON'
 )
 RON
 
+# ── Um tema do COSMIC para cada tema do Tamagi (tamagi-theme importa) ──
+python3 /ctx/build_files/make-cosmic-themes.py /usr/share/tamagi/themes /usr/share/cosmic-themes
+n_conf=$(find /usr/share/tamagi/themes -name '*.conf' | wc -l)
+[[ $(find /usr/share/cosmic-themes -name 'tamagi-*.ron' | wc -l) -eq $n_conf ]] \
+    || { echo "faltou gerar tema do COSMIC para algum tema do Tamagi" >&2; exit 1; }
+
 # ── Janelas ──
 # Tiling automático ligado em todos os workspaces (Super+Y alterna).
 echo true > "$C/com.system76.CosmicComp/v1/autotile"
@@ -105,6 +111,36 @@ tamagi-panel defaults "$C"
 # O Dock do COSMIC tem de continuar como veio do pacote (o estilo "cosmic" volta a ele).
 dock_changed=$(rpm -V cosmic-panel 2>/dev/null | grep -c 'CosmicPanel\.Dock/' || true)
 [[ $dock_changed -eq 0 ]] || { echo "tamagi-panel alterou os padrões do Dock (hardlink)" >&2; exit 1; }
+
+# ── Menu iniciar ancorado ao botão (cosmic-ext-classic-menu) ──
+# Botão com o brasão do Tamagi (o anel com as três joias), sem texto. Layout
+# "Retro": usuário no topo, lista de apps à esquerda, lugares (Pasta pessoal,
+# Documentos, Configurações…) à direita, busca e botões de energia embaixo.
+# Os outros layouts ficam nas configurações do próprio menu.
+command -v cosmic-ext-classic-menu-applet >/dev/null || { echo "applet do menu iniciar não instalado" >&2; exit 1; }
+[[ -f /usr/share/applications/com.championpeak87.cosmic-ext-classic-menu.desktop ]] \
+    || { echo "o applet do menu mudou de identificador: ajuste tamagi-panel" >&2; exit 1; }
+MENU_ICON=/usr/share/tamagi/menu/tamagi-start-symbolic.svg
+[[ -f $MENU_ICON ]] || { echo "falta o ícone do menu: $MENU_ICON" >&2; exit 1; }
+rsvg-convert "$MENU_ICON" -o /tmp/menu-icon-check.png && [[ -s /tmp/menu-icon-check.png ]] && rm -f /tmp/menu-icon-check.png
+M="$C/com.championpeak87.cosmic-ext-classic-menu/v1"
+mkdir -p "$M"
+echo Retro > "$M/menu_layout"
+echo Places > "$M/side_panel"
+echo Bottom > "$M/search_field_position"
+echo Favorites > "$M/featured_applications"
+echo IconOnly > "$M/applet_button_style"
+echo "\"$MENU_ICON\"" > "$M/button_icon"
+cat > "$M/favorite_applications" <<'RON'
+[
+    "google-chrome",
+    "com.system76.CosmicFiles",
+    "com.system76.CosmicTerm",
+    "claude-code",
+    "tamagi-agent",
+    "com.system76.CosmicSettings",
+]
+RON
 
 # ── Relógio do painel em 24 horas (o primeiro uso troca para AM/PM em inglês) ──
 mkdir -p "$C/com.system76.CosmicAppletTime/v1"

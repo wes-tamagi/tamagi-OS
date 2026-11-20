@@ -36,9 +36,6 @@ Disco criptografado	Encrypted disk
 Depois: ujust setup-luks-tpm-unlock	Later: ujust setup-luks-tpm-unlock
 IA local (llama.cpp)	Local AI (llama.cpp)
 Depois: tamagi-ai setup	Later: tamagi-ai setup
-Internet banking (Warsaw)	Internet banking (Warsaw)
-O módulo de segurança dos bancos roda dentro da caixa dos navegadores.	The banks' security module runs inside the browsers' box.
-Depois: ujust warsaw ligar	Later: ujust warsaw ligar
 Pronto	Done
 Super+K mostra os atalhos · Super+A ações rápidas · Super+Alt+Espaço abre o menu.	Super+K shows the shortcuts · Super+A quick actions · Super+Alt+Space opens the menu.
 Jogos: ujust setup-gaming · Segurança: tamagi-harden status · Idioma: tamagi-lang pick	Games: ujust setup-gaming · Security: tamagi-harden status · Language: tamagi-lang pick
@@ -46,7 +43,6 @@ qualquer tecla fecha	press any key to close
 Preparar o Chrome agora?	Set up Chrome now?
 Desbloquear o disco pelo chip TPM no boot, sem digitar a senha?	Unlock the disk with the TPM chip at boot, without typing the password?
 Baixar um modelo agora? (o download pode levar alguns minutos)	Download a model now? (the download may take a few minutes)
-Instalar e ligar o Warsaw agora? (exige aceitar a licença da Topaz)	Install and enable Warsaw now? (requires accepting Topaz's license)
 qualquer tecla continua	press any key to continue
 Formato	Format
 nome do pacote ou caminho do arquivo	package name or file path
@@ -86,7 +82,6 @@ Segurança (endurecimento)	Security (hardening)
 Limpar espaço	Free up space
 Informações da máquina	Machine information
 Refazer a configuração inicial	Redo the initial setup
-Abrir o modo banco (descartável)	Open bank mode (disposable)
 Desligar	Shut down
 Bloquear	Lock
 Suspender	Suspend
@@ -96,14 +91,11 @@ Instalar	Install
 IA local	Local AI
 Atalhos	Shortcuts
 Sistema	System
-Internet banking	Internet banking
 Energia	Power
 Sair	Quit
 IA	AI
 Tamagi	Tamagi
 idioma desconhecido	unknown language
 vale no próximo login (saia da sessão e entre de novo).	takes effect at the next login (log out and back in).
-Ligar o Warsaw	Enable Warsaw
-Desligar o Warsaw	Disable Warsaw
 Tema aplicado	Theme applied
 ↑↓ escolher · Enter confirma · Esc volta	↑↓ choose · Enter confirms · Esc goes back

@@ -7,7 +7,7 @@
     tamagi apply [arquivo]   faz o que falta (-y não pergunta)
 
 O arquivo descreve aparência, navegadores, Flatpaks, ferramentas do mise,
-pacotes dos subsistemas, caixas, web apps e serviços. Copie-o para outro
+pacotes dos subsistemas, caixas, camadas, web apps e serviços. Copie-o para outro
 computador com Tamagi e rode `tamagi apply`: ele fica igual.
 
 `apply` só acrescenta: nunca remove app, pacote ou caixa que não esteja no
@@ -39,6 +39,7 @@ KNOWN = {
     "mise": {"ferramentas"},
     "pacotes": {"deb", "rpm", "arch", "omarchy"},
     "caixas": None,       # nome = distro
+    "camadas": None,      # nome = [pacotes do Fedora]
     "webapps": None,      # nome = endereço
     "servicos": {"atualizacao_automatica", "android", "seguranca"},
 }
@@ -98,7 +99,7 @@ def user_boxes():
     boxes = {}
     for line in names.splitlines():
         name, _, image = line.partition("\t")
-        if name in ("deb", "rpm", "arch", BROWSER_BOX) or name.startswith("banco-"):
+        if name in ("deb", "rpm", "arch", BROWSER_BOX):
             continue
         distro = next((d for d in BOX_DISTROS if d in image or (d == "opensuse" and "tumbleweed" in image)), None)
         if distro:
@@ -115,6 +116,17 @@ def webapps():
         if name and url and "X-Tamagi-WebApp=true" in text:
             apps[name.group(1)] = url.group(1)
     return apps
+
+
+def layers():
+    """Camadas do tamagi-layer: nome -> pacotes pedidos."""
+    found = {}
+    for f in sorted(pathlib.Path("/var/lib/tamagi/layers").glob("*.request")):
+        try:
+            found[f.stem] = f.read_text().split()
+        except OSError:
+            continue
+    return found
 
 
 def tiling():
@@ -141,6 +153,7 @@ def current_state(with_browsers=True):
         "mise": {"ferramentas": [f"{n}@{v}" for n, v in sorted(mise_global().items())]},
         "pacotes": {sub: pkg_list(sub) for sub in ("deb", "rpm", "arch")},
         "caixas": user_boxes(),
+        "camadas": layers(),
         "webapps": webapps(),
         "servicos": {
             "atualizacao_automatica": ok(["systemctl", "--user", "is-enabled", "tamagi-autoupdate.timer"]),
@@ -169,6 +182,7 @@ def to_toml(state):
         "mise": "linguagens e ferramentas globais, como em `mise use -g`",
         "pacotes": "subsistemas do tamagi-pkg (omarchy usa a caixa Arch)",
         "caixas": "nome = distro (fedora, arch, ubuntu, opensuse)",
+        "camadas": "pacotes do Fedora por cima da imagem (tamagi-layer): nome = [pacotes]",
         "webapps": "nome = endereço",
         "servicos": "seguranca: equilibrado ou estrito (estrito pede senha e reinício)",
     }
@@ -208,6 +222,11 @@ def load(path):
             problems.append(f"caixa {name}: distro desconhecida '{distro}'")
         if not re.fullmatch(r"[a-z][a-z0-9_-]*", name):
             problems.append(f"nome de caixa inválido: {name}")
+    for name, pkgs in wanted.get("camadas", {}).items():
+        if not re.fullmatch(r"[a-z][a-z0-9-]{0,39}", name):
+            problems.append(f"nome de camada inválido: {name}")
+        if not (isinstance(pkgs, list) and pkgs and all(isinstance(p, str) and p for p in pkgs)):
+            problems.append(f"camada {name}: precisa ser uma lista de pacotes")
     for name, url in wanted.get("webapps", {}).items():
         if not re.match(r"https?://", str(url)):
             problems.append(f"web app {name}: o endereço precisa começar com http:// ou https://")
@@ -257,6 +276,9 @@ def plan(wanted):
         if not box_exists(name):
             steps.append((f"caixa {name} ({distro})",
                           ["distrobox", "create", "--yes", "--name", name, "--image", images[distro]], False))
+    for name, pkgs in wanted.get("camadas", {}).items():
+        if sorted(now["camadas"].get(name, [])) != sorted(pkgs):
+            steps.append((f"camada {name}: {' '.join(pkgs)}", ["tamagi-layer", "add", name, *pkgs], True))
     for name, url in wanted.get("webapps", {}).items():
         if not (DATA / "applications" / f"webapp-{slug(name)}.desktop").exists():
             steps.append((f"web app: {name}", ["tamagi-webapp", "install", name, str(url)], False))
@@ -278,6 +300,7 @@ def extras(wanted, now):
     listed = {t.partition("@")[0] for t in wanted.get("mise", {}).get("ferramentas", [])}
     found += [f"mise {t}" for t in now["mise"]["ferramentas"] if t.partition("@")[0] not in listed]
     found += [f"caixa {n}" for n in now["caixas"] if n not in wanted.get("caixas", {})]
+    found += [f"camada {n}" for n in now["camadas"] if n not in wanted.get("camadas", {})]
     found += [f"web app {n}" for n in now["webapps"] if n not in wanted.get("webapps", {})]
     return found
 

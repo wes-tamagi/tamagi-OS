@@ -5,3 +5,7 @@ __pycache__/
 # instaladores proprietários (Warsaw) nunca entram no repositório
 *.run
 *.deb
+
+# chave privada de assinatura da imagem: nunca entra no repositório (fica no segredo SIGNING_SECRET)
+cosign.key
+*.key

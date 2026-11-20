@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Brasão do Tamagi: o anel (tamaki) com as três joias (tama). Simbólico:
+       o painel pinta com a cor do texto do tema. -->
+  <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.6a5.4 5.4 0 1 1 0 10.8A5.4 5.4 0 0 1 8 2.6z" fill="#2e3436"/>
+  <circle cx="8" cy="5.5" r="1.55" fill="#2e3436"/>
+  <circle cx="5.75" cy="9.4" r="1.55" fill="#2e3436"/>
+  <circle cx="10.25" cy="9.4" r="1.55" fill="#2e3436"/>
+</svg>

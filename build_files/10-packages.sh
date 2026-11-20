@@ -2,8 +2,9 @@
 # Instala os pacotes de packages.txt e as ferramentas sem pacote no Fedora.
 
 # COPRs só para o build: o que vem deles está marcado em packages.txt.
-#   secureblue/packages                 hardened_malloc
-COPRS=(secureblue/packages)
+#   secureblue/packages                        hardened_malloc
+#   championpeak87/cosmic-ext-classic-menu     menu iniciar ancorado ao botão
+COPRS=(secureblue/packages championpeak87/cosmic-ext-classic-menu)
 for copr in "${COPRS[@]}"; do dnf5 -y copr enable "$copr"; done
 
 mapfile -t PACKAGES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' /ctx/build_files/packages.txt | grep -v '^$')

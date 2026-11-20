@@ -9,6 +9,9 @@ rm -f /usr/lib/greenboot/check/required.d/01_repository_dns_check.sh \
       /usr/lib/greenboot/check/required.d/02_watchdog.sh \
       /usr/lib/greenboot/check/wanted.d/01_update_platforms_check.sh
 
+# Camadas do tamagi-layer (/var/lib/extensions) entram no /usr a cada boot.
+systemctl enable systemd-sysext.service
+
 # Virtualização: os daemons do libvirt sobem por socket, só quando usados.
 systemctl enable virtqemud.socket virtnetworkd.socket virtstoraged.socket \
     virtnodedevd.socket virtsecretd.socket virtinterfaced.socket virtlogd.socket

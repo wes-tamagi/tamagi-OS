@@ -1,0 +1,342 @@
+#!/usr/bin/python3
+"""tamagi-app — cria um aplicativo e o instala como Flatpak, só para o seu usuário.
+
+    tamagi-app new <nome> [--titulo "Título"]   cria o projeto em ~/Aplicativos/<nome>
+    tamagi-app build [pasta]                    empacota (sem instalar)
+    tamagi-app install [pasta] [-y]             mostra as permissões, pergunta e instala
+    tamagi-app run [pasta]                      abre o app instalado
+    tamagi-app remove [pasta|id]                desinstala
+    tamagi-app list                             apps criados com o tamagi-app
+    tamagi-app perms [pasta]                    só mostra as permissões pedidas
+
+Feito para agentes de IA (e para você): o app nasce isolado do sistema, não
+pede senha, não toca na imagem e sai com um comando. O que ele pode acessar
+(rede, arquivos, dispositivos) está escrito em `app.toml`, e o `install`
+mostra essa lista em português antes de instalar.
+
+O projeto é uma pasta com:
+    app.toml     id, nome, comando, runtime e permissoes
+    src/         o código (main.py: Python + GTK4/libadwaita, sem compilar)
+    icone.svg    o ícone
+O runtime (org.gnome.Platform) já traz Python, GTK4 e libadwaita. Não é preciso
+SDK nem flatpak-builder: o código é copiado como está.
+"""
+import argparse
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+import tomllib
+
+HOME = pathlib.Path.home()
+APPS = pathlib.Path(os.environ.get("TAMAGI_APPS", HOME / "Aplicativos"))
+DATA = pathlib.Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share")) / "tamagi"
+REPO = DATA / "apps-repo"
+REMOTE = "tamagi-apps"
+PREFIX = "local.tamagi."
+RUNTIME = "org.gnome.Platform"
+
+# O que cada permissão significa, e quais pedem atenção (!).
+PERMS = [
+    (r"--share=network", "!", "acessar a internet e a rede local"),
+    (r"--filesystem=(host|host-os|host-etc)(:.*)?", "!", "ler e gravar em quase todos os seus arquivos e nos do sistema"),
+    (r"--filesystem=home(:ro)?", "!", "acessar toda a sua pasta pessoal"),
+    (r"--filesystem=(.+):ro", " ", "ler a pasta {0}"),
+    (r"--filesystem=(.+)", "!", "ler e gravar na pasta {0}"),
+    (r"--device=all", "!", "usar todos os dispositivos (câmera, USB, controles…)"),
+    (r"--device=dri", " ", "usar a placa de vídeo"),
+    (r"--device=(.+)", "!", "usar o dispositivo {0}"),
+    (r"--socket=wayland", " ", "mostrar janelas"),
+    (r"--socket=(fallback-x11|x11)", " ", "mostrar janelas (X11)"),
+    (r"--socket=pulseaudio", " ", "tocar e gravar áudio"),
+    (r"--socket=session-bus", "!", "falar com qualquer programa da sua sessão (sai do isolamento)"),
+    (r"--socket=system-bus", "!", "falar com qualquer serviço do sistema (sai do isolamento)"),
+    (r"--socket=(.+)", "!", "usar o socket {0}"),
+    (r"--share=ipc", " ", "memória compartilhada com o servidor gráfico"),
+    (r"--talk-name=org\.freedesktop\.Flatpak", "!", "rodar comandos fora do isolamento"),
+    (r"--talk-name=(.+)", " ", "falar com o serviço {0}"),
+    (r"--system-talk-name=(.+)", "!", "falar com o serviço de sistema {0}"),
+    (r"--own-name=(.+)", " ", "registrar o nome {0} na sessão"),
+    (r"--env=(.+)", " ", "variável de ambiente {0}"),
+    (r"--persist=(.+)", " ", "guardar dados em {0} (dentro da área do app)"),
+]
+ALLOWED = re.compile(r"--(share|socket|device|filesystem|talk-name|system-talk-name|own-name|env|persist)=[^\s;|&`$]+")
+
+MAIN_PY = '''#!/usr/bin/python3
+"""{title} — criado com tamagi-app."""
+import sys
+
+import gi
+
+gi.require_version("Gtk", "4.0")
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gtk  # noqa: E402
+
+APP_ID = "{app_id}"
+
+
+class Window(Adw.ApplicationWindow):
+    def __init__(self, app):
+        super().__init__(application=app, title="{title}", default_width=480, default_height=360)
+        view = Adw.ToolbarView()
+        view.add_top_bar(Adw.HeaderBar())
+        page = Adw.StatusPage(title="{title}", description="Edite src/main.py e rode: tamagi-app install")
+        button = Gtk.Button(label="Olá", halign=Gtk.Align.CENTER, css_classes=["pill", "suggested-action"])
+        button.connect("clicked", lambda _b: page.set_description("Funcionou."))
+        page.set_child(button)
+        view.set_content(page)
+        self.set_content(view)
+
+
+def main():
+    app = Adw.Application(application_id=APP_ID)
+    app.connect("activate", lambda a: Window(a).present())
+    return app.run(sys.argv)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+'''
+
+ICON = '''<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="#16211c"/>
+  <circle cx="64" cy="64" r="34" fill="none" stroke="#f2c14e" stroke-width="9"/>
+  <circle cx="64" cy="64" r="11" fill="#8fc98a"/>
+</svg>
+'''
+
+
+def die(msg, code=1):
+    print(f"tamagi-app: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def run(cmd, **kw):
+    return subprocess.run(cmd, **kw)
+
+
+def flatpak(*args, quiet=True):
+    r = run(["flatpak", *args], capture_output=quiet, text=True)
+    if r.returncode != 0:
+        die(f"flatpak {' '.join(args[:2])} falhou:\n{(r.stderr or r.stdout or '').strip()}")
+    return r.stdout if quiet else ""
+
+
+# ── Projeto ─────────────────────────────────────────────────────────────────
+
+def project(path):
+    """Lê e valida app.toml. Devolve (pasta, dados)."""
+    folder = pathlib.Path(path or ".").expanduser().resolve()
+    if not (folder / "app.toml").is_file() and (APPS / str(path or "")).joinpath("app.toml").is_file():
+        folder = (APPS / path).resolve()
+    conf = folder / "app.toml"
+    if not conf.is_file():
+        die(f"não achei app.toml em {folder}. Crie um projeto com: tamagi-app new <nome>")
+    try:
+        data = tomllib.loads(conf.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as e:
+        die(f"{conf} não é TOML válido: {e}")
+    problems = []
+    app_id = str(data.get("id", ""))
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*){2,}", app_id):
+        problems.append("id precisa ser no formato a.b.c (ex.: local.tamagi.notas)")
+    if not str(data.get("nome", "")).strip() or "\n" in str(data.get("nome", "")):
+        problems.append("nome é obrigatório (uma linha)")
+    if not re.fullmatch(r"[a-z][a-z0-9-]*", str(data.get("comando", ""))):
+        problems.append("comando precisa ser minúsculo, com letras, números e hífen")
+    if not re.fullmatch(r"[A-Za-z0-9_.]+", str(data.get("runtime", RUNTIME))):
+        problems.append("runtime inválido")
+    perms = data.get("permissoes", [])
+    if not isinstance(perms, list) or not all(isinstance(p, str) for p in perms):
+        problems.append("permissoes precisa ser uma lista de textos")
+    else:
+        problems += [f"permissão não aceita: {p}" for p in perms if not ALLOWED.fullmatch(p)]
+    if not (folder / "src" / "main.py").is_file():
+        problems.append("falta src/main.py")
+    if problems:
+        die("erro em app.toml:\n  " + "\n  ".join(problems))
+    data.setdefault("runtime", RUNTIME)
+    data.setdefault("permissoes", [])
+    return folder, data
+
+
+def describe(perm):
+    for pattern, mark, text in PERMS:
+        m = re.fullmatch(pattern, perm)
+        if m:
+            return mark, text.format(*(m.groups() or [""]))
+    return "!", perm
+
+
+def show_perms(data):
+    """Imprime as permissões; devolve quantas pedem atenção."""
+    perms = data["permissoes"]
+    print(f"{data['nome']} ({data['id']}) pede para:")
+    risky = 0
+    if not perms:
+        print("    nada além de rodar isolado (sem janelas, rede ou arquivos)")
+    for p in perms:
+        mark, text = describe(p)
+        risky += mark == "!"
+        print(f"  {mark} {text:<62} {p}")
+    if risky:
+        print(f"\n  ! = sai do isolamento ou alcança dados seus ({risky}). Confira se o app precisa mesmo.")
+    return risky
+
+
+def runtime_branch(runtime):
+    """A versão mais nova do runtime que já está instalada."""
+    out = run(["flatpak", "list", "--runtime", "--columns=application,branch"], capture_output=True, text=True).stdout
+    found = [line.split()[1] for line in out.splitlines() if line.split()[:1] == [runtime] and len(line.split()) > 1]
+    if not found:
+        die(f"o runtime {runtime} não está instalado. Instale com: flatpak install flathub {runtime}")
+    key = lambda v: [int(x) if x.isdigit() else 0 for x in re.split(r"\D+", v)]
+    return sorted(found, key=key)[-1]
+
+
+# ── Comandos ────────────────────────────────────────────────────────────────
+
+def cmd_new(args):
+    name = args.nome
+    if not re.fullmatch(r"[a-z][a-z0-9-]{1,30}", name):
+        die("nome: letras minúsculas, números e hífen (ex.: notas, meu-app)")
+    folder = APPS / name
+    if folder.exists():
+        die(f"{folder} já existe")
+    title = args.titulo or name.replace("-", " ").capitalize()
+    if '"' in title or "\n" in title or "\\" in title:
+        die("o título não pode ter aspas, barra invertida nem quebra de linha")
+    app_id = PREFIX + re.sub(r"-(\w)", lambda m: m.group(1).upper(), name)
+    (folder / "src").mkdir(parents=True)
+    (folder / "app.toml").write_text(
+        f'# Projeto do tamagi-app. Depois de editar: tamagi-app install\n'
+        f'id = "{app_id}"\n'
+        f'nome = "{title}"\n'
+        f'comando = "{name}"\n'
+        f'descricao = "Criado com tamagi-app"\n'
+        f'runtime = "{RUNTIME}"\n'
+        f'# Só o necessário para abrir uma janela. Acrescente com parcimônia:\n'
+        f'#   "--share=network"            internet\n'
+        f'#   "--filesystem=xdg-documents" a pasta Documentos (":ro" = só leitura)\n'
+        f'#   "--socket=pulseaudio"        áudio\n'
+        f'permissoes = ["--socket=wayland", "--socket=fallback-x11", "--share=ipc", "--device=dri"]\n',
+        encoding="utf-8")
+    (folder / "src" / "main.py").write_text(MAIN_PY.format(title=title, app_id=app_id), encoding="utf-8")
+    (folder / "icone.svg").write_text(ICON, encoding="utf-8")
+    print(f"Projeto criado em {folder}")
+    print(f"  editar:   {folder}/src/main.py")
+    print(f"  instalar: tamagi-app install {name}")
+
+
+def build(folder, data):
+    app_id, command = data["id"], data["comando"]
+    branch = runtime_branch(data["runtime"])
+    work = folder / ".build"
+    shutil.rmtree(work, ignore_errors=True)
+    app = work / "app"
+    # O "SDK" é o próprio runtime: nada é compilado, o código é copiado como está.
+    flatpak("build-init", str(app), app_id, data["runtime"], data["runtime"], branch)
+    files = app / "files"
+    share = files / "share" / command
+    shutil.copytree(folder / "src", share, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    launcher = files / "bin" / command
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text(f'#!/bin/sh\nexec python3 /app/share/{command}/main.py "$@"\n')
+    launcher.chmod(0o755)
+    desktop = files / "share/applications" / f"{app_id}.desktop"
+    desktop.parent.mkdir(parents=True)
+    comment = str(data.get("descricao", "")).replace("\n", " ")
+    desktop.write_text(
+        f"[Desktop Entry]\nType=Application\nName={data['nome']}\nComment={comment}\n"
+        f"Exec={command}\nIcon={app_id}\nTerminal=false\nCategories=Utility;\nX-Tamagi-App=true\n",
+        encoding="utf-8")
+    icon = folder / "icone.svg"
+    if icon.is_file():
+        target = files / "share/icons/hicolor/scalable/apps" / f"{app_id}.svg"
+        target.parent.mkdir(parents=True)
+        shutil.copy(icon, target)
+    flatpak("build-finish", str(app), f"--command={command}", *data["permissoes"])
+    REPO.parent.mkdir(parents=True, exist_ok=True)
+    flatpak("build-export", str(REPO), str(app))
+    shutil.rmtree(work, ignore_errors=True)
+    return branch
+
+
+def cmd_build(args):
+    folder, data = project(args.pasta)
+    branch = build(folder, data)
+    print(f"Empacotado: {data['id']} (runtime {data['runtime']} {branch}) em {REPO}")
+
+
+def cmd_perms(args):
+    _, data = project(args.pasta)
+    show_perms(data)
+
+
+def cmd_install(args):
+    folder, data = project(args.pasta)
+    risky = show_perms(data)
+    if not args.yes:
+        if not sys.stdin.isatty():
+            die("rode num terminal para confirmar as permissões, ou use -y", 2)
+        question = "Instalar mesmo assim? [s/N] " if risky else "Instalar? [s/N] "
+        if input("\n" + question).strip().lower() not in ("s", "sim"):
+            sys.exit("Nada foi instalado.")
+    build(folder, data)
+    flatpak("--user", "remote-add", "--if-not-exists", "--no-gpg-verify", REMOTE, str(REPO))
+    flatpak("--user", "install", "-y", "--noninteractive", "--reinstall", REMOTE, data["id"])
+    print(f"\nInstalado só para você: {data['nome']}. Abrir: tamagi-app run {folder.name}  (ou pelo menu)")
+    print(f"Remover: tamagi-app remove {folder.name}")
+
+
+def installed():
+    out = run(["flatpak", "--user", "list", "--app", "--columns=application,origin"], capture_output=True, text=True).stdout
+    return [line.split()[0] for line in out.splitlines() if line.split()[1:2] == [REMOTE]]
+
+
+def cmd_run(args):
+    _, data = project(args.pasta)
+    os.execvp("flatpak", ["flatpak", "run", data["id"]])
+
+
+def cmd_remove(args):
+    target = args.alvo or "."
+    app_id = target if re.fullmatch(r"[A-Za-z][\w]*(\.[A-Za-z][\w]*){2,}", target) else project(target)[1]["id"]
+    if app_id not in installed():
+        die(f"{app_id} não está instalado pelo tamagi-app")
+    flatpak("--user", "uninstall", "-y", "--noninteractive", "--delete-data", app_id)
+    print(f"Removido: {app_id} (o projeto continua na pasta)")
+
+
+def cmd_list(_args):
+    apps = installed()
+    if not apps:
+        print("Nenhum app instalado pelo tamagi-app. Comece com: tamagi-app new <nome>")
+    for app_id in apps:
+        print(app_id)
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="tamagi-app", description="Cria um app e instala como Flatpak, só para você.")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("new", help="cria um projeto")
+    p.add_argument("nome")
+    p.add_argument("--titulo")
+    for name, text in (("build", "empacota"), ("perms", "mostra as permissões"), ("run", "abre o app")):
+        p = sub.add_parser(name, help=text)
+        p.add_argument("pasta", nargs="?")
+    p = sub.add_parser("install", help="mostra as permissões, pergunta e instala")
+    p.add_argument("pasta", nargs="?")
+    p.add_argument("-y", "--yes", action="store_true", help="não pergunta")
+    p = sub.add_parser("remove", help="desinstala")
+    p.add_argument("alvo", nargs="?")
+    sub.add_parser("list", help="apps instalados pelo tamagi-app")
+    args = parser.parse_args()
+    {"new": cmd_new, "build": cmd_build, "perms": cmd_perms, "install": cmd_install,
+     "run": cmd_run, "remove": cmd_remove, "list": cmd_list}[args.cmd](args)
+
+
+if __name__ == "__main__":
+    main()

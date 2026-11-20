@@ -36,9 +36,6 @@ Disco criptografado	Disque chiffré
 Depois: ujust setup-luks-tpm-unlock	Plus tard : ujust setup-luks-tpm-unlock
 IA local (llama.cpp)	IA locale (llama.cpp)
 Depois: tamagi-ai setup	Plus tard : tamagi-ai setup
-Internet banking (Warsaw)	Banque en ligne (Warsaw)
-O módulo de segurança dos bancos roda dentro da caixa dos navegadores.	Le module de sécurité des banques fonctionne dans la boîte des navigateurs.
-Depois: ujust warsaw ligar	Plus tard : ujust warsaw ligar
 Pronto	Terminé
 Super+K mostra os atalhos · Super+A ações rápidas · Super+Alt+Espaço abre o menu.	Super+K affiche les raccourcis · Super+A actions rapides · Super+Alt+Espace ouvre le menu.
 Jogos: ujust setup-gaming · Segurança: tamagi-harden status · Idioma: tamagi-lang pick	Jeux : ujust setup-gaming · Sécurité : tamagi-harden status · Langue : tamagi-lang pick
@@ -46,7 +43,6 @@ qualquer tecla fecha	une touche pour fermer
 Preparar o Chrome agora?	Préparer Chrome maintenant ?
 Desbloquear o disco pelo chip TPM no boot, sem digitar a senha?	Déverrouiller le disque avec la puce TPM au démarrage, sans saisir le mot de passe ?
 Baixar um modelo agora? (o download pode levar alguns minutos)	Télécharger un modèle maintenant ? (le téléchargement peut prendre quelques minutes)
-Instalar e ligar o Warsaw agora? (exige aceitar a licença da Topaz)	Installer et activer Warsaw maintenant ? (exige d'accepter la licence de Topaz)
 qualquer tecla continua	une touche pour continuer
 Formato	Format
 nome do pacote ou caminho do arquivo	nom du paquet ou chemin du fichier
@@ -86,7 +82,6 @@ Segurança (endurecimento)	Sécurité (durcissement)
 Limpar espaço	Libérer de l'espace
 Informações da máquina	Informations sur la machine
 Refazer a configuração inicial	Refaire la configuration initiale
-Abrir o modo banco (descartável)	Ouvrir le mode banque (jetable)
 Desligar	Éteindre
 Bloquear	Verrouiller
 Suspender	Mettre en veille
@@ -96,14 +91,11 @@ Instalar	Installer
 IA local	IA locale
 Atalhos	Raccourcis
 Sistema	Système
-Internet banking	Banque en ligne
 Energia	Alimentation
 Sair	Quitter
 IA	IA
 Tamagi	Tamagi
 idioma desconhecido	langue inconnue
 vale no próximo login (saia da sessão e entre de novo).	prend effet à la prochaine connexion (fermez la session et reconnectez-vous).
-Ligar o Warsaw	Activer Warsaw
-Desligar o Warsaw	Désactiver Warsaw
 Tema aplicado	Thème appliqué
 ↑↓ escolher · Enter confirma · Esc volta	↑↓ choisir · Entrée valide · Échap revient
