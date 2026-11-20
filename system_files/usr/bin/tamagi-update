@@ -1,32 +1,74 @@
 #!/usr/bin/bash
-# tamagi-update — um comando para atualizar tudo (o "omarchy update" do Tamagi).
+# tamagi-update — um comando para atualizar tudo (sistema, Flatpaks, caixas, mise).
 #
-#   tamagi-update            sistema + Flatpaks + subsistemas/caixas + mise
-#   tamagi-update --arch     só pacotes do Arch (pacman e AUR)
-#   tamagi-update --system   só a imagem do sistema
-#   tamagi-update status     o que se atualiza sozinho e quando
-#   tamagi-update auto off   desliga (on religa) a atualização automática
-#
-# Sozinho, todo dia: a imagem do sistema (baixada e preparada, entra no próximo
-# boot), os Flatpaks, e — pelo tamagi-autoupdate.timer — as caixas e o mise.
-#
-# A imagem do sistema também se atualiza sozinha em segundo plano; aqui você
-# só antecipa. A troca é atômica: vale no próximo boot, e a versão anterior
-# fica guardada (ujust rollback).
+#   tamagi-update              sistema + Flatpaks + subsistemas/caixas + mise
+#   tamagi-update --arch       só pacotes do Arch (pacman e AUR)
+#   tamagi-update --system     só a imagem do sistema
+#   tamagi-update status       timers automáticos e digests em quarentena
+#   tamagi-update auto on|off  liga ou desliga a atualização automática
+#   tamagi-update quarantine   mostra digests bloqueados após falha de boot
+#   tamagi-update unquarantine limpa a quarentena de digests
 set -uo pipefail
+# shellcheck source=/dev/null
+. /usr/libexec/tamagi/i18n
 
-step() { echo; echo -e "\033[1;34m── $*\033[0m"; }
+QUARANTINE="${TAMAGI_QUARANTINE:-/var/lib/tamagi/quarantine.list}"
+
+step() { echo; echo -e "\033[1;34m── $(t "$1")\033[0m"; }
 failed=()
+
+staged_digest() {
+    local d=""
+    if command -v bootc >/dev/null 2>&1; then
+        d=$(bootc status --format json 2>/dev/null \
+            | jq -r '.status.staged.image.imageDigest // empty' 2>/dev/null || true)
+    fi
+    if [[ -z $d ]] && command -v rpm-ostree >/dev/null 2>&1; then
+        d=$(rpm-ostree status --json 2>/dev/null \
+            | jq -r '.deployments[] | select(.staged == true) | ."base-commit-meta"."ostree.manifest-digest" // .checksum // empty' 2>/dev/null | head -1 || true)
+    fi
+    echo "$d"
+}
+
+is_quarantined() {
+    local d=${1:-}
+    [[ -n $d && -r $QUARANTINE ]] && grep -qxF "$d" "$QUARANTINE"
+}
+
+quarantine_count() {
+    [[ -r $QUARANTINE ]] || { echo 0; return; }
+    grep -cvE '^(#|[[:space:]]*$)' "$QUARANTINE" 2>/dev/null || echo 0
+}
+
+guard_staged_quarantine() { # se uma imagem em quarentena foi preparada, cancela o stage
+    local d
+    d=$(staged_digest)
+    if is_quarantined "$d"; then
+        echo "$(t "Digest em quarentena detectado; atualização cancelada"): $d"
+        if [[ $(id -u) == 0 ]]; then
+            rpm-ostree cleanup -p >/dev/null 2>&1 || true
+        else
+            sudo -n rpm-ostree cleanup -p >/dev/null 2>&1 || true
+        fi
+        notify-send -a Tamagi -i dialog-warning "$(t "Atualização bloqueada pela quarentena")" \
+            "$(t "A imagem disponível é a mesma que falhou no boot anterior. Aguardando nova versão.")" 2>/dev/null || true
+        return 1
+    fi
+    return 0
+}
 
 update_system() {
     step "Sistema (imagem atômica)"
     if sudo bootc upgrade; then
+        if ! guard_staged_quarantine; then
+            return 0
+        fi
         if bootc status --format json 2>/dev/null | jq -e '.status.staged != null' >/dev/null 2>&1; then
-            echo "Nova imagem pronta: entra em uso no próximo boot."
+            tl "Nova imagem pronta: entra em uso no próximo boot."
         fi
     else
-        echo "Não consegui atualizar a imagem. Se ela foi instalada de um build local, publique-a"
-        echo "num registry e aponte o sistema para lá: sudo bootc switch <registry>/tamagi:latest"
+        tl "Não consegui atualizar a imagem. Se ela foi instalada de um build local, publique-a"
+        echo "  sudo bootc switch <registry>/tamagi:latest"
         failed+=(sistema)
     fi
 }
@@ -52,17 +94,17 @@ update_arch() {
     local box found=0
     for box in $(arch_boxes); do
         found=1
-        step "Arch ($box): pacman"
+        echo; echo -e "\033[1;34m── Arch ($box): pacman\033[0m"
         distrobox enter "$box" -- sudo pacman -Syu --noconfirm || failed+=("arch:$box")
         if distrobox enter "$box" -- sh -c 'command -v paru' >/dev/null 2>&1; then
-            step "Arch ($box): AUR (paru)"
+            echo; echo -e "\033[1;34m── Arch ($box): AUR (paru)\033[0m"
             distrobox enter "$box" -- paru -Sua --noconfirm || failed+=("aur:$box")
         elif distrobox enter "$box" -- sh -c 'command -v yay' >/dev/null 2>&1; then
-            step "Arch ($box): AUR (yay)"
+            echo; echo -e "\033[1;34m── Arch ($box): AUR (yay)\033[0m"
             distrobox enter "$box" -- yay -Sua --noconfirm || failed+=("aur:$box")
         fi
     done
-    (( found )) || echo "Nenhuma caixa Arch. Crie com: tamagi-pkg install --arch <pacote>  ou  ujust devbox arch"
+    (( found )) || tl "Nenhuma caixa Arch. Crie com: tamagi-pkg install --arch <pacote>  ou  ujust devbox arch"
 }
 
 on_battery() { # só a bateria do computador conta: a de mouse, teclado ou fone sem fio (scope=Device) não
@@ -76,41 +118,74 @@ on_battery() { # só a bateria do computador conta: a de mouse, teclado ou fone 
 }
 
 update_auto() { # chamado pelo tamagi-autoupdate.timer: sem perguntas e sem senha
-    if on_battery; then echo "Na bateria: fica para a próxima."; return 0; fi
+    if on_battery; then tl "Na bateria: fica para a próxima."; return 0; fi
     local box
     for box in $(all_boxes); do
-        step "Caixa $box"
+        echo; echo -e "\033[1;34m── $(t "Caixa") $box\033[0m"
         distrobox upgrade "$box" </dev/null || failed+=("caixa:$box")
     done
     if command -v mise >/dev/null 2>&1 && [[ -n $(mise ls --installed 2>/dev/null) ]]; then
         step "Runtimes (mise)"
         mise upgrade --yes </dev/null || failed+=(mise)
     fi
+    # Protege contra re-instalação de um digest que já falhou no greenboot.
+    if ! guard_staged_quarantine; then
+        return 0
+    fi
     # A imagem nova é baixada pelo sistema em segundo plano; aqui só o aviso.
     if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
-        notify-send -a Tamagi -i system-software-update "Atualização do sistema pronta" \
-            "Ela entra em uso quando você reiniciar o computador." 2>/dev/null || true
+        notify-send -a Tamagi -i system-software-update "$(t "Atualização do sistema pronta")" \
+            "$(t "Ela entra em uso quando você reiniciar o computador.")" 2>/dev/null || true
     fi
 }
 
 timer_line() { # timer_line <rótulo> [--user] <unit>
-    local label=$1 scope=() unit; shift
+    local label=$1 scope=() unit next_word; shift
     [[ $1 == --user ]] && { scope=(--user); shift; }
     unit=$1
-    printf '%-34s %-9s próxima: %s\n' "$label" \
-        "$(systemctl "${scope[@]}" is-enabled "$unit" 2>/dev/null || echo ausente)" \
+    next_word=$(t "próxima")
+    printf '%-36s %-9s %s: %s\n' "  $(t "$label")" \
+        "$(systemctl "${scope[@]}" is-enabled "$unit" 2>/dev/null || t "ausente")" \
+        "$next_word" \
         "$(systemctl "${scope[@]}" show "$unit" -p NextElapseUSecRealtime --value 2>/dev/null | sed 's/^$/-/')"
 }
 
 status_auto() {
-    echo "Atualização automática:"
-    timer_line "  Sistema (imagem, entra no boot)" rpm-ostreed-automatic.timer
-    timer_line "  Flatpaks do sistema" flatpak-system-update.timer
-    timer_line "  Flatpaks do usuário" --user flatpak-user-update.timer
-    timer_line "  Subsistemas e mise" --user tamagi-autoupdate.timer
-    if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
-        echo "Há uma imagem nova pronta: reinicie para usar."
+    echo "$(t "Atualização automática"):"
+    timer_line "Sistema (imagem, entra no boot)" rpm-ostreed-automatic.timer
+    timer_line "Flatpaks do sistema" flatpak-system-update.timer
+    timer_line "Flatpaks do usuário" --user flatpak-user-update.timer
+    timer_line "Subsistemas e mise" --user tamagi-autoupdate.timer
+    local qcount
+    qcount=$(quarantine_count)
+    if (( qcount > 0 )); then
+        echo "$(t "Digests em quarentena"): $qcount (tamagi-update quarantine)"
     fi
+    if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
+        tl "Há uma imagem nova pronta: reinicie para usar."
+    fi
+}
+
+cmd_quarantine() {
+    if [[ ! -r $QUARANTINE ]] || (( $(quarantine_count) == 0 )); then
+        tl "Nenhum digest em quarentena."
+        return 0
+    fi
+    echo "$(t "Digests em quarentena") ($QUARANTINE):"
+    grep -vE '^(#|[[:space:]]*$)' "$QUARANTINE" | sed 's/^/  /'
+}
+
+cmd_unquarantine() {
+    if [[ ! -e $QUARANTINE ]]; then
+        tl "Nenhum digest em quarentena."
+        return 0
+    fi
+    if [[ $(id -u) == 0 ]]; then
+        rm -f "$QUARANTINE"
+    else
+        sudo rm -f "$QUARANTINE"
+    fi
+    tl "Quarentena limpa."
 }
 
 set_auto() { # set_auto on|off
@@ -122,11 +197,13 @@ set_auto() { # set_auto on|off
 }
 
 case "${1:-all}" in
-    --arch)   update_arch ;;
-    --system) update_system ;;
-    --auto)   update_auto ;;
-    status)   status_auto; exit 0 ;;
-    auto)     case "${2:-}" in on|off) set_auto "$2"; exit 0 ;; *) echo "uso: tamagi-update auto on|off" >&2; exit 2 ;; esac ;;
+    --arch)       update_arch ;;
+    --system)     update_system ;;
+    --auto)       update_auto ;;
+    status)       status_auto; exit 0 ;;
+    quarantine)   cmd_quarantine; exit 0 ;;
+    unquarantine) cmd_unquarantine; exit 0 ;;
+    auto)         case "${2:-}" in on|off) set_auto "$2"; exit 0 ;; *) echo "usage: tamagi-update auto on|off" >&2; exit 2 ;; esac ;;
     all)
         update_system
         update_layers
@@ -144,12 +221,12 @@ case "${1:-all}" in
             mise upgrade || failed+=(mise)
         fi
         ;;
-    *) echo "uso: tamagi-update [--arch|--system|status|auto on|off]" >&2; exit 2 ;;
+    *) echo "usage: tamagi-update [--arch|--system|status|quarantine|unquarantine|auto on|off]" >&2; exit 2 ;;
 esac
 
 echo
 if (( ${#failed[@]} )); then
-    echo "Terminou com falhas em: ${failed[*]}"
+    echo "$(t "Terminou com falhas em"): ${failed[*]}"
     exit 1
 fi
-echo "Tudo atualizado."
+tl "Tudo atualizado."

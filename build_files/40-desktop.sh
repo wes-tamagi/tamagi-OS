@@ -65,7 +65,7 @@ import sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read().rstrip()
 assert text.endswith("]"), "tiling_exception_defaults mudou de formato"
-text = text[:-1].rstrip() + '\n\t// Tamagi\n\t(appid: "tamagi-popup", titles: [".*"]),\n\t(appid: "zenity", titles: [".*"]),\n]\n'
+text = text[:-1].rstrip() + '\n\t// Tamagi\n\t(appid: "tamagi-popup", titles: [".*"]),\n\t(appid: "org.tamagi.Menu", titles: [".*"]),\n\t(appid: "zenity", titles: [".*"]),\n]\n'
 open(path, "w", encoding="utf-8").write(text)
 PY
 
@@ -192,14 +192,14 @@ popup = "/usr/libexec/tamagi/popup"
 ours = [
     ("[Super]", "Return", "System(Terminal)"),
     ("[Super]", "w", "Close"),
-    ("[Super]", "space", "System(Launcher)"),
+    ("[Super]", "space", 'Spawn("tamagi-menu")'),
     ("[Super, Ctrl]", "space", "System(InputSourceSwitch)"),
     ("[Super]", "b", "System(WebBrowser)"),
     ("[Super]", "e", "System(HomeFolder)"),
     ("[Super]", "f", "Fullscreen"),
     ("[Super]", "t", "ToggleWindowFloating"),
     ("[Super]", "a", f'Spawn("{popup} tamagi-assist")'),
-    ("[Super, Alt]", "space", f'Spawn("{popup} tamagi-menu")'),
+    ("[Super, Alt]", "space", "System(Launcher)"),
     ("[Super, Shift]", "a", f'Spawn("{popup} tamagi-agent")'),
     ("[Super]", "k", f'Spawn("{popup} tamagi-keys")'),
     ("[Super, Shift]", "t", f'Spawn("{popup} btop")'),

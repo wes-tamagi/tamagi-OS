@@ -49,7 +49,8 @@ lint:
         shellcheck -x -S warning build_files/*.sh tests/*.sh live/*.sh live/tik/modules/*/* \
             system_files/etc/profile.d/tamagi.sh \
             $(grep -lE "^#!/usr/bin/(env )?bash" system_files/usr/bin/* system_files/usr/libexec/tamagi/* live/files/usr/libexec/*) \
-        && python3 -c "import ast; ast.parse(open(\"system_files/usr/bin/tamagi-agent\").read())" \
+        && python3 -c "import ast; [ast.parse(open(p).read()) for p in ('system_files/usr/bin/tamagi-agent', 'system_files/usr/bin/tamagi-menu', 'system_files/usr/bin/tamagi')]" \
+        && python3 tests/i18n-strings.py system_files --check \
         && echo "lint ok"'
 
 # ── Instalador: ISO live com o tik + bootc (tudo rootless, sem sudo) ──────

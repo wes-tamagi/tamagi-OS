@@ -68,7 +68,7 @@ step "Linguagens e ferramentas (mise)"
 tl "O mise é o gerenciador padrão de linguagens e ferramentas de desenvolvimento:"
 tl "instala no seu usuário, troca de versão por pasta de projeto e se atualiza sozinho."
 langs=$(gum choose --no-limit --header "$(t "Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)")" \
-    "node@lts" "python@latest" "go@latest" "rust@latest" "java@lts" "bun@latest" "deno@latest") || langs=""
+    "rust@latest" "node@lts" "python@latest" "go@latest" "java@lts" "bun@latest" "deno@latest") || langs=""
 if [[ -n $langs ]]; then
     # shellcheck disable=SC2086
     mise use -g $langs || tl "Não deu agora (sem rede?). Depois: mise use -g node@lts"
@@ -99,6 +99,6 @@ fi
 mkdir -p "$(dirname "$STAMP")"
 touch "$STAMP"
 step "Pronto"
-tl "Super+K mostra os atalhos · Super+A ações rápidas · Super+Alt+Espaço abre o menu."
+tl "Super+Espaço abre o menu · Super+K mostra os atalhos · Super+A ações rápidas."
 tl "Jogos: ujust setup-gaming · Segurança: tamagi-harden status · Idioma: tamagi-lang pick"
 read -rsn1 -p "  ($(t "qualquer tecla fecha"))"

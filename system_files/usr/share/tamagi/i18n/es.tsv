@@ -99,3 +99,72 @@ idioma desconhecido	idioma desconocido
 vale no próximo login (saia da sessão e entre de novo).	se aplica en el próximo inicio de sesión (cierre la sesión y vuelva a entrar).
 Tema aplicado	Tema aplicado
 ↑↓ escolher · Enter confirma · Esc volta	↑↓ elegir · Enter confirma · Esc vuelve
+Super+Espaço abre o menu · Super+K mostra os atalhos · Super+A ações rápidas.	Super+Espacio abre el menú · Super+K muestra atajos · Super+A acciones rápidas.
+ex.: rust@latest, node@lts, python@3.13, go	ej.: rust@latest, node@lts, python@3.13, go
+erro	error
+Esta máquina	Este equipo
+não achei um arquivo .gguf	no se encontró un archivo .gguf
+Já instalado	Ya instalado
+Baixando	Descargando
+preset desconhecido	preajuste desconocido
+Nenhum modelo instalado. Rode: tamagi-ai setup	Ningún modelo instalado. Ejecute: tamagi-ai setup
+modelo não está instalado	el modelo no está instalado
+Modelo padrão	Modelo predeterminado
+Removido	Eliminado
+Qual modelo instalar?	¿Qué modelo instalar?
+nenhum modelo escolhido	ningún modelo elegido
+qual a versão do kernel e quanto de disco livre eu tenho?	¿qué versión del kernel tengo y cuánto espacio libre hay en disco?
+o llama-server não respondeu; veja 'tamagi-ai logs'	llama-server no respondió; revise 'tamagi-ai logs'
+Servidor	Servidor
+Modelo	Modelo
+nenhum — rode 'tamagi-ai setup'	ninguno — ejecute 'tamagi-ai setup'
+Contexto	Contexto
+Modelos	Modelos
+Memória	Memoria
+Carregados	Cargados
+Digest em quarentena detectado; atualização cancelada	Digest en cuarentena detectado; actualización cancelada
+Atualização bloqueada pela quarentena	Actualización bloqueada por cuarentena
+A imagem disponível é a mesma que falhou no boot anterior. Aguardando nova versão.	La imagen disponible es la misma que falló en el arranque anterior. Esperando una nueva versión.
+Sistema (imagem atômica)	Sistema (imagen atómica)
+Nova imagem pronta: entra em uso no próximo boot.	Nueva imagen lista: se aplicará en el próximo arranque.
+Não consegui atualizar a imagem. Se ela foi instalada de um build local, publique-a	No se pudo actualizar la imagen. Si se instaló desde un build local, publíquela primero
+Camadas sobre a imagem (tamagi-layer)	Capas sobre la imagen (tamagi-layer)
+Nenhuma caixa Arch. Crie com: tamagi-pkg install --arch <pacote>  ou  ujust devbox arch	Sin caja Arch. Cree una con: tamagi-pkg install --arch <paquete>  o  ujust devbox arch
+Na bateria: fica para a próxima.	Con batería: se pospone para la próxima vez.
+Caixa	Caja
+Runtimes (mise)	Runtimes (mise)
+Atualização do sistema pronta	Actualización del sistema lista
+Ela entra em uso quando você reiniciar o computador.	Se aplicará cuando reinicie el equipo.
+próxima	próxima
+ausente	ausente
+Sistema (imagem, entra no boot)	Sistema (imagen, se aplica al arrancar)
+Flatpaks do sistema	Flatpaks del sistema
+Flatpaks do usuário	Flatpaks del usuario
+Subsistemas e mise	Subsistemas y mise
+Digests em quarentena	Digests en cuarentena
+Há uma imagem nova pronta: reinicie para usar.	Hay una nueva imagen lista: reinicie para usarla.
+Nenhum digest em quarentena.	Ningún digest en cuarentena.
+Quarentena limpa.	Cuarentena limpiada.
+Flatpaks	Flatpaks
+Subsistemas e caixas distrobox (deb, rpm e outras)	Subsistemas y cajas distrobox (deb, rpm y otras)
+Terminou com falhas em	Finalizó con fallos en
+Tudo atualizado.	Todo actualizado.
+Verificação de saúde	Comprobación de salud
+desconhecida	desconocida
+Boot marcado como bom	Arranque marcado como correcto
+Imagem em uso	Imagen en uso
+Imagem anterior	Imagen anterior
+nenhuma guardada	ninguna guardada
+Relatórios de falha	Informes de fallo
+pendente(s)	pendiente(s)
+Explicação do agente de IA local	Explicación del agente de IA local
+(o agente não respondeu; o relatório acima é o que há)	(el agente no respondió; consulte el informe anterior)
+Para ter a explicação do agente de IA local: tamagi-ai setup	Para obtener una explicación de la IA local: tamagi-ai setup
+Nenhuma falha de boot pendente.	No hay fallos de arranque pendientes.
+Uma atualização não passou na verificação de saúde. O sistema reiniciou,	Una actualización no superó la comprobación de salud. El equipo reinició,
+tentou de novo e voltou para a imagem anterior, que é a que está em uso.	reintentó y volvió a la imagen anterior, que es la activa ahora.
+Tentativas registradas	Intentos registrados
+O digest com falha foi colocado em quarentena automática para evitar reinstalação.	El digest fallido fue puesto en cuarentena automática para evitar su reinstalación.
+Nenhum relatório guardado.	Ningún informe guardado.
+Uma atualização falhou e foi desfeita	Una actualización falló y fue revertida
+O sistema voltou para a versão anterior. Veja o que aconteceu.	El sistema volvió a la versión anterior. Vea lo ocurrido.

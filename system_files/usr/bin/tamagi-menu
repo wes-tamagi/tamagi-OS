@@ -1,135 +1,767 @@
-#!/usr/bin/bash
-# tamagi-menu — menu central do sistema (Super+Alt+Espaço).
-# Uso: tamagi-menu [seção]   seções: instalar ia tema sistema energia
-# Textos em pt/en/es/fr (veja /usr/libexec/tamagi/i18n).
-set -uo pipefail
-. /usr/libexec/tamagi/i18n
+#!/usr/bin/python3
+"""tamagi-menu — Tamagi Command Palette (GTK4 + libadwaita).
 
-pause() { echo; read -rsn1 -p "  ($(t "qualquer tecla continua"))"; echo; }
-confirm() { gum confirm "$(t "$1")" --affirmative "$(t "Sim")" --negative "$(t "Não")"; }
-input() { gum input --placeholder "$(t "$1")"; }
-# pick <título> <id=Texto>...: mostra os textos no idioma do sistema e devolve o id.
-pick() {
-    local header=$1 item choice i; shift
-    local -a ids=() labels=()
-    for item in "$@"; do ids+=("${item%%=*}"); labels+=("$(t "${item#*=}")"); done
-    choice=$(gum choose --header "$(t "$header")   $(t "↑↓ escolher · Enter confirma · Esc volta")" "${labels[@]}") || return 1
-    for i in "${!labels[@]}"; do
-        [[ ${labels[$i]} == "$choice" ]] && { echo "${ids[$i]}"; return 0; }
-    done
-    return 1
+Abre com Super+Espaço (configurado no COSMIC). Alimentado pelo registro único
+/usr/share/tamagi/actions.toml, com busca fuzzy instantânea, filtros por
+categoria, badges de estado vivo e suporte a pt/en/es/fr.
+
+Uso:
+  tamagi-menu [categoria]      abre a paleta (ex.: ai, install, appearance, system, power)
+  tamagi-menu --list           lista as ações disponíveis (CLI / sem display)
+  tamagi-menu --json           exporta as ações em JSON
+"""
+import argparse
+import json
+import os
+import pathlib
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import threading
+import tomllib
+
+ACTIONS_FILE = pathlib.Path(os.environ.get("TAMAGI_ACTIONS", "/usr/share/tamagi/actions.toml"))
+THEMES_DIR = pathlib.Path(os.environ.get("TAMAGI_THEMES", "/usr/share/tamagi/themes"))
+CONFIG_DIR = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")) / "tamagi"
+STATE_DIR = pathlib.Path(os.environ.get("XDG_STATE_HOME", pathlib.Path.home() / ".local/state")) / "tamagi"
+BOOT_FAIL_DIR = pathlib.Path(os.environ.get("TAMAGI_BOOT_FAILURES", "/var/lib/tamagi/boot-failures"))
+QUARANTINE_FILE = pathlib.Path(os.environ.get("TAMAGI_QUARANTINE", "/var/lib/tamagi/quarantine.list"))
+
+CATEGORY_ALIASES = {
+    "all": "all", "tudo": "all", "todo": "all", "tout": "all",
+    "ai": "ai", "ia": "ai",
+    "install": "install", "instalar": "install", "installer": "install",
+    "appearance": "appearance", "aparencia": "appearance", "tema": "appearance",
+    "system": "system", "sistema": "system", "systeme": "system",
+    "power": "power", "energia": "power", "alimentation": "power",
 }
 
-menu_instalar() {
-    case "$(pick "Instalar" "flatpak=App gráfico (Flatpak)" "pkg=Pacote deb, rpm, Arch ou Omarchy (subsistema)" \
-            "browser=Navegador (Chrome, Firefox, Brave, Edge, Vivaldi)" "webapp=Web app (site como aplicativo)" \
-            "games=Jogos (Steam, Lutris, Heroic)" \
-            "devbox=Caixa de desenvolvimento (distrobox)" \
-            "mise=Linguagem ou runtime (mise)" "lazyvim=LazyVim no Neovim" "agent=Outro agente de IA" "back=Voltar")" in
-        pkg)
-            local kind pkg
-            kind=$(gum choose --header "$(t "Formato")" deb rpm arch) || return
-            pkg=$(input "nome do pacote ou caminho do arquivo") || return
-            [[ -n $pkg ]] && tamagi-pkg install "--$kind" "$pkg"
-            pause ;;
-        browser)
-            local b
-            b=$(gum choose --header "$(t "Navegador")" chrome firefox brave edge vivaldi) || return
-            tamagi-browser install "$b"
-            pause ;;
-        games)   ujust setup-gaming; pause ;;
-        webapp)  tamagi-webapp install; pause ;;
-        lazyvim) ujust setup-lazyvim; pause ;;
-        flatpak)
-            local term app
-            term=$(input "nome do app (ex.: gimp, spotify, vscode)") || return
-            [[ -n $term ]] || return
-            app=$(flatpak search --columns=application,name,description "$term" 2>/dev/null \
-                | gum filter --header "$(t "Escolha o app")" | awk '{print $1}') || return
-            [[ -n $app ]] && flatpak install -y flathub "$app"
-            pause ;;
-        devbox)  ujust devbox; pause ;;
-        mise)
-            local tool
-            tool=$(input "ex.: node@lts, python@3.13, go, rust") || return
-            [[ -n $tool ]] && mise use -g "$tool"
-            pause ;;
-        agent)   ujust install-agent; pause ;;
-    esac
+UI = {
+    "pt": {
+        "placeholder": "Buscar ações, temas, IA, atualizações…",
+        "empty": "Nenhuma ação encontrada.",
+        "hint": "↑↓ navegar  ·  Enter executar  ·  Tab categoria  ·  Esc fechar",
+        "confirm_btn": "Confirmar",
+        "cancel_btn": "Cancelar",
+        "confirm_q": "Confirmar ação:",
+        "ai_off": "IA: não configurada",
+        "update_ready": "Atualização pronta (reinicie)",
+        "boot_alert": "Relatório de boot pendente",
+        "quarantine": "Digest em quarentena",
+        "press_any": "qualquer tecla fecha",
+        "risk_system": "sistema",
+        "risk_read": "leitura",
+    },
+    "en": {
+        "placeholder": "Search actions, themes, AI, updates…",
+        "empty": "No matching actions.",
+        "hint": "↑↓ navigate  ·  Enter run  ·  Tab category  ·  Esc close",
+        "confirm_btn": "Confirm",
+        "cancel_btn": "Cancel",
+        "confirm_q": "Confirm action:",
+        "ai_off": "AI: not set up",
+        "update_ready": "Update staged (reboot)",
+        "boot_alert": "Boot report pending",
+        "quarantine": "Quarantined digest",
+        "press_any": "press any key to close",
+        "risk_system": "system",
+        "risk_read": "read-only",
+    },
+    "es": {
+        "placeholder": "Buscar acciones, temas, IA, actualizaciones…",
+        "empty": "No se encontraron acciones.",
+        "hint": "↑↓ navegar  ·  Enter ejecutar  ·  Tab categoría  ·  Esc cerrar",
+        "confirm_btn": "Confirmar",
+        "cancel_btn": "Cancelar",
+        "confirm_q": "Confirmar acción:",
+        "ai_off": "IA: sin configurar",
+        "update_ready": "Actualización lista (reinicie)",
+        "boot_alert": "Informe de arranque pendiente",
+        "quarantine": "Digest en cuarentena",
+        "press_any": "cualquier tecla cierra",
+        "risk_system": "sistema",
+        "risk_read": "lectura",
+    },
+    "fr": {
+        "placeholder": "Rechercher actions, thèmes, IA, mises à jour…",
+        "empty": "Aucune action trouvée.",
+        "hint": "↑↓ naviguer  ·  Entrée lancer  ·  Tab catégorie  ·  Échap fermer",
+        "confirm_btn": "Confirmer",
+        "cancel_btn": "Annuler",
+        "confirm_q": "Confirmer l'action :",
+        "ai_off": "IA : non configurée",
+        "update_ready": "Mise à jour prête (redémarrer)",
+        "boot_alert": "Rapport de démarrage en attente",
+        "quarantine": "Digest en quarantaine",
+        "press_any": "une touche pour fermer",
+        "risk_system": "système",
+        "risk_read": "lecture",
+    },
 }
 
-menu_ia() {
-    case "$(pick "IA" "agent=Conversar com o agente" "chat=Chat na interface web" "code=Programar com opencode" \
-            "claude=Claude Code" \
-            "setup=Instalar ou trocar modelo" "status=Estado" "back=Voltar")" in
-        agent)       tamagi-agent ;;
-        chat)        tamagi-ai chat ;;
-        code)        tamagi-ai code ;;
-        claude)      claude ;;
-        setup)       tamagi-ai setup; pause ;;
-        status)      tamagi-ai status; echo; tamagi-ai list; pause ;;
-    esac
+INTERACTIVE_NO_PAUSE = {
+    "tamagi-agent", "claude", "tamagi-ai code", "tamagi-firstrun --force",
+    "tamagi-keys", "tamagi-theme pick", "tamagi-panel pick", "tamagi-lang pick",
 }
 
-menu_aparencia() {
-    case "$(pick "Aparência" "theme=Tema" "wallpaper=Papel de parede" "panel=Estilo da barra" "lang=Idioma do sistema" "back=Voltar")" in
-        theme)     tamagi-theme pick ;;
-        wallpaper) tamagi-theme wallpaper; pause ;;
-        panel)     tamagi-panel pick; pause ;;
-        lang)      tamagi-lang pick; pause ;;
-    esac
-}
 
-menu_sistema() {
-    case "$(pick "Sistema" "update=Atualizar tudo" "image=Estado da imagem" "rollback=Voltar para a versão anterior" \
-            "auto=Atualização automática" "vm=Máquinas virtuais" \
-            "boot=Saúde do boot" "diff=Sistema num arquivo (tamagi diff)" \
-            "harden=Segurança (endurecimento)" "clean=Limpar espaço" "info=Informações da máquina" \
-            "firstrun=Refazer a configuração inicial" "back=Voltar")" in
-        update)   tamagi-update; pause ;;
-        image)    bootc status 2>/dev/null || rpm-ostree status; pause ;;
-        rollback) confirm "Reverter para a imagem anterior no próximo boot?" && sudo bootc rollback; pause ;;
-        auto)     tamagi-update status; pause ;;
-        vm)       setsid -f virt-manager >/dev/null 2>&1 ;;
-        boot)     tamagi-boot-report show ;;
-        diff)     tamagi diff; pause ;;
-        harden)   tamagi-harden status; pause ;;
-        clean)    ujust clean-system; pause ;;
-        info)     fastfetch; pause ;;
-        firstrun) tamagi-firstrun --force ;;
-    esac
-}
+def detect_lang():
+    raw = os.environ.get("TAMAGI_LANG") or (
+        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG") or "en"
+    )
+    code = raw.split("_")[0].split(".")[0].lower()
+    return code if code in ("pt", "en", "es", "fr") else "en"
 
-menu_energia() {
-    case "$(pick "Energia" "lock=Bloquear" "suspend=Suspender" "logout=Sair da sessão" "reboot=Reiniciar" "poweroff=Desligar" "back=Voltar")" in
-        lock)     loginctl lock-session ;;
-        suspend)  systemctl suspend ;;
-        logout)   confirm "Sair da sessão?" && loginctl terminate-session "${XDG_SESSION_ID:-self}" ;;
-        reboot)   confirm "Reiniciar o computador?" && systemctl reboot ;;
-        poweroff) confirm "Desligar o computador?" && systemctl poweroff ;;
-    esac
-}
 
-case "${1:-}" in
-    instalar)  menu_instalar; exit ;;
-    ia)        menu_ia; exit ;;
-    tema)      tamagi-theme pick; exit ;;
-    aparencia) menu_aparencia; exit ;;
-    sistema)   menu_sistema; exit ;;
-    energia)   menu_energia; exit ;;
-esac
+def load_registry():
+    with open(ACTIONS_FILE, "rb") as fh:
+        data = tomllib.load(fh)
+    cats = sorted(data.get("categories", {}).items(), key=lambda kv: kv[1].get("order", 99))
+    actions = data.get("action", [])
+    return cats, actions
 
-while true; do
-    clear
-    choice=$(pick "Tamagi" "install=Instalar" "ai=IA local" "look=Aparência" "keys=Atalhos" "system=Sistema" \
-        "power=Energia" "quit=Sair") || exit 0
-    case "$choice" in
-        install) menu_instalar ;;
-        ai)      menu_ia ;;
-        look)    menu_aparencia ;;
-        keys)    tamagi-keys ;;
-        system)  menu_sistema ;;
-        power)   menu_energia; exit 0 ;;
-        quit)    exit 0 ;;
-    esac
-done
+
+def loc(mapping, lang):
+    if isinstance(mapping, dict):
+        return mapping.get(lang) or mapping.get("en") or mapping.get("pt") or ""
+    return str(mapping)
+
+
+def load_theme_colors():
+    theme_name = "tokyo-night"
+    try:
+        t = (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip()
+        if t:
+            theme_name = t
+    except OSError:
+        pass
+    colors = {
+        "name": theme_name,
+        "scheme": "dark",
+        "bg": "#1a1b26",
+        "surface": "#24283b",
+        "fg": "#c0caf5",
+        "muted": "#7aa2f7",
+        "accent": "#7aa2f7",
+        "border": "#414868",
+    }
+    conf = THEMES_DIR / f"{theme_name}.conf"
+    if conf.is_file():
+        text = conf.read_text(encoding="utf-8", errors="replace")
+        for key, pat in (("scheme", r'^SCHEME=(\w+)'), ("bg", r'^BG="([^"]+)"'), ("fg", r'^FG="([^"]+)"')):
+            m = re.search(pat, text, re.M)
+            if m:
+                colors[key] = m.group(1)
+        m_wall = re.search(r'^WALL=\(([^)]+)\)', text, re.M)
+        if m_wall:
+            vals = re.findall(r'"([^"]+)"', m_wall.group(1))
+            if len(vals) >= 3:
+                colors["surface"] = vals[0]
+                colors["accent"] = vals[2]
+        m_pal = re.search(r'^PALETTE=\(([^)]+)\)', text, re.M)
+        if m_pal:
+            vals = re.findall(r'"([^"]+)"', m_pal.group(1))
+            if len(vals) >= 9:
+                colors["border"] = vals[8]
+                colors["muted"] = vals[7]
+    return colors
+
+
+def quick_status(lang):
+    """Lê estado vivo rápido em arquivos locais (sem bloquear a abertura)."""
+    tr = UI[lang]
+    theme = "tokyo-night"
+    try:
+        theme = (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip() or theme
+    except OSError:
+        pass
+
+    ai_label = tr["ai_off"]
+    try:
+        for line in (CONFIG_DIR / "ai.env").read_text(encoding="utf-8").splitlines():
+            if line.startswith("TAMAGI_AI_MODEL="):
+                m = line.split("=", 1)[1].strip().strip('"').strip("'")
+                if m:
+                    short = re.sub(r"-Q\d.*$", "", m)
+                    ai_label = f"AI: {short[:26]}"
+                break
+    except OSError:
+        pass
+
+    boot_pending = False
+    try:
+        seen = set()
+        seen_file = STATE_DIR / "boot-failures-seen"
+        if seen_file.is_file():
+            seen = set(seen_file.read_text(encoding="utf-8").splitlines())
+        if BOOT_FAIL_DIR.is_dir():
+            boot_pending = any(f.name not in seen for f in BOOT_FAIL_DIR.glob("*.txt"))
+    except OSError:
+        pass
+
+    quarantined = 0
+    try:
+        if QUARANTINE_FILE.is_file():
+            quarantined = sum(1 for ln in QUARANTINE_FILE.read_text(encoding="utf-8").splitlines()
+                              if ln.strip() and not ln.strip().startswith("#"))
+    except OSError:
+        pass
+
+    return {
+        "theme": theme,
+        "ai": ai_label,
+        "boot_pending": boot_pending,
+        "quarantined": quarantined,
+    }
+
+
+def check_staged_update():
+    try:
+        r = subprocess.run(["bootc", "status", "--format", "json"],
+                           capture_output=True, text=True, timeout=3, check=False)
+        if r.returncode == 0 and r.stdout.strip():
+            data = json.loads(r.stdout)
+            return data.get("status", {}).get("staged") is not None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        pass
+    return False
+
+
+def fuzzy_score(query, action, lang):
+    if not query:
+        return 1
+    q = query.lower().strip()
+    title = loc(action.get("title", {}), lang).lower()
+    sub = loc(action.get("subtitle", {}), lang).lower()
+    kw = str(action.get("keywords", "")).lower()
+    aid = str(action.get("id", "")).lower()
+    hay = f"{title} {sub} {kw} {aid}"
+    tokens = q.split()
+    if all(tok in hay for tok in tokens):
+        score = 100
+        if title.startswith(q):
+            score += 60
+        elif q in title:
+            score += 35
+        if q in aid:
+            score += 20
+        return score
+    # Subsequência fuzzy no título/keywords
+    it = iter(hay)
+    if all(ch in it for ch in q.replace(" ", "")):
+        return 10
+    return 0
+
+
+def spawn_action(action, lang):
+    cmd = action["command"]
+    tr = UI[lang]
+    if action.get("terminal", False):
+        popup = "/usr/libexec/tamagi/popup"
+        needs_pause = cmd not in INTERACTIVE_NO_PAUSE and not cmd.startswith("bash -c ")
+        if cmd.startswith("bash -c "):
+            # Já é um fluxo interativo bash; pausa ao final para o usuário ver o resultado.
+            inner = shlex.split(cmd)[2]
+            wrapped = f'{inner}; echo; read -rsn1 -p "  ({tr["press_any"]})"'
+            argv = [popup, "--title", loc(action["title"], lang), "bash", "-c", wrapped]
+        elif needs_pause:
+            wrapped = f'{cmd}; echo; read -rsn1 -p "  ({tr["press_any"]})"'
+            argv = [popup, "--title", loc(action["title"], lang), "bash", "-c", wrapped]
+        else:
+            argv = [popup, "--title", loc(action["title"], lang), "bash", "-c", cmd]
+        if shutil.which(popup):
+            subprocess.Popen(argv, start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.Popen(["bash", "-c", cmd], start_new_session=True)
+    else:
+        subprocess.Popen(["bash", "-c", cmd], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def run_cli_fallback(cats, actions, lang, initial_cat, list_only=False):
+    filtered = [a for a in actions if initial_cat == "all" or a.get("category") == initial_cat]
+    if not list_only and shutil.which("gum") and sys.stdin.isatty():
+        labels = [f"{loc(a['title'], lang)}  —  {loc(a['subtitle'], lang)}" for a in filtered]
+        r = subprocess.run(["gum", "filter", "--placeholder", UI[lang]["placeholder"]],
+                           input="\n".join(labels), text=True, capture_output=True, check=False)
+        chosen = r.stdout.strip()
+        for label, action in zip(labels, filtered):
+            if label == chosen:
+                subprocess.run(["bash", "-c", action["command"]], check=False)
+                return 0
+        return 0
+    for a in filtered:
+        print(f"{a['id']:22} [{a['category']:10}] {loc(a['title'], lang)}")
+    return 0
+
+
+def run_gui(cats, actions, lang, initial_cat):
+    import gi
+    gi.require_version("Gtk", "4.0")
+    gi.require_version("Adw", "1")
+    from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
+
+    tr = UI[lang]
+    colors = load_theme_colors()
+    status = quick_status(lang)
+
+    class PaletteWindow(Adw.ApplicationWindow):
+        def __init__(self, app, start_cat):
+            super().__init__(application=app, title="Tamagi")
+            self.set_default_size(680, 540)
+            self.set_resizable(False)
+            self.set_decorated(False)
+            self.active_cat = start_cat
+            self.pending_confirm = None
+            self.visible_actions = []
+
+            self._apply_css()
+            self._build_ui()
+            self._refresh_list()
+
+            # Checa atualização pendente em background sem travar a abertura.
+            def bg_check():
+                if check_staged_update():
+                    GLib.idle_add(self._show_staged_badge)
+            threading.Thread(target=bg_check, daemon=True).start()
+
+        def _apply_css(self):
+            is_dark = colors["scheme"] == "dark"
+            sm = Adw.StyleManager.get_default()
+            sm.set_color_scheme(
+                Adw.ColorScheme.FORCE_DARK if is_dark else Adw.ColorScheme.FORCE_LIGHT
+            )
+            bg = colors["bg"]
+            surface = colors["surface"]
+            fg = colors["fg"]
+            accent = colors["accent"]
+            border = colors["border"]
+            row_sel = "rgba(122, 162, 247, 0.22)" if is_dark else "rgba(30, 102, 245, 0.14)"
+            row_hov = "rgba(255, 255, 255, 0.06)" if is_dark else "rgba(0, 0, 0, 0.05)"
+            pill_bg = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(0, 0, 0, 0.06)"
+            css = f"""
+            window {{
+                background-color: {bg};
+                color: {fg};
+                border-radius: 16px;
+                border: 1.5px solid {border};
+            }}
+            .palette-root {{
+                padding: 16px 18px 12px 18px;
+                background-color: {bg};
+            }}
+            .search-box {{
+                background-color: {surface};
+                border: 1px solid {border};
+                border-radius: 12px;
+                padding: 6px 12px;
+                font-size: 15px;
+                color: {fg};
+            }}
+            .search-box:focus-within {{
+                border-color: {accent};
+            }}
+            .cat-pill {{
+                border-radius: 999px;
+                padding: 4px 12px;
+                font-size: 12px;
+                font-weight: 600;
+                background-color: {pill_bg};
+                color: {fg};
+                border: 1px solid transparent;
+            }}
+            .cat-pill.active {{
+                background-color: {accent};
+                color: {bg};
+            }}
+            .status-chip {{
+                border-radius: 999px;
+                padding: 2px 10px;
+                font-size: 11px;
+                background-color: {pill_bg};
+                color: {fg};
+                opacity: 0.85;
+            }}
+            .status-warn {{
+                background-color: #e0af68;
+                color: #15161e;
+                font-weight: 700;
+                opacity: 1.0;
+            }}
+            .action-list {{
+                background: transparent;
+            }}
+            .action-list row {{
+                border-radius: 10px;
+                padding: 8px 12px;
+                margin: 2px 0;
+            }}
+            .action-list row:hover {{
+                background-color: {row_hov};
+            }}
+            .action-list row:selected {{
+                background-color: {row_sel};
+                border: 1px solid {accent};
+            }}
+            .action-title {{
+                font-size: 14px;
+                font-weight: 600;
+                color: {fg};
+            }}
+            .action-sub {{
+                font-size: 12px;
+                opacity: 0.72;
+                color: {fg};
+            }}
+            .risk-tag {{
+                font-size: 10px;
+                font-weight: 600;
+                padding: 2px 8px;
+                border-radius: 999px;
+                background-color: {pill_bg};
+                opacity: 0.75;
+            }}
+            .confirm-bar {{
+                background-color: {surface};
+                border: 1px solid {accent};
+                border-radius: 10px;
+                padding: 10px 12px;
+            }}
+            .footer-hint {{
+                font-size: 11px;
+                opacity: 0.55;
+            }}
+            """
+            provider = Gtk.CssProvider()
+            provider.load_from_string(css)
+            Gtk.StyleContext.add_provider_for_display(
+                Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+
+        def _build_ui(self):
+            root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            root.add_css_class("palette-root")
+
+            # ── Top status bar ──
+            header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            brand = Gtk.Label(label="Tamagi", xalign=0)
+            brand.set_markup(f"<b>Tamagi</b>")
+            header.append(brand)
+
+            self.status_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            self.status_box.set_hexpand(True)
+            self.status_box.set_halign(Gtk.Align.END)
+            for txt in (status["ai"], status["theme"]):
+                chip = Gtk.Label(label=txt)
+                chip.add_css_class("status-chip")
+                self.status_box.append(chip)
+            if status["boot_pending"]:
+                warn = Gtk.Label(label=tr["boot_alert"])
+                warn.add_css_class("status-chip")
+                warn.add_css_class("status-warn")
+                self.status_box.append(warn)
+            if status["quarantined"] > 0:
+                qchip = Gtk.Label(label=f"{tr['quarantine']} ({status['quarantined']})")
+                qchip.add_css_class("status-chip")
+                qchip.add_css_class("status-warn")
+                self.status_box.append(qchip)
+            header.append(self.status_box)
+            root.append(header)
+
+            # ── Search entry ──
+            self.search = Gtk.SearchEntry()
+            self.search.set_placeholder_text(tr["placeholder"])
+            self.search.add_css_class("search-box")
+            self.search.connect("search-changed", lambda _e: self._refresh_list())
+            self.search.connect("activate", lambda _e: self._trigger_selected())
+            root.append(self.search)
+
+            # ── Category pills ──
+            self.cat_buttons = {}
+            cat_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+            for cid, cmeta in cats:
+                btn = Gtk.Button(label=loc(cmeta, lang))
+                btn.add_css_class("cat-pill")
+                if cid == self.active_cat:
+                    btn.add_css_class("active")
+                btn.connect("clicked", lambda _b, c=cid: self.set_category(c))
+                self.cat_buttons[cid] = btn
+                cat_box.append(btn)
+            root.append(cat_box)
+
+            # ── Scrollable action list ──
+            scrolled = Gtk.ScrolledWindow()
+            scrolled.set_vexpand(True)
+            scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+
+            self.listbox = Gtk.ListBox()
+            self.listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
+            self.listbox.add_css_class("action-list")
+            self.listbox.connect("row-activated", lambda _lb, _row: self._trigger_selected())
+            scrolled.set_child(self.listbox)
+            root.append(scrolled)
+
+            # ── Inline confirmation bar (hidden by default) ──
+            self.confirm_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            self.confirm_bar.add_css_class("confirm-bar")
+            self.confirm_bar.set_visible(False)
+            self.confirm_label = Gtk.Label(xalign=0, hexpand=True)
+            self.confirm_label.set_ellipsize(Pango.EllipsizeMode.END)
+            btn_cancel = Gtk.Button(label=tr["cancel_btn"])
+            btn_cancel.connect("clicked", lambda _b: self._cancel_confirm())
+            btn_ok = Gtk.Button(label=tr["confirm_btn"])
+            btn_ok.add_css_class("suggested-action")
+            btn_ok.connect("clicked", lambda _b: self._execute_confirmed())
+            self.confirm_bar.append(self.confirm_label)
+            self.confirm_bar.append(btn_cancel)
+            self.confirm_bar.append(btn_ok)
+            root.append(self.confirm_bar)
+
+            # ── Footer hint ──
+            footer = Gtk.Label(label=tr["hint"], xalign=0)
+            footer.add_css_class("footer-hint")
+            root.append(footer)
+
+            # ── Keyboard controller ──
+            key_ctrl = Gtk.EventControllerKey()
+            key_ctrl.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+            key_ctrl.connect("key-pressed", self._on_key)
+            self.add_controller(key_ctrl)
+
+            self.set_content(root)
+            self.search.grab_focus()
+
+        def _show_staged_badge(self):
+            chip = Gtk.Label(label=tr["update_ready"])
+            chip.add_css_class("status-chip")
+            chip.add_css_class("status-warn")
+            self.status_box.prepend(chip)
+            return False
+
+        def set_category(self, cid):
+            self.active_cat = cid
+            for k, btn in self.cat_buttons.items():
+                if k == cid:
+                    btn.add_css_class("active")
+                else:
+                    btn.remove_css_class("active")
+            self._cancel_confirm()
+            self._refresh_list()
+            self.search.grab_focus()
+
+        def _cycle_category(self, delta):
+            ids = [cid for cid, _ in cats]
+            idx = ids.index(self.active_cat) if self.active_cat in ids else 0
+            self.set_category(ids[(idx + delta) % len(ids)])
+
+        def _refresh_list(self):
+            query = self.search.get_text().strip()
+            scored = []
+            for a in actions:
+                if not query and self.active_cat != "all" and a.get("category") != self.active_cat:
+                    continue
+                if query and self.active_cat != "all" and a.get("category") != self.active_cat:
+                    # Com busca digitada, mostra matches da categoria ativa com prioridade e também globais.
+                    s = fuzzy_score(query, a, lang)
+                    if s > 0:
+                        scored.append((s, a))
+                    continue
+                s = fuzzy_score(query, a, lang)
+                if s > 0:
+                    bonus = 25 if a.get("category") == self.active_cat else 0
+                    scored.append((s + bonus, a))
+            if query:
+                scored.sort(key=lambda x: -x[0])
+            self.visible_actions = [a for _, a in scored]
+
+            while (child := self.listbox.get_first_child()) is not None:
+                self.listbox.remove(child)
+
+            if not self.visible_actions:
+                row = Gtk.ListBoxRow()
+                row.set_selectable(False)
+                lbl = Gtk.Label(label=tr["empty"], margin_top=24, margin_bottom=24)
+                lbl.add_css_class("action-sub")
+                row.set_child(lbl)
+                self.listbox.append(row)
+                return
+
+            for a in self.visible_actions:
+                row = Gtk.ListBoxRow()
+                box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+                img = Gtk.Image.new_from_icon_name(a.get("icon", "emblem-system-symbolic"))
+                img.set_pixel_size(20)
+                box.append(img)
+
+                text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+                text_box.set_hexpand(True)
+                title_lbl = Gtk.Label(label=loc(a["title"], lang), xalign=0)
+                title_lbl.add_css_class("action-title")
+                title_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+                sub_lbl = Gtk.Label(label=loc(a["subtitle"], lang), xalign=0)
+                sub_lbl.add_css_class("action-sub")
+                sub_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+                text_box.append(title_lbl)
+                text_box.append(sub_lbl)
+                box.append(text_box)
+
+                risk = a.get("risk", "user")
+                if risk in ("system", "read"):
+                    tag = Gtk.Label(label=tr[f"risk_{risk}"])
+                    tag.add_css_class("risk-tag")
+                    tag.set_valign(Gtk.Align.CENTER)
+                    box.append(tag)
+
+                row.set_child(box)
+                self.listbox.append(row)
+
+            first = self.listbox.get_row_at_index(0)
+            if first:
+                self.listbox.select_row(first)
+
+        def _move_selection(self, delta):
+            if not self.visible_actions:
+                return
+            row = self.listbox.get_selected_row()
+            idx = row.get_index() if row else 0
+            nxt = (idx + delta) % len(self.visible_actions)
+            target = self.listbox.get_row_at_index(nxt)
+            if target:
+                self.listbox.select_row(target)
+                target.grab_focus()
+                self.search.grab_focus()
+                self.search.set_position(-1)
+
+        def _trigger_selected(self):
+            if self.pending_confirm is not None:
+                self._execute_confirmed()
+                return
+            row = self.listbox.get_selected_row()
+            if not row or not self.visible_actions:
+                return
+            idx = row.get_index()
+            if idx < 0 or idx >= len(self.visible_actions):
+                return
+            action = self.visible_actions[idx]
+            if action.get("confirm", False):
+                self.pending_confirm = action
+                self.confirm_label.set_text(f"{tr['confirm_q']} {loc(action['title'], lang)}")
+                self.confirm_bar.set_visible(True)
+                return
+            self._run_and_close(action)
+
+        def _cancel_confirm(self):
+            self.pending_confirm = None
+            self.confirm_bar.set_visible(False)
+
+        def _execute_confirmed(self):
+            action = self.pending_confirm
+            self._cancel_confirm()
+            if action:
+                self._run_and_close(action)
+
+        def _run_and_close(self, action):
+            spawn_action(action, lang)
+            self.close()
+
+        def _on_key(self, _ctrl, keyval, _keycode, state):
+            if keyval == Gdk.KEY_Escape:
+                if self.pending_confirm is not None:
+                    self._cancel_confirm()
+                    return True
+                if self.search.get_text():
+                    self.search.set_text("")
+                    return True
+                self.close()
+                return True
+            if keyval in (Gdk.KEY_Down, Gdk.KEY_KP_Down):
+                self._move_selection(1)
+                return True
+            if keyval in (Gdk.KEY_Up, Gdk.KEY_KP_Up):
+                self._move_selection(-1)
+                return True
+            if keyval == Gdk.KEY_Tab:
+                self._cycle_category(1)
+                return True
+            if keyval == Gdk.KEY_ISO_Left_Tab:
+                self._cycle_category(-1)
+                return True
+            if keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+                self._trigger_selected()
+                return True
+            return False
+
+    class TamagiMenuApp(Adw.Application):
+        def __init__(self):
+            super().__init__(
+                application_id="org.tamagi.Menu",
+                flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
+            )
+            self.win = None
+
+        def do_command_line(self, command_line):
+            argv = command_line.get_arguments()[1:]
+            req_cat = CATEGORY_ALIASES.get(argv[0].lower(), "all") if argv else None
+            if self.win is not None:
+                if req_cat is None:
+                    # Super+Espaço com a paleta já aberta: alterna (fecha).
+                    self.win.close()
+                    self.win = None
+                else:
+                    self.win.set_category(req_cat)
+                    self.win.present()
+                return 0
+            self.win = PaletteWindow(self, req_cat or initial_cat)
+            self.win.connect("close-request", self._on_close)
+            self.win.present()
+            return 0
+
+        def _on_close(self, _win):
+            self.win = None
+            return False
+
+    app = TamagiMenuApp()
+    return app.run(sys.argv[:1] + ([initial_cat] if initial_cat != "all" else []))
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="tamagi-menu", description="Tamagi Command Palette")
+    parser.add_argument("category", nargs="?", default="all", help="initial category")
+    parser.add_argument("--list", action="store_true", help="list actions and exit")
+    parser.add_argument("--json", action="store_true", help="dump actions as JSON and exit")
+    args = parser.parse_args()
+
+    lang = detect_lang()
+    cats, actions = load_registry()
+    initial_cat = CATEGORY_ALIASES.get(args.category.lower(), "all")
+
+    if args.json:
+        out = [
+            {
+                "id": a["id"],
+                "category": a["category"],
+                "risk": a.get("risk", "user"),
+                "title": loc(a["title"], lang),
+                "subtitle": loc(a["subtitle"], lang),
+                "command": a["command"],
+            }
+            for a in actions
+            if initial_cat == "all" or a.get("category") == initial_cat
+        ]
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.list:
+        return run_cli_fallback(cats, actions, lang, initial_cat, list_only=True)
+
+    if not os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("DISPLAY"):
+        return run_cli_fallback(cats, actions, lang, initial_cat, list_only=False)
+
+    return run_gui(cats, actions, lang, initial_cat)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

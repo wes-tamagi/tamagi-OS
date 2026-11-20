@@ -1,0 +1,880 @@
+# Tamagi — registro declarativo único de ações do sistema.
+# Alimenta tanto o `tamagi-menu` (Command Palette GTK4) quanto o `tamagi-agent`
+# (ferramenta estruturada `tamagi_action`).
+
+[categories.all]
+order = 0
+icon = "view-grid-symbolic"
+pt = "Tudo"
+en = "All"
+es = "Todo"
+fr = "Tout"
+
+[categories.ai]
+order = 1
+icon = "applications-science-symbolic"
+pt = "IA local"
+en = "Local AI"
+es = "IA local"
+fr = "IA locale"
+
+[categories.install]
+order = 2
+icon = "system-software-install-symbolic"
+pt = "Instalar"
+en = "Install"
+es = "Instalar"
+fr = "Installer"
+
+[categories.appearance]
+order = 3
+icon = "preferences-desktop-appearance-symbolic"
+pt = "Aparência"
+en = "Appearance"
+es = "Apariencia"
+fr = "Apparence"
+
+[categories.system]
+order = 4
+icon = "emblem-system-symbolic"
+pt = "Sistema"
+en = "System"
+es = "Sistema"
+fr = "Système"
+
+[categories.power]
+order = 5
+icon = "system-shutdown-symbolic"
+pt = "Energia"
+en = "Power"
+es = "Energía"
+fr = "Alimentation"
+
+# ── IA local ────────────────────────────────────────────────────────────────
+
+[[action]]
+id = "ai.agent"
+category = "ai"
+icon = "utilities-terminal-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-agent"
+keywords = "ai ia agent agente llama chat assistant assistente"
+[action.title]
+pt = "Conversar com o agente local"
+en = "Chat with local AI agent"
+es = "Hablar con el agente local"
+fr = "Discuter avec l'agent local"
+[action.subtitle]
+pt = "Assistente de sistema 100% local via llama.cpp"
+en = "100% local system assistant powered by llama.cpp"
+es = "Asistente del sistema 100% local con llama.cpp"
+fr = "Assistant système 100 % local avec llama.cpp"
+
+[[action]]
+id = "ai.chat"
+category = "ai"
+icon = "web-browser-symbolic"
+risk = "read"
+terminal = false
+confirm = false
+agent = false
+command = "tamagi-ai chat"
+keywords = "ai ia chat web llama ui browser navegador"
+[action.title]
+pt = "Abrir chat web (llama.cpp)"
+en = "Open web chat (llama.cpp)"
+es = "Abrir chat web (llama.cpp)"
+fr = "Ouvrir le chat web (llama.cpp)"
+[action.subtitle]
+pt = "Interface web local em http://127.0.0.1:9931"
+en = "Local web interface at http://127.0.0.1:9931"
+es = "Interfaz web local en http://127.0.0.1:9931"
+fr = "Interface web locale sur http://127.0.0.1:9931"
+
+[[action]]
+id = "ai.code"
+category = "ai"
+icon = "accessories-text-editor-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-ai code"
+keywords = "opencode code codigo devstral qwen ornith programar ide"
+[action.title]
+pt = "Programar com opencode"
+en = "Code with opencode"
+es = "Programar con opencode"
+fr = "Programmer avec opencode"
+[action.subtitle]
+pt = "Agente de código apontado para o modelo local"
+en = "Coding agent connected to your local model"
+es = "Agente de código conectado al modelo local"
+fr = "Agent de code connecté au modèle local"
+
+[[action]]
+id = "ai.claude"
+category = "ai"
+icon = "utilities-terminal-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "claude"
+keywords = "claude code anthropic ai ia agent"
+[action.title]
+pt = "Claude Code"
+en = "Claude Code"
+es = "Claude Code"
+fr = "Claude Code"
+[action.subtitle]
+pt = "Agente de programação da Anthropic pré-instalado"
+en = "Pre-installed Anthropic coding agent"
+es = "Agente de programación de Anthropic preinstalado"
+fr = "Agent de programmation d'Anthropic préinstallé"
+
+[[action]]
+id = "ai.setup"
+category = "ai"
+icon = "folder-download-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-ai setup"
+keywords = "model modelo gemma qwen 3.8 ornith mistral devstral download baixar"
+[action.title]
+pt = "Instalar ou trocar modelo de IA"
+en = "Install or switch AI model"
+es = "Instalar o cambiar modelo de IA"
+fr = "Installer ou changer de modèle d'IA"
+[action.subtitle]
+pt = "Gemma 4, Ornith 1.5, Mistral/Devstral e Qwen 3.8"
+en = "Gemma 4, Ornith 1.5, Mistral/Devstral, and Qwen 3.8"
+es = "Gemma 4, Ornith 1.5, Mistral/Devstral y Qwen 3.8"
+fr = "Gemma 4, Ornith 1.5, Mistral/Devstral et Qwen 3.8"
+
+[[action]]
+id = "ai.status"
+category = "ai"
+icon = "dialog-information-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-ai status && echo && tamagi-ai list"
+keywords = "ai ia status estado gpu vram models modelos llama"
+[action.title]
+pt = "Estado da IA local e modelos"
+en = "Local AI status and models"
+es = "Estado de la IA local y modelos"
+fr = "État de l'IA locale et modèles"
+[action.subtitle]
+pt = "Servidor llama.cpp, modelo ativo, RAM/VRAM"
+en = "llama.cpp server, active model, RAM/VRAM"
+es = "Servidor llama.cpp, modelo activo, RAM/VRAM"
+fr = "Serveur llama.cpp, modèle actif, RAM/VRAM"
+
+[[action]]
+id = "ai.presets"
+category = "ai"
+icon = "view-list-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-ai presets"
+keywords = "presets catalogo catalog models modelos gemma qwen ornith mistral devstral"
+[action.title]
+pt = "Catálogo de modelos locais"
+en = "Local model catalog"
+es = "Catálogo de modelos locales"
+fr = "Catalogue des modèles locaux"
+[action.subtitle]
+pt = "Lista presets por perfil e recomendação para esta máquina"
+en = "Lists presets by role and hardware recommendation"
+es = "Lista preajustes por perfil y recomendación para este equipo"
+fr = "Liste les profils par usage et la recommandation matérielle"
+
+# ── Instalar ────────────────────────────────────────────────────────────────
+
+[[action]]
+id = "install.flatpak"
+category = "install"
+icon = "system-software-install-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "bash -c '. /usr/libexec/tamagi/i18n; term=$(gum input --placeholder \"$(t \"nome do app (ex.: gimp, spotify, vscode)\")\") || exit 0; [[ -n $term ]] || exit 0; app=$(flatpak search --columns=application,name,description \"$term\" 2>/dev/null | gum filter --header \"$(t \"Escolha o app\")\" | awk \"{print \\$1}\") || exit 0; [[ -n $app ]] && flatpak install -y flathub \"$app\"'"
+keywords = "flatpak flathub app loja store install instalar"
+[action.title]
+pt = "Instalar app gráfico (Flatpak)"
+en = "Install graphical app (Flatpak)"
+es = "Instalar app gráfica (Flatpak)"
+fr = "Installer une application graphique (Flatpak)"
+[action.subtitle]
+pt = "Busca e instala direto do Flathub"
+en = "Search and install directly from Flathub"
+es = "Busca e instala directamente desde Flathub"
+fr = "Recherche et installe directement depuis Flathub"
+
+[[action]]
+id = "install.pkg"
+category = "install"
+icon = "package-x-generic-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "bash -c '. /usr/libexec/tamagi/i18n; kind=$(gum choose --header \"$(t \"Formato\")\" deb rpm arch omarchy) || exit 0; pkg=$(gum input --placeholder \"$(t \"nome do pacote ou caminho do arquivo\")\") || exit 0; [[ -n $pkg ]] && tamagi-pkg install \"--$kind\" \"$pkg\"'"
+keywords = "deb rpm arch aur omarchy pacman apt package pacote"
+[action.title]
+pt = "Instalar pacote deb, rpm, Arch ou Omarchy"
+en = "Install deb, rpm, Arch or Omarchy package"
+es = "Instalar paquete deb, rpm, Arch u Omarchy"
+fr = "Installer un paquet deb, rpm, Arch ou Omarchy"
+[action.subtitle]
+pt = "Usa os subsistemas distrobox sem tocar no host"
+en = "Uses distrobox subsystems without touching the host"
+es = "Usa subsistemas distrobox sin tocar el host"
+fr = "Utilise les sous-systèmes distrobox sans toucher l'hôte"
+
+[[action]]
+id = "install.browser"
+category = "install"
+icon = "web-browser-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "bash -c '. /usr/libexec/tamagi/i18n; b=$(gum choose --header \"$(t \"Navegador\")\" chrome firefox brave edge vivaldi) || exit 0; tamagi-browser install \"$b\"'"
+keywords = "browser navegador chrome firefox brave edge vivaldi"
+[action.title]
+pt = "Instalar navegador (caixa Fedora)"
+en = "Install browser (Fedora box)"
+es = "Instalar navegador (caja Fedora)"
+fr = "Installer un navigateur (boîte Fedora)"
+[action.subtitle]
+pt = "Chrome, Firefox, Brave, Edge ou Vivaldi com aceleração GPU"
+en = "Chrome, Firefox, Brave, Edge or Vivaldi with GPU acceleration"
+es = "Chrome, Firefox, Brave, Edge o Vivaldi con aceleración GPU"
+fr = "Chrome, Firefox, Brave, Edge ou Vivaldi avec accélération GPU"
+
+[[action]]
+id = "install.mise"
+category = "install"
+icon = "applications-development-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "bash -c '. /usr/libexec/tamagi/i18n; tool=$(gum input --placeholder \"$(t \"ex.: rust@latest, node@lts, python@3.13, go\")\") || exit 0; [[ -n $tool ]] && mise use -g $tool'"
+keywords = "mise rust node python go java bun deno runtime dev"
+[action.title]
+pt = "Instalar linguagem ou runtime (mise)"
+en = "Install language or runtime (mise)"
+es = "Instalar lenguaje o runtime (mise)"
+fr = "Installer un langage ou runtime (mise)"
+[action.subtitle]
+pt = "Rust, Node, Python, Go, Java, Bun e Deno sem root"
+en = "Rust, Node, Python, Go, Java, Bun, and Deno without root"
+es = "Rust, Node, Python, Go, Java, Bun y Deno sin root"
+fr = "Rust, Node, Python, Go, Java, Bun et Deno sans root"
+
+[[action]]
+id = "install.rust"
+category = "install"
+icon = "applications-engineering-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = true
+command = "mise use -g rust@latest"
+keywords = "rust cargo rustc toolchain mise dev"
+[action.title]
+pt = "Instalar toolchain Rust (mise)"
+en = "Install Rust toolchain (mise)"
+es = "Instalar toolchain de Rust (mise)"
+fr = "Installer la chaîne d'outils Rust (mise)"
+[action.subtitle]
+pt = "Instala rustc e cargo atualizados no seu usuário"
+en = "Installs up-to-date rustc and cargo in your user account"
+es = "Instala rustc y cargo actualizados en tu usuario"
+fr = "Installe rustc et cargo à jour dans votre compte"
+
+[[action]]
+id = "install.devbox"
+category = "install"
+icon = "utilities-terminal-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "ujust devbox"
+keywords = "devbox distrobox container caixa fedora arch ubuntu opensuse"
+[action.title]
+pt = "Criar caixa de desenvolvimento (distrobox)"
+en = "Create development box (distrobox)"
+es = "Crear caja de desarrollo (distrobox)"
+fr = "Créer une boîte de développement (distrobox)"
+[action.subtitle]
+pt = "Ambiente isolado Fedora, Arch, Ubuntu ou openSUSE"
+en = "Isolated Fedora, Arch, Ubuntu, or openSUSE environment"
+es = "Entorno aislado Fedora, Arch, Ubuntu u openSUSE"
+fr = "Environnement isolé Fedora, Arch, Ubuntu ou openSUSE"
+
+[[action]]
+id = "install.webapp"
+category = "install"
+icon = "network-workgroup-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-webapp install"
+keywords = "webapp site web app atalho"
+[action.title]
+pt = "Criar Web App"
+en = "Create Web App"
+es = "Crear aplicación web"
+fr = "Créer une application web"
+[action.subtitle]
+pt = "Transforma um site em aplicativo próprio no menu"
+en = "Turn any website into a standalone menu app"
+es = "Convierte un sitio en una aplicación del menú"
+fr = "Transforme un site en application dans le menu"
+
+[[action]]
+id = "install.games"
+category = "install"
+icon = "input-gaming-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "ujust setup-gaming"
+keywords = "games jogos steam lutris heroic proton bottles gaming"
+[action.title]
+pt = "Configurar jogos (Steam, Lutris, Heroic)"
+en = "Set up gaming (Steam, Lutris, Heroic)"
+es = "Configurar juegos (Steam, Lutris, Heroic)"
+fr = "Configurer les jeux (Steam, Lutris, Heroic)"
+[action.subtitle]
+pt = "Instala launchers via Flatpak; gamescope e gamemode já estão prontos"
+en = "Installs Flatpak launchers; gamescope and gamemode are already ready"
+es = "Instala lanzadores vía Flatpak; gamescope y gamemode ya están listos"
+fr = "Installe les lanceurs via Flatpak ; gamescope et gamemode sont prêts"
+
+[[action]]
+id = "install.lazyvim"
+category = "install"
+icon = "accessories-text-editor-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "ujust setup-lazyvim"
+keywords = "nvim neovim lazyvim editor vim"
+[action.title]
+pt = "Instalar LazyVim no Neovim"
+en = "Install LazyVim on Neovim"
+es = "Instalar LazyVim en Neovim"
+fr = "Installer LazyVim dans Neovim"
+[action.subtitle]
+pt = "Configuração moderna de IDE para o Neovim"
+en = "Modern IDE configuration for Neovim"
+es = "Configuración moderna de IDE para Neovim"
+fr = "Configuration IDE moderne pour Neovim"
+
+[[action]]
+id = "install.agent"
+category = "install"
+icon = "applications-science-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "ujust install-agent"
+keywords = "agent agente codex gemini cli ai ia"
+[action.title]
+pt = "Instalar outro agente de IA (Codex / Gemini)"
+en = "Install another AI agent (Codex / Gemini)"
+es = "Instalar otro agente de IA (Codex / Gemini)"
+fr = "Installer un autre agent d'IA (Codex / Gemini)"
+[action.subtitle]
+pt = "Instala via mise sem tocar no sistema"
+en = "Installs via mise without touching the host"
+es = "Instala mediante mise sin tocar el host"
+fr = "Installe via mise sans toucher l'hôte"
+
+# ── Aparência ───────────────────────────────────────────────────────────────
+
+[[action]]
+id = "appearance.theme"
+category = "appearance"
+icon = "preferences-desktop-theme-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-theme pick"
+keywords = "theme tema colors cores cosmic tokyo catppuccin gruvbox nord ipe latte"
+[action.title]
+pt = "Escolher tema do desktop"
+en = "Choose desktop theme"
+es = "Elegir tema del escritorio"
+fr = "Choisir le thème du bureau"
+[action.subtitle]
+pt = "11 paletas integradas ao COSMIC, papel de parede e terminal"
+en = "11 palettes integrated with COSMIC, wallpaper, and terminal"
+es = "11 paletas integradas con COSMIC, fondo y terminal"
+fr = "11 palettes intégrées à COSMIC, au fond d'écran et au terminal"
+
+[[action]]
+id = "appearance.theme_next"
+category = "appearance"
+icon = "media-playlist-shuffle-symbolic"
+risk = "user"
+terminal = false
+confirm = false
+agent = true
+command = "tamagi-theme next"
+keywords = "next theme proximo tema trocar switch"
+[action.title]
+pt = "Próximo tema"
+en = "Next theme"
+es = "Siguiente tema"
+fr = "Thème suivant"
+[action.subtitle]
+pt = "Alterna imediatamente para a próxima paleta"
+en = "Immediately switches to the next palette"
+es = "Cambia de inmediato a la siguiente paleta"
+fr = "Passe immédiatement à la palette suivante"
+
+[[action]]
+id = "appearance.wallpaper"
+category = "appearance"
+icon = "preferences-desktop-wallpaper-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-theme wallpaper"
+keywords = "wallpaper papel parede mon seigaiha asanoha byobu shippo hinode uroko"
+[action.title]
+pt = "Estilo do papel de parede"
+en = "Wallpaper style"
+es = "Estilo del fondo de pantalla"
+fr = "Style du fond d'écran"
+[action.subtitle]
+pt = "8 estilos geométricos gerados nas cores do tema"
+en = "8 geometric styles rendered in the active theme colors"
+es = "8 estilos geométricos en los colores del tema activo"
+fr = "8 styles géométriques aux couleurs du thème actif"
+
+[[action]]
+id = "appearance.panel"
+category = "appearance"
+icon = "view-bottom-pane-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-panel pick"
+keywords = "panel barra dock centro classico cosmic taskbar"
+[action.title]
+pt = "Estilo da barra (COSMIC)"
+en = "Panel style (COSMIC)"
+es = "Estilo de la barra (COSMIC)"
+fr = "Style de la barre (COSMIC)"
+[action.subtitle]
+pt = "Alterna entre centro, clássico e layout COSMIC original"
+en = "Switch between centered, classic, and stock COSMIC layout"
+es = "Alterna entre centrado, clásico y diseño COSMIC original"
+fr = "Bascule entre centré, classique et disposition COSMIC"
+
+[[action]]
+id = "appearance.lang"
+category = "appearance"
+icon = "preferences-desktop-locale-symbolic"
+risk = "system"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-lang pick"
+keywords = "language idioma locale english portugues espanol francais"
+[action.title]
+pt = "Idioma do sistema"
+en = "System language"
+es = "Idioma del sistema"
+fr = "Langue du système"
+[action.subtitle]
+pt = "English (US), Português (BR), Español ou Français"
+en = "English (US), Português (BR), Español, or Français"
+es = "English (US), Português (BR), Español o Français"
+fr = "English (US), Português (BR), Español ou Français"
+
+# ── Sistema ─────────────────────────────────────────────────────────────────
+
+[[action]]
+id = "system.update"
+category = "system"
+icon = "system-software-update-symbolic"
+risk = "system"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-update"
+keywords = "update atualizar upgrade bootc flatpak mise distrobox"
+[action.title]
+pt = "Atualizar tudo agora"
+en = "Update everything now"
+es = "Actualizar todo ahora"
+fr = "Tout mettre à jour maintenant"
+[action.subtitle]
+pt = "Imagem bootc, camadas, Flatpaks, caixas e mise"
+en = "bootc image, layers, Flatpaks, boxes, and mise"
+es = "Imagen bootc, capas, Flatpaks, cajas y mise"
+fr = "Image bootc, couches, Flatpaks, boîtes et mise"
+
+[[action]]
+id = "system.autoupdate"
+category = "system"
+icon = "alarm-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-update status"
+keywords = "autoupdate automatica timer quarentena quarantine status"
+[action.title]
+pt = "Estado das atualizações automáticas"
+en = "Automatic update status"
+es = "Estado de las actualizaciones automáticas"
+fr = "État des mises à jour automatiques"
+[action.subtitle]
+pt = "Timers diários e digests em quarentena"
+en = "Daily timers and quarantined digests"
+es = "Temporizadores diarios y digests en cuarentena"
+fr = "Minuteurs quotidiens et digests en quarantaine"
+
+[[action]]
+id = "system.image"
+category = "system"
+icon = "drive-harddisk-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "bootc status 2>/dev/null || rpm-ostree status"
+keywords = "bootc ostree image imagem status version versao"
+[action.title]
+pt = "Estado da imagem atômica"
+en = "Atomic image status"
+es = "Estado de la imagen atómica"
+fr = "État de l'image atomique"
+[action.subtitle]
+pt = "Mostra o deployment ativo, pendente e de rollback"
+en = "Shows active, staged, and rollback deployments"
+es = "Muestra los despliegues activo, preparado y de rollback"
+fr = "Affiche les déploiements actif, préparé et de retour"
+
+[[action]]
+id = "system.rollback"
+category = "system"
+icon = "edit-undo-symbolic"
+risk = "system"
+terminal = true
+confirm = true
+agent = true
+command = "sudo bootc rollback"
+keywords = "rollback reverter voltar imagem anterior previous"
+[action.title]
+pt = "Reverter para a imagem anterior"
+en = "Roll back to previous image"
+es = "Volver a la imagen anterior"
+fr = "Revenir à l'image précédente"
+[action.subtitle]
+pt = "Restaura a versão anterior do sistema no próximo boot"
+en = "Restores the previous OS deployment on next boot"
+es = "Restaura la versión anterior del sistema en el próximo arranque"
+fr = "Restaure la version précédente au prochain démarrage"
+
+[[action]]
+id = "system.boot_report"
+category = "system"
+icon = "dialog-warning-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-boot-report status"
+keywords = "greenboot boot health saude report relatorio falha"
+[action.title]
+pt = "Saúde do boot (greenboot)"
+en = "Boot health (greenboot)"
+es = "Salud del arranque (greenboot)"
+fr = "Santé du démarrage (greenboot)"
+[action.subtitle]
+pt = "Verifica checagens de boot, quarentena e relatórios"
+en = "Checks boot health, quarantine, and failure reports"
+es = "Comprueba salud del arranque, cuarentena e informes"
+fr = "Vérifie la santé du démarrage, la quarantaine et les rapports"
+
+[[action]]
+id = "system.diff"
+category = "system"
+icon = "document-properties-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi diff"
+keywords = "tamagi.toml diff declarativo declarative config"
+[action.title]
+pt = "Sistema num arquivo (tamagi diff)"
+en = "System in a file (tamagi diff)"
+es = "Sistema en un archivo (tamagi diff)"
+fr = "Système dans un fichier (tamagi diff)"
+[action.subtitle]
+pt = "Compara esta máquina com ~/.config/tamagi/tamagi.toml"
+en = "Compares this machine against ~/.config/tamagi/tamagi.toml"
+es = "Compara este equipo con ~/.config/tamagi/tamagi.toml"
+fr = "Compare cette machine avec ~/.config/tamagi/tamagi.toml"
+
+[[action]]
+id = "system.harden"
+category = "system"
+icon = "security-high-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-harden status"
+keywords = "security seguranca harden endurecimento selinux usbguard malloc"
+[action.title]
+pt = "Segurança e endurecimento"
+en = "Security and hardening"
+es = "Seguridad y endurecimiento"
+fr = "Sécurité et durcissement"
+[action.subtitle]
+pt = "Estado de sysctls, SELinux, USBGuard e hardened_malloc"
+en = "Status of sysctls, SELinux, USBGuard, and hardened_malloc"
+es = "Estado de sysctls, SELinux, USBGuard y hardened_malloc"
+fr = "État des sysctls, SELinux, USBGuard et hardened_malloc"
+
+[[action]]
+id = "system.vm"
+category = "system"
+icon = "computer-symbolic"
+risk = "user"
+terminal = false
+confirm = false
+agent = false
+command = "virt-manager"
+keywords = "vm virtual machine virt-manager kvm qemu banco banking"
+[action.title]
+pt = "Máquinas virtuais (virt-manager)"
+en = "Virtual machines (virt-manager)"
+es = "Máquinas virtuales (virt-manager)"
+fr = "Machines virtuelles (virt-manager)"
+[action.subtitle]
+pt = "KVM nativo com UEFI, TPM virtual e pastas compartilhadas"
+en = "Native KVM with UEFI, virtual TPM, and shared folders"
+es = "KVM nativo con UEFI, TPM virtual y carpetas compartidas"
+fr = "KVM natif avec UEFI, TPM virtuel et dossiers partagés"
+
+[[action]]
+id = "system.keys"
+category = "system"
+icon = "input-keyboard-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-keys"
+keywords = "keys shortcuts atalhos teclado keyboard"
+[action.title]
+pt = "Atalhos de teclado"
+en = "Keyboard shortcuts"
+es = "Atajos de teclado"
+fr = "Raccourcis clavier"
+[action.subtitle]
+pt = "Lista completa de atalhos do COSMIC e do Tamagi"
+en = "Full list of COSMIC and Tamagi keyboard shortcuts"
+es = "Lista completa de atajos de COSMIC y Tamagi"
+fr = "Liste complète des raccourcis COSMIC et Tamagi"
+
+[[action]]
+id = "system.info"
+category = "system"
+icon = "dialog-information-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "fastfetch"
+keywords = "info hardware fastfetch specs cpu gpu ram"
+[action.title]
+pt = "Informações da máquina"
+en = "Machine information"
+es = "Información del equipo"
+fr = "Informations de la machine"
+[action.subtitle]
+pt = "Resumo de hardware, kernel e sessão (fastfetch)"
+en = "Hardware, kernel, and session summary (fastfetch)"
+es = "Resumen de hardware, kernel y sesión (fastfetch)"
+fr = "Résumé du matériel, noyau et session (fastfetch)"
+
+[[action]]
+id = "system.clean"
+category = "system"
+icon = "user-trash-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "ujust clean-system"
+keywords = "clean limpar espaco disk cache podman flatpak"
+[action.title]
+pt = "Limpar espaço em disco"
+en = "Free up disk space"
+es = "Liberar espacio en disco"
+fr = "Libérer de l'espace disque"
+[action.subtitle]
+pt = "Remove imagens antigas de contêineres e caches sem uso"
+en = "Removes unused container images and stale caches"
+es = "Elimina imágenes de contenedores sin uso y cachés"
+fr = "Supprime les images de conteneurs inutilisées et les caches"
+
+[[action]]
+id = "system.firstrun"
+category = "system"
+icon = "preferences-other-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-firstrun --force"
+keywords = "firstrun setup wizard assistente inicial"
+[action.title]
+pt = "Refazer a configuração inicial"
+en = "Redo initial setup"
+es = "Rehacer la configuración inicial"
+fr = "Refaire la configuration initiale"
+[action.subtitle]
+pt = "Abre novamente o assistente de primeiro login"
+en = "Opens the first-login onboarding wizard again"
+es = "Abre de nuevo el asistente de primer inicio"
+fr = "Ouvre à nouveau l'assistant de première connexion"
+
+# ── Energia ─────────────────────────────────────────────────────────────────
+
+[[action]]
+id = "power.lock"
+category = "power"
+icon = "system-lock-screen-symbolic"
+risk = "user"
+terminal = false
+confirm = false
+agent = false
+command = "loginctl lock-session"
+keywords = "lock bloquear tela screen"
+[action.title]
+pt = "Bloquear tela"
+en = "Lock screen"
+es = "Bloquear pantalla"
+fr = "Verrouiller l'écran"
+[action.subtitle]
+pt = "Trava imediatamente a sessão atual"
+en = "Immediately locks the current session"
+es = "Bloquea de inmediato la sesión actual"
+fr = "Verrouille immédiatement la session en cours"
+
+[[action]]
+id = "power.suspend"
+category = "power"
+icon = "weather-clear-night-symbolic"
+risk = "user"
+terminal = false
+confirm = false
+agent = false
+command = "systemctl suspend"
+keywords = "suspend suspender sleep dormir"
+[action.title]
+pt = "Suspender"
+en = "Suspend"
+es = "Suspender"
+fr = "Mettre en veille"
+[action.subtitle]
+pt = "Coloca o computador em modo de suspensão"
+en = "Puts the computer to sleep"
+es = "Pone el equipo en suspensión"
+fr = "Met l'ordinateur en veille"
+
+[[action]]
+id = "power.logout"
+category = "power"
+icon = "system-log-out-symbolic"
+risk = "user"
+terminal = false
+confirm = true
+agent = false
+command = "loginctl terminate-session \"${XDG_SESSION_ID:-self}\""
+keywords = "logout sair sessao sign out"
+[action.title]
+pt = "Sair da sessão"
+en = "Log out"
+es = "Cerrar sesión"
+fr = "Fermer la session"
+[action.subtitle]
+pt = "Encerra a sessão gráfica atual"
+en = "Ends the current graphical session"
+es = "Finaliza la sesión gráfica actual"
+fr = "Termine la session graphique en cours"
+
+[[action]]
+id = "power.reboot"
+category = "power"
+icon = "system-reboot-symbolic"
+risk = "system"
+terminal = false
+confirm = true
+agent = false
+command = "systemctl reboot"
+keywords = "reboot reiniciar restart"
+[action.title]
+pt = "Reiniciar computador"
+en = "Restart computer"
+es = "Reiniciar equipo"
+fr = "Redémarrer l'ordinateur"
+[action.subtitle]
+pt = "Reinicia e ativa qualquer imagem atômica pendente"
+en = "Reboots and activates any staged atomic image"
+es = "Reinicia y activa cualquier imagen atómica preparada"
+fr = "Redémarre et active toute image atomique préparée"
+
+[[action]]
+id = "power.poweroff"
+category = "power"
+icon = "system-shutdown-symbolic"
+risk = "system"
+terminal = false
+confirm = true
+agent = false
+command = "systemctl poweroff"
+keywords = "poweroff shutdown desligar apagar"
+[action.title]
+pt = "Desligar computador"
+en = "Shut down computer"
+es = "Apagar equipo"
+fr = "Éteindre l'ordinateur"
+[action.subtitle]
+pt = "Desliga o computador com segurança"
+en = "Safely powers off the computer"
+es = "Apaga el equipo de forma segura"
+fr = "Éteint l'ordinateur en toute sécurité"

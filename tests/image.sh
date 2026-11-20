@@ -30,7 +30,7 @@ for cmd in distrobox podman flatpak bootc ujust alacritty cosmic-term cosmic-fil
            llama-server llama-cli opencode claude \
            tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-assist tamagi-keys tamagi-panel tamagi-lang \
            tamagi-firstrun tamagi-pkg tamagi-update tamagi-webapp \
-           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-app tamagi-boot-report; do
+           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report; do
     check "comando $cmd" command -v "$cmd"
 done
 
@@ -103,8 +103,9 @@ check "imagem do sistema: timer ligado (stage)" bash -c 'systemctl is-enabled rp
 check "Flatpaks: timers do sistema e do usuário" bash -c 'systemctl is-enabled flatpak-system-update.timer | grep -qx enabled && systemctl --global is-enabled flatpak-user-update.timer | grep -qx enabled'
 check "subsistemas e mise: timer do usuário ligado" bash -c 'systemctl --global is-enabled tamagi-autoupdate.timer | grep -qx enabled'
 check "units do timer são válidas"       systemd-analyze verify --user /usr/lib/systemd/user/tamagi-autoupdate.timer /usr/lib/systemd/user/tamagi-autoupdate.service
-check "tamagi-update status lista os quatro" bash -c '[[ $(tamagi-update status | grep -c "próxima:") -eq 4 ]]'
+check "tamagi-update status lista os quatro (pt e en)" bash -c '[[ $(tamagi-update status | grep -c "próxima:") -eq 4 && $(TAMAGI_LANG=en tamagi-update status | grep -c "next:") -eq 4 ]]'
 check "tamagi-update --auto roda sem caixas nem rede" bash -c 'tamagi-update --auto </dev/null'
+check "quarentena de digests: leitura e status" bash -c 'q=/tmp/q.list; printf "sha256:bad001\n" > "$q"; TAMAGI_QUARANTINE="$q" tamagi-update quarantine | grep -q "sha256:bad001" && TAMAGI_QUARANTINE="$q" tamagi-update status | grep -q "quarentena: 1" && rm -f "$q"'
 
 section "Camadas sobre a imagem (tamagi-layer)"
 check "comando, ajuda e ferramentas"      bash -c 'tamagi-layer --help | grep -q "tamagi-layer add" && command -v mkfs.erofs fsck.erofs systemd-sysext >/dev/null && mkfs.erofs --help 2>&1 | grep -q file-contexts'
@@ -117,12 +118,7 @@ check "a imagem não foi tocada pela construção" bash -c '! command -v cowsay 
 check "boot com falha desliga as camadas"  bash -c 'mkdir -p /var/lib/extensions && cp /tmp/cam/teste.raw /var/lib/extensions/ && /usr/lib/greenboot/red.d/40-tamagi-camadas.sh >/dev/null && [[ ! -e /var/lib/extensions/teste.raw && -e /var/lib/tamagi/layers-off/teste.raw ]] && tamagi-layer list | grep -q "teste.*desligada"; rc=$?; rm -rf /var/lib/tamagi/layers-off /var/lib/extensions; exit $rc'
 check "tamagi.toml: camada entra no plano e pede senha" bash -c 'printf "[camadas]\nferramentas = [\"strace\", \"ltrace\"]\n" > /tmp/cam.toml && tamagi diff /tmp/cam.toml | grep -q "camada ferramentas: strace ltrace   \[pede senha\]" && printf "[camadas]\n\"Ruim\" = \"x\"\n" > /tmp/camruim.toml && ! tamagi diff /tmp/camruim.toml 2>/dev/null'
 
-section "Apps em Flatpak criados na máquina (tamagi-app)"
-check "cria o projeto com o mínimo de permissões" bash -c 'export TAMAGI_APPS=/tmp/apps; rm -rf /tmp/apps; tamagi-app new notas --titulo "Minhas notas" >/dev/null && python3 -c "import tomllib,ast; d=tomllib.load(open(\"/tmp/apps/notas/app.toml\",\"rb\")); assert d[\"id\"]==\"local.tamagi.notas\" and \"--share=network\" not in d[\"permissoes\"] and not any(p.startswith(\"--filesystem\") for p in d[\"permissoes\"]); ast.parse(open(\"/tmp/apps/notas/src/main.py\").read())" && ! tamagi-app new notas 2>/dev/null && ! tamagi-app new "Ruim Nome" 2>/dev/null'
-check "permissões aparecem em português; as arriscadas são marcadas" bash -c 'export TAMAGI_APPS=/tmp/apps; o=$(tamagi-app perms notas) && grep -q "mostrar janelas" <<<"$o" && ! grep -q "^  !" <<<"$o" && sed -i "s/^permissoes = \[/permissoes = [\"--share=network\", \"--filesystem=home\", /" /tmp/apps/notas/app.toml && o=$(tamagi-app perms notas) && grep -q "^  ! acessar a internet" <<<"$o" && grep -q "^  ! acessar toda a sua pasta pessoal" <<<"$o" && grep -q "(2)" <<<"$o"'
-check "não instala sem o usuário confirmar" bash -c 'export TAMAGI_APPS=/tmp/apps; tamagi-app install notas </dev/null >/dev/null 2>&1; [[ $? -eq 2 ]]'
-check "app.toml com permissão forjada é recusado" bash -c 'export TAMAGI_APPS=/tmp/apps; sed -i "s/--share=network/--share=network; rm -rf ~/" /tmp/apps/notas/app.toml; o=$(tamagi-app perms notas 2>&1); [[ $? -ne 0 ]] && grep -q "permissão não aceita" <<<"$o"'
-check "o agente local sabe do tamagi-app e do tamagi-layer" bash -c 'grep -q "tamagi-app new" /usr/share/tamagi/agent/system.md && grep -q "tamagi-layer add" /usr/share/tamagi/agent/system.md && ! grep -q "rpm-ostree install <pacote>\` (exige" /usr/share/tamagi/agent/system.md'
+check "o agente local sabe do tamagi-layer e não sugere rpm-ostree install" bash -c 'grep -q "tamagi-layer add" /usr/share/tamagi/agent/system.md && ! grep -q "rpm-ostree install <pacote>\` (exige" /usr/share/tamagi/agent/system.md && ! command -v tamagi-app'
 
 section "Inovação 1: o sistema num arquivo (tamagi apply)"
 check "comando tamagi"                    command -v tamagi
@@ -204,8 +200,10 @@ check "backend Vulkan presente"           bash -c 'ls /usr/lib64/ggml/*vulkan*'
 check "variantes de CPU presentes"        bash -c 'ls /usr/lib64/ggml/*cpu*haswell* /usr/lib64/ggml/*cpu*x64*'
 check "sem bibliotecas faltando"          bash -c '! ldd /usr/bin/llama-server | grep -q "not found"'
 check "interface web embutida"            bash -c 'grep -qa "<!doctype html\|<!DOCTYPE html" /usr/bin/llama-server /usr/lib64/libllama*.so* /usr/lib64/*.so 2>/dev/null || llama-server --help | grep -q -- "--ui"'
-check "presets: 5 modelos"                bash -c '[[ $(tamagi-ai presets | grep -cE "^(mini|leve|medio|grande|codigo) ") -eq 5 ]]'
-check "recomendação devolve um preset"    bash -c 'tamagi-ai recommend | grep -qxE "mini|leve|medio|grande"'
+check "presets: 11 modelos (Gemma 4, Ornith 1.5, Mistral/Devstral, Qwen 3.8/3.6)" bash -c '[[ $(tamagi-ai presets | grep -cE "^(mini|leve|mistral|agente|medio|devstral|qwen38|codigo|ornith|grande|workstation) ") -eq 11 ]]'
+check "presets em inglês funcionam"          bash -c 'TAMAGI_LANG=en tamagi-ai presets | grep -q "ROLE" && TAMAGI_LANG=en tamagi-ai presets | grep -q "Ornith 1.5 9B"'
+check "recomendação devolve um preset geral" bash -c 'tamagi-ai recommend | grep -qxE "mini|leve|medio|qwen38|grande"'
+check "llama-server recebe --jinja e --fit on" bash -c 'grep -q -- "--jinja" /usr/bin/tamagi-ai && grep -q -- "--fit on" /usr/bin/tamagi-ai'
 check "unit do usuário é válida"          systemd-analyze verify --user /usr/lib/systemd/user/llama-server.service
 
 section "Agente (regras de segurança)"
@@ -254,11 +252,15 @@ for st in mon seigaiha asanoha byobu shippo hinode uroko; do
 done
 D=$S/com.system76.CosmicSettings.Shortcuts/v1/defaults
 check "atalho Super+Enter abre o terminal" grep -q 'key: "Return"): System(Terminal)' $D
+check "atalho Super+Espaço abre o tamagi-menu" grep -q '(modifiers: \[Super\], key: "space"): Spawn("tamagi-menu")' $D
+check "atalho Super+Alt+Espaço abre o lançador COSMIC" grep -q '(modifiers: \[Super, Alt\], key: "space"): System(Launcher)' $D
 check "atalho Super+W fecha a janela"  grep -q '(modifiers: \[Super\], key: "w"): Close' $D
 check "atalho Super+A abre as ações rápidas" grep -q 'key: "a"): Spawn("/usr/libexec/tamagi/popup tamagi-assist")' $D
 check "sem combinações de teclas duplicadas" bash -c "[[ -z \$(grep -oE '^\s*\(modifiers: \[[^]]*\](, key: \"[^\"]+\")?\)' $D | sed 's/ //g' | sort | uniq -d) ]]"
 check "arquivo de atalhos termina bem formado" bash -c "tail -1 $D | grep -qx '}'"
-check "janelas do Tamagi flutuam (regra tamagi-popup)" grep -q 'appid: "tamagi-popup"' $S/com.system76.CosmicSettings.WindowRules/v1/tiling_exception_defaults
+check "janelas do Tamagi flutuam (tamagi-popup e org.tamagi.Menu)" bash -c 'grep -q "appid: \"tamagi-popup\"" '"$S"'/com.system76.CosmicSettings.WindowRules/v1/tiling_exception_defaults && grep -q "appid: \"org.tamagi.Menu\"" '"$S"'/com.system76.CosmicSettings.WindowRules/v1/tiling_exception_defaults'
+check "tamagi-menu (GTK4 + actions.toml) lista ações em pt e en" bash -c 'python3 -c "import gi; gi.require_version(\"Gtk\",\"4.0\"); gi.require_version(\"Adw\",\"1\"); from gi.repository import Gtk, Adw" && tamagi-menu --list | grep -q "^ai.setup " && TAMAGI_LANG=en tamagi-menu --json | jq -e "length > 20 and any(.[]; .id == \"ai.setup\" and (.title | contains(\"AI model\")))"'
+check "tamagi-agent carrega tamagi_action do actions.toml" bash -c 'python3 -c "import importlib.machinery, importlib.util; l=importlib.machinery.SourceFileLoader(\"a\",\"/usr/bin/tamagi-agent\"); s=importlib.util.spec_from_loader(\"a\",l); m=importlib.util.module_from_spec(s); l.exec_module(m); assert \"ai.status\" in m.AGENT_ACTIONS and any(t[\"function\"][\"name\"]==\"tamagi_action\" for t in m.TOOLS)"'
 check "regras de janela terminam bem formadas" bash -c "tail -1 $S/com.system76.CosmicSettings.WindowRules/v1/tiling_exception_defaults | grep -qx ']'"
 check "dock: Chrome da caixa e agente"  bash -c 'grep -q "\"google-chrome\"" /usr/share/cosmic/com.system76.CosmicAppList/v1/favorites && grep -q tamagi-agent /usr/share/cosmic/com.system76.CosmicAppList/v1/favorites'
 for fav in $(grep -oE '"[^"]+"' $S/com.system76.CosmicAppList/v1/favorites | tr -d '"'); do

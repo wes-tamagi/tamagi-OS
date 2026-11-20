@@ -2,29 +2,32 @@
 """tamagi-agent — agente de IA local do Tamagi.
 
 Conversa com o llama-server (llama.cpp) local pela API compatível com OpenAI
-e usa ferramentas (shell, leitura e escrita de arquivos) para agir no sistema.
-Só depende da biblioteca padrão do Python.
+e usa ferramentas (tamagi_action, shell, leitura e escrita de arquivos) para
+agir no sistema. Só depende da biblioteca padrão do Python.
 
-Segurança: comandos somente-leitura conhecidos rodam direto; todo o resto
-pede confirmação. Nada roda como root sem você digitar a senha do sudo.
+Segurança: comandos somente-leitura conhecidos e ações de risco 'read' rodam
+direto; todo o resto pede confirmação. Nada roda como root sem confirmação.
 """
 
 import argparse
 import json
 import os
+import pathlib
 import re
 import shlex
 import subprocess
 import sys
 import time
+import tomllib
 import urllib.error
 import urllib.request
 
 DEFAULT_URL = "http://127.0.0.1:9931/v1"
-CONFIG_ENV = os.path.join(
-    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
-    "tamagi", "ai.env")
+CONFIG_DIR = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))) / "tamagi"
+CONFIG_ENV = str(CONFIG_DIR / "ai.env")
 SYSTEM_PROMPT_FILE = "/usr/share/tamagi/agent/system.md"
+ACTIONS_FILE = pathlib.Path(os.environ.get("TAMAGI_ACTIONS", "/usr/share/tamagi/actions.toml"))
+QUARANTINE_FILE = pathlib.Path(os.environ.get("TAMAGI_QUARANTINE", "/var/lib/tamagi/quarantine.list"))
 MAX_TOOL_OUTPUT = 6000
 MAX_STEPS = 25
 
@@ -54,12 +57,12 @@ READ_ONLY_SUB = {
     "ujust": {"--list", "-l", "--summary"},
     "tamagi-ai": {"status", "list", "presets", "recommend"},
     "tamagi-theme": {"list", "current", "styles"},
-    "tamagi-update": {"status"},
+    "tamagi-update": {"status", "quarantine"},
     "tamagi": {"diff", "export"},
     "tamagi-boot-report": {"list", "status"},
     "virsh": {"list", "dominfo", "nodeinfo", "net-list", "pool-list", "version"},
     "mise": {"ls", "list", "current", "doctor", "settings", "version", "--version"},
-    "tamagi-browser": {"status"},
+    "tamagi-browser": {"status", "fido"},
     "tamagi-harden": {None, "status"},
     "dnf": {"list", "info", "search", "repoquery", "provides"},
     "gsettings": {"get", "list-keys", "list-schemas"},
@@ -97,31 +100,134 @@ C = {"dim": "\033[2m", "bold": "\033[1m", "cyan": "\033[36m", "yellow": "\033[33
 if not sys.stdout.isatty() or os.environ.get("NO_COLOR"):
     C = {k: "" for k in C}
 
-TOOLS = [
-    {"type": "function", "function": {
-        "name": "shell",
-        "description": "Executa um comando bash no computador do usuário e devolve "
-                       "stdout, stderr e o código de saída. Use para inspecionar e "
-                       "alterar o sistema. Um comando por chamada.",
-        "parameters": {"type": "object", "properties": {
-            "command": {"type": "string", "description": "Comando bash a executar."},
-            "why": {"type": "string", "description": "Uma frase: para que serve."}},
-            "required": ["command"]}}},
-    {"type": "function", "function": {
-        "name": "read_file",
-        "description": "Lê um arquivo de texto (até 400 linhas a partir de 'offset').",
-        "parameters": {"type": "object", "properties": {
-            "path": {"type": "string"},
-            "offset": {"type": "integer", "description": "Linha inicial (1 = primeira)."}},
-            "required": ["path"]}}},
-    {"type": "function", "function": {
-        "name": "write_file",
-        "description": "Cria ou sobrescreve um arquivo de texto com o conteúdo dado.",
-        "parameters": {"type": "object", "properties": {
-            "path": {"type": "string"},
-            "content": {"type": "string"}},
-            "required": ["path", "content"]}}},
-]
+REPLY_LANG = {"pt": "português do Brasil", "en": "English", "es": "español", "fr": "français"}
+
+MESSAGES = {
+    "pt": {
+        "no_server": "Não consegui falar com o servidor de IA em {base}.\nRode `tamagi-ai setup` para baixar um modelo e ligar o llama-server.",
+        "no_model": "Nenhum modelo instalado. Rode `tamagi-ai setup` primeiro.",
+        "run_cmd": "Executar este comando?",
+        "run_action": "Executar a ação '{id}'?",
+        "write_file": "Gravar este arquivo?",
+        "thinking": "(pensando…)",
+        "banner": "Tamagi · agente local",
+        "banner_hint": "/sair para encerrar, /limpar para recomeçar",
+        "interrupted": "(interrompido)",
+        "stopped": "Parei após {n} passos; diga 'continue' para seguir.",
+        "yn": "[s/N]",
+    },
+    "en": {
+        "no_server": "Could not reach the local AI server at {base}.\nRun `tamagi-ai setup` to download a model and start llama-server.",
+        "no_model": "No local models installed. Run `tamagi-ai setup` first.",
+        "run_cmd": "Run this command?",
+        "run_action": "Run action '{id}'?",
+        "write_file": "Write this file?",
+        "thinking": "(thinking…)",
+        "banner": "Tamagi · local agent",
+        "banner_hint": "/exit to quit, /clear to reset",
+        "interrupted": "(interrupted)",
+        "stopped": "Stopped after {n} steps; say 'continue' to keep going.",
+        "yn": "[y/N]",
+    },
+    "es": {
+        "no_server": "No pude conectar con el servidor de IA en {base}.\nEjecute `tamagi-ai setup` para descargar un modelo e iniciar llama-server.",
+        "no_model": "Ningún modelo instalado. Ejecute `tamagi-ai setup` primero.",
+        "run_cmd": "¿Ejecutar este comando?",
+        "run_action": "¿Ejecutar la acción '{id}'?",
+        "write_file": "¿Guardar este archivo?",
+        "thinking": "(pensando…)",
+        "banner": "Tamagi · agente local",
+        "banner_hint": "/exit para salir, /clear para reiniciar",
+        "interrupted": "(interrumpido)",
+        "stopped": "Detenido tras {n} pasos; diga 'continue' para seguir.",
+        "yn": "[s/N]",
+    },
+    "fr": {
+        "no_server": "Impossible de joindre le serveur d'IA sur {base}.\nLancez `tamagi-ai setup` pour télécharger un modèle et démarrer llama-server.",
+        "no_model": "Aucun modèle installé. Lancez d'abord `tamagi-ai setup`.",
+        "run_cmd": "Exécuter cette commande ?",
+        "run_action": "Exécuter l'action '{id}' ?",
+        "write_file": "Écrire ce fichier ?",
+        "thinking": "(réflexion…)",
+        "banner": "Tamagi · agent local",
+        "banner_hint": "/exit pour quitter, /clear pour réinitialiser",
+        "interrupted": "(interrompu)",
+        "stopped": "Arrêté après {n} étapes ; dites 'continue' pour poursuivre.",
+        "yn": "[o/N]",
+    },
+}
+
+
+def lang_code():
+    raw = os.environ.get("TAMAGI_LANG") or (
+        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG") or "en"
+    )
+    code = raw.split("_")[0].split(".")[0].lower()
+    return code if code in REPLY_LANG else "en"
+
+
+def msg(key, **kw):
+    return MESSAGES[lang_code()][key].format(**kw)
+
+
+def load_actions():
+    """Carrega ações estruturadas elegíveis ao agente a partir de actions.toml."""
+    if not ACTIONS_FILE.is_file():
+        return {}
+    try:
+        with open(ACTIONS_FILE, "rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+    out = {}
+    for a in data.get("action", []):
+        if a.get("agent") and a.get("id") and a.get("command"):
+            out[a["id"]] = a
+    return out
+
+
+AGENT_ACTIONS = load_actions()
+
+
+def build_tools():
+    tools = [
+        {"type": "function", "function": {
+            "name": "shell",
+            "description": "Runs a bash command on the user's computer and returns "
+                           "stdout, stderr and exit code. One command per call.",
+            "parameters": {"type": "object", "properties": {
+                "command": {"type": "string", "description": "Bash command to run."},
+                "why": {"type": "string", "description": "One short sentence explaining why."}},
+                "required": ["command"]}}},
+        {"type": "function", "function": {
+            "name": "read_file",
+            "description": "Reads a text file (up to 400 lines starting at 'offset').",
+            "parameters": {"type": "object", "properties": {
+                "path": {"type": "string"},
+                "offset": {"type": "integer", "description": "Start line (1 = first)."}},
+                "required": ["path"]}}},
+        {"type": "function", "function": {
+            "name": "write_file",
+            "description": "Creates or overwrites a text file with the given content.",
+            "parameters": {"type": "object", "properties": {
+                "path": {"type": "string"},
+                "content": {"type": "string"}},
+                "required": ["path", "content"]}}},
+    ]
+    if AGENT_ACTIONS:
+        tools.insert(0, {"type": "function", "function": {
+            "name": "tamagi_action",
+            "description": "Runs a curated built-in Tamagi system action by ID from actions.toml "
+                           "(prefer this over raw shell for system status, updates, diff, hardening, "
+                           "boot health, themes, or Rust toolchain setup).",
+            "parameters": {"type": "object", "properties": {
+                "action_id": {"type": "string", "enum": sorted(AGENT_ACTIONS.keys())},
+                "why": {"type": "string", "description": "One short sentence explaining why."}},
+                "required": ["action_id"]}}})
+    return tools
+
+
+TOOLS = build_tools()
 
 
 def load_env_file(path):
@@ -166,8 +272,7 @@ def ensure_server(base):
             if server_alive(base):
                 return
             time.sleep(0.5)
-    sys.exit(f"{C['red']}Não consegui falar com o servidor de IA em {base}.{C['reset']}\n"
-             "Rode `tamagi-ai setup` para baixar um modelo e ligar o llama-server.")
+    sys.exit(f"{C['red']}{msg('no_server', base=base)}{C['reset']}")
 
 
 def pick_model(base, wanted):
@@ -184,7 +289,7 @@ def pick_model(base, wanted):
                 return m
         return wanted
     if not models:
-        sys.exit("Nenhum modelo instalado. Rode `tamagi-ai setup` primeiro.")
+        sys.exit(msg("no_model"))
     return models[0]
 
 
@@ -207,7 +312,6 @@ def is_read_only(command):
             sub = words[0] if words and not (prog == "journalctl") else None
             if prog != "journalctl" and words and words[0].startswith("-") \
                     and words[0] not in READ_ONLY_SUB[prog]:
-                # opção antes do subcomando (ex.: ip -br a): olha a primeira palavra sem traço
                 plain = [w for w in words if not w.startswith("-")]
                 sub = plain[0] if plain else None
             if sub not in READ_ONLY_SUB[prog]:
@@ -218,7 +322,6 @@ def is_read_only(command):
         if prog == "awk" and re.search(r"system\s*\(|getline|>|\|", " ".join(rest)):
             return False
         if prog == "sed":
-            # só a forma de impressão (sed -n '1,20p' arq) é reconhecida como leitura
             script = [a for a in rest if not a.startswith("-")][:1]
             if "-n" not in rest or not script or not re.fullmatch(r"[0-9,$~+]*p", script[0]):
                 return False
@@ -232,9 +335,9 @@ def ask(question, auto_yes):
         return False
     try:
         with open("/dev/tty", "r+", encoding="utf-8") as tty:
-            tty.write(f"{C['yellow']}{question} [s/N] {C['reset']}")
+            tty.write(f"{C['yellow']}{question} {msg('yn')} {C['reset']}")
             tty.flush()
-            return tty.readline().strip().lower() in ("s", "sim", "y", "yes")
+            return tty.readline().strip().lower() in ("s", "sim", "y", "yes", "o", "oui")
     except OSError:
         return False
 
@@ -243,27 +346,17 @@ def clip(text):
     if len(text) <= MAX_TOOL_OUTPUT:
         return text
     half = MAX_TOOL_OUTPUT // 2
-    return (text[:half] + f"\n[... {len(text) - MAX_TOOL_OUTPUT} caracteres omitidos ...]\n"
+    return (text[:half] + f"\n[... {len(text) - MAX_TOOL_OUTPUT} chars omitted ...]\n"
             + text[-half:])
 
 
-def tool_shell(args, auto_yes):
-    command = str(args.get("command", "")).strip()
-    if not command:
-        return "erro: comando vazio"
-    why = args.get("why")
-    print(f"{C['cyan']}$ {command}{C['reset']}" + (f"  {C['dim']}# {why}{C['reset']}" if why else ""))
-    needs_root = bool(re.search(r"(^|[\s;&|(])(sudo|pkexec|run0|su)\b", command))
-    if not is_read_only(command):
-        # -y nunca aprova sozinho um comando com privilégio de root.
-        if not ask("Executar este comando?", auto_yes and not needs_root):
-            return "O usuário recusou este comando. Não tente de novo; pergunte como prosseguir."
+def exec_bash(command, needs_root=False):
     try:
         proc = subprocess.run(["bash", "-c", command], capture_output=True, text=True,
                               timeout=300, stdin=None if needs_root else subprocess.DEVNULL,
                               errors="replace", check=False)
     except subprocess.TimeoutExpired:
-        return "erro: o comando passou de 300 s e foi interrompido"
+        return "error: command timed out after 300s"
     out = proc.stdout
     if proc.stderr.strip():
         out += ("\n[stderr]\n" + proc.stderr)
@@ -271,8 +364,38 @@ def tool_shell(args, auto_yes):
     for line in shown[:12]:
         print(f"{C['dim']}  {line[:200]}{C['reset']}")
     if len(shown) > 12:
-        print(f"{C['dim']}  … (+{len(shown) - 12} linhas){C['reset']}")
+        print(f"{C['dim']}  … (+{len(shown) - 12} lines){C['reset']}")
     return clip(f"[exit {proc.returncode}]\n{out}".rstrip())
+
+
+def tool_action(args, auto_yes):
+    aid = str(args.get("action_id", "")).strip()
+    action = AGENT_ACTIONS.get(aid)
+    if not action:
+        return f"error: unknown action_id '{aid}'"
+    cmd = action["command"]
+    risk = action.get("risk", "user")
+    why = args.get("why")
+    print(f"{C['cyan']}$ [{aid}] {cmd}{C['reset']}" + (f"  {C['dim']}# {why}{C['reset']}" if why else ""))
+    needs_root = risk == "system" or bool(re.search(r"(^|[\s;&|(])(sudo|pkexec|run0|su)\b", cmd))
+    if risk != "read":
+        if not ask(msg("run_action", id=aid), auto_yes and not needs_root):
+            return "User declined this action. Do not retry; ask how to proceed."
+    return exec_bash(cmd, needs_root=needs_root)
+
+
+def tool_shell(args, auto_yes):
+    command = str(args.get("command", "")).strip()
+    if not command:
+        return "error: empty command"
+    why = args.get("why")
+    print(f"{C['cyan']}$ {command}{C['reset']}" + (f"  {C['dim']}# {why}{C['reset']}" if why else ""))
+    needs_root = bool(re.search(r"(^|[\s;&|(])(sudo|pkexec|run0|su)\b", command))
+    if not is_read_only(command):
+        # -y nunca aprova sozinho um comando com privilégio de root.
+        if not ask(msg("run_cmd"), auto_yes and not needs_root):
+            return "User declined this command. Do not retry; ask how to proceed."
+    return exec_bash(command, needs_root=needs_root)
 
 
 def tool_read_file(args):
@@ -283,46 +406,48 @@ def tool_read_file(args):
         with open(path, encoding="utf-8", errors="replace") as fh:
             lines = fh.readlines()
     except OSError as exc:
-        return f"erro: {exc}"
+        return f"error: {exc}"
     chunk = lines[offset - 1: offset - 1 + 400]
     more = len(lines) - (offset - 1 + len(chunk))
     text = "".join(chunk)
     if more > 0:
-        text += f"\n[... mais {more} linhas; use offset={offset + len(chunk)}]"
-    return clip(text) if text else "(arquivo vazio)"
+        text += f"\n[... {more} more lines; use offset={offset + len(chunk)}]"
+    return clip(text) if text else "(empty file)"
 
 
 def tool_write_file(args, auto_yes):
     path = os.path.expanduser(str(args.get("path", "")))
     content = str(args.get("content", ""))
     exists = os.path.exists(path)
-    print(f"{C['cyan']}{'sobrescrever' if exists else 'criar'} {path} "
-          f"({len(content.splitlines())} linhas){C['reset']}")
-    if not ask("Gravar este arquivo?", auto_yes):
-        return "O usuário recusou a gravação."
+    verb = "overwrite" if exists else "create"
+    print(f"{C['cyan']}{verb} {path} ({len(content.splitlines())} lines){C['reset']}")
+    if not ask(msg("write_file"), auto_yes):
+        return "User declined writing this file."
     try:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(content)
     except OSError as exc:
-        return f"erro: {exc}"
-    return f"ok: {len(content)} bytes gravados em {path}"
+        return f"error: {exc}"
+    return f"ok: {len(content)} bytes written to {path}"
 
 
 def run_tool(name, raw_args, auto_yes):
     try:
         args = json.loads(raw_args) if raw_args and raw_args.strip() else {}
         if not isinstance(args, dict):
-            raise ValueError("argumentos não são um objeto")
+            raise ValueError("arguments must be a JSON object")
     except ValueError as exc:
-        return f"erro: argumentos inválidos para {name}: {exc}"
+        return f"error: invalid arguments for {name}: {exc}"
+    if name == "tamagi_action":
+        return tool_action(args, auto_yes)
     if name == "shell":
         return tool_shell(args, auto_yes)
     if name == "read_file":
         return tool_read_file(args)
     if name == "write_file":
         return tool_write_file(args, auto_yes)
-    return f"erro: ferramenta desconhecida '{name}'"
+    return f"error: unknown tool '{name}'"
 
 
 def chat_stream(base, model, messages):
@@ -350,7 +475,7 @@ def chat_stream(base, model, messages):
                 delta = choice.get("delta") or {}
                 if delta.get("reasoning_content") and not thinking:
                     thinking = True
-                    print(f"{C['dim']}(pensando…){C['reset']}", flush=True)
+                    print(f"{C['dim']}{msg('thinking')}{C['reset']}", flush=True)
                 piece = delta.get("content")
                 if piece:
                     text.append(piece)
@@ -375,34 +500,58 @@ def run_turn(base, model, messages, auto_yes):
             content, calls = chat_stream(base, model, messages)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")[:500]
-            print(f"{C['red']}Erro do servidor ({exc.code}): {body}{C['reset']}")
+            print(f"{C['red']}Server error ({exc.code}): {body}{C['reset']}")
             return
         except (urllib.error.URLError, OSError, RuntimeError) as exc:
-            print(f"{C['red']}Erro falando com o modelo: {exc}{C['reset']}")
+            print(f"{C['red']}Model error: {exc}{C['reset']}")
             return
-        msg = {"role": "assistant", "content": content or None}
+        msg_obj = {"role": "assistant", "content": content or None}
         if calls:
-            msg["tool_calls"] = [
+            msg_obj["tool_calls"] = [
                 {"id": c["id"] or f"call_{i}", "type": "function",
                  "function": {"name": c["name"], "arguments": c["arguments"] or "{}"}}
                 for i, c in enumerate(calls)]
-        messages.append(msg)
+        messages.append(msg_obj)
         if not calls:
             return
-        for call in msg["tool_calls"]:
+        for call in msg_obj["tool_calls"]:
             result = run_tool(call["function"]["name"], call["function"]["arguments"], auto_yes)
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": result})
-    print(f"{C['yellow']}Parei após {MAX_STEPS} passos; diga 'continue' para seguir.{C['reset']}")
-
-
-REPLY_LANG = {"pt": "português do Brasil", "en": "English", "es": "español", "fr": "français"}
+    print(f"{C['yellow']}{msg('stopped', n=MAX_STEPS)}{C['reset']}")
 
 
 def reply_language():
     """Idioma das respostas: o do sistema (ou TAMAGI_LANG); outros idiomas caem no inglês."""
-    code = os.environ.get("TAMAGI_LANG") or (
-        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG") or "pt_BR")[:2]
-    return REPLY_LANG.get(code, "English")
+    return REPLY_LANG[lang_code()]
+
+
+def machine_snapshot():
+    """Snapshot determinístico curto do estado do Tamagi para reduzir alucinação."""
+    lines = [
+        f"User: {os.environ.get('USER', '?')}",
+        f"CWD: {os.getcwd()}",
+        f"Date: {time.strftime('%Y-%m-%d %H:%M')}",
+    ]
+    try:
+        theme = (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip()
+        if theme:
+            lines.append(f"Active theme: {theme}")
+    except OSError:
+        pass
+    if (CONFIG_DIR / "tamagi.toml").is_file():
+        lines.append(f"Declarative manifest: {CONFIG_DIR / 'tamagi.toml'} (present)")
+    try:
+        if QUARANTINE_FILE.is_file():
+            qs = [ln.strip() for ln in QUARANTINE_FILE.read_text(encoding="utf-8").splitlines()
+                  if ln.strip() and not ln.strip().startswith("#")]
+            if qs:
+                lines.append(f"Quarantined image digests: {len(qs)}")
+    except OSError:
+        pass
+    if AGENT_ACTIONS:
+        summary = ", ".join(f"{aid} ({a.get('risk', 'user')})" for aid, a in sorted(AGENT_ACTIONS.items()))
+        lines.append(f"Built-in tamagi_action IDs: {summary}")
+    return "\n".join(lines)
 
 
 def system_prompt():
@@ -411,20 +560,18 @@ def system_prompt():
             base = fh.read()
     except OSError:
         base = "Você é o assistente do sistema Tamagi."
-    facts = [f"Usuário: {os.environ.get('USER', '?')}", f"Diretório atual: {os.getcwd()}",
-             f"Data: {time.strftime('%Y-%m-%d %H:%M')}"]
     # O idioma vai no fim do prompt, onde os modelos locais pequenos obedecem melhor.
-    return (base.rstrip() + "\n\n## Contexto desta sessão\n" + "\n".join(facts)
+    return (base.rstrip() + "\n\n## Contexto desta sessão\n" + machine_snapshot()
             + f"\n\n## Idioma\nResponda sempre em {reply_language()}.\n")
 
 
 def main():
     env = load_env_file(CONFIG_ENV)
     parser = argparse.ArgumentParser(
-        prog="tamagi-agent", description="Agente de IA local do Tamagi (llama.cpp).")
-    parser.add_argument("prompt", nargs="*", help="pedido; sem ele abre o modo conversa")
+        prog="tamagi-agent", description="Tamagi local AI agent (llama.cpp).")
+    parser.add_argument("prompt", nargs="*", help="prompt; omit for interactive chat")
     parser.add_argument("-y", "--yes", action="store_true",
-                        help="não pedir confirmação (comandos com sudo sempre perguntam)")
+                        help="auto-confirm non-root commands (sudo/system always asks)")
     parser.add_argument("-m", "--model",
                         default=os.environ.get("TAMAGI_AI_MODEL") or env.get("TAMAGI_AI_MODEL"))
     parser.add_argument("-u", "--url",
@@ -447,8 +594,7 @@ def main():
         run_turn(base, model, messages, opts.yes)
         return
 
-    print(f"{C['bold']}Tamagi · agente local{C['reset']} {C['dim']}({model}) — "
-          f"/sair para encerrar, /limpar para recomeçar{C['reset']}")
+    print(f"{C['bold']}{msg('banner')}{C['reset']} {C['dim']}({model}) — {msg('banner_hint')}{C['reset']}")
     while True:
         try:
             line = input(f"{C['green']}› {C['reset']}").strip()
@@ -466,7 +612,7 @@ def main():
         try:
             run_turn(base, model, messages, opts.yes)
         except KeyboardInterrupt:
-            print(f"\n{C['yellow']}(interrompido){C['reset']}")
+            print(f"\n{C['yellow']}{msg('interrupted')}{C['reset']}")
 
 
 if __name__ == "__main__":

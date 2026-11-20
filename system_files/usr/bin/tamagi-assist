@@ -18,11 +18,11 @@ case "$key" in
     c) tamagi-ai chat ;;
     d) box=$(distrobox list --no-color 2>/dev/null | awk -F'|' 'NR>1 {gsub(/ /, "", $2); print $2}' | gum choose --header "Distrobox") \
            && exec distrobox enter "$box" ;;
-    i) exec tamagi-menu instalar ;;
+    i) run tamagi-menu install ;;
     w) tamagi-theme next ;;
     k) exec tamagi-keys ;;
     u) tamagi-update; read -rsn1 -p "  ($(t "qualquer tecla fecha"))" ;;
-    m) exec tamagi-menu ;;
+    m) run tamagi-menu ;;
     l) loginctl lock-session ;;
-    p) exec tamagi-menu energia ;;
+    p) run tamagi-menu power ;;
 esac

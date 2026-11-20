@@ -5,11 +5,14 @@
 # llama-server em modo roteador (carrega o modelo pedido sob demanda) em
 # http://127.0.0.1:9931, com API compatível com OpenAI e Anthropic.
 set -euo pipefail
+# shellcheck source=/dev/null
+. /usr/libexec/tamagi/i18n
 
 CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi"
 ENV_FILE="$CONF_DIR/ai.env"
+PRESET_INI="$CONF_DIR/llama-presets.ini"
 MODELS_DIR="${TAMAGI_AI_MODELS:-${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/models}"
-PRESETS_FILE=/usr/share/tamagi/ai/presets.tsv
+PRESETS_FILE="${TAMAGI_AI_PRESETS:-/usr/share/tamagi/ai/presets.tsv}"
 UNIT=llama-server.service
 
 # shellcheck disable=SC1090
@@ -18,15 +21,16 @@ PORT="${TAMAGI_AI_PORT:-9931}"
 CTX="${TAMAGI_AI_CTX:-16384}"
 URL="http://127.0.0.1:$PORT"
 
-die() { echo "erro: $*" >&2; exit 1; }
+die() { echo "$(t "erro"): $*" >&2; exit 1; }
 info() { echo -e "\033[1m$*\033[0m"; }
 
 usage() {
-    cat <<'EOF'
+    if [[ $TAMAGI_LANG == pt ]]; then
+        cat <<'EOF'
 tamagi-ai — IA local (llama.cpp)
 
   setup [preset]     escolhe um modelo para esta máquina, baixa e liga o servidor
-  presets            lista os modelos recomendados
+  presets            lista os modelos recomendados (Gemma 4, Ornith 1.5, Mistral, Qwen 3.8)
   pull <modelo>      baixa um modelo: preset, usuario/repo[:QUANT] ou URL .gguf
   list               modelos instalados
   use <modelo>       define o modelo padrão dos agentes
@@ -38,6 +42,24 @@ tamagi-ai — IA local (llama.cpp)
   agent [pedido]     abre o agente de sistema (tamagi-agent)
   code               abre o opencode usando o modelo local
 EOF
+    else
+        cat <<'EOF'
+tamagi-ai — local AI (llama.cpp)
+
+  setup [preset]     pick a model for this machine, download it and start the server
+  presets            list recommended models (Gemma 4, Ornith 1.5, Mistral, Qwen 3.8)
+  pull <model>       download a model: preset, user/repo[:QUANT], or .gguf URL
+  list               installed models
+  use <model>        set the default model for agents
+  rm <model>         remove an installed model
+  start|stop|restart control llama-server (user service)
+  status             server status, active model, and detected GPU
+  logs               server logs
+  chat               open the local web chat interface
+  agent [prompt]     open the local system agent (tamagi-agent)
+  code               launch opencode using the local model
+EOF
+    fi
 }
 
 set_conf() { # set_conf CHAVE valor
@@ -73,11 +95,11 @@ preset_field() { # preset_field nome coluna
 }
 
 recommend() {
-    # Maior preset que cabe: na VRAM (com folga de 25%) ou em metade da RAM.
-    local ram vram name size best=mini
+    # Maior preset de uso geral que cabe na VRAM (com folga de 25%) ou em metade da RAM.
+    local ram vram name _r _f size _ctx role best=mini
     ram=$(ram_gb); vram=$(vram_gb)
-    while IFS=$'\t' read -r name _ _ size _ _; do
-        [[ $name == codigo ]] && continue
+    while IFS=$'\t' read -r name _r _f size _ctx role _ _; do
+        [[ $role == general ]] || continue
         if awk -v s="$size" -v r="$ram" -v v="$vram" 'BEGIN {exit !(s*1.25 <= v || s*2 <= r)}'; then
             best=$name
         fi
@@ -87,13 +109,22 @@ recommend() {
 
 cmd_presets() {
     local rec; rec=$(recommend)
-    printf '%-8s %7s  %s\n' PRESET TAMANHO DESCRIÇÃO
-    while IFS=$'\t' read -r name _ _ size _ desc; do
-        printf '%-8s %5s GB  %s%s\n' "$name" "$size" "$desc" \
-            "$([[ $name == "$rec" ]] && echo '  ← recomendado aqui')"
+    local h_preset h_role h_size h_desc rec_mark
+    if [[ $TAMAGI_LANG == pt ]]; then
+        h_preset=PRESET; h_role=PERFIL; h_size=TAMANHO; h_desc=DESCRIÇÃO; rec_mark='  ← recomendado aqui'
+    else
+        h_preset=PRESET; h_role=ROLE; h_size=SIZE; h_desc=DESCRIPTION; rec_mark='  ← recommended here'
+    fi
+    printf '%-12s %-11s %7s  %s\n' "$h_preset" "$h_role" "$h_size" "$h_desc"
+    local name _r _f size _ctx role desc_pt desc_en desc
+    while IFS=$'\t' read -r name _r _f size _ctx role desc_pt desc_en; do
+        desc=$desc_pt
+        [[ $TAMAGI_LANG != pt && -n ${desc_en:-} ]] && desc=$desc_en
+        printf '%-12s %-11s %5s GB  %s%s\n' "$name" "$role" "$size" "$desc" \
+            "$([[ $name == "$rec" ]] && echo "$rec_mark")"
     done < <(preset_rows)
     echo
-    echo "Esta máquina: $(ram_gb) GB de RAM, $(vram_gb) GB de VRAM dedicada."
+    printf '%s: %s GB RAM, %s GB VRAM.\n' "$(t "Esta máquina")" "$(ram_gb)" "$(vram_gb)"
 }
 
 resolve_hf() { # resolve_hf usuario/repo[:QUANT] -> imprime "repo<TAB>arquivo"
@@ -102,10 +133,10 @@ resolve_hf() { # resolve_hf usuario/repo[:QUANT] -> imprime "repo<TAB>arquivo"
     quant=""; [[ $spec == *:* ]] && quant=${spec#*:}
     file=$(curl -fsSL "https://huggingface.co/api/models/$repo" \
         | jq -r '.siblings[].rfilename | select(endswith(".gguf"))' \
-        | grep -viE '^(mmproj|mtp|dflash|eagle)|-of-[0-9]+\.gguf$' \
-        | { if [[ -n $quant ]]; then grep -iF -- "$quant"; else grep -iE 'Q4_K_M|Q4_0' || cat; fi; } \
+        | grep -viE '(^|/)(mmproj|mtp|dflash|eagle)|-of-[0-9]+\.gguf$' \
+        | { if [[ -n $quant ]]; then grep -iF -- "$quant" || grep -iE 'UD-Q4_K_XL|Q4_K_M|Q4_0'; else grep -iE 'UD-Q4_K_XL|Q4_K_M|Q4_0' || cat; fi; } \
         | head -1) || true
-    [[ -n $file ]] || die "não achei um arquivo .gguf${quant:+ ($quant)} em $repo"
+    [[ -n $file ]] || die "$(t "não achei um arquivo .gguf")${quant:+ ($quant)} — $repo"
     printf '%s\t%s\n' "$repo" "$file"
 }
 
@@ -113,19 +144,23 @@ download() { # download URL arquivo-destino
     local url=$1 dest=$2
     mkdir -p "$MODELS_DIR"
     if [[ -f $dest ]]; then
-        echo "Já instalado: $(basename "$dest")"
+        echo "$(t "Já instalado"): $(basename "$dest")"
         return 0
     fi
-    info "Baixando $(basename "$dest")"
+    info "$(t "Baixando") $(basename "$dest")"
     curl -fL -C - --retry 3 --progress-bar -o "$dest.part" "$url"
     mv "$dest.part" "$dest"
 }
 
 cmd_pull() { # imprime na última linha o id do modelo (nome do arquivo sem .gguf)
-    local spec=${1:-} repo file url
-    [[ -n $spec ]] || die "uso: tamagi-ai pull <preset|usuario/repo[:QUANT]|URL>"
+    local spec=${1:-} repo file url quant base
+    [[ -n $spec ]] || die "tamagi-ai pull <preset|user/repo[:QUANT]|URL>"
     if repo=$(preset_field "$spec" 2 2>/dev/null); then
         file=$(preset_field "$spec" 3)
+        if [[ $file == auto:* ]]; then
+            quant=${file#auto:}
+            IFS=$'\t' read -r repo file < <(resolve_hf "$repo:$quant")
+        fi
         url="https://huggingface.co/$repo/resolve/main/$file"
     elif [[ $spec == http*://*.gguf* ]]; then
         url=$spec; file=$(basename "${spec%%\?*}")
@@ -133,10 +168,11 @@ cmd_pull() { # imprime na última linha o id do modelo (nome do arquivo sem .ggu
         IFS=$'\t' read -r repo file < <(resolve_hf "$spec")
         url="https://huggingface.co/$repo/resolve/main/$file"
     else
-        die "'$spec' não é um preset (veja 'tamagi-ai presets') nem usuario/repo"
+        die "'$spec' — $(t "preset desconhecido") ('tamagi-ai presets')"
     fi
-    download "$url" "$MODELS_DIR/$file" >&2
-    echo "${file%.gguf}"
+    base=$(basename "$file")
+    download "$url" "$MODELS_DIR/$base" >&2
+    echo "${base%.gguf}"
 }
 
 installed() { find "$MODELS_DIR" -maxdepth 1 -name '*.gguf' -printf '%f\n' 2>/dev/null | sed 's/\.gguf$//' | sort; }
@@ -149,27 +185,27 @@ cmd_list() {
         printf '%s %-48s %6s\n' "$([[ $m == "${TAMAGI_AI_MODEL:-}" ]] && echo '*' || echo ' ')" \
             "$m" "$(du -h "$MODELS_DIR/$m.gguf" | cut -f1)"
     done < <(installed)
-    (( found )) || echo "Nenhum modelo instalado. Rode: tamagi-ai setup"
+    (( found )) || tl "Nenhum modelo instalado. Rode: tamagi-ai setup"
 }
 
 cmd_use() {
     local want=${1:-} match
-    [[ -n $want ]] || die "uso: tamagi-ai use <modelo>"
+    [[ -n $want ]] || die "tamagi-ai use <model>"
     match=$(installed | grep -iF -- "$want" | head -1) || true
-    [[ -n $match ]] || die "modelo '$want' não está instalado (veja 'tamagi-ai list')"
+    [[ -n $match ]] || die "'$want' — $(t "modelo não está instalado") ('tamagi-ai list')"
     set_conf TAMAGI_AI_MODEL "$match"
     TAMAGI_AI_MODEL=$match
     sync_agents
-    echo "Modelo padrão: $match"
+    echo "$(t "Modelo padrão"): $match"
 }
 
 cmd_rm() {
     local want=${1:-} match
-    [[ -n $want ]] || die "uso: tamagi-ai rm <modelo>"
+    [[ -n $want ]] || die "tamagi-ai rm <model>"
     match=$(installed | grep -iF -- "$want" | head -1) || true
-    [[ -n $match ]] || die "modelo '$want' não está instalado"
+    [[ -n $match ]] || die "'$want' — $(t "modelo não está instalado")"
     rm -f "$MODELS_DIR/$match.gguf"
-    echo "Removido: $match"
+    echo "$(t "Removido"): $match"
     systemctl --user try-restart "$UNIT" 2>/dev/null || true
 }
 
@@ -191,7 +227,7 @@ sync_agents() {
         mv "$tmp" "$cfg"
     else
         rm -f "$tmp"
-        echo "aviso: não consegui atualizar $cfg (JSON com comentários?); ajuste à mão." >&2
+        echo "aviso: não consegui atualizar $cfg" >&2
     fi
 }
 
@@ -210,13 +246,13 @@ cmd_setup() {
         cmd_presets
         echo
         if [[ -t 0 ]] && command -v gum >/dev/null 2>&1; then
-            preset=$(preset_rows | cut -f1 | gum choose --header "Qual modelo instalar?" --selected "$rec")
+            preset=$(preset_rows | cut -f1 | gum choose --header "$(t "Qual modelo instalar?")" --selected "$rec")
         else
             preset=$rec
         fi
     fi
-    [[ -n $preset ]] || die "nenhum modelo escolhido"
-    size=$(preset_field "$preset" 4) || die "preset desconhecido: $preset"
+    [[ -n $preset ]] || die "$(t "nenhum modelo escolhido")"
+    size=$(preset_field "$preset" 4) || die "$(t "preset desconhecido"): $preset"
     info "Preset '$preset' (~$size GB) → $MODELS_DIR"
     model=$(cmd_pull "$preset" | tail -1)
     set_conf TAMAGI_AI_MODEL "$model"
@@ -227,31 +263,41 @@ cmd_setup() {
     systemctl --user enable "$UNIT" >/dev/null 2>&1 || true
     systemctl --user restart "$UNIT"
     if wait_ready; then
-        info "Pronto. Servidor em $URL (modelo padrão: $model)"
-        echo "Experimente:  ia \"qual a versão do kernel e quanto de disco livre eu tenho?\""
+        info "$(t "Pronto"). $URL ($model)"
+        echo "  ia \"$(t "qual a versão do kernel e quanto de disco livre eu tenho?")\""
     else
-        die "o llama-server não respondeu; veja 'tamagi-ai logs'"
+        die "$(t "o llama-server não respondeu; veja 'tamagi-ai logs'")"
     fi
 }
 
 cmd_status() {
-    echo "Servidor : $(systemctl --user is-active "$UNIT" 2>/dev/null || true) ($URL)"
-    echo "Modelo   : ${TAMAGI_AI_MODEL:-(nenhum — rode 'tamagi-ai setup')}"
-    echo "Contexto : $CTX tokens"
-    echo "Modelos  : $MODELS_DIR ($(installed | wc -l) instalado(s))"
-    echo "Memória  : $(ram_gb) GB RAM, $(vram_gb) GB VRAM dedicada"
+    echo "$(t "Servidor") : $(systemctl --user is-active "$UNIT" 2>/dev/null || true) ($URL)"
+    echo "$(t "Modelo")   : ${TAMAGI_AI_MODEL:-($(t "nenhum — rode 'tamagi-ai setup'"))}"
+    echo "$(t "Contexto") : $CTX tokens"
+    echo "$(t "Modelos")  : $MODELS_DIR ($(installed | wc -l))"
+    echo "$(t "Memória")  : $(ram_gb) GB RAM, $(vram_gb) GB VRAM"
     if curl -fsS -o /dev/null "$URL/health" 2>/dev/null; then
-        echo "Carregados: $(curl -fsS "$URL/v1/models" | jq -r '[.data[] | select((.status.value // "") == "loaded") | .id] | join(", ") | if . == "" then "(nenhum; carrega no primeiro uso)" else . end' 2>/dev/null || echo '?')"
+        echo "$(t "Carregados"): $(curl -fsS "$URL/v1/models" | jq -r '[.data[] | select((.status.value // "") == "loaded") | .id] | join(", ") | if . == "" then "-" else . end' 2>/dev/null || echo '?')"
     fi
 }
 
 cmd_serve() { # usado pelo serviço systemd do usuário
     mkdir -p "$MODELS_DIR"
+    local -a args=(
+        --host 127.0.0.1 --port "$PORT"
+        --models-dir "$MODELS_DIR" --models-max 1
+        --ctx-size "$CTX"
+        --jinja
+        --flash-attn auto
+        --fit on
+        --reasoning-format "${TAMAGI_AI_REASONING_FORMAT:-deepseek}"
+        --sleep-idle-seconds "${TAMAGI_AI_IDLE:-900}"
+    )
+    [[ -n ${TAMAGI_AI_REASONING_BUDGET:-} ]] && args+=(--reasoning-budget "$TAMAGI_AI_REASONING_BUDGET")
+    [[ -n ${TAMAGI_AI_CACHE_TYPE:-} ]] && args+=(--cache-type-k "$TAMAGI_AI_CACHE_TYPE" --cache-type-v "$TAMAGI_AI_CACHE_TYPE")
+    [[ -r $PRESET_INI ]] && args+=(--models-preset "$PRESET_INI")
     # shellcheck disable=SC2086
-    exec /usr/bin/llama-server --host 127.0.0.1 --port "$PORT" \
-        --models-dir "$MODELS_DIR" --models-max 1 \
-        --ctx-size "$CTX" --sleep-idle-seconds "${TAMAGI_AI_IDLE:-900}" \
-        ${TAMAGI_AI_EXTRA_ARGS:-}
+    exec /usr/bin/llama-server "${args[@]}" ${TAMAGI_AI_EXTRA_ARGS:-}
 }
 
 case "${1:-}" in
@@ -265,7 +311,7 @@ case "${1:-}" in
     start|stop|restart) systemctl --user "$1" "$UNIT" ;;
     status)   cmd_status ;;
     logs)     journalctl --user -u "$UNIT" -n 80 --no-pager ;;
-    chat)     systemctl --user start "$UNIT"; wait_ready || die "servidor não respondeu"; xdg-open "$URL" ;;
+    chat)     systemctl --user start "$UNIT"; wait_ready || die "$(t "o llama-server não respondeu; veja 'tamagi-ai logs'")"; xdg-open "$URL" ;;
     agent)    shift; exec tamagi-agent "$@" ;;
     code)     shift; sync_agents; systemctl --user start "$UNIT" || true; exec opencode "$@" ;;
     serve)    cmd_serve ;;

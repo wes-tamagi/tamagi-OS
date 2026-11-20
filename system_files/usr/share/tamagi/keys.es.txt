@@ -15,14 +15,14 @@
 
  APLICACIONES
    Super                     lanzador
-   Super + Espacio           lanzador de aplicaciones
+   Super + Alt + Espacio     lanzador de aplicaciones
    Super + Enter             terminal
    Super + B / E             navegador / archivos
    Super + Shift + N / T     neovim / btop
 
  Tamagi
+   Super + Espacio           menú de Tamagi (paleta de comandos)
    Super + A                 acciones rápidas (una tecla)
-   Super + Alt + Espacio     menú del sistema
    Super + Shift + A         agente de IA local
    Super + K                 esta lista
    Super+Shift+Ctrl+Espacio  siguiente tema

@@ -15,14 +15,14 @@
 
  APPLICATIONS
    Super                     launcher
-   Super + Space             application launcher
+   Super + Alt + Space       application launcher
    Super + Enter             terminal
    Super + B / E             browser / files
    Super + Shift + N / T     neovim / btop
 
  Tamagi
+   Super + Space             Tamagi menu (command palette)
    Super + A                 quick actions (one key)
-   Super + Alt + Space       system menu
    Super + Shift + A         local AI agent
    Super + K                 this list
    Super + Shift+Ctrl+Space  next theme

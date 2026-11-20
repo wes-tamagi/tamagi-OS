@@ -28,10 +28,9 @@ Copie o arquivo para outro computador com Tamagi e rode `tamagi apply`.
 Ele só acrescenta, nunca remove, e avisa o que pede senha.
 
 **2. Mexer no sistema sem mexer na imagem.** `tamagi-layer add <nome>
-<pacote>` põe pacotes por cima da imagem numa camada somente-leitura que sai
-com um comando, e `tamagi-app` cria aplicativos isolados (Flatpak) só para o
-seu usuário, com as permissões mostradas antes de instalar. A imagem continua
-idêntica à publicada, e o rollback continua valendo.
+<pacote>` põe pacotes por cima da imagem numa camada somente-leitura
+(`systemd-sysext`) que sai com um comando. A imagem continua idêntica à
+publicada, e o rollback continua valendo.
 
 **3. Boot que se conserta e se explica.** A cada boot, o
 [greenboot](https://github.com/fedora-iot/greenboot) roda as verificações de
@@ -230,26 +229,6 @@ antes de qualquer rollback. No `tamagi.toml`: `[camadas]` com
 App gráfico continua sendo Flatpak; pacote de outra distro, `tamagi-pkg`;
 ferramenta de desenvolvimento, mise.
 
-## Apps feitos na máquina (por você ou por um agente de IA)
-
-```bash
-tamagi-app new notas --titulo "Minhas notas"   # projeto em ~/Aplicativos/notas
-tamagi-app install notas                       # mostra as permissões, pergunta e instala
-tamagi-app run notas | remove notas | list
-```
-
-O projeto é uma pasta com `app.toml` (id, nome, comando e permissões),
-`src/main.py` (Python + GTK4/libadwaita, sem compilar) e `icone.svg`. O
-`install` empacota como Flatpak e instala só para o seu usuário: não pede
-senha e não toca na imagem. Antes, mostra em português o que o app pode
-acessar e marca com `!` o que sai do isolamento (rede, pasta pessoal, barramento
-da sessão). Não precisa de SDK nem de flatpak-builder: o runtime
-`org.gnome.Platform` já traz Python e GTK.
-
-É o caminho indicado para agentes de IA criarem aplicativos: o agente local
-(`tamagi-agent`) já sabe usar, e o controle fica com você na hora de aprovar as
-permissões.
-
 ## mise: linguagens, ferramentas e tarefas
 
 O [mise](https://mise.jdx.dev/) é o padrão do Tamagi para o que ele se propõe:
@@ -353,18 +332,26 @@ claude                   # Claude Code, já instalado (também no menu e na dock
 
 - **llama.cpp v1.0.0** compilado na imagem com Vulkan e variantes de CPU
   escolhidas em tempo de execução; serve em `127.0.0.1:9931` (API OpenAI e
-  Anthropic), carrega o modelo sob demanda e o libera após 15 min parado.
-- **`tamagi-agent`** (alias `ia`): agente próprio que conhece o sistema.
+  Anthropic) com `--jinja`, `--flash-attn auto`, `--fit on` e suporte a
+  `reasoning_content`, carrega o modelo sob demanda e o libera após 15 min parado.
+- **`tamagi-agent`** (alias `ia`): agente próprio que conhece o sistema e usa o
+  registro declarativo `/usr/share/tamagi/actions.toml` (`tamagi_action`).
   Comandos somente-leitura rodam direto; o resto pede confirmação.
-- **mise** já ativado no shell: `mise use -g node@lts python@3.13`.
+- **mise** já ativado no shell: `mise use -g rust@latest node@lts python@3.13`.
 
-| Preset | Modelo | Tamanho | Para |
-|---|---|---|---|
-| `mini` | Gemma 4 E2B | 2,8 GB | qualquer máquina |
-| `leve` | Gemma 4 E4B | 4,6 GB | 8–16 GB de RAM |
-| `medio` | Gemma 4 12B | 7,2 GB | 16 GB+ de RAM ou GPU de 8–12 GB |
-| `grande` | Qwen 3.6 35B (MoE) | 20,5 GB | 48 GB+ de RAM ou GPU de 24 GB |
-| `codigo` | Qwen3 Coder 30B (MoE) | 18 GB | programação, 32 GB+ de RAM |
+| Preset | Perfil | Modelo | Tamanho | Para |
+|---|---|---|---|---|
+| `mini` | `general` | Gemma 4 E2B | 2,8 GB | qualquer máquina |
+| `leve` | `general` | Gemma 4 E4B | 4,6 GB | 8–16 GB de RAM |
+| `mistral` | `reasoning` | Ministral 3 8B Reasoning | 5,2 GB | raciocínio rápido (16 GB RAM) |
+| `agente` | `agent` | Ornith 1.5 9B | 5,8 GB | agente local e tool calling (16 GB RAM / 8 GB VRAM) |
+| `medio` | `general` | Gemma 4 12B | 7,2 GB | 16 GB+ de RAM ou GPU de 8–12 GB |
+| `devstral` | `code` | Devstral Small 2 24B | 14,5 GB | engenharia de software multi-arquivo (Mistral) |
+| `qwen38` | `general` | Qwen 3.8 27B | 16,5 GB | geração mais recente da Qwen, raciocínio híbrido |
+| `codigo` | `code` | Qwen3 Coder 30B (MoE) | 18,0 GB | programação rápida, 32 GB+ de RAM |
+| `ornith` | `agent` | Ornith 1.5 35B (MoE) | 20,5 GB | agente autônomo de topo (48 GB RAM / 24 GB VRAM) |
+| `grande` | `general` | Qwen 3.6 35B (MoE) | 20,5 GB | 48 GB+ de RAM ou GPU de 24 GB |
+| `workstation` | `workstation` | Mistral Small 4 119B | 68,0 GB | 96 GB+ de RAM / multi-GPU |
 
 ## O que vem instalado
 
@@ -409,8 +396,8 @@ claude                   # Claude Code, já instalado (também no menu e na dock
 
 | Atalho | Ação |
 |---|---|
-| `Super+Enter` / `Super+Espaço` | terminal / lançador |
-| `Super+A` / `Super+Alt+Espaço` | ações rápidas / menu do sistema |
+| `Super+Enter` / `Super+Espaço` | terminal / paleta de comandos (`tamagi-menu`) |
+| `Super+A` / `Super+Alt+Espaço` | ações rápidas / lançador de aplicativos COSMIC |
 | `Super+Shift+A` | agente de IA |
 | `Super+W` / `F` / `M` | fechar / tela cheia / maximizar |
 | `Super+1…9`, `+Shift` | ir para o workspace / mandar a janela |
@@ -444,7 +431,7 @@ Containerfile            estágios: llama.cpp → apps Omarchy → contexto → 
 build_files/             scripts numerados do build; packages.txt
 system_files/            árvore copiada para a raiz da imagem
   usr/bin/tamagi         o sistema num arquivo (init, diff, apply)
-  usr/bin/tamagi-*       app, layer, boot-report, browser, pkg, harden, ai, agent, update,
+  usr/bin/tamagi-*       layer, boot-report, browser, pkg, harden, ai, agent, update,
                          webapp, theme, menu, assist, keys, firstrun
   usr/libexec/tamagi/    browser-provision, omarchy-repo (rodam dentro
                          das caixas), firstboot, popup
@@ -553,9 +540,10 @@ na imagem: é baixado na máquina de quem usa, do site do fabricante.
 - A imagem traz locales e traduções só de inglês, português, espanhol e
   francês. Android (Waydroid), Qwen Code, Antigravity, omacalc/omawrite e os
   escalonadores scx saíram da imagem para reduzir manutenção e tamanho.
-- O rollback automático só desfaz; ele não impede que a mesma imagem com
-  defeito volte na atualização automática seguinte (`ujust autoupdate off`
-  pausa). `ujust rollback` continua valendo para voltar à mão.
+- O rollback automático grava o digest defeituoso em `/var/lib/tamagi/quarantine.list`,
+  impedindo que a atualização automática reinstale a mesma imagem quebrada
+  (`tamagi-update quarantine` / `unquarantine`). `ujust rollback` continua valendo
+  para voltar à mão.
 - NVIDIA com driver proprietário: a base atual não traz o driver. É preciso
   trocar `BASE_IMAGE` por uma base que o traga; não foi testado.
 

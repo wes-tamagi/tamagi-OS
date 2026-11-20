@@ -2,17 +2,19 @@
 # tamagi-boot-report — o boot que se explica.
 #
 # Depois de cada atualização, o greenboot confere se o sistema subiu direito
-# (/usr/lib/greenboot/check). Se não subiu, o computador tenta mais duas vezes
-# e então volta sozinho para a imagem anterior. Este comando mostra o que
-# aconteceu, com a explicação do agente de IA local quando há um modelo.
+# (/usr/lib/greenboot/check). Se não subiu, o computador tenta mais duas vezes,
+# põe o digest com falha em quarentena e volta sozinho para a imagem anterior.
 #
 #   tamagi-boot-report            mostra os relatórios pendentes (e marca como vistos)
 #   tamagi-boot-report list       todos os relatórios guardados
 #   tamagi-boot-report status     estado da verificação de saúde deste boot
 #   tamagi-boot-report notify     (login) avisa se há relatório pendente
 set -uo pipefail
+# shellcheck source=/dev/null
+. /usr/libexec/tamagi/i18n
 
 DIR=${TAMAGI_BOOT_FAILURES:-/var/lib/tamagi/boot-failures}
+QUARANTINE=${TAMAGI_QUARANTINE:-/var/lib/tamagi/quarantine.list}
 SEEN="${XDG_STATE_HOME:-$HOME/.local/state}/tamagi/boot-failures-seen"
 mkdir -p "$(dirname "$SEEN")"; touch "$SEEN"
 
@@ -25,20 +27,23 @@ pending() { # relatórios que este usuário ainda não viu
 }
 
 status() {
-    echo "Verificação de saúde : $(systemctl is-active greenboot-healthcheck.service 2>/dev/null || echo desconhecida)"
-    echo "Boot marcado como bom: $(systemctl is-active boot-complete.target 2>/dev/null || true)"
-    echo "Imagem em uso        : $(rpm-ostree status -b 2>/dev/null | grep -m1 Version | sed 's/^ *Version: *//')"
-    echo "Imagem anterior      : $(rpm-ostree status 2>/dev/null | grep Version | sed -n '2s/^ *Version: *//p' | grep . || echo 'nenhuma guardada')"
-    echo "Relatórios de falha  : $(find "$DIR" -name '*.txt' 2>/dev/null | wc -l) guardado(s), $(pending | wc -l) não visto(s)"
+    local qcount=0
+    [[ -r $QUARANTINE ]] && qcount=$(grep -cvE '^(#|[[:space:]]*$)' "$QUARANTINE" 2>/dev/null || echo 0)
+    echo "$(t "Verificação de saúde") : $(systemctl is-active greenboot-healthcheck.service 2>/dev/null || t "desconhecida")"
+    echo "$(t "Boot marcado como bom"): $(systemctl is-active boot-complete.target 2>/dev/null || true)"
+    echo "$(t "Imagem em uso")        : $(rpm-ostree status -b 2>/dev/null | grep -m1 Version | sed 's/^ *Version: *//')"
+    echo "$(t "Imagem anterior")      : $(rpm-ostree status 2>/dev/null | grep Version | sed -n '2s/^ *Version: *//p' | grep . || t "nenhuma guardada")"
+    echo "$(t "Digests em quarentena"): $qcount"
+    echo "$(t "Relatórios de falha")  : $(find "$DIR" -name '*.txt' 2>/dev/null | wc -l), $(pending | wc -l) $(t "pendente(s)")"
 }
 
 explain() { # explain <arquivo>: explicação do agente local, se houver modelo
     if command -v tamagi-ai >/dev/null && [[ -n $(tamagi-ai list 2>/dev/null) ]]; then
-        echo; echo "── Explicação do agente de IA local ──"
-        tamagi-agent "Uma atualização do sistema falhou na verificação de saúde e o computador voltou sozinho para a imagem anterior. Abaixo está o relatório. Explique de forma simples, em até seis frases, o que quebrou e o que o usuário pode fazer. Não rode comandos." < "$1" \
-            || echo "(o agente não respondeu; o relatório acima é o que há)"
+        echo; echo "── $(t "Explicação do agente de IA local") ──"
+        tamagi-agent "A system update failed the greenboot health check and automatically rolled back to the previous image. Below is the failure report. Explain simply, in up to six sentences, what broke and what the user can do next. Do not run any commands." < "$1" \
+            || tl "(o agente não respondeu; o relatório acima é o que há)"
     else
-        echo; echo "Para ter a explicação do agente de IA local: tamagi-ai setup"
+        echo; tl "Para ter a explicação do agente de IA local: tamagi-ai setup"
     fi
 }
 
@@ -46,30 +51,29 @@ show() {
     local files f
     mapfile -t files < <(pending)
     if (( ${#files[@]} == 0 )); then
-        echo "Nenhuma falha de boot pendente."; status; return 0
+        tl "Nenhuma falha de boot pendente."; status; return 0
     fi
-    echo "Uma atualização não passou na verificação de saúde. O sistema reiniciou,"
-    echo "tentou de novo e voltou para a imagem anterior, que é a que está em uso."
-    # Cada tentativa de boot gera um relatório; o último conta a história toda.
-    echo "Tentativas registradas: ${#files[@]}"
+    tl "Uma atualização não passou na verificação de saúde. O sistema reiniciou,"
+    tl "tentou de novo e voltou para a imagem anterior, que é a que está em uso."
+    echo "$(t "Tentativas registradas"): ${#files[@]}"
     echo; echo "════ $(basename "${files[-1]}" .txt) ════"
     sed -n '1,45p' "${files[-1]}"
     for f in "${files[@]}"; do basename "$f" >> "$SEEN"; done
     explain "${files[-1]}"
     echo
-    echo "A imagem com defeito não é reinstalada à mão; ela pode voltar numa próxima"
-    echo "atualização automática. Para pausar: ujust autoupdate off"
+    tl "O digest com falha foi colocado em quarentena automática para evitar reinstalação."
+    echo "  tamagi-update quarantine   ·   ujust autoupdate off"
 }
 
 case "${1:-show}" in
-    show)   show; [[ -t 0 ]] && read -rsn1 -p "  (qualquer tecla fecha)" ;;
-    list)   ls -1 "$DIR"/*.txt 2>/dev/null || echo "Nenhum relatório guardado." ;;
+    show)   show; [[ -t 0 ]] && read -rsn1 -p "  ($(t "qualquer tecla fecha"))" ;;
+    list)   ls -1 "$DIR"/*.txt 2>/dev/null || tl "Nenhum relatório guardado." ;;
     status) status ;;
     notify) # chamado no login: só incomoda se houver algo novo
         [[ -n $(pending) ]] || exit 0
         sleep 6
-        notify-send -a Tamagi -i dialog-warning "Uma atualização falhou e foi desfeita" \
-            "O sistema voltou para a versão anterior. Veja o que aconteceu." 2>/dev/null || true
+        notify-send -a Tamagi -i dialog-warning "$(t "Uma atualização falhou e foi desfeita")" \
+            "$(t "O sistema voltou para a versão anterior. Veja o que aconteceu.")" 2>/dev/null || true
         exec /usr/libexec/tamagi/popup tamagi-boot-report show ;;
-    *) echo "uso: tamagi-boot-report [show|list|status]" >&2; exit 2 ;;
+    *) echo "usage: tamagi-boot-report [show|list|status]" >&2; exit 2 ;;
 esac

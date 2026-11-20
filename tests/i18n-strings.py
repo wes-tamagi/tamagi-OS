@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 """Lista os textos traduzíveis das ferramentas do Tamagi (os que passam por
-t/tl e pelos auxiliares step/ask/confirm/input/pick) e confere os catálogos.
+t/tl e pelos auxiliares step/ask/confirm/input/pick) e confere os catálogos,
+além de validar todas as traduções de actions.toml.
 
   i18n-strings.py <raiz>           lista os textos (um por linha)
   i18n-strings.py <raiz> --check   falha se faltar tradução em en/es/fr
@@ -8,10 +9,15 @@ t/tl e pelos auxiliares step/ask/confirm/input/pick) e confere os catálogos.
 import pathlib
 import re
 import sys
+import tomllib
 
-SCRIPTS = ["tamagi-firstrun", "tamagi-menu", "tamagi-keys", "tamagi-assist", "tamagi-lang", "tamagi-panel", "tamagi-theme"]
+SCRIPTS = [
+    "tamagi-firstrun", "tamagi-keys", "tamagi-assist", "tamagi-lang",
+    "tamagi-panel", "tamagi-theme", "tamagi-ai", "tamagi-update",
+    "tamagi-boot-report",
+]
 STR = r'"((?:[^"\\$]|\\.)*)"'
-CALLS = re.compile(r'(?:\$\(|\b)(?:tl?|step|confirm|input)\s+' + STR)
+CALLS = re.compile(r'(?:\$\(|\b)(?:tl?|step|confirm|input|timer_line)\s+' + STR)
 ASK = re.compile(r'\bask\s+(?:--no\s+)?' + STR)
 PICK = re.compile(r'"[a-z]+=([^"]+)"')
 HEADER = re.compile(r'\bpick\s+' + STR)
@@ -20,7 +26,10 @@ HEADER = re.compile(r'\bpick\s+' + STR)
 def strings(root):
     found = []
     for name in SCRIPTS:
-        text = (root / "usr/bin" / name).read_text(encoding="utf-8")
+        p = root / "usr/bin" / name
+        if not p.is_file():
+            continue
+        text = p.read_text(encoding="utf-8")
         for rx in (CALLS, ASK, PICK, HEADER):
             found += rx.findall(text)
     seen = []
@@ -28,6 +37,34 @@ def strings(root):
         if s and s not in seen:
             seen.append(s)
     return seen
+
+
+def check_actions_toml(root):
+    bad = 0
+    path = root / "usr/share/tamagi/actions.toml"
+    if not path.is_file():
+        print("falta usr/share/tamagi/actions.toml")
+        return 1
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    for cid, meta in data.get("categories", {}).items():
+        for lang in ("pt", "en", "es", "fr"):
+            if not meta.get(lang):
+                print(f"actions.toml: categoria '{cid}' sem tradução '{lang}'")
+                bad += 1
+    seen_ids = set()
+    for a in data.get("action", []):
+        aid = a.get("id", "?")
+        if aid in seen_ids:
+            print(f"actions.toml: ação duplicada '{aid}'")
+            bad += 1
+        seen_ids.add(aid)
+        for field in ("title", "subtitle"):
+            m = a.get(field, {})
+            for lang in ("pt", "en", "es", "fr"):
+                if not isinstance(m, dict) or not m.get(lang):
+                    print(f"actions.toml: ação '{aid}' sem {field}.{lang}")
+                    bad += 1
+    return bad
 
 
 def main():
@@ -51,7 +88,8 @@ def main():
             if not (root / f"usr/share/tamagi/{extra}.{lang}.txt").is_file():
                 print(f"{lang}: falta {extra}.{lang}.txt")
                 bad += 1
-    print(f"{len(wanted)} textos, {bad} sem tradução")
+    bad += check_actions_toml(root)
+    print(f"{len(wanted)} textos + actions.toml, {bad} problema(s)")
     sys.exit(1 if bad else 0)
 
 

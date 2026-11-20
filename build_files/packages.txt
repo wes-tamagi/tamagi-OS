@@ -11,6 +11,9 @@ xdg-desktop-portal-cosmic
 # no Super+Espaço.
 cosmic-ext-classic-menu
 xdg-desktop-portal-gtk
+gtk4
+libadwaita
+python3-gobject
 adw-gtk3-theme
 xdg-terminal-exec
 wl-clipboard

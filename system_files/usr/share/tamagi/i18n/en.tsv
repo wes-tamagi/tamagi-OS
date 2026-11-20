@@ -99,3 +99,72 @@ idioma desconhecido	unknown language
 vale no próximo login (saia da sessão e entre de novo).	takes effect at the next login (log out and back in).
 Tema aplicado	Theme applied
 ↑↓ escolher · Enter confirma · Esc volta	↑↓ choose · Enter confirms · Esc goes back
+Super+Espaço abre o menu · Super+K mostra os atalhos · Super+A ações rápidas.	Super+Space opens the menu · Super+K shows shortcuts · Super+A quick actions.
+ex.: rust@latest, node@lts, python@3.13, go	e.g. rust@latest, node@lts, python@3.13, go
+erro	error
+Esta máquina	This machine
+não achei um arquivo .gguf	no .gguf file found
+Já instalado	Already installed
+Baixando	Downloading
+preset desconhecido	unknown preset
+Nenhum modelo instalado. Rode: tamagi-ai setup	No models installed. Run: tamagi-ai setup
+modelo não está instalado	model is not installed
+Modelo padrão	Default model
+Removido	Removed
+Qual modelo instalar?	Which model should be installed?
+nenhum modelo escolhido	no model chosen
+qual a versão do kernel e quanto de disco livre eu tenho?	what kernel version am I running and how much free disk space do I have?
+o llama-server não respondeu; veja 'tamagi-ai logs'	llama-server did not respond; check 'tamagi-ai logs'
+Servidor	Server
+Modelo	Model
+nenhum — rode 'tamagi-ai setup'	none — run 'tamagi-ai setup'
+Contexto	Context
+Modelos	Models
+Memória	Memory
+Carregados	Loaded
+Digest em quarentena detectado; atualização cancelada	Quarantined digest detected; update cancelled
+Atualização bloqueada pela quarentena	Update blocked by quarantine
+A imagem disponível é a mesma que falhou no boot anterior. Aguardando nova versão.	The available image is the same one that failed the previous boot. Waiting for a newer build.
+Sistema (imagem atômica)	System (atomic image)
+Nova imagem pronta: entra em uso no próximo boot.	New image staged: takes effect on next boot.
+Não consegui atualizar a imagem. Se ela foi instalada de um build local, publique-a	Could not update the image. If installed from a local build, publish it first
+Camadas sobre a imagem (tamagi-layer)	Image layers (tamagi-layer)
+Nenhuma caixa Arch. Crie com: tamagi-pkg install --arch <pacote>  ou  ujust devbox arch	No Arch box found. Create one with: tamagi-pkg install --arch <pkg>  or  ujust devbox arch
+Na bateria: fica para a próxima.	On battery: deferring until next run.
+Caixa	Box
+Runtimes (mise)	Runtimes (mise)
+Atualização do sistema pronta	System update ready
+Ela entra em uso quando você reiniciar o computador.	It will take effect the next time you reboot.
+próxima	next
+ausente	missing
+Sistema (imagem, entra no boot)	System (image, applied on boot)
+Flatpaks do sistema	System Flatpaks
+Flatpaks do usuário	User Flatpaks
+Subsistemas e mise	Subsystems and mise
+Digests em quarentena	Quarantined digests
+Há uma imagem nova pronta: reinicie para usar.	A new image is staged: reboot to apply.
+Nenhum digest em quarentena.	No quarantined digests.
+Quarentena limpa.	Quarantine cleared.
+Flatpaks	Flatpaks
+Subsistemas e caixas distrobox (deb, rpm e outras)	Subsystems and distrobox boxes (deb, rpm and others)
+Terminou com falhas em	Finished with failures in
+Tudo atualizado.	Everything is up to date.
+Verificação de saúde	Health check
+desconhecida	unknown
+Boot marcado como bom	Boot marked healthy
+Imagem em uso	Running image
+Imagem anterior	Previous image
+nenhuma guardada	none saved
+Relatórios de falha	Failure reports
+pendente(s)	pending
+Explicação do agente de IA local	Local AI agent explanation
+(o agente não respondeu; o relatório acima é o que há)	(the agent did not respond; see the report above)
+Para ter a explicação do agente de IA local: tamagi-ai setup	To get a local AI explanation: tamagi-ai setup
+Nenhuma falha de boot pendente.	No pending boot failures.
+Uma atualização não passou na verificação de saúde. O sistema reiniciou,	An update failed the boot health check. The system rebooted,
+tentou de novo e voltou para a imagem anterior, que é a que está em uso.	retried, and rolled back to the previous image, which is now active.
+Tentativas registradas	Recorded attempts
+O digest com falha foi colocado em quarentena automática para evitar reinstalação.	The failing digest was automatically quarantined to prevent re-installation.
+Nenhum relatório guardado.	No saved reports.
+Uma atualização falhou e foi desfeita	An update failed and was rolled back
+O sistema voltou para a versão anterior. Veja o que aconteceu.	The system rolled back to the previous version. See what happened.
