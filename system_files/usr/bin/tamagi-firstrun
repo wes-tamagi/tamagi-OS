@@ -46,7 +46,7 @@ echo "$tiling" > ~/.config/cosmic/com.system76.CosmicComp/v1/autotile
 tl "Super+Y alterna entre os dois modos a qualquer momento."
 
 step "Navegador"
-tl "Os navegadores vivem numa caixa Ubuntu 26.04 LTS (distrobox), com a placa de vídeo"
+tl "Os navegadores vivem numa caixa Fedora (distrobox), com a placa de vídeo"
 tl "do computador e sem tocar no host. O Chrome é preparado no primeiro uso"
 tl "(baixa cerca de 600 MB)."
 if ask "Preparar o Chrome agora?"; then

@@ -1,9 +1,9 @@
 #!/usr/bin/bash
-# tamagi-browser — navegadores numa caixa Ubuntu 26.04 LTS (distrobox), fora do host.
+# tamagi-browser — navegadores numa caixa Fedora (distrobox), fora do host.
 #
 # O host do Tamagi é somente-leitura e não traz navegador. O Chrome (e, se
 # você quiser, Firefox, Brave, Edge e Vivaldi) vive numa caixa distrobox
-# baseada no Ubuntu 26.04 LTS, que enxerga a placa de vídeo, o áudio, a webcam, as
+# baseada no Fedora (o mesmo sistema do host), que enxerga a placa de vídeo, o áudio, a webcam, as
 # chaves de segurança USB e a sua pasta pessoal — sem limitações de sandbox
 # de Flatpak.
 #
@@ -15,7 +15,7 @@ set -euo pipefail
 CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
 BOX="${TAMAGI_BROWSER_BOX:-navegadores}"
-IMAGE="${TAMAGI_BROWSER_IMAGE:-docker.io/library/ubuntu:26.04}"
+IMAGE="${TAMAGI_BROWSER_IMAGE:-registry.fedoraproject.org/fedora-toolbox:45}"
 # Caminho dos auxiliares visto de DENTRO da caixa (o distrobox monta o host em /run/host).
 LIBEXEC="${TAMAGI_BROWSER_LIBEXEC:-/run/host/usr/libexec/tamagi}"
 # Só para testes: home separado, sem integração com o menu do host.
@@ -38,7 +38,7 @@ has_gpu() { grep -qsi "^$1\$" /sys/class/drm/card*/device/vendor; }
 
 usage() {
     cat <<'USAGE'
-tamagi-browser — navegadores na caixa Ubuntu 26.04 LTS (distrobox)
+tamagi-browser — navegadores na caixa Fedora (distrobox)
 
   tamagi-browser [URL|opções]           abre o navegador padrão
   tamagi-browser chrome [URL|opções]    abre um navegador específico
@@ -266,11 +266,13 @@ cmd_fido() {
         return 1
     fi
     box_exists || { echo "A caixa '$BOX' ainda não existe: tamagi-browser setup"; return 0; }
-    # Limite conhecido (medido): o aviso de "dispositivo conectado" vem do root
+    # Limite conhecido (medido). O aviso de "dispositivo conectado" vem do root
     # do host, que dentro da caixa aparece como o usuário 65534; como esse
     # número faz parte do mapa de usuários da caixa, a libudev descarta o aviso.
-    # Tirar o 65534 do mapa resolve a chave, mas quebra o apt do Ubuntu (ele
-    # troca para o grupo 65534 ao baixar pacotes), então a caixa fica como está.
+    # Deixar só o USUÁRIO 65534 fora do mapa resolve (5 de 5 eventos aceitos),
+    # mas o podman só aceita mapas diferentes para usuários e grupos com
+    # --uidmap/--gidmap, que não combinam com o --userns que o distrobox põe;
+    # e tirar também o GRUPO 65534 quebra o sudo (e o apt, no Ubuntu).
     echo "Conecte a chave ANTES de abrir o navegador. Se ela foi conectada depois,"
     echo "feche o navegador por completo e abra de novo: a caixa não recebe o aviso"
     echo "de dispositivo conectado com o navegador já aberto."
@@ -313,7 +315,7 @@ cmd_status() {
         echo "Vulkan       : ${vk:-indisponível}"
     '
     echo "Opções       : $([[ -f $FLAGS_FILE ]] && echo "$FLAGS_FILE" || echo 'padrão (aceleração de vídeo ligada)')"
-    echo "Perfis       : $(cmd_profile list | awk '$2 { printf "%s(%s) ", $2, $1 } END { if (!NR) printf "nenhum" }')"
+    echo "Perfis       : $(cmd_profile list | awk 'NF == 2 { printf "%s(%s) ", $2, $1; n++ } END { if (!n) printf "nenhum" }')"
 }
 
 cmd_remove() {

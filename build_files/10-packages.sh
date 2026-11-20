@@ -28,7 +28,7 @@ if grep -qE ':ro\$\{rslave\}|:ro:rslave' "$DBX"; then
 fi
 sh -n "$DBX"
 
-# Navegadores não vivem no host (tamagi-browser cria a caixa Ubuntu 26.04 LTS).
+# Navegadores não vivem no host (tamagi-browser cria a caixa Fedora).
 dnf5 -y remove firefox firefox-langpacks 2>/dev/null || true
 
 # Ferramentas sem pacote no Fedora: binários oficiais, com checksum conferido.

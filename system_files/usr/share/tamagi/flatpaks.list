@@ -1,6 +1,6 @@
 # Apps Flatpak instalados no primeiro boot. Uma linha por app: <remote> <ID>.
 # Remotes: flathub e cosmic (repositório da System76 para o COSMIC).
-# Navegadores não entram aqui: vivem na caixa Ubuntu 26.04 LTS (tamagi-browser).
+# Navegadores não entram aqui: vivem na caixa Fedora (tamagi-browser).
 # Terminal, arquivos, editor, loja e player são os do
 # COSMIC (RPM).
 flathub org.onlyoffice.desktopeditors

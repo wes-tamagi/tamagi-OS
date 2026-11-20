@@ -72,6 +72,27 @@ PY
 # Paleta padrão das janelas do Tamagi (o tamagi-theme gera a do usuário).
 tamagi-theme alacritty tokyo-night > /usr/share/tamagi/alacritty.toml
 
+# ── Arquivos (COSMIC Files): lista densa, pastas primeiro ──
+# No espírito do Omarchy: menos ícones grandes, mais conteúdo por tela e uso
+# pelo teclado (setas, Enter, digitar para achar). A grade continua a um
+# clique, no botão de visualização.
+F="$C/com.system76.CosmicFiles/v1"
+mkdir -p "$F"
+grep -q "view:" "$F/tab" 2>/dev/null || echo "aviso: o COSMIC Files mudou o formato de 'tab'; confira os padrões" >&2
+rm -f "$F/tab"
+cat > "$F/tab" <<'RON'
+(
+    folders_first: true,
+    icon_sizes: (
+        list: 100,
+        grid: 100,
+    ),
+    show_hidden: false,
+    single_click: false,
+    view: List,
+)
+RON
+
 # ── Fontes: Noto Sans na interface do COSMIC (libcosmic) e nos apps GTK ──
 # Roboto Slab é a fonte com serifa do sistema (fontconfig, 55-tamagi-fonts.conf).
 install -d "$C/com.system76.CosmicTk/v1"

@@ -29,7 +29,7 @@ tiling ACTION="toggle":
     echo "$new" > "$file"
     echo "Tiling: $new"
 
-# Navegadores na caixa Ubuntu 26.04 LTS: setup, install <navegador>, status, default, update
+# Navegadores na caixa Fedora: setup, install <navegador>, status, default, update
 browser *ARGS:
     @tamagi-browser {{ ARGS }}
 

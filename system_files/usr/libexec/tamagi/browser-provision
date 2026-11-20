@@ -1,92 +1,89 @@
 #!/usr/bin/bash
-# Roda DENTRO da caixa de navegadores (Ubuntu 26.04 LTS), como root. Quem chama
-# é o tamagi-browser, pelo /run/host.
+# Roda DENTRO da caixa de navegadores (Fedora), como root. Quem chama é o
+# tamagi-browser, pelo /run/host.
 #   browser-provision base                  vídeo por hardware, fontes, pt-BR
 #   browser-provision install <navegador>   chrome | firefox | brave | edge | vivaldi
-#   browser-provision upgrade               apt full-upgrade
+#   browser-provision upgrade               dnf upgrade
 set -euo pipefail
-export DEBIAN_FRONTEND=noninteractive
-KEYRINGS=/etc/apt/keyrings
+REPOS=/etc/yum.repos.d
+STAMP=/var/lib/tamagi-browser-base
 
 die() { echo "erro: $*" >&2; exit 1; }
-apt_install() { apt-get install -y --no-install-recommends "$@"; }
-available() { apt-cache show "$1" >/dev/null 2>&1; }
+dnf_install() { dnf -y install --setopt=install_weak_deps=False "$@"; }
+available() { dnf -q repoquery "$1" 2>/dev/null | grep -q .; }
 gpu_vendor() { grep -qsi "^$1\$" /sys/class/drm/card*/device/vendor; }
 
-fetch_key() { # fetch_key <url> <destino>: baixa a chave e guarda em formato binário
-    local tmp; tmp=$(mktemp)
-    curl -fsSL --retry 3 -o "$tmp" "$1"
-    if grep -q 'BEGIN PGP PUBLIC KEY BLOCK' "$tmp"; then gpg --dearmor < "$tmp" > "$2"; else cp "$tmp" "$2"; fi
-    chmod 644 "$2"; rm -f "$tmp"
+repo() { # repo <id> <nome> <baseurl> <url da chave>
+    cat > "$REPOS/$1.repo" <<REPO
+[$1]
+name=$2
+baseurl=$3
+enabled=1
+gpgcheck=1
+repo_gpgcheck=0
+gpgkey=$4
+REPO
 }
 
 base() {
-    # A caixa não tem init: pacotes não podem tentar subir serviços ao instalar.
-    printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
-    chmod 755 /usr/sbin/policy-rc.d
-    mkdir -p "$KEYRINGS"
-    apt-get update
-    apt_install ca-certificates curl gnupg xdg-utils locales pciutils procps \
-        libva2 libva-drm2 libva-wayland2 libva-x11-2 vainfo mesa-va-drivers \
-        mesa-vulkan-drivers libvulkan1 vulkan-tools libgl1 libegl1 libgles2 libgbm1 \
-        libpipewire-0.3-0 libpulse0 libnss3-tools \
-        fonts-liberation fonts-noto-core fonts-noto-color-emoji
-    # Vídeo por hardware conforme a placa do computador. AMD: mesa-va-drivers
-    # (radeonsi) já cobre. NVIDIA: as bibliotecas vêm do host (distrobox --nvidia).
+    local ver; ver=$(rpm -E %fedora)
+    dnf_install ca-certificates curl gnupg2 xdg-utils pciutils procps-ng \
+        glibc-langpack-pt glibc-langpack-en \
+        libva libva-utils mesa-dri-drivers mesa-vulkan-drivers vulkan-loader vulkan-tools \
+        mesa-libGL mesa-libEGL mesa-libgbm pipewire-libs pulseaudio-libs nss-tools \
+        liberation-fonts google-noto-sans-fonts google-noto-color-emoji-fonts
+    # Vídeo por hardware. O Mesa do Fedora vem sem H.264/HEVC (patentes); a
+    # versão completa do driver VA-API está no RPM Fusion (mesa-va-drivers-freeworld).
+    if ! rpm -q rpmfusion-free-release >/dev/null 2>&1; then
+        dnf -y install "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$ver.noarch.rpm" \
+            || echo "aviso: RPM Fusion indisponível; H.264/HEVC por hardware ficam de fora" >&2
+    fi
+    if rpm -q rpmfusion-free-release >/dev/null 2>&1 && available mesa-va-drivers-freeworld; then
+        if rpm -q mesa-va-drivers >/dev/null 2>&1; then
+            dnf -y swap mesa-va-drivers mesa-va-drivers-freeworld
+        else
+            dnf_install mesa-va-drivers-freeworld
+        fi
+    else
+        dnf_install mesa-va-drivers
+    fi
+    # Intel: driver de mídia. NVIDIA: as bibliotecas vêm do host (distrobox --nvidia).
     if gpu_vendor 0x8086; then
-        if available intel-media-va-driver-non-free; then apt_install intel-media-va-driver-non-free
-        elif available intel-media-va-driver; then apt_install intel-media-va-driver; fi
+        if available intel-media-driver; then dnf_install intel-media-driver
+        elif available libva-intel-media-driver; then dnf_install libva-intel-media-driver; fi
     fi
-    if gpu_vendor 0x10de && available nvidia-vaapi-driver; then apt_install nvidia-vaapi-driver; fi
-    if ! locale -a 2>/dev/null | grep -qi '^pt_BR\.utf-\?8$'; then
-        sed -i 's/^# *pt_BR.UTF-8/pt_BR.UTF-8/' /etc/locale.gen 2>/dev/null || true
-        grep -q '^pt_BR.UTF-8' /etc/locale.gen 2>/dev/null || echo 'pt_BR.UTF-8 UTF-8' >> /etc/locale.gen
-        locale-gen >/dev/null
-    fi
+    if gpu_vendor 0x10de && available libva-nvidia-driver; then dnf_install libva-nvidia-driver; fi
+    mkdir -p "$(dirname "$STAMP")"; touch "$STAMP"
 }
 
 install_browser() {
-    [[ -d $KEYRINGS && -x /usr/sbin/policy-rc.d ]] || base
+    [[ -f $STAMP ]] || base
     case "$1" in
         chrome)
-            # Mesmo nome de arquivo que o pacote do Chrome usa, para não duplicar a fonte.
-            fetch_key https://dl.google.com/linux/linux_signing_key.pub "$KEYRINGS/google-chrome.gpg"
-            echo "deb [arch=amd64 signed-by=$KEYRINGS/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
-                > /etc/apt/sources.list.d/google-chrome.list
-            apt-get update
-            apt_install google-chrome-stable ;;
+            repo google-chrome "Google Chrome" 'https://dl.google.com/linux/chrome/rpm/stable/$basearch' \
+                https://dl.google.com/linux/linux_signing_key.pub
+            dnf_install google-chrome-stable ;;
         firefox)
-            fetch_key https://packages.mozilla.org/apt/repo-signing-key.gpg "$KEYRINGS/packages.mozilla.org.gpg"
-            echo "deb [signed-by=$KEYRINGS/packages.mozilla.org.gpg] https://packages.mozilla.org/apt mozilla main" \
-                > /etc/apt/sources.list.d/mozilla.list
-            printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' > /etc/apt/preferences.d/mozilla
-            apt-get update
-            apt_install firefox firefox-l10n-pt-br
+            dnf_install firefox firefox-langpacks
             # Decodificação de vídeo por hardware (VA-API) ligada por padrão.
-            install -Dm644 /dev/stdin /usr/lib/firefox/defaults/pref/tamagi.js <<'JS'
+            install -Dm644 /dev/stdin /usr/lib64/firefox/defaults/pref/tamagi.js <<'JS'
 pref("media.ffmpeg.vaapi.enabled", true);
 pref("media.hardware-video-decoding.force-enabled", true);
 pref("gfx.webrender.all", true);
 JS
             ;;
         brave)
-            fetch_key https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg "$KEYRINGS/brave-browser.gpg"
-            echo "deb [arch=amd64 signed-by=$KEYRINGS/brave-browser.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" \
-                > /etc/apt/sources.list.d/brave-browser.list
-            apt-get update
-            apt_install brave-browser ;;
+            repo brave-browser "Brave Browser" 'https://brave-browser-rpm-release.s3.brave.com/$basearch' \
+                https://brave-browser-rpm-release.s3.brave.com/brave-core.asc
+            dnf_install brave-browser ;;
         edge)
-            fetch_key https://packages.microsoft.com/keys/microsoft.asc "$KEYRINGS/microsoft.gpg"
-            echo "deb [arch=amd64 signed-by=$KEYRINGS/microsoft.gpg] https://packages.microsoft.com/repos/edge stable main" \
-                > /etc/apt/sources.list.d/microsoft-edge.list
-            apt-get update
-            apt_install microsoft-edge-stable ;;
+            repo microsoft-edge "Microsoft Edge" https://packages.microsoft.com/yumrepos/edge \
+                https://packages.microsoft.com/keys/microsoft.asc
+            dnf_install microsoft-edge-stable ;;
         vivaldi)
-            fetch_key https://repo.vivaldi.com/archive/linux_signing_key.pub "$KEYRINGS/vivaldi.gpg"
-            echo "deb [arch=amd64 signed-by=$KEYRINGS/vivaldi.gpg] https://repo.vivaldi.com/archive/deb/ stable main" \
-                > /etc/apt/sources.list.d/vivaldi.list
-            apt-get update
-            apt_install vivaldi-stable ;;
+            repo vivaldi "Vivaldi" 'https://repo.vivaldi.com/archive/rpm/$basearch' \
+                https://repo.vivaldi.com/archive/linux_signing_key.pub
+            dnf_install vivaldi-stable ;;
         *) die "navegador desconhecido: $1 (use: chrome, firefox, brave, edge, vivaldi)" ;;
     esac
 }
@@ -94,6 +91,6 @@ JS
 case "${1:-}" in
     base)    base ;;
     install) [[ -n ${2:-} ]] || die "diga o navegador"; install_browser "$2" ;;
-    upgrade) apt-get update && apt-get full-upgrade -y ;;
+    upgrade) dnf -y upgrade --refresh ;;
     *) die "uso: browser-provision base | install <navegador> | upgrade" ;;
 esac

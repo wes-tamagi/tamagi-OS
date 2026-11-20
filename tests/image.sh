@@ -62,11 +62,11 @@ check "impressão e scanner sem driver"     rpm -q cups cups-browsed ipp-usb san
 check "firmware de Wi-Fi (Intel, Realtek, MediaTek, Atheros, Broadcom)" rpm -q iwlwifi-mvm-firmware realtek-firmware mt7xxx-firmware atheros-firmware brcmfmac-firmware
 check "firewall ativo por padrão"          systemctl is-enabled firewalld
 
-section "Navegadores (caixa Ubuntu 26.04 LTS) e apps"
+section "Navegadores (caixa Fedora) e apps"
 check "nenhum navegador no host"            bash -c '! rpm -q google-chrome-stable firefox chromium 2>/dev/null | grep -qv "not installed"'
 check "entrada do Chrome no menu aponta para a caixa" grep -q '^Exec=/usr/bin/tamagi-browser chrome %U' /usr/share/applications/google-chrome.desktop
 check "navegador padrão é o Chrome da caixa" grep -q 'x-scheme-handler/https=google-chrome.desktop' /etc/xdg/mimeapps.list
-check "caixa é Ubuntu 26.04 LTS"            grep -q 'library/ubuntu:26.04' /usr/bin/tamagi-browser
+check "caixa dos navegadores é Fedora"    grep -q 'fedora-toolbox:45' /usr/bin/tamagi-browser
 check "tamagi-browser status sem a caixa"   bash -c 'tamagi-browser status | grep -q "ainda não criada"'
 check "tamagi-browser recusa navegador desconhecido" bash -c '! tamagi-browser install opera 2>/dev/null'
 check "opções de aceleração de vídeo"       bash -c 'source <(sed -n "/^chromium_flags()/,/^}/p" /usr/bin/tamagi-browser); FLAGS_FILE=/nonexistent; chromium_flags | grep -q AcceleratedVideoEncoder'
@@ -296,6 +296,7 @@ check "fontes: Noto Sans (interface) e Roboto Slab (serifa)" bash -c '[[ $(fc-ma
 check "barra: uma só, embaixo, apps no centro" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -q "^\[\"Panel\"\]$" /usr/share/cosmic/com.system76.CosmicPanel/v1/entries && grep -qx Bottom $P/anchor && grep -q CosmicAppList $P/plugins_center && grep -q CosmicAppletTime $P/plugins_wings'
 check "menu iniciar: applet instalado, primeiro botão da barra, layout Retro" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; M=/usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1; command -v cosmic-ext-classic-menu-applet && grep -q "^Some((\[\"com.championpeak87.cosmic-ext-classic-menu\"" $P/plugins_wings && ! grep -q CosmicPanelAppButton $P/plugins_wings && grep -qx Retro $M/menu_layout && grep -qx Places $M/side_panel'
 check "menu iniciar: ícone próprio do Tamagi, sem texto" bash -c 'M=/usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1; f=$(tr -d "\"" < $M/button_icon); [[ $f == /usr/share/tamagi/menu/tamagi-start-symbolic.svg && -s $f ]] && grep -qx IconOnly $M/applet_button_style && rsvg-convert "$f" -o /tmp/menu-icon.png && [[ -s /tmp/menu-icon.png ]]'
+check "Arquivos: lista, pastas primeiro" bash -c 'f=/usr/share/cosmic/com.system76.CosmicFiles/v1/tab; grep -q "view: List" $f && grep -q "folders_first: true" $f'
 check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep -q "CosmicPanel\.Dock/"'
 check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'
 check "agente de IA responde no idioma do sistema" bash -c 'grep -q "Responda sempre em" /usr/bin/tamagi-agent && ! grep -q "português do Brasil," /usr/share/tamagi/agent/system.md'

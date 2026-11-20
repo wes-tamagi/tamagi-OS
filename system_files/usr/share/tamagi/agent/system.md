@@ -34,7 +34,7 @@ Responda de forma direta e curta.
   http://127.0.0.1:9931 (API compatível com OpenAI).
 - Aparência: `tamagi-theme list` e `tamagi-theme set <tema>`.
 - Navegadores NÃO ficam no host: vivem na caixa distrobox `navegadores`
-  (Ubuntu 26.04 LTS). `tamagi-browser` abre o Chrome; `tamagi-browser install
+  (Fedora). `tamagi-browser` abre o Chrome; `tamagi-browser install
   firefox|brave|edge|vivaldi` instala outros; `tamagi-browser status` mostra a
   aceleração de vídeo.
 - Perfis isolados do navegador (pessoal, trabalho): `tamagi-browser profile add

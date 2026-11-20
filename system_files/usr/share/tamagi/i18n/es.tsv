@@ -16,7 +16,7 @@ Organizar as janelas automaticamente lado a lado (tiling)?	¿Organizar las venta
 Flutuantes	Flotantes
 Super+Y alterna entre os dois modos a qualquer momento.	Super+Y alterna entre los dos modos en cualquier momento.
 Navegador	Navegador
-Os navegadores vivem numa caixa Ubuntu 26.04 LTS (distrobox), com a placa de vídeo	Los navegadores viven en una caja Ubuntu 26.04 LTS (distrobox), con la tarjeta gráfica
+Os navegadores vivem numa caixa Fedora (distrobox), com a placa de vídeo	Los navegadores viven en una caja Fedora (distrobox), con la tarjeta gráfica
 do computador e sem tocar no host. O Chrome é preparado no primeiro uso	del equipo y sin tocar el host. Chrome se prepara en el primer uso
 (baixa cerca de 600 MB).	(descarga unos 600 MB).
 Não deu agora (sem rede?). Ele é preparado quando você abrir o navegador.	No se pudo ahora (¿sin red?). Se prepara cuando abra el navegador.

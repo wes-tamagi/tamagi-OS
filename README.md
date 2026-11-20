@@ -46,7 +46,7 @@ Precisa de `podman` e `just`. Nada aqui pede root.
 
 ```bash
 just build          # imagem do sistema (~20 min na primeira vez)
-just test           # 299 verificações dentro da imagem
+just test           # 300 verificações dentro da imagem
 just test-desktop   # sobe a sessão COSMIC sem monitor e salva output/desktop.png
 just test-browser   # cria de verdade a caixa de navegadores neste computador
 just test-agent     # baixa o preset mini (2,8 GB) e testa o agente de IA
@@ -121,9 +121,9 @@ máquina já instalada: `ujust switch-image ghcr.io/SEU_USUARIO/tamagi:latest`.
 Em quem já roda Bluefin, Aurora, Bazzite ou outro sistema da família Universal
 Blue: `sudo bootc switch <imagem>`.
 
-## Navegadores (caixa Ubuntu 26.04 LTS)
+## Navegadores (caixa Fedora)
 
-O host não traz navegador. O Chrome vive numa caixa distrobox Ubuntu 26.04 LTS, criada
+O host não traz navegador. O Chrome vive numa caixa distrobox Fedora (o mesmo sistema do host), criada
 no primeiro uso; ela enxerga a placa de vídeo, o áudio, a webcam, as chaves de
 segurança USB e a sua pasta pessoal.
 
@@ -498,9 +498,9 @@ O projeto agradece a todos os que tornaram esta distro possível.
   não é usado.
 - **[Omarchy](https://omarchy.org/):** uso por teclado, temas, web apps
   e o repositório de pacotes, numa caixa Arch.
-- **[Ubuntu](https://ubuntu.com/) 26.04 LTS** nas caixas `deb` e de
-  navegadores: o Chrome vem do repositório apt do Google e o Firefox do da
-  Mozilla (no Ubuntu eles só existem como snap, que não roda em contêiner).
+- **[Ubuntu](https://ubuntu.com/) 26.04 LTS** na caixa `deb` do `tamagi-pkg`.
+  A caixa dos navegadores é Fedora: o Chrome vem do repositório rpm do Google
+  e o driver de vídeo completo (H.264/HEVC) do RPM Fusion.
 - **[COSMIC](https://github.com/pop-os/cosmic-epoch)** (System76): o desktop.
 - **Instalador:** [tik](https://github.com/sysrich/tik), do openSUSE Aeon.
 - **[GrapheneOS](https://grapheneos.org/):** o hardened_malloc (empacotado
@@ -540,10 +540,11 @@ na imagem: é baixado na máquina de quem usa, do site do fabricante.
 - Chave de segurança FIDO2 no navegador da caixa: funciona se a chave já
   estiver conectada quando o navegador abre. Conectada depois, o navegador não
   a vê até ser fechado e aberto de novo. Causa medida: o aviso de dispositivo
-  conectado chega à caixa como vindo do usuário 65534, que faz parte do mapa de
-  usuários do contêiner, e a libudev o descarta. Tirar esse usuário do mapa
-  resolve a chave mas quebra o `apt` do Ubuntu, então não foi adotado.
-  `tamagi-browser fido` faz o diagnóstico.
+  conectado chega à caixa como vindo do usuário 65534, que faz parte do mapa
+  de usuários do contêiner, e a libudev o descarta. Deixar só esse usuário fora
+  do mapa resolve (5 de 5 eventos aceitos), mas exige mapas diferentes para
+  usuários e grupos, que o distrobox não permite configurar; tirar também o
+  grupo quebra o `sudo` na caixa. `tamagi-browser fido` faz o diagnóstico.
 - A tela de login usa o papel de parede padrão do COSMIC, não o do Tamagi.
 - HDR não existe no COSMIC; VRR e `gamescope` embutido têm falhas conhecidas
   no compositor.

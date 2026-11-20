@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # Testa a caixa de navegadores DE VERDADE neste computador (precisa de podman
-# e distrobox): cria uma caixa Ubuntu 26.04 LTS, instala o Chrome com o tamagi-browser
+# e distrobox): cria uma caixa Fedora, instala o Chrome com o tamagi-browser
 # e confere a aceleração de vídeo. Roda fora da imagem porque depende da placa
 # de vídeo e do podman do host.
 #
@@ -8,15 +8,20 @@
 #   tests/browser.sh --clean     apaga a caixa de teste
 #
 # Não toca na sua pasta pessoal: a caixa usa um home separado em
-# .cache/browser-test, e nada é exportado para o menu.
+# ~/.cache/tamagi-browser-test, e nada é exportado para o menu.
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 P=$ROOT/system_files
-T=$ROOT/.cache/browser-test
+# Fica na pasta pessoal, e não ao lado do repositório: o root de dentro da
+# caixa precisa alcançar o home de teste e os auxiliares, e não alcança um
+# disco externo montado só para o seu usuário (/run/media/<você>).
+T=${TAMAGI_BROWSER_TEST_DIR:-$(realpath "$HOME")/.cache/tamagi-browser-test}
 export TAMAGI_BROWSER_BOX=tamagi-test-nav
 export TAMAGI_BROWSER_HOME=$T/home
-export TAMAGI_BROWSER_LIBEXEC=/run/host$P/usr/libexec/tamagi
+mkdir -p "$T/libexec"
+cp -f "$P"/usr/libexec/tamagi/browser-provision "$T/libexec/"
+export TAMAGI_BROWSER_LIBEXEC=/run/host$T/libexec
 export XDG_CONFIG_HOME=$T/config XDG_CACHE_HOME=$T/cache
 browser() { bash "$P/usr/bin/tamagi-browser" "$@"; }
 
@@ -35,12 +40,12 @@ ok()  { echo "  ok    $*"; pass=$((pass + 1)); }
 bad() { echo "  FALHA $*"; fail=$((fail + 1)); }
 check() { local desc=$1; shift; if "$@" >/dev/null 2>&1; then ok "$desc"; else bad "$desc"; fi; }
 
-echo "== Caixa de navegadores (Ubuntu 26.04 LTS)"
+echo "== Caixa de navegadores (Fedora)"
 browser setup </dev/null 2>&1 | tail -3
 check "caixa criada"                         podman container exists "$TAMAGI_BROWSER_BOX"
 status=$(browser status 2>/dev/null)
 echo "$status" | sed 's/^/    /'
-check "é Ubuntu 26.04"                       grep -q 'Sistema.*Ubuntu 26\.04' <<<"$status"
+check "é Fedora"                             grep -q 'Sistema.*Fedora' <<<"$status"
 check "Chrome instalado"                     grep -q 'Navegador.*Google Chrome' <<<"$status"
 check "Chrome abre com as opções de aceleração" bash -c "bash '$P/usr/bin/tamagi-browser' chrome --version | grep -q 'Google Chrome'"
 check "navegador desconhecido é recusado"    bash -c "! bash '$P/usr/bin/tamagi-browser' install opera"

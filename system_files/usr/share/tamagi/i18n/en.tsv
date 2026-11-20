@@ -16,7 +16,7 @@ Organizar as janelas automaticamente lado a lado (tiling)?	Arrange windows side 
 Flutuantes	Floating
 Super+Y alterna entre os dois modos a qualquer momento.	Super+Y switches between the two modes at any time.
 Navegador	Browser
-Os navegadores vivem numa caixa Ubuntu 26.04 LTS (distrobox), com a placa de vídeo	Browsers live in an Ubuntu 26.04 LTS box (distrobox), with the computer's
+Os navegadores vivem numa caixa Fedora (distrobox), com a placa de vídeo	Browsers live in an Fedora box (distrobox), with the computer's
 do computador e sem tocar no host. O Chrome é preparado no primeiro uso	graphics card and without touching the host. Chrome is set up on first use
 (baixa cerca de 600 MB).	(downloads about 600 MB).
 Não deu agora (sem rede?). Ele é preparado quando você abrir o navegador.	That didn't work (no network?). It will be set up when you open the browser.

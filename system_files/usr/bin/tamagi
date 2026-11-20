@@ -177,7 +177,7 @@ def toml_value(v):
 def to_toml(state):
     notes = {
         "aparencia": "tema: tamagi-theme list · papel: mon, seigaiha, asanoha, byobu, shippo, hinode, uroko, ondas",
-        "navegadores": "na caixa Ubuntu 26.04 LTS: chrome, firefox, brave, edge, vivaldi",
+        "navegadores": "na caixa Fedora: chrome, firefox, brave, edge, vivaldi",
         "flatpak": "IDs do Flathub ou do repositório COSMIC",
         "mise": "linguagens e ferramentas globais, como em `mise use -g`",
         "pacotes": "subsistemas do tamagi-pkg (omarchy usa a caixa Arch)",
