@@ -3,8 +3,10 @@
 image := env("TAMAGI_IMAGE", "localhost/tamagi")
 tag := env("TAMAGI_TAG", "latest")
 fedora := env("FEDORA_VERSION", "45")
-# Kernel: main (padrão, o da base) | ogc. Ex.: KERNEL_FLAVOR=ogc TAMAGI_TAG=ogc just build
+# Kernel: main (padrão, o da base) | ogc | ark (kernel-ark, o do Rawhide).
+# Ex.: KERNEL_FLAVOR=ark TAMAGI_TAG=ark just build
 kernel := env("KERNEL_FLAVOR", "main")
+akmods := if kernel == "ark" { "main" } else { kernel }
 # Para onde o sistema instalado olha para se atualizar (vazio: fica na imagem local).
 target := env("TAMAGI_TARGET_IMGREF", "")
 bib := "quay.io/centos-bootc/bootc-image-builder:latest"
@@ -18,6 +20,7 @@ build *ARGS:
         --build-arg FEDORA_VERSION={{ fedora }} \
         --build-arg IMAGE_REF={{ image }} \
         --build-arg KERNEL_FLAVOR={{ kernel }} \
+        --build-arg AKMODS_FLAVOR={{ akmods }} \
         -t {{ image }}:{{ tag }} {{ ARGS }} .
 
 # Testes da imagem: arquivos, serviços, COSMIC, Rust, hardening, primeiro boot, llama.cpp

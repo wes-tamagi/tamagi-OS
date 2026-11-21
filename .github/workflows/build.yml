@@ -34,8 +34,20 @@ concurrency:
 
 jobs:
   build:
-    name: Construir, testar e publicar
+    name: Construir, testar e publicar (${{ matrix.flavor }})
     runs-on: ubuntu-24.04
+    # Dois sabores de kernel, em paralelo: main (o da base, tags latest/45) e
+    # ark (kernel-ark, o do Rawhide; tags ark/ark-45). Um falhar não derruba o outro.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: main
+            akmods: main
+            prefix: ""
+          - flavor: ark
+            akmods: main
+            prefix: "ark-"
     permissions:
       contents: read
       packages: write
@@ -58,15 +70,15 @@ jobs:
         run: |
           sudo podman build \
             --build-arg FEDORA_VERSION=${FEDORA_VERSION} \
+            --build-arg KERNEL_FLAVOR=${{ matrix.flavor }} \
+            --build-arg AKMODS_FLAVOR=${{ matrix.akmods }} \
             --build-arg IMAGE_VENDOR=${GITHUB_REPOSITORY_OWNER,,} \
             --build-arg IMAGE_REF=${IMAGE_REGISTRY}/${IMAGE_NAME} \
-            -t ${IMAGE_NAME}:latest \
-            -t ${IMAGE_NAME}:${FEDORA_VERSION} \
-            -t ${IMAGE_NAME}:${FEDORA_VERSION}.${BUILD_DATE} \
+            -t ${IMAGE_NAME}:build \
             .
 
       - name: Testar
-        run: sudo podman run --rm -v ./tests:/tests:ro ${IMAGE_NAME}:latest bash /tests/image.sh
+        run: sudo podman run --rm -v ./tests:/tests:ro ${IMAGE_NAME}:build bash /tests/image.sh
 
       # Daqui para baixo só no branch principal: um pull request constrói e
       # testa, mas nunca publica nada em seu nome.
@@ -79,8 +91,15 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
           set -euo pipefail
-          for tag in ${FEDORA_VERSION} ${FEDORA_VERSION}.${BUILD_DATE} latest; do
-            sudo podman push --digestfile=/tmp/digestfile ${IMAGE_NAME}:${tag} ${IMAGE_REGISTRY}/${IMAGE_NAME}:${tag}
+          prefix="${{ matrix.prefix }}"
+          # main: 45, 45.AAAAMMDD, latest · ark: ark-45, ark-45.AAAAMMDD, ark
+          if [ "${{ matrix.flavor }}" = main ]; then
+            tags="${FEDORA_VERSION} ${FEDORA_VERSION}.${BUILD_DATE} latest"
+          else
+            tags="${prefix}${FEDORA_VERSION} ${prefix}${FEDORA_VERSION}.${BUILD_DATE} ${{ matrix.flavor }}"
+          fi
+          for tag in $tags; do
+            sudo podman push --digestfile=/tmp/digestfile ${IMAGE_NAME}:build ${IMAGE_REGISTRY}/${IMAGE_NAME}:${tag}
           done
           echo "digest=$(sudo cat /tmp/digestfile)" >> "$GITHUB_OUTPUT"
 
