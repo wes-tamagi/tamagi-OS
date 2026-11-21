@@ -1,0 +1,4 @@
+# Tela de boot gráfica (Plymouth, tema tamagi) em vez das mensagens do kernel.
+# Esc durante o boot mostra os detalhes. Vale também para instalações já
+# existentes: o bootc aplica a diferença no próximo update.
+kargs = ["rhgb", "quiet"]

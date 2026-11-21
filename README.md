@@ -502,6 +502,10 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   focado" ligado: abriu, já dá para digitar e usar as setas, sem clicar na
   busca. Ele abre no canto da tela do lado do botão. O lançador do COSMIC fica no
   `Super+Alt+Espaço`.
+- **Tela de boot:** o brasão do Tamagi, o anel (環, *tamaki*) com as três
+  joias (玉, *tama*), nas cores do tema Ipê; as joias giram enquanto o sistema
+  sobe, e a senha do disco aparece no mesmo fundo. Desenhado por código no
+  build (`build_files/make-plymouth.py`), como os papéis de parede.
 - **Idiomas:** português (Brasil), inglês (EUA), espanhol e francês, no
   sistema, no instalador, no assistente de primeiro login, no menu e nos
   atalhos. `tamagi-lang pick` troca depois de instalado.
@@ -525,7 +529,7 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   monte), `shippo` (círculos entrelaçados), `hinode` (nascer do sol sobre o
   mar), `uroko` (escamas triangulares) e `ondas`.
 - **Redes:** WireGuard, OpenVPN, OpenConnect, L2TP, PPTP, SSTP, IKEv2/IPsec,
-  SSH, Tailscale (`ujust setup-tailscale`); SMB, NFS, SSHFS, MTP, iPhone,
+  SSH, Tailscale do repositório oficial (`ujust setup-tailscale`); SMB, NFS, SSHFS, MTP, iPhone,
   rclone; mDNS, impressoras e scanners sem driver.
 
 ## Atalhos (`Super+K` mostra todos)

@@ -55,6 +55,7 @@ done
 check "WireGuard"                          command -v wg
 check "Wi-Fi, banda larga móvel e Bluetooth no NetworkManager" rpm -q NetworkManager-wifi NetworkManager-wwan NetworkManager-bluetooth ModemManager
 check "Tailscale (desligado até você ativar)" bash -c 'command -v tailscale && ! systemctl is-enabled tailscaled 2>/dev/null | grep -qx enabled'
+check "Tailscale do repositório oficial, sem o repositório ligado na imagem" bash -c 'tailscale version | head -1 | grep -qE "^[0-9]+\.[0-9]+" && [[ ! -e /etc/yum.repos.d/tailscale.repo ]] && rpm -q --qf "%{VENDOR}%{PACKAGER}" tailscale | grep -qi tailscale'
 check "pastas Windows/NAS (SMB), NFS e SSHFS" bash -c 'rpm -q gvfs-smb cifs-utils nfs-utils fuse-sshfs samba-client && command -v wsdd'
 check "iPhone e Android (arquivos e tethering)" bash -c 'rpm -q usbmuxd ifuse gvfs-afc gvfs-mtp android-tools usb_modeswitch'
 check "descoberta na rede local (mDNS)"    rpm -q avahi nss-mdns
@@ -327,6 +328,8 @@ check "tamagi-font: troca a fonte do foot e do COSMIC" bash -c 'tamagi-font list
 check "tamagi-popos: ajuda, nome inválido e importar só qcow2" bash -c 'tamagi-popos | grep -q compactar && ! tamagi-popos nova "a b" 2>/dev/null && ! tamagi-popos importar /etc/hostname 2>/dev/null'
 check "tamagi-popos: não troca a imagem com clones dependendo dela" bash -c 'I=$HOME/.local/share/libvirt/images; mkdir -p $I && qemu-img create -q -f qcow2 $I/popos-modelo.qcow2 64M && qemu-img create -q -f qcow2 -b $I/popos-modelo.qcow2 -F qcow2 $I/c1.qcow2 && qemu-img create -q -f qcow2 /tmp/outra.qcow2 64M && ! tamagi-popos importar /tmp/outra.qcow2 2>/dev/null; r=$?; rm -rf $HOME/.local/share/libvirt /tmp/outra.qcow2; exit $r'
 check "VMs (libvirt e Windows) ficam fora dos snapshots da pasta pessoal" bash -c 'grep -q ".local/share/libvirt/images" /usr/libexec/tamagi/home-snapshots && grep -q ".local/share/tamagi-windows" /usr/libexec/tamagi/home-snapshots'
+check "Plymouth: tema tamagi padrão, com o brasão animado e a senha do disco" bash -c 'T=/usr/share/plymouth/themes/tamagi; [[ $(plymouth-set-default-theme) == tamagi ]] && [[ $(ls $T/throbber-*.png | wc -l) -ge 30 ]] && for f in watermark entry bullet lock; do [[ -s $T/$f.png ]] || exit 1; done && grep -q "^ModuleName=two-step" $T/tamagi.plymouth'
+check "Plymouth: tema dentro do initramfs e boot gráfico (rhgb quiet)" bash -c 'img=$(ls /usr/lib/modules/*/initramfs.img); lsinitrd "$img" | grep -q "plymouth/themes/tamagi/throbber-0001.png" && grep -q "\"rhgb\"" /usr/lib/bootc/kargs.d/20-tamagi-boot.toml'
 check "tamagi-menu: residente pelo autostart" bash -c 'desktop-file-validate /etc/xdg/autostart/tamagi-menu-service.desktop && grep -q "^Exec=tamagi-menu --service" /etc/xdg/autostart/tamagi-menu-service.desktop && env -u WAYLAND_DISPLAY -u DISPLAY tamagi-menu --service'
 check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep -q "CosmicPanel\.Dock/"'
 check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'
