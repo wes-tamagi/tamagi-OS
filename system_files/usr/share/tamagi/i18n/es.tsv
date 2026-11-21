@@ -223,3 +223,30 @@ fonte mono não encontrada	fuente monoespaciada no encontrada
 Fonte	Fuente
 terminais novos já abrem com ela	las terminales nuevas ya la usan
 Fonte monoespaçada	Fuente monoespaciada
+# tamagi-popos
+nome inválido	nombre no válido
+há VMs criadas a partir da imagem atual; remova-as antes	hay VMs creadas a partir de la imagen actual; elimínalas antes
+memória insuficiente	memoria insuficiente
+não consegui falar com a API do Pop!_OS	no pude contactar con la API de Pop!_OS
+resposta inesperada da API do Pop!_OS	respuesta inesperada de la API de Pop!_OS
+Baixando o Pop!_OS	Descargando Pop!_OS
+a ISO não confere com o SHA256 da System76	la ISO no coincide con el SHA256 de System76
+Sem aceleração 3D; usando vídeo virtio simples	Sin aceleración 3D; usando vídeo virtio simple
+VM não existe	La VM no existe
+A VM já existe	La VM ya existe
+já existe um disco com esse nome	ya existe un disco con ese nombre
+A VM está aberta no virt-manager: instale o Pop!_OS normalmente.	La VM está abierta en virt-manager: instala Pop!_OS como siempre.
+Quando terminar e desligar a VM, faça a imagem compactada com	Cuando termines y apagues la VM, crea la imagen compacta con
+desligue a VM antes	apaga la VM antes
+não achei o disco da VM	no encontré el disco de la VM
+esta VM já é um clone da imagem; compacte a VM onde o Pop!_OS foi instalado	esta VM ya es un clon de la imagen; compacta la VM donde se instaló Pop!_OS
+Compactando (o disco da VM original não é alterado)…	Compactando (el disco de la VM original no se modifica)…
+Imagem do Pop!_OS para VM pronta	Imagen de Pop!_OS para VM lista
+VM nova a partir dela	VM nueva a partir de ella
+ainda não há imagem compactada	todavía no hay imagen compacta
+VM criada	VM creada
+imagem compactada	imagen compacta
+Apagar a VM e o disco dela? O modelo compactado fica.	¿Borrar la VM y su disco? La plantilla compacta se conserva.
+VM removida	VM eliminada
+não é uma imagem qcow2	no es una imagen qcow2
+ISO apagada	ISO borrada

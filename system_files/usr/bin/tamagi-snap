@@ -99,7 +99,7 @@ def rel_path(arg):
         sys.exit(tr("outside"))
     first = rel.parts[0] if rel.parts else ""
     if first in (".snapshots", ".cache") or str(rel).startswith(
-            (".local/share/containers", ".local/share/tamagi-windows")):
+            (".local/share/containers", ".local/share/tamagi-windows", ".local/share/libvirt/images")):
         sys.exit(tr("excluded"))
     return path, rel
 

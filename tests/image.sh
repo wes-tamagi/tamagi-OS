@@ -30,7 +30,7 @@ for cmd in distrobox podman flatpak bootc ujust foot alacritty cosmic-term cosmi
            llama-server llama-cli opencode claude \
            tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-assist tamagi-keys tamagi-panel tamagi-lang \
            tamagi-firstrun tamagi-pkg tamagi-update tamagi-webapp \
-           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper tamagi-windows tamagi-db tamagi-lembrete tamagi-capture tamagi-dev tamagi-font tesseract; do
+           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper tamagi-windows tamagi-db tamagi-lembrete tamagi-capture tamagi-dev tamagi-font tesseract tamagi-popos virt-sparsify virt-sysprep; do
     check "comando $cmd" command -v "$cmd"
 done
 
@@ -324,6 +324,9 @@ check "atalhos do Omarchy: Shift/Alt+Print, Super+Shift+G/D/O/M/W, Super+Ctrl+E/
 check "tamagi-theme: cores do Neovim (LazyVim) em todos os temas" bash -c 'for th in $(tamagi-theme list); do tamagi-theme nvim $th > /tmp/n.lua && nvim --headless -l /tmp/n.lua || exit 1; done; tamagi-theme nvim ipe | grep -q base16 && mkdir -p $HOME/.config/nvim/lua/plugins && tamagi-theme set kanagawa >/dev/null && grep -q "colorscheme = \"kanagawa\"" $HOME/.config/nvim/lua/plugins/tamagi-theme.lua; r=$?; rm -rf $HOME/.config/nvim; tamagi-theme set tokyo-night >/dev/null; exit $r'
 check "tamagi-dev: presets só com binário pronto" bash -c 'tamagi-dev list | grep -q "^  ruby " && tamagi-dev list | grep -q "^  dotnet " && ! tamagi-dev add cobol 2>/dev/null'
 check "tamagi-font: troca a fonte do foot e do COSMIC" bash -c 'tamagi-font list | grep -qx "JetBrains Mono" && GSETTINGS_BACKEND=memory tamagi-font set "Cascadia Code NF" >/dev/null && grep -q "^font=Cascadia Code NF:size=11" $HOME/.config/foot/foot.ini && grep -q "Cascadia Code NF" $HOME/.config/cosmic/com.system76.CosmicTk/v1/monospace_font && GSETTINGS_BACKEND=memory tamagi-font reset >/dev/null && grep -q "^font=JetBrains Mono" $HOME/.config/foot/foot.ini'
+check "tamagi-popos: ajuda, nome inválido e importar só qcow2" bash -c 'tamagi-popos | grep -q compactar && ! tamagi-popos nova "a b" 2>/dev/null && ! tamagi-popos importar /etc/hostname 2>/dev/null'
+check "tamagi-popos: não troca a imagem com clones dependendo dela" bash -c 'I=$HOME/.local/share/libvirt/images; mkdir -p $I && qemu-img create -q -f qcow2 $I/popos-modelo.qcow2 64M && qemu-img create -q -f qcow2 -b $I/popos-modelo.qcow2 -F qcow2 $I/c1.qcow2 && qemu-img create -q -f qcow2 /tmp/outra.qcow2 64M && ! tamagi-popos importar /tmp/outra.qcow2 2>/dev/null; r=$?; rm -rf $HOME/.local/share/libvirt /tmp/outra.qcow2; exit $r'
+check "VMs (libvirt e Windows) ficam fora dos snapshots da pasta pessoal" bash -c 'grep -q ".local/share/libvirt/images" /usr/libexec/tamagi/home-snapshots && grep -q ".local/share/tamagi-windows" /usr/libexec/tamagi/home-snapshots'
 check "tamagi-menu: residente pelo autostart" bash -c 'desktop-file-validate /etc/xdg/autostart/tamagi-menu-service.desktop && grep -q "^Exec=tamagi-menu --service" /etc/xdg/autostart/tamagi-menu-service.desktop && env -u WAYLAND_DISPLAY -u DISPLAY tamagi-menu --service'
 check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep -q "CosmicPanel\.Dock/"'
 check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'

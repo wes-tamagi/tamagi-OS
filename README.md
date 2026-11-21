@@ -257,6 +257,25 @@ virt-viewer, virt-install e guestfs-tools. Os daemons do libvirt sobem por
 socket, só quando usados, e quem é administrador gerencia as VMs sem digitar a
 senha. `ujust vms` abre o virt-manager.
 
+### Pop!_OS em VM, com imagem compactada própria
+
+```bash
+tamagi-popos instalar          # baixa a ISO oficial (SHA256 da System76) e abre a VM no virt-manager
+tamagi-popos compactar         # depois de instalar: limpa (machine-id, chaves SSH, logs) e compacta num modelo
+tamagi-popos nova trabalho     # VM nova a partir do modelo, em segundos (clone ligado, começa com poucos MB)
+tamagi-popos lista | abrir <nome> | remover <nome>
+tamagi-popos exportar ~/popos.qcow2   # leva o modelo para outra máquina (importar do outro lado)
+```
+
+Roda sem root, na sessão do usuário do libvirt (no virt-manager: "QEMU/KVM
+sessão do usuário", que o comando adiciona), com UEFI, CPU do host, disco
+virtio que só cresce com o uso, rede pelo passt e vídeo virtio com 3D (o
+COSMIC do Pop!_OS fica fluido). A instalação em si é a do Pop!_OS, feita uma
+vez à mão; a imagem compactada nunca altera o disco da VM original, e o
+`tamagi-popos` recusa trocar o modelo enquanto houver VMs criadas a partir
+dele. Discos em `~/.local/share/libvirt/images`, fora dos snapshots da pasta
+pessoal.
+
 ## Atualização automática
 
 Tudo se atualiza sozinho, todo dia:

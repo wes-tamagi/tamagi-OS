@@ -1,0 +1,228 @@
+#!/usr/bin/bash
+# tamagi-popos — Pop!_OS em máquina virtual no virt-manager, com uma imagem
+# compactada própria para VM.
+#
+#   tamagi-popos instalar [nome]      baixa a ISO oficial (conferida pelo SHA256
+#                                     da System76) e cria a VM; você instala o
+#                                     Pop!_OS uma vez, pelo instalador normal
+#   tamagi-popos compactar [nome]     faz a imagem para VM a partir dessa
+#                                     instalação: limpa o que é de cada máquina
+#                                     (machine-id, chaves SSH, logs, caches) e
+#                                     compacta num modelo só leitura
+#   tamagi-popos nova <nome>          VM nova a partir do modelo em segundos
+#                                     (clone ligado: começa com poucos MB)
+#   tamagi-popos abrir [nome]         liga e abre no virt-manager
+#   tamagi-popos lista
+#   tamagi-popos exportar <arquivo>   copia o modelo (para outra máquina)
+#   tamagi-popos importar <arquivo>   usa um modelo .qcow2 feito em outra máquina
+#   tamagi-popos remover <nome>       apaga a VM (o modelo fica)
+#   tamagi-popos limpar-iso           apaga a ISO baixada (~3 GB)
+#
+# Tudo roda sem root, na sessão do usuário do libvirt (qemu:///session, que o
+# virt-manager passa a mostrar como "QEMU/KVM sessão do usuário"). Discos em
+# ~/.local/share/libvirt/images, num subvolume sem cópia-na-escrita e fora dos
+# snapshots da pasta pessoal. Rede pelo passt (sem root); vídeo virtio com 3D.
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+CONN=qemu:///session
+API="https://api.pop-os.org/builds/24.04/intel"
+OSINFO=ubuntu24.04
+IMAGES="${XDG_DATA_HOME:-$HOME/.local/share}/libvirt/images"
+TEMPLATE="$IMAGES/popos-modelo.qcow2"
+ISO_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/tamagi-popos"
+DEFAULT_NAME=popos
+
+die() { echo "$(t "erro"): $*" >&2; exit 1; }
+virsh() { command virsh -c "$CONN" "$@"; }
+ram_gb() { awk '/^MemTotal:/ {printf "%d", $2 / 1048576 + 0.5}' /proc/meminfo; }
+vm_ram_mb() { local r=$(( $(ram_gb) / 4 )); (( r < 4 )) && r=4; (( r > 8 )) && r=8; echo $(( r * 1024 )); }
+vm_cpus() { local c=$(( $(nproc) / 2 )); (( c < 2 )) && c=2; (( c > 8 )) && c=8; echo "$c"; }
+exists() { virsh dominfo "$1" >/dev/null 2>&1; }
+valid_name() { [[ $1 =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,40}$ ]] || die "$(t "nome inválido"): $1"; }
+
+clones() { # discos que dependem do modelo (clones ligados)
+    local f
+    for f in "$IMAGES"/*.qcow2; do
+        [[ -f $f && $f != "$TEMPLATE" ]] || continue
+        [[ $(qemu-img info -U --output=json "$f" 2>/dev/null | jq -r '."full-backing-filename" // ""') == "$TEMPLATE" ]] \
+            && basename "$f" .qcow2
+    done
+    return 0
+}
+
+guard_template() { # trocar o modelo corromperia os clones que dependem dele
+    local deps; deps=$(clones | tr '\n' ' ')
+    [[ -z $deps ]] || die "$(t "há VMs criadas a partir da imagem atual; remova-as antes"): $deps"
+}
+
+prepare() {
+    [[ -r /dev/kvm && -w /dev/kvm ]] || die "$(t "sem acesso a /dev/kvm: ative a virtualização (VT-x/AMD-V) na BIOS")"
+    (( $(ram_gb) >= 8 )) || die "$(t "memória insuficiente"): $(ram_gb) GB (min. 8 GB)"
+    if [[ ! -d $IMAGES ]]; then
+        mkdir -p "$(dirname "$IMAGES")"
+        # Disco de VM muda o tempo todo: subvolume à parte (fora dos snapshots)
+        # e sem cópia-na-escrita (com CoW fica lento e fragmenta).
+        btrfs subvolume create "$IMAGES" >/dev/null 2>&1 || mkdir -p "$IMAGES"
+        chattr +C "$IMAGES" 2>/dev/null || true
+    fi
+    # O virt-manager passa a mostrar a sessão do usuário (onde ficam estas VMs).
+    local key=org.virt-manager.virt-manager.connections uri
+    for uri in qemu:///system "$CONN"; do
+        for k in uris autoconnect; do
+            if ! gsettings get "$key" "$k" 2>/dev/null | grep -qF "'$uri'"; then
+                local cur; cur=$(gsettings get "$key" "$k" 2>/dev/null | sed "s/^@as //")
+                if [[ $cur == "[]" || -z $cur ]]; then cur="['$uri']"; else cur="${cur%]}, '$uri']"; fi
+                gsettings set "$key" "$k" "$cur" 2>/dev/null || true
+            fi
+        done
+    done
+}
+
+download_iso() { # imprime o caminho da ISO conferida
+    local json url sha size iso
+    json=$(curl -fsSL "$API") || die "$(t "não consegui falar com a API do Pop!_OS")"
+    url=$(jq -r .url <<<"$json"); sha=$(jq -r .sha_sum <<<"$json"); size=$(jq -r .size <<<"$json")
+    [[ $url =~ ^https://iso\.pop-os\.org/[A-Za-z0-9._/-]+\.iso$ && $sha =~ ^[0-9a-f]{64}$ ]] \
+        || die "$(t "resposta inesperada da API do Pop!_OS")"
+    mkdir -p "$ISO_DIR"
+    iso="$ISO_DIR/$(basename "$url")"
+    if [[ -f $iso ]] && echo "$sha  $iso" | sha256sum -c --quiet - 2>/dev/null; then
+        echo "$iso"; return 0
+    fi
+    echo "$(t "Baixando o Pop!_OS") ($(( size / 1048576 )) MB)…" >&2
+    curl -fL -C - --progress-bar -o "$iso" "$url" >&2
+    echo "$sha  $iso" | sha256sum -c --quiet - || { rm -f "$iso"; die "$(t "a ISO não confere com o SHA256 da System76")"; }
+    echo "$iso"
+}
+
+create_vm() { # create_vm <nome> <disco> [iso]
+    local name=$1 disk=$2 iso=${3:-} src=() base=()
+    if [[ -n $iso ]]; then src=(--cdrom "$iso"); else src=(--import); fi
+    # shellcheck disable=SC2054  # as vírgulas são das opções do virt-install
+    base=(--connect "$CONN" --name "$name" --osinfo "$OSINFO" --memory "$(vm_ram_mb)" --vcpus "$(vm_cpus)"
+          --cpu host-passthrough --boot uefi
+          --disk path="$disk",format=qcow2,bus=virtio,discard=unmap
+          --network type=user,backend.type=passt,model=virtio
+          --channel unix,target.type=virtio,target.name=org.qemu.guest_agent.0
+          --noautoconsole "${src[@]}")
+    # Vídeo com aceleração 3D (o COSMIC fica fluido); sem suporte, cai no virtio simples.
+    if ! virt-install "${base[@]}" --video virtio,accel3d=yes --graphics spice,gl.enable=yes,listen=none \
+            >/dev/null 2>"$ISO_DIR/virt-install.log"; then
+        virsh undefine "$name" --nvram >/dev/null 2>&1 || true
+        echo "$(t "Sem aceleração 3D; usando vídeo virtio simples")" >&2
+        virt-install "${base[@]}" --video virtio --graphics spice >/dev/null
+    fi
+}
+
+open_vm() {
+    local name=${1:-$DEFAULT_NAME}
+    exists "$name" || die "$(t "VM não existe"): $name (tamagi-popos lista)"
+    [[ $(virsh domstate "$name") == running ]] || virsh start "$name" >/dev/null
+    setsid -f virt-manager --connect "$CONN" --show-domain-console "$name" >/dev/null 2>&1
+}
+
+install_vm() {
+    local name=${1:-$DEFAULT_NAME} iso disk
+    valid_name "$name"
+    exists "$name" && { echo "$(t "A VM já existe"): $name"; open_vm "$name"; return 0; }
+    prepare
+    mkdir -p "$ISO_DIR"
+    local free_gb; free_gb=$(df -BG --output=avail "$IMAGES" | tail -1 | tr -dc 0-9)
+    (( free_gb >= 30 )) || die "$(t "espaço livre insuficiente"): ${free_gb} GB (min. 30 GB)"
+    iso=$(download_iso)
+    disk="$IMAGES/$name.qcow2"
+    [[ -e $disk ]] && die "$(t "já existe um disco com esse nome"): $disk"
+    # 64 GB no máximo, mas o arquivo só cresce com o que o Pop!_OS gravar.
+    qemu-img create -q -f qcow2 -o cluster_size=2M,lazy_refcounts=on "$disk" 64G
+    create_vm "$name" "$disk" "$iso"
+    open_vm "$name"
+    cat <<EOF
+
+  $(t "A VM está aberta no virt-manager: instale o Pop!_OS normalmente.")
+  $(t "Quando terminar e desligar a VM, faça a imagem compactada com"):
+      tamagi-popos compactar $name
+EOF
+}
+
+compact() {
+    local name=${1:-$DEFAULT_NAME} disk before after
+    exists "$name" || die "$(t "VM não existe"): $name"
+    [[ $(virsh domstate "$name") == "shut off" ]] || die "$(t "desligue a VM antes"): virsh -c $CONN shutdown $name"
+    disk=$(virsh domblklist "$name" --details | awk '$2 == "disk" {print $4; exit}')
+    [[ -f $disk ]] || die "$(t "não achei o disco da VM")"
+    [[ $disk != "$TEMPLATE" ]] && [[ $(qemu-img info -U --output=json "$disk" | jq -r '."full-backing-filename" // ""') != "$TEMPLATE" ]] \
+        || die "$(t "esta VM já é um clone da imagem; compacte a VM onde o Pop!_OS foi instalado")"
+    guard_template
+    [[ -e $TEMPLATE ]] && { chmod u+w "$TEMPLATE"; mv -f "$TEMPLATE" "$TEMPLATE.anterior"; }
+    before=$(du -h "$disk" | cut -f1)
+    echo "$(t "Compactando (o disco da VM original não é alterado)…")"
+    # 1) cópia compactada, sem o espaço livre; 2) limpa o que é de cada máquina.
+    virt-sparsify --quiet --compress --tmp "$IMAGES" "$disk" "$TEMPLATE"
+    virt-sysprep --quiet -a "$TEMPLATE" --operations \
+        machine-id,ssh-hostkeys,logfiles,tmp-files,bash-history,package-manager-cache,crash-data,dhcp-client-state,net-hwaddr,utmp
+    chmod 0444 "$TEMPLATE"
+    rm -f "$TEMPLATE.anterior"
+    after=$(du -h "$TEMPLATE" | cut -f1)
+    echo "$(t "Imagem do Pop!_OS para VM pronta"): $TEMPLATE ($before → $after)"
+    echo "$(t "VM nova a partir dela"): tamagi-popos nova <nome>"
+}
+
+new_vm() {
+    local name=${1:-}
+    [[ -n $name ]] || die "uso: tamagi-popos nova <nome>"
+    valid_name "$name"
+    [[ -f $TEMPLATE ]] || die "$(t "ainda não há imagem compactada"): tamagi-popos compactar"
+    exists "$name" && die "$(t "A VM já existe"): $name"
+    prepare
+    local disk="$IMAGES/$name.qcow2"
+    [[ -e $disk ]] && die "$(t "já existe um disco com esse nome"): $disk"
+    # Clone ligado: só as diferenças em relação ao modelo vão para o disco novo.
+    qemu-img create -q -f qcow2 -b "$TEMPLATE" -F qcow2 "$disk"
+    mkdir -p "$ISO_DIR"
+    create_vm "$name" "$disk"
+    open_vm "$name"
+    echo "$(t "VM criada"): $name ($(du -h "$disk" | cut -f1))"
+}
+
+list() {
+    virsh list --all
+    [[ -f $TEMPLATE ]] && echo "$(t "imagem compactada"): $TEMPLATE ($(du -h "$TEMPLATE" | cut -f1))"
+    return 0
+}
+
+remove_vm() {
+    local name=${1:-}
+    [[ -n $name ]] || die "uso: tamagi-popos remover <nome>"
+    exists "$name" || die "$(t "VM não existe"): $name"
+    gum confirm "$(t "Apagar a VM e o disco dela? O modelo compactado fica.") ($name)" || exit 0
+    virsh destroy "$name" >/dev/null 2>&1 || true
+    local disk; disk=$(virsh domblklist "$name" --details | awk '$2 == "disk" {print $4; exit}')
+    virsh undefine "$name" --nvram >/dev/null
+    [[ -n $disk && $disk != "$TEMPLATE" && -f $disk ]] && rm -f "$disk"
+    echo "$(t "VM removida"): $name"
+}
+
+case "${1:-}" in
+    instalar|install) install_vm "${2:-}" ;;
+    compactar|compact) compact "${2:-}" ;;
+    nova|new)         new_vm "${2:-}" ;;
+    abrir|open)       open_vm "${2:-}" ;;
+    lista|list)       list ;;
+    exportar|export)
+        [[ -f $TEMPLATE ]] || die "$(t "ainda não há imagem compactada"): tamagi-popos compactar"
+        [[ -n ${2:-} ]] || die "uso: tamagi-popos exportar <arquivo.qcow2>"
+        cp --reflink=auto "$TEMPLATE" "$2"; chmod u+w "$2"; echo "$2" ;;
+    importar|import)
+        [[ -f ${2:-} ]] || die "uso: tamagi-popos importar <arquivo.qcow2>"
+        [[ $(qemu-img info --output=json "$2" | jq -r .format) == qcow2 ]] || die "$(t "não é uma imagem qcow2")"
+        prepare
+        guard_template
+        [[ -e $TEMPLATE ]] && { chmod u+w "$TEMPLATE"; rm -f "$TEMPLATE"; }
+        cp --reflink=auto "$2" "$TEMPLATE"; chmod 0444 "$TEMPLATE"
+        echo "$(t "imagem compactada"): $TEMPLATE" ;;
+    remover|remove)   remove_vm "${2:-}" ;;
+    limpar-iso)       rm -f "$ISO_DIR"/*.iso; echo "$(t "ISO apagada")" ;;
+    ""|-h|--help|ajuda) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) die "uso: tamagi-popos [instalar|compactar|nova|abrir|lista|exportar|importar|remover|limpar-iso]" ;;
+esac

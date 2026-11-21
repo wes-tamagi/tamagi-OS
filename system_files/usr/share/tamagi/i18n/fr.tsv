@@ -223,3 +223,30 @@ fonte mono não encontrada	police à chasse fixe introuvable
 Fonte	Police
 terminais novos já abrem com ela	les nouveaux terminaux l'utilisent déjà
 Fonte monoespaçada	Police à chasse fixe
+# tamagi-popos
+nome inválido	nom invalide
+há VMs criadas a partir da imagem atual; remova-as antes	des VM ont été créées à partir de l'image actuelle ; supprimez-les d'abord
+memória insuficiente	mémoire insuffisante
+não consegui falar com a API do Pop!_OS	impossible de joindre l'API de Pop!_OS
+resposta inesperada da API do Pop!_OS	réponse inattendue de l'API de Pop!_OS
+Baixando o Pop!_OS	Téléchargement de Pop!_OS
+a ISO não confere com o SHA256 da System76	l'ISO ne correspond pas au SHA256 de System76
+Sem aceleração 3D; usando vídeo virtio simples	Pas d'accélération 3D ; vidéo virtio simple
+VM não existe	La VM n'existe pas
+A VM já existe	La VM existe déjà
+já existe um disco com esse nome	un disque portant ce nom existe déjà
+A VM está aberta no virt-manager: instale o Pop!_OS normalmente.	La VM est ouverte dans virt-manager : installez Pop!_OS normalement.
+Quando terminar e desligar a VM, faça a imagem compactada com	Une fois terminé et la VM éteinte, créez l'image compacte avec
+desligue a VM antes	éteignez d'abord la VM
+não achei o disco da VM	disque de la VM introuvable
+esta VM já é um clone da imagem; compacte a VM onde o Pop!_OS foi instalado	cette VM est déjà un clone de l'image ; compactez la VM où Pop!_OS a été installé
+Compactando (o disco da VM original não é alterado)…	Compactage (le disque de la VM d'origine n'est pas modifié)…
+Imagem do Pop!_OS para VM pronta	Image Pop!_OS pour VM prête
+VM nova a partir dela	Nouvelle VM à partir d'elle
+ainda não há imagem compactada	pas encore d'image compacte
+VM criada	VM créée
+imagem compactada	image compacte
+Apagar a VM e o disco dela? O modelo compactado fica.	Supprimer la VM et son disque ? Le modèle compact est conservé.
+VM removida	VM supprimée
+não é uma imagem qcow2	ce n'est pas une image qcow2
+ISO apagada	ISO supprimée

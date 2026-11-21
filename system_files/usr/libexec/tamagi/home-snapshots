@@ -18,14 +18,14 @@
 # comum. A conversão copia com reflink (instantâneo e sem ocupar espaço em
 # dobro), confere e troca os nomes; a pasta original fica como
 # /var/home/.<usuário>.antes-snapshots até `limpar`.
-# ~/.cache, ~/.local/share/containers e o disco do Windows (tamagi-windows)
+# ~/.cache, ~/.local/share/containers e os discos de VM (tamagi-windows, libvirt)
 # viram subvolumes à parte: ficam fora dos snapshots (mudam o tempo todo e só
 # ocupariam espaço).
 set -euo pipefail
 
 HOMES=/var/home
 PENDING=/var/lib/tamagi/home-snapshots.pending
-EXCLUDE=(.cache .local/share/containers .local/share/tamagi-windows)
+EXCLUDE=(.cache .local/share/containers .local/share/tamagi-windows .local/share/libvirt/images)
 
 die() { echo "home-snapshots: $*" >&2; exit 1; }
 [[ $(id -u) -eq 0 ]] || die "precisa de root (use: tamagi-snap ativar)"

@@ -563,6 +563,27 @@ es = "Para Office 365, Adobe y lo que Wine no ejecuta; 4–8 GB de RAM encendido
 fr = "Pour Office 365, Adobe et ce que Wine ne lance pas ; 4–8 Go de RAM allumé"
 
 [[action]]
+id = "vm.popos"
+category = "install"
+icon = "computer-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "bash -c 'if tamagi-popos lista 2>/dev/null | grep -qw popos; then tamagi-popos abrir popos; else tamagi-popos instalar; fi'"
+keywords = "pop os popos vm maquina virtual virt-manager system76 cosmic ubuntu"
+[action.title]
+pt = "Pop!_OS em máquina virtual"
+en = "Pop!_OS in a virtual machine"
+es = "Pop!_OS en máquina virtual"
+fr = "Pop!_OS en machine virtuelle"
+[action.subtitle]
+pt = "No virt-manager, sem root; tamagi-popos compactar faz a imagem para VM"
+en = "In virt-manager, no root; tamagi-popos compact builds the VM image"
+es = "En virt-manager, sin root; tamagi-popos compact crea la imagen para VM"
+fr = "Dans virt-manager, sans root ; tamagi-popos compact crée l'image pour VM"
+
+[[action]]
 id = "windows.stop"
 category = "power"
 icon = "media-playback-stop-symbolic"

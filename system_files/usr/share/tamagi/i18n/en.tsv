@@ -223,3 +223,30 @@ fonte mono não encontrada	monospace font not found
 Fonte	Font
 terminais novos já abrem com ela	new terminals already use it
 Fonte monoespaçada	Monospace font
+# tamagi-popos
+nome inválido	invalid name
+há VMs criadas a partir da imagem atual; remova-as antes	there are VMs created from the current image; remove them first
+memória insuficiente	not enough memory
+não consegui falar com a API do Pop!_OS	could not reach the Pop!_OS API
+resposta inesperada da API do Pop!_OS	unexpected answer from the Pop!_OS API
+Baixando o Pop!_OS	Downloading Pop!_OS
+a ISO não confere com o SHA256 da System76	the ISO does not match System76's SHA256
+Sem aceleração 3D; usando vídeo virtio simples	No 3D acceleration; using plain virtio video
+VM não existe	VM does not exist
+A VM já existe	The VM already exists
+já existe um disco com esse nome	a disk with that name already exists
+A VM está aberta no virt-manager: instale o Pop!_OS normalmente.	The VM is open in virt-manager: install Pop!_OS as usual.
+Quando terminar e desligar a VM, faça a imagem compactada com	When you finish and shut the VM down, build the compact image with
+desligue a VM antes	shut the VM down first
+não achei o disco da VM	could not find the VM's disk
+esta VM já é um clone da imagem; compacte a VM onde o Pop!_OS foi instalado	this VM is already a clone of the image; compact the VM where Pop!_OS was installed
+Compactando (o disco da VM original não é alterado)…	Compacting (the original VM's disk is not changed)…
+Imagem do Pop!_OS para VM pronta	Pop!_OS VM image ready
+VM nova a partir dela	New VM from it
+ainda não há imagem compactada	there is no compact image yet
+VM criada	VM created
+imagem compactada	compact image
+Apagar a VM e o disco dela? O modelo compactado fica.	Delete the VM and its disk? The compact template is kept.
+VM removida	VM removed
+não é uma imagem qcow2	not a qcow2 image
+ISO apagada	ISO deleted
