@@ -17,6 +17,12 @@ python3-gobject
 adw-gtk3-theme
 xdg-terminal-exec
 wl-clipboard
+# OCR do tamagi-capture (Shift+Print copia o texto de uma área da tela).
+tesseract
+tesseract-langpack-eng
+tesseract-langpack-por
+tesseract-langpack-spa
+tesseract-langpack-fra
 nm-connection-editor
 librsvg2-tools
 desktop-file-utils

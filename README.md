@@ -318,9 +318,14 @@ atividade, sem USB nem GPU no Podman) e o **WinPodX** (beta, ainda sem Fedora
 45, e embute um patch de sessões RDP simultâneas que conflita com a licença
 do Windows).
 
-## Desenvolvimento: bancos e lembretes (do Omarchy)
+## Do Omarchy: desenvolvimento, captura e atalhos
 
 ```bash
+tamagi-dev                         # escolhe: web (Node+pnpm), bun, deno, python, ruby, go, rust, java, dotnet, zig
+tamagi-dev add web python          # via mise, na pasta pessoal; só linguagens com binário pronto
+tamagi-font                        # fonte mono de tudo: foot, alacritty, COSMIC e apps GTK
+tamagi-capture texto               # Shift+Print: seleciona uma área e copia o texto (OCR, Tesseract)
+tamagi-capture gravar              # Alt+Print: grava a tela (GPU Screen Recorder, portal); de novo, para
 tamagi-db                          # escolhe: postgres, mysql, mariadb, redis, valkey, mongo
 tamagi-db add postgres             # 127.0.0.1:5432, sem senha, liga com a sessão
 tamagi-db list | stop | start | remove <banco>
@@ -331,6 +336,16 @@ Os bancos são contêineres Podman sem root (Quadlet em
 `~/.config/containers/systemd/`), escutando só em `127.0.0.1`, com os dados em
 volumes `tamagi-db-<banco>`. Sem senha, como no Omarchy: só para
 desenvolvimento local.
+
+Atalhos no estilo do Omarchy (`Super+K` lista todos): `Super+Shift+G` lazygit,
+`Super+Shift+D` bancos, `Super+Shift+O` OnlyOffice, `Super+Shift+M` Mission
+Center, `Super+Shift+W` Windows, `Super+Ctrl+E` emojis (Smile, instalado no
+primeiro uso), `Super+Ctrl+R` lembrete. Com LazyVim (`ujust setup-lazyvim`),
+o `tamagi-theme` também troca o colorscheme do Neovim (os mesmos plugins do
+Omarchy; no Ipê, base16 com as cores do tema). Elixir, PHP e o que precisa
+compilar ficam na caixa Arch (`tamagi-pkg install --arch …`). Ficaram de fora
+o conta-gotas de cor (o portal do COSMIC ainda não tem) e o que depende do
+Hyprland (clipboard universal, gaps, scratchpad).
 
 ## Jogos
 
@@ -479,7 +494,8 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   nord, everforest, rose-pine, kanagawa, matte-black, ristretto, latte e ipe
   (o tema próprio do Tamagi: verde-noite com destaque no amarelo do ipê).
   Trocam as cores do COSMIC (fundo, destaque e texto), o claro/escuro, o papel
-  de parede, o terminal (foot), o btop e a paleta das janelas do Tamagi. Cada tema vira um arquivo em
+  de parede, o terminal (foot), o btop, o Neovim (LazyVim) e a paleta das
+  janelas do Tamagi. Cada tema vira um arquivo em
   `/usr/share/cosmic-themes/tamagi-<tema>.ron`, que também aparece em
   Configurações > Aparência > Importar.
 - **Papéis de parede:** oito estilos em cada tema, nas cores dele

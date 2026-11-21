@@ -140,7 +140,8 @@ setup-lazyvim:
     dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
     if [[ -e $dir ]]; then echo "Você já tem uma configuração em $dir; nada foi alterado."; exit 0; fi
     git clone --depth 1 https://github.com/LazyVim/starter "$dir"
-    echo "LazyVim instalado. Abra o nvim: os plugins são baixados na primeira vez."
+    tamagi-theme apps
+    echo "LazyVim instalado, com as cores do tema atual. Abra o nvim: os plugins são baixados na primeira vez."
 
 # Refazer a configuração inicial (tema, tiling, navegador, distrobox, IA, Android)
 tamagi-setup:

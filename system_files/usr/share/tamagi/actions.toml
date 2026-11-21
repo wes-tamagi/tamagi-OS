@@ -626,6 +626,111 @@ es = "Avisa dentro de un rato: 10m El té está listo"
 fr = "Vous prévient dans un moment : 10m Le thé est prêt"
 
 [[action]]
+id = "capture.ocr"
+category = "system"
+icon = "edit-copy-symbolic"
+risk = "user"
+terminal = false
+confirm = false
+agent = false
+command = "tamagi-capture texto"
+keywords = "ocr texto text copiar captura screenshot tesseract imagem"
+[action.title]
+pt = "Copiar texto da tela (OCR)"
+en = "Copy text from the screen (OCR)"
+es = "Copiar texto de la pantalla (OCR)"
+fr = "Copier du texte de l'écran (OCR)"
+[action.subtitle]
+pt = "Selecione uma área; o texto vai para a área de transferência (Shift+Print)"
+en = "Select an area; the text goes to the clipboard (Shift+Print)"
+es = "Selecciona un área; el texto va al portapapeles (Shift+Print)"
+fr = "Sélectionnez une zone ; le texte va dans le presse-papiers (Maj+Impr)"
+
+[[action]]
+id = "capture.record"
+category = "system"
+icon = "media-record-symbolic"
+risk = "user"
+terminal = false
+confirm = false
+agent = false
+command = "tamagi-capture gravar"
+keywords = "gravar record video tela screen screencast gravacao"
+[action.title]
+pt = "Gravar a tela / parar"
+en = "Record the screen / stop"
+es = "Grabar la pantalla / parar"
+fr = "Enregistrer l'écran / arrêter"
+[action.subtitle]
+pt = "Vídeo em ~/Vídeos/Gravações, codificado na GPU (Alt+Print)"
+en = "Video in ~/Videos/Recordings, GPU-encoded (Alt+Print)"
+es = "Vídeo en ~/Vídeos/Grabaciones, codificado en la GPU (Alt+Print)"
+fr = "Vidéo dans ~/Vidéos/Enregistrements, encodée par le GPU (Alt+Impr)"
+
+[[action]]
+id = "install.dev"
+category = "install"
+icon = "applications-engineering-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-dev"
+keywords = "dev desenvolvimento node python ruby rails go rust java dotnet zig bun deno mise linguagem"
+[action.title]
+pt = "Ambiente de desenvolvimento"
+en = "Development environment"
+es = "Entorno de desarrollo"
+fr = "Environnement de développement"
+[action.subtitle]
+pt = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… pelo mise"
+en = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… via mise"
+es = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… con mise"
+fr = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… via mise"
+
+[[action]]
+id = "appearance.font"
+category = "appearance"
+icon = "preferences-desktop-font-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-font"
+keywords = "fonte font mono terminal nerd jetbrains cascadia"
+[action.title]
+pt = "Fonte dos terminais"
+en = "Terminal font"
+es = "Fuente de las terminales"
+fr = "Police des terminaux"
+[action.subtitle]
+pt = "Terminal, editor e apps de uma vez"
+en = "Terminal, editor and apps at once"
+es = "Terminal, editor y apps de una vez"
+fr = "Terminal, éditeur et applications d'un coup"
+
+[[action]]
+id = "system.emoji"
+category = "system"
+icon = "face-smile-symbolic"
+risk = "user"
+terminal = false
+confirm = false
+agent = false
+command = "/usr/libexec/tamagi/emoji"
+keywords = "emoji emojis smile carinha copiar"
+[action.title]
+pt = "Emojis"
+en = "Emoji"
+es = "Emojis"
+fr = "Émojis"
+[action.subtitle]
+pt = "Escolha um e ele vai para a área de transferência (Super+Ctrl+E)"
+en = "Pick one and it goes to the clipboard (Super+Ctrl+E)"
+es = "Elige uno y va al portapapeles (Super+Ctrl+E)"
+fr = "Choisissez-en un, il va dans le presse-papiers (Super+Ctrl+E)"
+
+[[action]]
 id = "system.update"
 category = "system"
 icon = "system-software-update-symbolic"

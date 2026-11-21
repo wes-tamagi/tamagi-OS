@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+# Seletor de emojis (Super+Ctrl+E): o Smile (Flatpak), instalado no primeiro
+# uso. Escolher um emoji copia para a área de transferência.
+set -euo pipefail
+APP=it.mijorus.smile
+if ! flatpak info "$APP" >/dev/null 2>&1; then
+    notify-send --app-name=Tamagi --icon=face-smile-symbolic "Emojis" "Instalando o Smile…" || true
+    flatpak install --user -y --noninteractive flathub "$APP"
+fi
+exec flatpak run "$APP"

@@ -19,6 +19,9 @@
    Super + Enter             terminal
    Super + B / E             browser / files
    Super + Shift + N / T     neovim / btop
+   Super + Shift + G / D     lazygit / databases (tamagi-db)
+   Super + Shift + O / M     OnlyOffice / Mission Center
+   Super + Shift + W         Windows 11 (container)
 
  Tamagi
    Super + Space             Tamagi menu (command palette)
@@ -30,4 +33,8 @@
  SYSTEM
    Super + Esc               lock the screen
    Print                     screenshot
+   Shift + Print             copy text from an area (OCR)
+   Alt + Print               record the screen / stop
+   Super + Ctrl + E          emoji
+   Super + Ctrl + R          reminder
    Super + Ctrl + Space      switch keyboard layout

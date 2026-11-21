@@ -1,0 +1,53 @@
+#!/usr/bin/bash
+# tamagi-font — troca a fonte monoespaçada de tudo de uma vez (como o
+# omarchy-font-set): terminal (foot), janelas do Tamagi (alacritty), COSMIC
+# (terminal, editor e a fonte mono da interface) e apps GTK.
+#
+#   tamagi-font                 escolhe numa lista (fontes mono instaladas)
+#   tamagi-font set "<família>" ex.: tamagi-font set "CaskaydiaCove Nerd Font"
+#   tamagi-font list
+#   tamagi-font current
+#   tamagi-font reset           volta à JetBrains Mono
+#
+# Fonte nova: baixe para ~/.local/share/fonts (ou instale por Flatpak/caixa)
+# e ela aparece na lista.
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+STATE="$CONFIG/tamagi/font"
+DEFAULT="JetBrains Mono"
+
+list() { fc-list :spacing=mono family | cut -d, -f1 | sort -u; }
+current() { head -1 "$STATE" 2>/dev/null || echo "$DEFAULT"; }
+
+apply() {
+    local font=$1 tk="$CONFIG/cosmic/com.system76.CosmicTk/v1" app
+    list | grep -qxF "$font" || { echo "$(t "fonte mono não encontrada"): $font (tamagi-font list)" >&2; exit 1; }
+    mkdir -p "$CONFIG/tamagi" "$tk"
+    if [[ $font == "$DEFAULT" ]]; then rm -f "$STATE"; else echo "$font" > "$STATE"; fi
+    echo "(family: \"$font\", weight: Normal, stretch: Normal, style: Normal)" > "$tk/monospace_font"
+    for app in CosmicTerm CosmicEdit; do
+        mkdir -p "$CONFIG/cosmic/com.system76.$app/v1"
+        echo "\"$font\"" > "$CONFIG/cosmic/com.system76.$app/v1/font_name"
+    done
+    gsettings set org.gnome.desktop.interface monospace-font-name "$font 11" 2>/dev/null || true
+    # foot e alacritty: o tamagi-theme regera com a fonte nova.
+    tamagi-theme apps >/dev/null
+    local cfg="$CONFIG/tamagi/alacritty.toml"
+    [[ -f $cfg ]] && sed -i "s|^normal = { family = \".*\" }|normal = { family = \"$font\" }|" "$cfg"
+    echo "$(t "Fonte"): $font  ($(t "terminais novos já abrem com ela"))"
+}
+
+case "${1:-}" in
+    "")
+        [[ -t 0 ]] || { current; exit 0; }
+        font=$(list | gum filter --header "$(t "Fonte monoespaçada")" --value "$(current)") || exit 0
+        [[ -n $font ]] && apply "$font" ;;
+    set)     [[ -n ${2:-} ]] || { echo "uso: tamagi-font set \"<família>\"" >&2; exit 2; }; apply "$2" ;;
+    list)    list ;;
+    current) current ;;
+    reset)   apply "$DEFAULT" ;;
+    -h|--help|ajuda) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) echo "uso: tamagi-font [set <família>|list|current|reset]" >&2; exit 2 ;;
+esac

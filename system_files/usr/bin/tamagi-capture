@@ -1,0 +1,217 @@
+#!/usr/bin/python3
+"""tamagi-capture — captura de tela, OCR e gravação (o menu de captura do Omarchy).
+
+  tamagi-capture                 menu
+  tamagi-capture tela            captura de tela (a do COSMIC)
+  tamagi-capture texto           seleciona uma área e copia o TEXTO dela (OCR)
+  tamagi-capture gravar          começa a gravar a tela; de novo, para
+  tamagi-capture parar           para a gravação
+
+Atalhos: Print captura, Shift+Print copia texto, Alt+Print grava/para.
+O OCR usa o Tesseract (português, inglês, espanhol e francês) e a seleção de
+área do próprio COSMIC (portal de captura). A gravação usa o GPU Screen
+Recorder (Flatpak, instalado no primeiro uso) pelo portal de compartilhamento
+de tela: codifica na GPU e salva em ~/Vídeos/Gravações.
+"""
+import datetime
+import os
+import pathlib
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import urllib.parse
+
+RECORDER = "com.dec05eba.gpu_screen_recorder"
+STATE = pathlib.Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "tamagi-capture.pid"
+LANG = (os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG") or "pt")[:2].lower()
+MSG = {
+    "copied": ("Texto copiado", "Text copied"),
+    "no_text": ("Nenhum texto encontrado na área", "No text found in the area"),
+    "cancel": ("Captura cancelada", "Capture cancelled"),
+    "rec_on": ("Gravando a tela", "Recording the screen"),
+    "rec_on_body": ("Alt+Print (ou tamagi-capture parar) para parar", "Alt+Print (or tamagi-capture stop) to stop"),
+    "rec_off": ("Gravação salva", "Recording saved"),
+    "installing": ("Instalando o GPU Screen Recorder…", "Installing GPU Screen Recorder…"),
+    "menu_shot": ("Captura de tela", "Screenshot"),
+    "menu_ocr": ("Copiar texto de uma área (OCR)", "Copy text from an area (OCR)"),
+    "menu_rec": ("Gravar a tela", "Record the screen"),
+    "menu_stop": ("Parar a gravação", "Stop recording"),
+}
+
+
+def tr(key):
+    pt, en = MSG[key]
+    return pt if LANG == "pt" else en
+
+
+def notify(title, body=""):
+    subprocess.run(["notify-send", "--app-name=Tamagi", "--icon=camera-photo-symbolic", title, body],
+                   check=False)
+
+
+def portal_screenshot():
+    """Captura pelo portal (seleção de área do COSMIC). Devolve o caminho ou None."""
+    import gi
+    gi.require_version("Gio", "2.0")
+    from gi.repository import Gio, GLib
+
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    token = f"tamagi{os.getpid()}"
+    sender = bus.get_unique_name()[1:].replace(".", "_")
+    path = f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
+    loop = GLib.MainLoop()
+    result = {}
+
+    def on_response(_conn, _sender, _path, _iface, _signal, params):
+        code, res = params.unpack()
+        if code == 0 and "uri" in res:
+            result["uri"] = res["uri"]
+        loop.quit()
+
+    bus.signal_subscribe("org.freedesktop.portal.Desktop", "org.freedesktop.portal.Request",
+                         "Response", path, None, Gio.DBusSignalFlags.NONE, on_response)
+    opts = {"handle_token": GLib.Variant("s", token),
+            "interactive": GLib.Variant("b", os.environ.get("TAMAGI_CAPTURE_FULL") != "1"),
+            "modal": GLib.Variant("b", True)}
+    bus.call_sync("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
+                  "org.freedesktop.portal.Screenshot", "Screenshot",
+                  GLib.Variant("(sa{sv})", ("", opts)), None, Gio.DBusCallFlags.NONE, -1, None)
+    GLib.timeout_add_seconds(300, loop.quit)
+    loop.run()
+    uri = result.get("uri")
+    return urllib.parse.unquote(urllib.parse.urlparse(uri).path) if uri else None
+
+
+def ocr_langs():
+    try:
+        out = subprocess.run(["tesseract", "--list-langs"], capture_output=True, text=True, check=False).stdout
+    except OSError:
+        return "eng"
+    have = set(out.split())
+    wanted = {"pt": ["por", "eng"], "es": ["spa", "eng"], "fr": ["fra", "eng"]}.get(LANG, ["eng", "por"])
+    langs = [lng for lng in wanted + ["eng", "por", "spa", "fra"] if lng in have]
+    return "+".join(dict.fromkeys(langs)) or "eng"
+
+
+def text():
+    shot = portal_screenshot()
+    if not shot:
+        notify(tr("cancel"))
+        return 1
+    try:
+        out = subprocess.run(["tesseract", shot, "-", "-l", ocr_langs(), "--psm", "6"],
+                             capture_output=True, text=True, check=False).stdout.strip()
+    finally:
+        # A captura do OCR é só um meio: não fica em Imagens.
+        try:
+            os.unlink(shot)
+        except OSError:
+            pass
+    if not out:
+        notify(tr("no_text"))
+        return 1
+    subprocess.run(["wl-copy"], input=out, text=True, check=False)
+    notify(tr("copied"), out[:120])
+    if os.environ.get("TAMAGI_CAPTURE_PRINT") == "1":
+        print(out)
+    return 0
+
+
+def recording_pid():
+    try:
+        pid = int(STATE.read_text())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
+def videos_dir():
+    try:
+        base = subprocess.run(["xdg-user-dir", "VIDEOS"], capture_output=True, text=True,
+                              check=False).stdout.strip()
+    except OSError:
+        base = ""
+    d = pathlib.Path(base or pathlib.Path.home() / "Videos") / ("Gravações" if LANG == "pt" else "Recordings")
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def record():
+    if recording_pid():
+        return stop()
+    if subprocess.run(["flatpak", "info", RECORDER], capture_output=True, check=False).returncode != 0:
+        notify(tr("installing"))
+        subprocess.run(["flatpak", "install", "--user", "-y", "--noninteractive", "flathub", RECORDER],
+                       check=True)
+    out = videos_dir() / f"tela-{datetime.datetime.now():%Y-%m-%d_%H-%M-%S}.mp4"
+    proc = subprocess.Popen(
+        ["flatpak", "run", "--command=gpu-screen-recorder", f"--filesystem={out.parent}", RECORDER,
+         "-w", "portal", "-restore-portal-session", "yes", "-f", "60", "-a", "default_output",
+         "-o", str(out)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    STATE.write_text(str(proc.pid))
+    (STATE.with_suffix(".out")).write_text(str(out))
+    notify(tr("rec_on"), tr("rec_on_body"))
+    return 0
+
+
+def stop():
+    pid = recording_pid()
+    if not pid:
+        return 0
+    # SIGINT faz o gpu-screen-recorder fechar o arquivo direito.
+    try:
+        os.killpg(pid, signal.SIGINT)
+    except OSError:
+        os.kill(pid, signal.SIGINT)
+    out = ""
+    try:
+        out = STATE.with_suffix(".out").read_text()
+    except OSError:
+        pass
+    for f in (STATE, STATE.with_suffix(".out")):
+        try:
+            f.unlink()
+        except OSError:
+            pass
+    notify(tr("rec_off"), out)
+    return 0
+
+
+def menu():
+    rec = recording_pid()
+    opts = [("tela", tr("menu_shot")), ("texto", tr("menu_ocr")),
+            ("parar" if rec else "gravar", tr("menu_stop") if rec else tr("menu_rec"))]
+    if shutil.which("gum") and sys.stdin.isatty():
+        r = subprocess.run(["gum", "choose"] + [label for _, label in opts],
+                           stdout=subprocess.PIPE, text=True, check=False)
+        choice = next((k for k, label in opts if label == r.stdout.strip()), None)
+    else:
+        choice = None
+        for k, label in opts:
+            print(f"  tamagi-capture {k:7} {label}")
+    return run(choice) if choice else 0
+
+
+def run(cmd):
+    if cmd in ("tela", "screenshot"):
+        return subprocess.run(["cosmic-screenshot"], check=False).returncode
+    if cmd in ("texto", "text", "ocr"):
+        return text()
+    if cmd in ("gravar", "record"):
+        return record()
+    if cmd in ("parar", "stop"):
+        return stop()
+    if cmd in (None, "menu"):
+        return menu()
+    print(__doc__)
+    return 0 if cmd in ("-h", "--help", "ajuda") else 2
+
+
+if __name__ == "__main__":
+    tempfile.tempdir = os.environ.get("XDG_RUNTIME_DIR") or None
+    sys.exit(run(sys.argv[1] if len(sys.argv) > 1 else None))

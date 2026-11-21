@@ -215,3 +215,11 @@ Lembrete	Reminder
 Lembrete em	Reminder in
 Lembretes cancelados	Reminders cancelled
 Nenhum banco instalado	No database installed
+Tirar o chá	Tea is ready
+# tamagi-dev, tamagi-font
+Pronto. Abra um terminal novo (ou rode: hash -r) e confira com	Done. Open a new terminal (or run: hash -r) and check with
+Ambientes de desenvolvimento (espaço marca, Enter instala)	Development environments (space selects, Enter installs)
+fonte mono não encontrada	monospace font not found
+Fonte	Font
+terminais novos já abrem com ela	new terminals already use it
+Fonte monoespaçada	Monospace font

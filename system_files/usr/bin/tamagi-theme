@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # tamagi-theme — troca o tema do desktop com um comando: as cores do COSMIC
 # (fundo, destaque, claro/escuro), o papel de parede, a paleta do terminal
-# padrão (foot), do btop e a das janelas do Tamagi (alacritty).
+# padrão (foot), do btop, do Neovim (LazyVim) e a das janelas do Tamagi (alacritty).
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
@@ -26,6 +26,9 @@ wall_file() { # wall_file <tema>: caminho do PNG no estilo atual
     if [[ $st == ondas ]]; then echo "$WALLS/$1.png"; else echo "$WALLS/$1-$st.png"; fi
 }
 
+# Fonte dos terminais (tamagi-font set troca).
+mono_font() { local f; f=$(head -1 "$CONFIG/tamagi/font" 2>/dev/null || true); echo "${f:-JetBrains Mono}"; }
+
 load() {
     local conf="$THEMES/$1.conf"
     [[ -f $conf ]] || { echo "tema desconhecido: $1 (veja 'tamagi-theme list')" >&2; exit 1; }
@@ -43,7 +46,7 @@ dimensions = { columns = 104, lines = 30 }
 padding = { x = 14, y = 12 }
 
 [font]
-normal = { family = "JetBrains Mono" }
+normal = { family = "$(mono_font)" }
 size = 11.0
 
 [colors.primary]
@@ -68,7 +71,7 @@ foot_config() { # configuração do foot (terminal padrão) com a paleta do tema
 # Gerado por tamagi-theme ($NAME). Enquanto esta primeira linha existir, trocar
 # de tema reescreve este arquivo; para personalizar o foot, apague-a.
 [main]
-font=JetBrains Mono:size=11
+font=$(mono_font):size=11
 pad=12x10
 term=xterm-256color
 
@@ -159,6 +162,50 @@ apply_btop() { # escreve o tema e o escolhe, se você não escolheu outro
     fi
 }
 
+nvim_spec() { # plugin de cores do LazyVim para o tema (os mesmos do Omarchy)
+    local theme=$1 plugin="" scheme="" extra=""
+    case $theme in
+        tokyo-night) plugin='"folke/tokyonight.nvim"'; scheme=tokyonight-night ;;
+        catppuccin)  plugin='"catppuccin/nvim", name = "catppuccin"'; scheme=catppuccin-mocha ;;
+        latte)       plugin='"catppuccin/nvim", name = "catppuccin"'; scheme=catppuccin-latte ;;
+        gruvbox)     plugin='"ellisonleao/gruvbox.nvim"'; scheme=gruvbox ;;
+        nord)        plugin='"gbprod/nord.nvim"'; scheme=nord ;;
+        everforest)  plugin='"neanias/everforest-nvim", main = "everforest"'; scheme=everforest ;;
+        rose-pine)   plugin='"rose-pine/neovim", name = "rose-pine"'; scheme=rose-pine ;;
+        kanagawa)    plugin='"rebelot/kanagawa.nvim"'; scheme=kanagawa ;;
+        matte-black) plugin='"tahayvr/matteblack.nvim"'; scheme=matteblack ;;
+        ristretto)   plugin='"loctvl842/monokai-pro.nvim"'; scheme=monokai-pro; extra=', opts = { filter = "ristretto" }' ;;
+    esac
+    echo "-- Gerado por tamagi-theme ($NAME). Enquanto esta linha existir, trocar de tema"
+    echo "-- reescreve este arquivo; para escolher outro colorscheme, apague-a."
+    echo "return {"
+    if [[ -n $plugin ]]; then
+        echo "  { $plugin, priority = 1000, lazy = false$extra },"
+        echo "  { \"LazyVim/LazyVim\", opts = { colorscheme = \"$scheme\" } },"
+    else
+        # Tema sem plugin próprio (o Ipê): base16 com as cores do tema.
+        local b=("$BG" "${WALL[0]}" "${PALETTE[8]}" "${PALETTE[8]}" "${PALETTE[7]}" "$FG" "$FG" "${PALETTE[15]}"
+                 "${PALETTE[1]}" "${PALETTE[11]}" "${PALETTE[3]}" "${PALETTE[2]}" "${PALETTE[6]}" "${PALETTE[4]}"
+                 "${PALETTE[5]}" "${PALETTE[9]}")
+        local i keys=""
+        for i in "${!b[@]}"; do keys+=$(printf 'base0%X = "%s", ' "$i" "${b[$i]}"); done
+        echo "  { \"RRethy/base16-nvim\", priority = 1000, lazy = false },"
+        echo "  { \"LazyVim/LazyVim\", opts = { colorscheme = function()"
+        echo "    require(\"base16-colorscheme\").setup({ ${keys%, } })"
+        echo "  end } },"
+    fi
+    echo "}"
+}
+
+apply_nvim() { # só se você usa LazyVim (ujust setup-lazyvim) e não personalizou
+    local dir="$CONFIG/nvim/lua/plugins" f
+    [[ -d $dir ]] || return 0
+    f="$dir/tamagi-theme.lua"
+    if [[ ! -e $f ]] || head -1 "$f" | grep -q '^-- Gerado por tamagi-theme'; then
+        nvim_spec "$1" > "$f"
+    fi
+}
+
 apply_omarchy_apps() { # apps do Omarchy (instalados pelo tamagi-pkg) leem as cores do tema neste arquivo
     local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme" i
     mkdir -p "$dir"
@@ -210,6 +257,7 @@ apply() {
     alacritty_config > "$CONFIG/tamagi/alacritty.toml"
     apply_foot
     apply_btop
+    apply_nvim "$name"
     apply_omarchy_apps
     echo "$name" > "$STATE"
     echo "$(t "Tema aplicado"): $NAME"
@@ -235,6 +283,10 @@ case "${1:-}" in
     styles)  printf '%s\n' "${STYLES[@]}" ;;
     alacritty) # imprime a configuração do alacritty de um tema (usado no build)
              load "${2:-tokyo-night}"; alacritty_config ;;
+    apps)    # reaplica o tema atual só nos apps de terminal (foot, btop, Neovim)
+             name=$(current); load "$name"; apply_foot; apply_btop; apply_nvim "$name" ;;
+    nvim)    # imprime o plugin de cores do LazyVim de um tema
+             load "${2:-tokyo-night}"; nvim_spec "${2:-tokyo-night}" ;;
     foot)    # imprime a configuração do foot de um tema (usado no build)
              load "${2:-tokyo-night}"; foot_config ;;
     *)       echo "uso: tamagi-theme [list|current|set <tema>|next|pick|wallpaper [estilo]|styles]" >&2; exit 2 ;;

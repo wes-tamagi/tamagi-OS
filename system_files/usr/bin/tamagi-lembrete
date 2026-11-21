@@ -5,6 +5,7 @@
 #   tamagi-lembrete 1h30m "Reunião"
 #   tamagi-lembrete lista            lembretes pendentes
 #   tamagi-lembrete cancelar         cancela todos
+#   tamagi-lembrete                  pergunta (Super+Ctrl+R)
 #
 # Usa um timer do systemd do usuário: sobrevive a fechar o terminal (não a
 # reiniciar a máquina) e aparece como notificação do COSMIC.
@@ -23,8 +24,14 @@ case "${1:-}" in
     cancelar|cancel)
         systemctl --user stop 'tamagi-lembrete-*.timer' 2>/dev/null || true
         echo "$(t "Lembretes cancelados")"; exit 0 ;;
-    ""|-h|--help|ajuda)
+    -h|--help|ajuda)
         sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+    "")
+        # Sem argumentos num terminal (Super+Ctrl+R): pergunta.
+        [[ -t 0 ]] || { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0; }
+        read -r -a ask <<<"$(gum input --placeholder "10m $(t "Tirar o chá")")" || exit 0
+        [[ ${#ask[@]} -gt 0 ]] || exit 0
+        set -- "${ask[@]}" ;;
 esac
 
 when=$1; shift

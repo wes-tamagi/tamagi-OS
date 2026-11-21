@@ -215,3 +215,11 @@ Lembrete	Rappel
 Lembrete em	Rappel dans
 Lembretes cancelados	Rappels annulés
 Nenhum banco instalado	Aucune base de données installée
+Tirar o chá	Le thé est prêt
+# tamagi-dev, tamagi-font
+Pronto. Abra um terminal novo (ou rode: hash -r) e confira com	Terminé. Ouvrez un nouveau terminal (ou lancez : hash -r) et vérifiez avec
+Ambientes de desenvolvimento (espaço marca, Enter instala)	Environnements de développement (espace sélectionne, Entrée installe)
+fonte mono não encontrada	police à chasse fixe introuvable
+Fonte	Police
+terminais novos já abrem com ela	les nouveaux terminaux l'utilisent déjà
+Fonte monoespaçada	Police à chasse fixe

@@ -219,6 +219,16 @@ ours = [
     ("[Super, Shift]", "t", f'Spawn("{popup} btop")'),
     ("[Super, Shift]", "n", f'Spawn("{popup} --tile nvim")'),
     ("[Super, Shift, Ctrl]", "space", 'Spawn("tamagi-theme next")'),
+    # Do Omarchy: captura, apps com Super+Shift+letra, emoji e lembrete.
+    ("[Shift]", "Print", 'Spawn("tamagi-capture texto")'),
+    ("[Alt]", "Print", 'Spawn("tamagi-capture gravar")'),
+    ("[Super, Shift]", "g", f'Spawn("{popup} --tile lazygit")'),
+    ("[Super, Shift]", "d", f'Spawn("{popup} tamagi-db")'),
+    ("[Super, Shift]", "o", 'Spawn("flatpak run org.onlyoffice.desktopeditors")'),
+    ("[Super, Shift]", "m", 'Spawn("flatpak run io.missioncenter.MissionCenter")'),
+    ("[Super, Shift]", "w", 'Spawn("tamagi-windows abrir")'),
+    ("[Super, Ctrl]", "e", 'Spawn("/usr/libexec/tamagi/emoji")'),
+    ("[Super, Ctrl]", "r", f'Spawn("{popup} tamagi-lembrete")'),
 ]
 
 def norm(mods):

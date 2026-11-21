@@ -19,6 +19,9 @@
    Super + Entrée            terminal
    Super + B / E             navigateur / fichiers
    Super + Maj + N / T       neovim / btop
+   Super + Maj + G / D       lazygit / bases de données (tamagi-db)
+   Super + Maj + O / M       OnlyOffice / Mission Center
+   Super + Maj + W           Windows 11 (conteneur)
 
  Tamagi
    Super + Espace            menu de Tamagi (palette de commandes)
@@ -30,4 +33,8 @@
  SYSTÈME
    Super + Échap             verrouiller l'écran
    Impr. écran               capture d'écran
+   Maj + Impr. écran         copier le texte d'une zone (OCR)
+   Alt + Impr. écran         enregistrer l'écran / arrêter
+   Super + Ctrl + E          émojis
+   Super + Ctrl + R          rappel
    Super + Ctrl + Espace     changer la disposition du clavier
