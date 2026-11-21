@@ -1,0 +1,102 @@
+#!/usr/bin/bash
+# tamagi-db — bancos de dados para desenvolvimento, de um comando (como o
+# omarchy-install-docker-dbs do Omarchy), em contêineres Podman sem root.
+#
+#   tamagi-db                  escolhe e liga um banco (menu)
+#   tamagi-db add <banco>      postgres | mysql | mariadb | redis | valkey | mongo
+#   tamagi-db list             bancos instalados e se estão ligados
+#   tamagi-db stop|start <banco>
+#   tamagi-db remove <banco>   apaga o contêiner e os dados
+#
+# Cada banco vira uma unidade Quadlet em ~/.config/containers/systemd/ que
+# liga junto com a sua sessão, escutando só em 127.0.0.1 (de fora da máquina
+# ninguém alcança). Sem senha, como no Omarchy: é para desenvolvimento local.
+# Os dados ficam num volume do Podman (tamagi-db-<banco>), que sobrevive a
+# atualizações e a recriar o contêiner.
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd"
+DBS=(postgres mysql mariadb redis valkey mongo)
+
+die() { echo "$(t "erro"): $*" >&2; exit 1; }
+
+spec() { # spec <banco> -> IMAGE PORT TARGET VOLPATH ENV...
+    case $1 in
+        postgres) echo "docker.io/library/postgres:18 5432 5432 /var/lib/postgresql POSTGRES_HOST_AUTH_METHOD=trust" ;;
+        mysql)    echo "docker.io/library/mysql:8.4 3306 3306 /var/lib/mysql MYSQL_ALLOW_EMPTY_PASSWORD=yes" ;;
+        mariadb)  echo "docker.io/library/mariadb:11.8 3307 3306 /var/lib/mysql MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=1" ;;
+        redis)    echo "docker.io/library/redis:7 6379 6379 /data" ;;
+        valkey)   echo "docker.io/valkey/valkey:8 6380 6379 /data" ;;
+        mongo)    echo "docker.io/library/mongo:8 27017 27017 /data/db" ;;
+        *) return 1 ;;
+    esac
+}
+
+unit_of() { echo "$UNITS/tamagi-db-$1.container"; }
+running() { [[ $(podman container inspect -f '{{.State.Running}}' "tamagi-db-$1" 2>/dev/null) == true ]]; }
+
+add() {
+    local db=$1 image port target vol envs
+    spec "$db" >/dev/null || die "$(t "banco desconhecido"): $db (${DBS[*]})"
+    read -r image port target vol envs <<<"$(spec "$db")"
+    mkdir -p "$UNITS"
+    {
+        echo "# Gerado por tamagi-db. Banco de desenvolvimento: só 127.0.0.1, sem senha."
+        echo "[Unit]"
+        echo "Description=$db do tamagi-db"
+        echo
+        echo "[Container]"
+        echo "ContainerName=tamagi-db-$db"
+        echo "Image=$image"
+        echo "PublishPort=127.0.0.1:$port:$target"
+        echo "Volume=tamagi-db-$db:$vol"
+        for e in $envs; do echo "Environment=$e"; done
+        echo
+        echo "[Service]"
+        echo "Restart=on-failure"
+        echo "TimeoutStartSec=600"
+        echo
+        echo "[Install]"
+        echo "WantedBy=default.target"
+    } > "$(unit_of "$db")"
+    systemctl --user daemon-reload
+    echo "$(t "Baixando e ligando") $db…"
+    podman pull -q "$image" >/dev/null
+    systemctl --user start "tamagi-db-$db.service"
+    echo "$db: 127.0.0.1:$port"
+}
+
+list() {
+    local db any=
+    for db in "${DBS[@]}"; do
+        [[ -f $(unit_of "$db") ]] || continue
+        any=1
+        local port; port=$(spec "$db" | cut -d' ' -f2)
+        printf '  %-9s 127.0.0.1:%-6s %s\n' "$db" "$port" "$(running "$db" && t "ligado" || t "desligado")"
+    done
+    [[ -n $any ]] || echo "$(t "Nenhum banco instalado"). tamagi-db add <${DBS[*]// /|}>"
+}
+
+need() { [[ -n ${1:-} && -f $(unit_of "$1") ]] || die "$(t "banco não instalado"): ${1:-?}"; }
+
+case "${1:-}" in
+    "")
+        [[ -t 0 ]] || { list; exit 0; }
+        db=$(printf '%s\n' "${DBS[@]}" | gum choose --header "$(t "Banco de dados para desenvolvimento")") || exit 0
+        add "$db" ;;
+    add|instalar)   [[ -n ${2:-} ]] || die "uso: tamagi-db add <${DBS[*]// /|}>"; add "$2" ;;
+    list|lista)     list ;;
+    start|ligar)    need "${2:-}"; systemctl --user start "tamagi-db-$2.service" ;;
+    stop|parar)     need "${2:-}"; systemctl --user stop "tamagi-db-$2.service" ;;
+    remove|remover)
+        need "${2:-}"
+        gum confirm "$(t "Apagar o banco e todos os dados dele?") ($2)" || exit 0
+        systemctl --user stop "tamagi-db-$2.service" 2>/dev/null || true
+        rm -f "$(unit_of "$2")"
+        systemctl --user daemon-reload
+        podman volume rm -f "tamagi-db-$2" >/dev/null 2>&1 || true
+        echo "$(t "Banco removido"): $2" ;;
+    -h|--help|ajuda) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) die "uso: tamagi-db [add|list|start|stop|remove] <banco>" ;;
+esac

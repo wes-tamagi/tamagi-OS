@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # tamagi-theme — troca o tema do desktop com um comando: as cores do COSMIC
 # (fundo, destaque, claro/escuro), o papel de parede, a paleta do terminal
-# padrão (foot) e a das janelas do Tamagi (alacritty).
+# padrão (foot), do btop e a das janelas do Tamagi (alacritty).
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
@@ -97,6 +97,68 @@ apply_foot() { # só reescreve o foot.ini que o próprio tamagi-theme gerou
     fi
 }
 
+btop_theme() { # tema do btop com a paleta do tema (como no Omarchy)
+    local accent=${WALL[2]} red=${PALETTE[1]} green=${PALETTE[2]} yellow=${PALETTE[3]}
+    local blue=${PALETTE[4]} magenta=${PALETTE[5]} cyan=${PALETTE[6]} gray=${PALETTE[8]}
+    cat <<THEME
+# Gerado por tamagi-theme ($NAME).
+theme[main_bg]="$BG"
+theme[main_fg]="$FG"
+theme[title]="$FG"
+theme[hi_fg]="$accent"
+theme[selected_bg]="$gray"
+theme[selected_fg]="$FG"
+theme[inactive_fg]="$gray"
+theme[graph_text]="$FG"
+theme[meter_bg]="$gray"
+theme[proc_misc]="$cyan"
+theme[cpu_box]="$blue"
+theme[mem_box]="$green"
+theme[net_box]="$magenta"
+theme[proc_box]="$accent"
+theme[div_line]="$gray"
+theme[temp_start]="$green"
+theme[temp_mid]="$yellow"
+theme[temp_end]="$red"
+theme[cpu_start]="$cyan"
+theme[cpu_mid]="$blue"
+theme[cpu_end]="$magenta"
+theme[free_start]="$green"
+theme[free_mid]="$green"
+theme[free_end]="$green"
+theme[cached_start]="$cyan"
+theme[cached_mid]="$cyan"
+theme[cached_end]="$blue"
+theme[available_start]="$yellow"
+theme[available_mid]="$yellow"
+theme[available_end]="$yellow"
+theme[used_start]="$red"
+theme[used_mid]="$red"
+theme[used_end]="$red"
+theme[download_start]="$blue"
+theme[download_mid]="$cyan"
+theme[download_end]="$green"
+theme[upload_start]="$magenta"
+theme[upload_mid]="$red"
+theme[upload_end]="$yellow"
+theme[process_start]="$cyan"
+theme[process_mid]="$blue"
+theme[process_end]="$magenta"
+THEME
+}
+
+apply_btop() { # escreve o tema e o escolhe, se você não escolheu outro
+    local dir="$CONFIG/btop" conf
+    mkdir -p "$dir/themes"
+    btop_theme > "$dir/themes/tamagi.theme"
+    conf="$dir/btop.conf"
+    if [[ ! -f $conf ]]; then
+        echo 'color_theme = "tamagi"' > "$conf"
+    elif grep -qE '^color_theme = "(Default|tamagi|)"' "$conf"; then
+        sed -i 's/^color_theme = .*/color_theme = "tamagi"/' "$conf"
+    fi
+}
+
 apply_omarchy_apps() { # apps do Omarchy (instalados pelo tamagi-pkg) leem as cores do tema neste arquivo
     local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme" i
     mkdir -p "$dir"
@@ -147,6 +209,7 @@ apply() {
     mkdir -p "$CONFIG/tamagi"
     alacritty_config > "$CONFIG/tamagi/alacritty.toml"
     apply_foot
+    apply_btop
     apply_omarchy_apps
     echo "$name" > "$STATE"
     echo "$(t "Tema aplicado"): $NAME"

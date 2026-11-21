@@ -14,7 +14,7 @@ import tomllib
 SCRIPTS = [
     "tamagi-firstrun", "tamagi-keys", "tamagi-assist", "tamagi-lang",
     "tamagi-panel", "tamagi-theme", "tamagi-ai", "tamagi-update",
-    "tamagi-boot-report",
+    "tamagi-boot-report", "tamagi-windows", "tamagi-db", "tamagi-lembrete",
 ]
 STR = r'"((?:[^"\\$]|\\.)*)"'
 CALLS = re.compile(r'(?:\$\(|\b)(?:tl?|step|confirm|input|timer_line)\s+' + STR)

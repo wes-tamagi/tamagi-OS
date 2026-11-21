@@ -168,3 +168,50 @@ O digest com falha foi colocado em quarentena automática para evitar reinstala�
 Nenhum relatório guardado.	Ningún informe guardado.
 Uma atualização falhou e foi desfeita	Una actualización falló y fue revertida
 O sistema voltou para a versão anterior. Veja o que aconteceu.	El sistema volvió a la versión anterior. Vea lo ocurrido.
+# tamagi-windows
+Abrir pelo navegador	Abrir en el navegador
+Aceito: baixar e instalar o Windows	Acepto: descargar e instalar Windows
+Apagar o Windows e todo o disco dele? Isto não tem volta.	¿Borrar Windows y todo su disco? No se puede deshacer.
+A pasta	La carpeta
+Baixando a imagem do contêiner…	Descargando la imagen del contenedor…
+Desligar o Windows	Apagar Windows
+disco	disco
+disco até 64 GB	disco de hasta 64 GB
+e instalado sozinho; leva de 10 a 30 minutos.	e instalado automáticamente; tarda de 10 a 30 minutos.
+Ele é software da Microsoft: para usá-lo você precisa de uma licença	Es software de Microsoft: para usarlo necesitas una licencia
+espaço livre insuficiente	espacio libre insuficiente
+falta /dev/net/tun	falta /dev/net/tun
+foi mantida	se ha conservado
+Instalação do Windows começou. Acompanhe pelo navegador	La instalación de Windows ha empezado. Síguela en el navegador
+Instalando o cliente de área de trabalho remota (FreeRDP)…	Instalando el cliente de escritorio remoto (FreeRDP)…
+Ligando o Windows…	Encendiendo Windows…
+memória insuficiente para o Windows	memoria insuficiente para Windows
+Memória reservada enquanto ligado	Memoria reservada mientras está encendido
+o contêiner do Windows parou; veja	el contenedor de Windows se detuvo; mira
+O Windows é baixado da Microsoft agora, na sua máquina (cerca de 6 GB),	Windows se descarga ahora de Microsoft, en tu equipo (unos 6 GB),
+O Windows já está instalado	Windows ya está instalado
+o Windows não respondeu; tente	Windows no respondió; prueba
+pasta compartilhada	carpeta compartida
+Quando terminar, abra com	Cuando termine, ábrelo con
+rode num terminal para aceitar o aviso de licença	ejecútalo en una terminal para aceptar el aviso de licencia
+sem acesso a /dev/kvm: ative a virtualização (VT-x/AMD-V) na BIOS	sin acceso a /dev/kvm: activa la virtualización (VT-x/AMD-V) en la BIOS
+válida. Sem chave de ativação ele funciona, mas fica sem ativar.	válida. Sin clave de activación funciona, pero queda sin activar.
+Windows 11 no contêiner	Windows 11 en un contenedor
+Windows 11 no contêiner (dockur)	Windows 11 en un contenedor (dockur)
+Windows desligado	Windows apagado
+Windows instalado	Windows instalado
+Windows não instalado	Windows no instalado
+Windows removido	Windows eliminado
+ligado	encendido
+desligado	apagado
+# tamagi-db, tamagi-lembrete
+Apagar o banco e todos os dados dele?	¿Borrar la base de datos y todos sus datos?
+Baixando e ligando	Descargando e iniciando
+Banco de dados para desenvolvimento	Base de datos para desarrollo
+banco desconhecido	base de datos desconocida
+banco não instalado	base de datos no instalada
+Banco removido	Base de datos eliminada
+Lembrete	Recordatorio
+Lembrete em	Recordatorio en
+Lembretes cancelados	Recordatorios cancelados
+Nenhum banco instalado	Ninguna base de datos instalada

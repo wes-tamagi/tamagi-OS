@@ -168,3 +168,50 @@ O digest com falha foi colocado em quarentena automática para evitar reinstala�
 Nenhum relatório guardado.	No saved reports.
 Uma atualização falhou e foi desfeita	An update failed and was rolled back
 O sistema voltou para a versão anterior. Veja o que aconteceu.	The system rolled back to the previous version. See what happened.
+# tamagi-windows
+Abrir pelo navegador	Open in the browser
+Aceito: baixar e instalar o Windows	I accept: download and install Windows
+Apagar o Windows e todo o disco dele? Isto não tem volta.	Delete Windows and its whole disk? This cannot be undone.
+A pasta	The folder
+Baixando a imagem do contêiner…	Downloading the container image…
+Desligar o Windows	Shut down Windows
+disco	disk
+disco até 64 GB	disk up to 64 GB
+e instalado sozinho; leva de 10 a 30 minutos.	and installed automatically; it takes 10 to 30 minutes.
+Ele é software da Microsoft: para usá-lo você precisa de uma licença	It is Microsoft software: to use it you need a
+espaço livre insuficiente	not enough free space
+falta /dev/net/tun	/dev/net/tun is missing
+foi mantida	was kept
+Instalação do Windows começou. Acompanhe pelo navegador	Windows installation started. Follow it in the browser
+Instalando o cliente de área de trabalho remota (FreeRDP)…	Installing the remote desktop client (FreeRDP)…
+Ligando o Windows…	Starting Windows…
+memória insuficiente para o Windows	not enough memory for Windows
+Memória reservada enquanto ligado	Memory reserved while running
+o contêiner do Windows parou; veja	the Windows container stopped; see
+O Windows é baixado da Microsoft agora, na sua máquina (cerca de 6 GB),	Windows is downloaded from Microsoft now, on your machine (about 6 GB),
+O Windows já está instalado	Windows is already installed
+o Windows não respondeu; tente	Windows did not respond; try
+pasta compartilhada	shared folder
+Quando terminar, abra com	When it finishes, open it with
+rode num terminal para aceitar o aviso de licença	run it in a terminal to accept the license notice
+sem acesso a /dev/kvm: ative a virtualização (VT-x/AMD-V) na BIOS	no access to /dev/kvm: enable virtualization (VT-x/AMD-V) in the BIOS
+válida. Sem chave de ativação ele funciona, mas fica sem ativar.	valid license. Without an activation key it works, but stays unactivated.
+Windows 11 no contêiner	Windows 11 in a container
+Windows 11 no contêiner (dockur)	Windows 11 in a container (dockur)
+Windows desligado	Windows shut down
+Windows instalado	Windows installed
+Windows não instalado	Windows not installed
+Windows removido	Windows removed
+ligado	running
+desligado	off
+# tamagi-db, tamagi-lembrete
+Apagar o banco e todos os dados dele?	Delete the database and all its data?
+Baixando e ligando	Downloading and starting
+Banco de dados para desenvolvimento	Development database
+banco desconhecido	unknown database
+banco não instalado	database not installed
+Banco removido	Database removed
+Lembrete	Reminder
+Lembrete em	Reminder in
+Lembretes cancelados	Reminders cancelled
+Nenhum banco instalado	No database installed

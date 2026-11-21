@@ -521,6 +521,111 @@ fr = "English (US), Português (BR), Español ou Français"
 # ── Sistema ─────────────────────────────────────────────────────────────────
 
 [[action]]
+id = "windows.bottles"
+category = "install"
+icon = "application-x-ms-dos-executable"
+risk = "user"
+terminal = false
+confirm = false
+agent = true
+command = "flatpak run com.usebottles.bottles"
+keywords = "windows exe msi wine bottles programa jogo antigo"
+[action.title]
+pt = "Programas do Windows (Bottles)"
+en = "Windows programs (Bottles)"
+es = "Programas de Windows (Bottles)"
+fr = "Programmes Windows (Bottles)"
+[action.subtitle]
+pt = "Pelo Wine, sem Windows; dois cliques num .exe também abrem aqui"
+en = "Through Wine, no Windows needed; double-clicking an .exe opens here too"
+es = "Con Wine, sin Windows; doble clic en un .exe también lo abre aquí"
+fr = "Via Wine, sans Windows ; un double-clic sur un .exe l'ouvre aussi ici"
+
+[[action]]
+id = "windows.vm"
+category = "install"
+icon = "computer-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-windows"
+keywords = "windows 11 office 365 adobe banco vm maquina virtual dockur rdp"
+[action.title]
+pt = "Windows 11 de verdade (contêiner)"
+en = "Real Windows 11 (container)"
+es = "Windows 11 de verdad (contenedor)"
+fr = "Vrai Windows 11 (conteneur)"
+[action.subtitle]
+pt = "Para Office 365, Adobe e o que o Wine não roda; 4–8 GB de RAM ligado"
+en = "For Office 365, Adobe and what Wine can't run; 4–8 GB of RAM while on"
+es = "Para Office 365, Adobe y lo que Wine no ejecuta; 4–8 GB de RAM encendido"
+fr = "Pour Office 365, Adobe et ce que Wine ne lance pas ; 4–8 Go de RAM allumé"
+
+[[action]]
+id = "windows.stop"
+category = "power"
+icon = "media-playback-stop-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-windows parar"
+keywords = "windows desligar parar stop memoria liberar"
+[action.title]
+pt = "Desligar o Windows do contêiner"
+en = "Shut down the container Windows"
+es = "Apagar el Windows del contenedor"
+fr = "Éteindre le Windows du conteneur"
+[action.subtitle]
+pt = "Libera a memória reservada para ele"
+en = "Frees the memory reserved for it"
+es = "Libera la memoria reservada para él"
+fr = "Libère la mémoire qui lui est réservée"
+
+[[action]]
+id = "install.db"
+category = "install"
+icon = "drive-multidisk-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-db"
+keywords = "banco database postgres mysql mariadb redis valkey mongo dev desenvolvimento docker"
+[action.title]
+pt = "Banco de dados para desenvolvimento"
+en = "Development database"
+es = "Base de datos para desarrollo"
+fr = "Base de données de développement"
+[action.subtitle]
+pt = "Postgres, MySQL, MariaDB, Redis, Valkey ou Mongo; só em 127.0.0.1"
+en = "Postgres, MySQL, MariaDB, Redis, Valkey or Mongo; 127.0.0.1 only"
+es = "Postgres, MySQL, MariaDB, Redis, Valkey o Mongo; solo en 127.0.0.1"
+fr = "Postgres, MySQL, MariaDB, Redis, Valkey ou Mongo ; 127.0.0.1 seulement"
+
+[[action]]
+id = "system.reminder"
+category = "system"
+icon = "alarm-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = true
+command = "bash -c 'q=$(gum input --placeholder \"10m Tirar o chá\") && tamagi-lembrete $q'"
+keywords = "lembrete reminder alarme timer avisar notificacao"
+[action.title]
+pt = "Lembrete"
+en = "Reminder"
+es = "Recordatorio"
+fr = "Rappel"
+[action.subtitle]
+pt = "Avisa daqui a um tempo: 10m Tirar o chá"
+en = "Notifies you after a while: 10m Tea is ready"
+es = "Avisa dentro de un rato: 10m El té está listo"
+fr = "Vous prévient dans un moment : 10m Le thé est prêt"
+
+[[action]]
 id = "system.update"
 category = "system"
 icon = "system-software-update-symbolic"

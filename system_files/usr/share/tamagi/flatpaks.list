@@ -12,6 +12,9 @@ flathub org.gnome.Papers
 flathub com.ranfdev.DistroShelf
 flathub dev.edfloreshz.CosmicTweaks
 flathub io.github.cosmic_utils.Examine
+# Programas do Windows pelo Wine (dois cliques num .exe abrem aqui). Para o que
+# exige Windows de verdade: tamagi-windows (sob demanda, não vem instalado).
+flathub com.usebottles.bottles
 cosmic io.github.cosmic_utils.minimon-applet
 cosmic io.github.cosmic_utils.weather-applet
 cosmic io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager

@@ -1,0 +1,237 @@
+#!/usr/bin/bash
+# tamagi-windows — Windows 11 de verdade, sob demanda, num contêiner rootless.
+#
+# Para o que o Bottles (Wine) não roda: Office 365, Adobe, programas de banco
+# e de certificado, aparelhos USB com driver só para Windows. Usa o
+# dockur/windows (QEMU/KVM dentro de um contêiner Podman, sem root) e abre a
+# tela pelo FreeRDP (Flatpak). Nada de Windows vem na imagem: ele é baixado da
+# Microsoft na sua máquina, depois que você aceita o aviso de licença.
+#
+#   tamagi-windows                 abre (instala na primeira vez)
+#   tamagi-windows instalar        cria a máquina e baixa o Windows (~6 GB)
+#   tamagi-windows abrir           liga (se preciso) e abre a área de trabalho
+#   tamagi-windows navegador       abre a tela pelo navegador (instalação/emergência)
+#   tamagi-windows parar           desliga o Windows (libera a memória)
+#   tamagi-windows status
+#   tamagi-windows remover         apaga a máquina e o disco do Windows
+#
+# Custo enquanto ligado: a memória reservada inteira (4 a 8 GB, conforme a
+# máquina). Desligado, não ocupa memória. Disco: até 64 GB, crescendo aos poucos.
+# Arquivos: a pasta ~/Windows aparece no Windows (rede, "host.lan\Data" e
+# unidade "Tamagi" na sessão).
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+IMAGE="docker.io/dockurr/windows:6.06"
+NAME=tamagi-windows
+CFG="${XDG_CONFIG_HOME:-$HOME/.config}"
+ENVF="$CFG/tamagi/windows.env"
+UNIT_DIR="$CFG/containers/systemd"
+UNIT="$UNIT_DIR/$NAME.container"
+STORAGE="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi-windows"
+SHARED="$HOME/Windows"
+APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+RDP_APP=com.freerdp.FreeRDP
+MIN_RAM_GB=12
+
+die() { echo "$(t "erro"): $*" >&2; exit 1; }
+installed() { [[ -f $UNIT && -f $ENVF ]]; }
+running() { [[ $(podman container inspect -f '{{.State.Running}}' "$NAME" 2>/dev/null) == true ]]; }
+ram_gb() { awk '/^MemTotal:/ {printf "%d", $2 / 1048576 + 0.5}' /proc/meminfo; }
+
+check_host() {
+    [[ -c /dev/kvm && -r /dev/kvm && -w /dev/kvm ]] \
+        || die "$(t "sem acesso a /dev/kvm: ative a virtualização (VT-x/AMD-V) na BIOS")"
+    [[ -c /dev/net/tun ]] || die "$(t "falta /dev/net/tun")"
+    local ram; ram=$(ram_gb)
+    (( ram >= MIN_RAM_GB )) || die "$(t "memória insuficiente para o Windows"): ${ram} GB (min. ${MIN_RAM_GB} GB)"
+    local free_gb
+    mkdir -p "$(dirname "$STORAGE")"
+    free_gb=$(df -BG --output=avail "$(dirname "$STORAGE")" | tail -1 | tr -dc 0-9)
+    (( free_gb >= 40 )) || die "$(t "espaço livre insuficiente"): ${free_gb} GB (min. 40 GB)"
+}
+
+# Memória do Windows: um quarto da máquina, entre 4 e 8 GB.
+vm_ram() { local r; r=$(( $(ram_gb) / 4 )); (( r < 4 )) && r=4; (( r > 8 )) && r=8; echo "${r}G"; }
+vm_cores() { local c; c=$(( $(nproc) / 2 )); (( c < 2 )) && c=2; (( c > 8 )) && c=8; echo "$c"; }
+
+lang_settings() { # idioma do Windows conforme o do Tamagi
+    case $TAMAGI_LANG in
+        pt) echo "LANGUAGE=Portuguese"; echo "REGION=pt-BR"; echo "KEYBOARD=pt-BR" ;;
+        es) echo "LANGUAGE=Spanish"; echo "REGION=es-ES"; echo "KEYBOARD=es-ES" ;;
+        fr) echo "LANGUAGE=French"; echo "REGION=fr-FR"; echo "KEYBOARD=fr-FR" ;;
+        *)  echo "LANGUAGE=English"; echo "REGION=en-US"; echo "KEYBOARD=en-US" ;;
+    esac
+}
+
+license_notice() {
+    cat <<EOF
+
+  $(t "Windows 11 no contêiner")
+
+  $(t "O Windows é baixado da Microsoft agora, na sua máquina (cerca de 6 GB),")
+  $(t "e instalado sozinho; leva de 10 a 30 minutos.")
+  $(t "Ele é software da Microsoft: para usá-lo você precisa de uma licença")
+  $(t "válida. Sem chave de ativação ele funciona, mas fica sem ativar.")
+  $(t "Memória reservada enquanto ligado"): $(vm_ram) · CPUs: $(vm_cores) · $(t "disco até 64 GB")
+
+EOF
+}
+
+ensure_rdp() {
+    flatpak info "$RDP_APP" >/dev/null 2>&1 && return 0
+    echo "$(t "Instalando o cliente de área de trabalho remota (FreeRDP)…")"
+    flatpak install --user -y --noninteractive flathub "$RDP_APP"
+}
+
+install_vm() {
+    if installed; then
+        echo "$(t "O Windows já está instalado"). tamagi-windows abrir"
+        return 0
+    fi
+    check_host
+    license_notice
+    if [[ -t 0 ]]; then
+        gum confirm "$(t "Aceito: baixar e instalar o Windows")" || exit 0
+    elif [[ ${TAMAGI_WINDOWS_ACCEPT:-} != yes ]]; then
+        die "$(t "rode num terminal para aceitar o aviso de licença")"
+    fi
+    mkdir -p "$(dirname "$STORAGE")" "$SHARED" "$UNIT_DIR" "$(dirname "$ENVF")"
+    # Em btrfs, o disco do Windows fica num subvolume à parte (fora dos
+    # snapshots da pasta pessoal) e sem cópia-na-escrita (disco de VM muda o
+    # tempo todo; com CoW fica lento e fragmenta).
+    if [[ ! -d $STORAGE ]]; then
+        btrfs subvolume create "$STORAGE" >/dev/null 2>&1 || mkdir -p "$STORAGE"
+    fi
+    # +C só vale para arquivos criados depois: aplica enquanto a pasta está vazia
+    # (o home-snapshots pode já tê-la criado como subvolume).
+    [[ -z $(ls -A "$STORAGE") ]] && chattr +C "$STORAGE" 2>/dev/null || true
+    # Senha aleatória da conta do Windows; fica só neste arquivo (0600).
+    local pass user
+    pass=$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 16)
+    user=$(id -un | tr -dc 'A-Za-z0-9_' | head -c 20); [[ -n $user ]] || user=tamagi
+    umask 077
+    {
+        echo "# Gerado por tamagi-windows. Conta do Windows e recursos da máquina."
+        echo "VERSION=11"
+        echo "USERNAME=$user"
+        echo "PASSWORD=$pass"
+        echo "RAM_SIZE=$(vm_ram)"
+        echo "CPU_CORES=$(vm_cores)"
+        echo "DISK_SIZE=64G"
+        lang_settings
+    } > "$ENVF"
+    umask 022
+    # Quadlet: o systemd do usuário cuida do contêiner (sem [Install]: só liga
+    # quando você abre o Windows).
+    cat > "$UNIT" <<EOF
+# Gerado por tamagi-windows. Windows 11 (dockur/windows) sob demanda.
+[Unit]
+Description=Windows 11 do Tamagi (dockur)
+
+[Container]
+ContainerName=$NAME
+Image=$IMAGE
+EnvironmentFile=$ENVF
+AddDevice=/dev/kvm
+AddDevice=/dev/net/tun
+AddCapability=NET_ADMIN
+PublishPort=127.0.0.1:8006:8006
+PublishPort=127.0.0.1:3389:3389/tcp
+PublishPort=127.0.0.1:3389:3389/udp
+Volume=$STORAGE:/storage:Z
+Volume=$SHARED:/shared:Z
+StopTimeout=120
+
+[Service]
+TimeoutStartSec=900
+TimeoutStopSec=150
+EOF
+    systemctl --user daemon-reload
+    echo "$(t "Baixando a imagem do contêiner…")"
+    podman pull "$IMAGE" >/dev/null
+    ensure_rdp
+    desktop_entry
+    systemctl --user start "$NAME.service"
+    echo
+    echo "$(t "Instalação do Windows começou. Acompanhe pelo navegador"): http://127.0.0.1:8006"
+    echo "$(t "Quando terminar, abra com"): tamagi-windows abrir"
+    xdg-open http://127.0.0.1:8006 >/dev/null 2>&1 || true
+}
+
+desktop_entry() {
+    mkdir -p "$APPS"
+    cat > "$APPS/tamagi-windows.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Windows
+Comment=$(t "Windows 11 no contêiner (dockur)")
+Exec=tamagi-windows abrir
+Icon=computer
+Terminal=false
+Categories=System;Emulator;
+Actions=parar;navegador;
+
+[Desktop Action parar]
+Name=$(t "Desligar o Windows")
+Exec=tamagi-windows parar
+
+[Desktop Action navegador]
+Name=$(t "Abrir pelo navegador")
+Exec=tamagi-windows navegador
+EOF
+    update-desktop-database "$APPS" 2>/dev/null || true
+}
+
+wait_rdp() { # espera o Windows aceitar conexões RDP (até ~5 min)
+    local i
+    for i in $(seq 150); do
+        (exec 3<>/dev/tcp/127.0.0.1/3389) 2>/dev/null && return 0
+        running || die "$(t "o contêiner do Windows parou; veja"): journalctl --user -u $NAME"
+        sleep 2
+    done
+    return 1
+}
+
+start_vm() {
+    installed || { install_vm; exit 0; }
+    running && return 0
+    echo "$(t "Ligando o Windows…")"
+    systemctl --user start "$NAME.service"
+}
+
+open_vm() {
+    start_vm
+    wait_rdp || die "$(t "o Windows não respondeu; tente"): tamagi-windows navegador"
+    ensure_rdp
+    # shellcheck source=/dev/null
+    . "$ENVF"
+    # A senha vai pela entrada padrão (não aparece na lista de processos).
+    printf '%s\n' "$PASSWORD" | flatpak run --filesystem="$SHARED" "$RDP_APP" \
+        /v:127.0.0.1 /u:"$USERNAME" /from-stdin:force /cert:ignore \
+        /dynamic-resolution /scale-desktop:100 +clipboard /sound /microphone \
+        /drive:Tamagi,"$SHARED" /title:Windows >/dev/null 2>&1 &
+    disown
+}
+
+case "${1:-abrir}" in
+    instalar|install) install_vm ;;
+    abrir|open)       open_vm ;;
+    navegador|web)    start_vm; xdg-open http://127.0.0.1:8006 ;;
+    parar|stop)       systemctl --user stop "$NAME.service"; echo "$(t "Windows desligado")" ;;
+    status)
+        if ! installed; then echo "$(t "Windows não instalado") (tamagi-windows instalar)"; exit 0; fi
+        echo "$(t "Windows instalado"): $(running && t "ligado" || t "desligado")"
+        echo "$(t "disco"): $(du -sh "$STORAGE" 2>/dev/null | cut -f1) · $(grep -E '^(RAM_SIZE|CPU_CORES)=' "$ENVF" | tr '\n' ' ')"
+        echo "$(t "pasta compartilhada"): $SHARED" ;;
+    remover|remove)
+        installed || { echo "$(t "Windows não instalado")"; exit 0; }
+        gum confirm "$(t "Apagar o Windows e todo o disco dele? Isto não tem volta.")" || exit 0
+        systemctl --user stop "$NAME.service" 2>/dev/null || true
+        rm -f "$UNIT" "$ENVF" "$APPS/tamagi-windows.desktop"
+        systemctl --user daemon-reload
+        podman unshare rm -rf --one-file-system "${STORAGE:?}"
+        echo "$(t "Windows removido"). $(t "A pasta") $SHARED $(t "foi mantida")." ;;
+    -h|--help|ajuda) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) die "uso: tamagi-windows [instalar|abrir|navegador|parar|status|remover]" ;;
+esac

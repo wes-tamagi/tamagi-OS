@@ -282,6 +282,56 @@ novo que o publicado, a primeira atualização automática troca o sistema pela
 imagem do registry — mais antiga. A ordem certa: `git push` (o CI publica no
 GHCR), e só então `just build-iso`.
 
+## Programas do Windows
+
+Dois caminhos, conforme o programa:
+
+- **Bottles (Wine), o padrão:** vem no primeiro boot, e dois cliques num
+  `.exe` ou `.msi` abrem nele. Não precisa de Windows nem de licença, não
+  reserva memória e usa a GPU de verdade (DXVK/VKD3D). Bom para programas e
+  jogos Win32; Office 365 e Adobe costumam não funcionar.
+- **Windows 11 de verdade, sob demanda:** `tamagi-windows` (ou "Windows 11 de
+  verdade" no `Super+Espaço`). Roda o [dockur/windows](https://github.com/dockur/windows)
+  (QEMU/KVM num contêiner Podman sem root, como unidade Quadlet que só liga
+  quando você abre) e mostra a área de trabalho pelo FreeRDP (Flatpak). É para
+  Office 365, Adobe, programas de banco/certificado e aparelhos USB com driver
+  só para Windows.
+
+```bash
+tamagi-windows            # abre (instala na primeira vez, depois do aviso de licença)
+tamagi-windows parar      # desliga e libera a memória
+tamagi-windows navegador  # a tela pelo navegador (acompanhar a instalação)
+tamagi-windows status | remover
+```
+
+O Windows não vem na imagem: é baixado da Microsoft na sua máquina (~6 GB,
+10–30 min para instalar sozinho) e precisa de licença válida (sem chave,
+funciona sem ativar). Ligado, reserva um quarto da memória (4 a 8 GB); exige
+12 GB de RAM e 40 GB livres. A conta do Windows recebe uma senha aleatória
+guardada em `~/.config/tamagi/windows.env`; a pasta `~/Windows` aparece lá
+dentro. O disco do Windows fica num subvolume à parte, fora dos snapshots da
+pasta pessoal. Sem aceleração de GPU dentro do Windows, e anti-cheat de kernel
+não roda em nenhum dos dois caminhos.
+
+Ficaram de fora por enquanto: o **WinBoat** (336 issues abertas, pouca
+atividade, sem USB nem GPU no Podman) e o **WinPodX** (beta, ainda sem Fedora
+45, e embute um patch de sessões RDP simultâneas que conflita com a licença
+do Windows).
+
+## Desenvolvimento: bancos e lembretes (do Omarchy)
+
+```bash
+tamagi-db                          # escolhe: postgres, mysql, mariadb, redis, valkey, mongo
+tamagi-db add postgres             # 127.0.0.1:5432, sem senha, liga com a sessão
+tamagi-db list | stop | start | remove <banco>
+tamagi-lembrete 25m "Pausa"        # notificação daqui a 25 minutos
+```
+
+Os bancos são contêineres Podman sem root (Quadlet em
+`~/.config/containers/systemd/`), escutando só em `127.0.0.1`, com os dados em
+volumes `tamagi-db-<banco>`. Sem senha, como no Omarchy: só para
+desenvolvimento local.
+
 ## Jogos
 
 `gamescope`, MangoHud, GameMode e as regras de controles (`steam-devices`) já
@@ -429,7 +479,7 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   nord, everforest, rose-pine, kanagawa, matte-black, ristretto, latte e ipe
   (o tema próprio do Tamagi: verde-noite com destaque no amarelo do ipê).
   Trocam as cores do COSMIC (fundo, destaque e texto), o claro/escuro, o papel
-  de parede e a paleta das janelas do Tamagi. Cada tema vira um arquivo em
+  de parede, o terminal (foot), o btop e a paleta das janelas do Tamagi. Cada tema vira um arquivo em
   `/usr/share/cosmic-themes/tamagi-<tema>.ron`, que também aparece em
   Configurações > Aparência > Importar.
 - **Papéis de parede:** oito estilos em cada tema, nas cores dele
