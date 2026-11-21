@@ -1,0 +1,75 @@
+#!/usr/bin/bash
+# tamagi-convidado — sessão de convidado descartável (para emprestar o computador).
+#
+# Liga uma conta "Convidado" na tela de login, sem senha, que abre um desktop
+# limpo. A pasta pessoal dela fica na memória (tmpfs) e é refeita do zero a
+# cada logout e a cada boot: nada do que o convidado fizer fica no disco.
+# Sem sudo, sem acesso às suas pastas, caixas, VMs e Flatpaks pessoais; não
+# monta discos nem instala nada no sistema (regra do polkit).
+#
+#   tamagi-convidado ligar | desligar | status      (pede a senha de administrador)
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+USER_NAME=convidado
+UID_GUEST=1990
+HOME_DIR=/var/home/$USER_NAME
+MOUNT_UNIT=/etc/systemd/system/var-home-convidado.mount
+DROPIN=/etc/systemd/system/user-runtime-dir@$UID_GUEST.service.d/tamagi-convidado.conf
+
+as_root() { [[ $(id -u) == 0 ]] || exec pkexec "$0" "$@"; }
+
+enable() {
+    as_root ligar
+    if ! id "$USER_NAME" >/dev/null 2>&1; then
+        getent passwd "$UID_GUEST" >/dev/null && { echo "uid $UID_GUEST ocupado" >&2; exit 1; }
+        groupadd -g "$UID_GUEST" "$USER_NAME" 2>/dev/null || true
+        useradd -u "$UID_GUEST" -g "$UID_GUEST" -M -d "$HOME_DIR" -s /bin/bash -c "Convidado" "$USER_NAME"
+        passwd -d "$USER_NAME" >/dev/null
+    fi
+    cat > "$MOUNT_UNIT" <<UNIT
+# Gerado por tamagi-convidado: a pasta do convidado vive na memória.
+[Unit]
+Description=Pasta pessoal do convidado (na memória)
+
+[Mount]
+What=tmpfs
+Where=$HOME_DIR
+Type=tmpfs
+Options=mode=0700,uid=$UID_GUEST,gid=$UID_GUEST,size=25%,nosuid,nodev
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    mkdir -p "$(dirname "$DROPIN")"
+    cat > "$DROPIN" <<UNIT
+# Gerado por tamagi-convidado: no logout do convidado, a pasta é refeita.
+[Service]
+ExecStopPost=/usr/libexec/tamagi/convidado-reset
+UNIT
+    mkdir -p "$HOME_DIR"
+    systemctl daemon-reload
+    systemctl enable --now var-home-convidado.mount
+    /usr/libexec/tamagi/convidado-reset
+    echo "$(t "Sessão de convidado ligada: escolha Convidado na tela de login (sem senha).")"
+}
+
+disable() {
+    as_root desligar
+    loginctl terminate-user "$USER_NAME" 2>/dev/null || true
+    systemctl disable --now var-home-convidado.mount 2>/dev/null || true
+    rm -f "$MOUNT_UNIT" "$DROPIN"
+    rmdir "$(dirname "$DROPIN")" 2>/dev/null || true
+    systemctl daemon-reload
+    id "$USER_NAME" >/dev/null 2>&1 && userdel "$USER_NAME"
+    rmdir "$HOME_DIR" 2>/dev/null || true
+    echo "$(t "Sessão de convidado desligada")"
+}
+
+case "${1:-status}" in
+    ligar|on)      enable ;;
+    desligar|off)  disable ;;
+    status)        if id "$USER_NAME" >/dev/null 2>&1; then echo "$(t "Sessão de convidado ligada")"; else echo "$(t "Sessão de convidado desligada")"; fi ;;
+    -h|--help|ajuda) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) echo "uso: tamagi-convidado [ligar|desligar|status]" >&2; exit 2 ;;
+esac

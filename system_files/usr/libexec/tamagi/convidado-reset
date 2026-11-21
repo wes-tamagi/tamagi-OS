@@ -1,0 +1,19 @@
+#!/usr/bin/bash
+# Refaz a pasta do convidado do zero (root): no logout dele (ExecStopPost do
+# user-runtime-dir@1990) e quando a sessão é ligada. A pasta é um tmpfs.
+set -uo pipefail
+U=convidado
+H=/var/home/$U
+id "$U" >/dev/null 2>&1 || exit 0
+mountpoint -q "$H" || exit 0
+loginctl terminate-user "$U" 2>/dev/null || true
+pkill -KILL -u "$U" 2>/dev/null || true
+find "$H" -mindepth 1 -maxdepth 1 -exec rm -rf --one-file-system {} + 2>/dev/null
+cp -a /etc/skel/. "$H/"
+# Sem o assistente de primeiro login: o convidado entra direto no desktop.
+mkdir -p "$H/.config/tamagi"
+touch "$H/.config/tamagi/firstrun-done"
+chown -R "$U:$U" "$H"
+chmod 0700 "$H"
+command -v restorecon >/dev/null && restorecon -R "$H" 2>/dev/null
+exit 0

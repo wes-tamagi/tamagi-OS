@@ -37,4 +37,5 @@
    Alt + Print               gravar a tela / parar
    Super + Ctrl + E          emojis
    Super + Ctrl + R          lembrete
+   Super + Ctrl + P          modo privacidade (liga/desliga)
    Super + Ctrl + Espaço     trocar layout do teclado

@@ -326,6 +326,41 @@ apagada no fim (`--manter` guarda para inspecionar; `--rede` libera a rede).
 Limite: o X11 (Xwayland) fica disponível para os programas que só falam X11,
 e um programa X11 pode enxergar outras janelas X11.
 
+## Três recursos que nem o Pop!_OS nem o Fedora atômico têm
+
+### Voltar no tempo
+
+`tamagi voltar` (ou `Super+Espaço` → Voltar no tempo) mostra uma linha do tempo
+única: as versões do sistema nesta máquina e as publicadas com data no registro
+(`tamagi:45.AAAAMMDD`), intercaladas com os snapshots da pasta pessoal. Escolha
+um momento e o que trazer de volta: um arquivo ou pasta, os apps e
+configurações daquele dia (o `tamagi.toml` guardado no snapshot, reaplicado
+com `tamagi apply`) ou o sistema daquela data (`bootc rollback`/`switch`).
+Voltar o sistema não apaga nada: a versão atual fica no menu de boot, e
+`tamagi voltar seguir` retoma as atualizações.
+
+### Sessão de convidado descartável
+
+`tamagi-convidado ligar` acrescenta uma conta "Convidado" sem senha na tela de
+login, para emprestar o computador. A pasta pessoal dela fica na memória e é
+refeita do zero a cada logout e a cada boot. Sem `sudo`; uma regra do polkit
+nega ao convidado montar discos, mexer em VMs, instalar no sistema e usar
+`pkexec`, mesmo sabendo uma senha. As suas pastas são fechadas para ele
+(`0700`). `tamagi-convidado desligar` tira tudo. Vem desligada.
+
+### Modo privacidade de um toque
+
+`Super+Ctrl+P` (ou `tamagi-privacidade`) liga e desliga, de uma vez: a câmera
+desligada no kernel (as interfaces de vídeo USB saem do driver: nenhum programa
+a abre), todos os microfones mudos, Bluetooth bloqueado, o computador invisível
+na rede local (sem mDNS), o firewall fechado para conexões de entrada (zona
+`drop`, só em execução), o Wi-Fi com um endereço MAC sorteado, o tráfego pelo
+nó de saída do Tailscale (se configurado em `~/.config/tamagi/privacidade.conf`),
+as notificações em "não perturbe" e a tela apagando em 1 minuto. Uma
+notificação fixa avisa que está ligado. Desligar devolve tudo como estava;
+reiniciar também. A parte de sistema roda por um ajudante que só o
+administrador na sessão ativa pode chamar sem senha.
+
 ## Programas do Windows
 
 Dois caminhos, conforme o programa:

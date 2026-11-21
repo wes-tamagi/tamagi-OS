@@ -1,0 +1,21 @@
+// Sessão de convidado (tamagi-convidado): o convidado não monta discos, não
+// mexe em VMs nem no sistema, não instala nada para todos e não usa pkexec —
+// nem sabendo uma senha. Vem antes das regras que liberam algo para o wheel.
+polkit.addRule(function(action, subject) {
+    if (subject.user != "convidado") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    var denied = [
+        "org.freedesktop.udisks2.", "org.libvirt.", "org.freedesktop.Flatpak.",
+        "org.freedesktop.policykit.exec", "org.freedesktop.systemd1.",
+        "org.projectatomic.rpmostree1.", "org.freedesktop.NetworkManager.settings.modify.system",
+        "org.freedesktop.packagekit.", "org.freedesktop.fwupd.", "org.freedesktop.timedate1.",
+        "org.freedesktop.hostname1.", "org.freedesktop.locale1.", "org.freedesktop.accounts."
+    ];
+    for (var i = 0; i < denied.length; i++) {
+        if (action.id.indexOf(denied[i]) == 0) {
+            return polkit.Result.NO;
+        }
+    }
+    return polkit.Result.NOT_HANDLED;
+});

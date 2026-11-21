@@ -330,3 +330,14 @@ Papers — PDF e documentos	Papers — PDF and documents
 # secureboot-guard
 Atualização cancelada pelo Secure Boot: falta a chave do Universal Blue.	Update cancelled by Secure Boot: the Universal Blue key is missing.
 senha	password
+# tamagi-privacidade, tamagi-convidado
+Modo privacidade já está ligado	Privacy mode is already on
+aviso: a parte de sistema não foi aplicada	warning: the system part was not applied
+Modo privacidade ligado	Privacy mode on
+Câmera e microfones desligados, Bluetooth e rede local fechados.	Camera and microphones off, Bluetooth and local network closed.
+Modo privacidade já está desligado	Privacy mode is already off
+Modo privacidade desligado	Privacy mode off
+Tudo voltou como estava.	Everything is back as it was.
+Sessão de convidado ligada: escolha Convidado na tela de login (sem senha).	Guest session on: pick Convidado (Guest) on the login screen (no password).
+Sessão de convidado desligada	Guest session off
+Sessão de convidado ligada	Guest session on

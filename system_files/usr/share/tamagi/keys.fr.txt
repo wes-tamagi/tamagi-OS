@@ -37,4 +37,5 @@
    Alt + Impr. écran         enregistrer l'écran / arrêter
    Super + Ctrl + E          émojis
    Super + Ctrl + R          rappel
+   Super + Ctrl + P          mode confidentialité (activer/désactiver)
    Super + Ctrl + Espace     changer la disposition du clavier

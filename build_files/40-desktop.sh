@@ -229,6 +229,7 @@ ours = [
     ("[Super, Shift]", "w", 'Spawn("tamagi-windows abrir")'),
     ("[Super, Ctrl]", "e", 'Spawn("/usr/libexec/tamagi/emoji")'),
     ("[Super, Ctrl]", "r", f'Spawn("{popup} tamagi-lembrete")'),
+    ("[Super, Ctrl]", "p", 'Spawn("tamagi-privacidade")'),
 ]
 
 def norm(mods):

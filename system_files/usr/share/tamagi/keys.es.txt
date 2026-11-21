@@ -37,4 +37,5 @@
    Alt + Print               grabar la pantalla / parar
    Super + Ctrl + E          emojis
    Super + Ctrl + R          recordatorio
+   Super + Ctrl + P          modo privacidad (activar/desactivar)
    Super + Ctrl + Espacio    cambiar la distribución del teclado

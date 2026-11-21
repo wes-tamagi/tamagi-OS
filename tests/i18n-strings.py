@@ -16,6 +16,7 @@ SCRIPTS = [
     "tamagi-panel", "tamagi-theme", "tamagi-ai", "tamagi-update",
     "tamagi-boot-report", "tamagi-windows", "tamagi-db", "tamagi-lembrete",
     "tamagi-dev", "tamagi-font", "tamagi-popos", "tamagi-antigravity", "tamagi-isolar",
+    "tamagi-privacidade", "tamagi-convidado",
 ]
 STR = r'"((?:[^"\\$]|\\.)*)"'
 CALLS = re.compile(r'(?:\$\(|\b)(?:tl?|step|confirm|input|timer_line)\s+' + STR)

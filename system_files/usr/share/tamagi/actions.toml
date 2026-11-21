@@ -836,6 +836,69 @@ es = "Sin red y sin ver tu carpeta personal (scripts, AppImages, binarios)"
 fr = "Sans réseau ni accès à votre dossier personnel (scripts, AppImages, binaires)"
 
 [[action]]
+id = "system.rewind"
+category = "system"
+icon = "document-revert-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-voltar"
+keywords = "voltar tempo timeline rewind restaurar rollback ontem snapshot versao anterior desfazer"
+[action.title]
+pt = "Voltar no tempo"
+en = "Go back in time"
+es = "Volver en el tiempo"
+fr = "Revenir dans le temps"
+[action.subtitle]
+pt = "Sistema, arquivos e apps numa linha do tempo só"
+en = "System, files and apps in a single timeline"
+es = "Sistema, archivos y apps en una sola línea de tiempo"
+fr = "Système, fichiers et applications sur une seule frise"
+
+[[action]]
+id = "system.privacy"
+category = "system"
+icon = "security-high-symbolic"
+risk = "user"
+terminal = false
+confirm = false
+agent = true
+command = "tamagi-privacidade"
+keywords = "privacidade privacy camera microfone bluetooth firewall mac viagem cafe reuniao"
+[action.title]
+pt = "Modo privacidade (liga/desliga)"
+en = "Privacy mode (on/off)"
+es = "Modo privacidad (activar/desactivar)"
+fr = "Mode confidentialité (activer/désactiver)"
+[action.subtitle]
+pt = "Câmera e microfones, Bluetooth, rede local e firewall de uma vez (Super+Ctrl+P)"
+en = "Camera and mics, Bluetooth, local network and firewall at once (Super+Ctrl+P)"
+es = "Cámara y micrófonos, Bluetooth, red local y firewall a la vez (Super+Ctrl+P)"
+fr = "Caméra et micros, Bluetooth, réseau local et pare-feu d'un coup (Super+Ctrl+P)"
+
+[[action]]
+id = "system.guest"
+category = "system"
+icon = "avatar-default-symbolic"
+risk = "system"
+terminal = true
+confirm = true
+agent = false
+command = "bash -c 'if id convidado >/dev/null 2>&1; then tamagi-convidado desligar; else tamagi-convidado ligar; fi'"
+keywords = "convidado guest visitante emprestar sessao temporaria descartavel"
+[action.title]
+pt = "Sessão de convidado (liga/desliga)"
+en = "Guest session (on/off)"
+es = "Sesión de invitado (activar/desactivar)"
+fr = "Session invité (activer/désactiver)"
+[action.subtitle]
+pt = "Conta sem senha que some no logout, para emprestar o computador"
+en = "Password-less account wiped at logout, to lend your computer"
+es = "Cuenta sin contraseña que se borra al cerrar sesión, para prestar el equipo"
+fr = "Compte sans mot de passe effacé à la déconnexion, pour prêter l'ordinateur"
+
+[[action]]
 id = "system.autoupdate"
 category = "system"
 icon = "alarm-symbolic"

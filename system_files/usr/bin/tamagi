@@ -5,6 +5,7 @@
     tamagi export [arquivo]  imprime (ou grava) o estado atual no formato do arquivo
     tamagi diff [arquivo]    mostra o que falta para a máquina ficar como o arquivo
     tamagi apply [arquivo]   faz o que falta (-y não pergunta)
+    tamagi voltar            volta no tempo: sistema, arquivos e apps (tamagi-voltar)
 
 O arquivo descreve aparência, navegadores, Flatpaks, ferramentas do mise,
 pacotes dos subsistemas, caixas, camadas, web apps e serviços. Copie-o para outro
@@ -306,6 +307,9 @@ def extras(wanted, now):
 
 
 def main():
+    # `tamagi voltar …` é a linha do tempo (sistema, arquivos e apps): tamagi-voltar.
+    if sys.argv[1:2] == ["voltar"]:
+        os.execvp("tamagi-voltar", ["tamagi-voltar"] + sys.argv[2:])
     parser = argparse.ArgumentParser(prog="tamagi", description="O seu sistema descrito num arquivo só.")
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("init", help="cria o arquivo a partir do estado atual")

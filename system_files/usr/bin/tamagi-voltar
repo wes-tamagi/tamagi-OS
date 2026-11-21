@@ -1,0 +1,258 @@
+#!/usr/bin/python3
+"""tamagi-voltar — voltar no tempo: sistema, arquivos e apps numa linha do tempo só.
+
+Junta três históricos que já existem no Tamagi:
+  • sistema: as versões da imagem nesta máquina (bootc) e as publicadas com
+    data no registro (ex.: tamagi:45.20261118)
+  • arquivos: os snapshots da pasta pessoal, de hora em hora (tamagi-snap)
+  • apps e configurações: o ~/.config/tamagi/tamagi.toml guardado em cada
+    snapshot (o que estava instalado naquele momento)
+
+  tamagi-voltar                 escolhe um momento e o que voltar (menu)
+  tamagi-voltar lista [--json]  a linha do tempo
+  tamagi-voltar sistema anterior | <AAAAMMDD>    volta a imagem do sistema
+  tamagi-voltar seguir          volta a seguir as atualizações (tag latest)
+  tamagi-voltar apps <N>        reinstala os apps do snapshot N (tamagi apply)
+  tamagi-voltar arquivo <caminho> <N>          traz um arquivo do snapshot N
+
+Voltar o sistema nunca apaga nada: a versão atual fica como alternativa no
+menu de boot, e `tamagi-voltar seguir` retoma as atualizações.
+"""
+import datetime
+import json
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+
+HOME = pathlib.Path(os.path.realpath(pathlib.Path.home()))
+SNAPS = HOME / ".snapshots"
+TOML_REL = pathlib.Path(".config/tamagi/tamagi.toml")
+LANG = (os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG") or "pt")[:2].lower()
+T = {
+    "booted": ("sistema em uso", "system in use"),
+    "rollback": ("sistema anterior (no menu de boot)", "previous system (in the boot menu)"),
+    "staged": ("atualização pronta para o próximo boot", "update staged for next boot"),
+    "tag": ("versão publicada do sistema", "published system version"),
+    "snap": ("arquivos e apps (snapshot", "files and apps (snapshot"),
+    "pick": ("Voltar para quando?", "Go back to when?"),
+    "what": ("O que voltar?", "What to bring back?"),
+    "w_file": ("Um arquivo ou pasta daquele momento", "A file or folder from that moment"),
+    "w_apps": ("Os apps e configurações daquele momento", "The apps and settings from that moment"),
+    "w_sys": ("O sistema (a imagem) daquele momento", "The system (image) from that moment"),
+    "no_toml": ("Esse snapshot não tem o tamagi.toml (crie com: tamagi init).",
+                "That snapshot has no tamagi.toml (create it with: tamagi init)."),
+    "no_sys": ("Não há versão do sistema daquele momento.", "No system version from that moment."),
+    "sys_note": ("No próximo boot entra essa versão. A atual continua no menu de boot. "
+                 "Para voltar a receber atualizações: tamagi-voltar seguir",
+                 "That version boots next. The current one stays in the boot menu. "
+                 "To get updates again: tamagi-voltar follow"),
+    "empty": ("Nada na linha do tempo ainda.", "Nothing in the timeline yet."),
+    "no_snaps": ("(sem snapshots da pasta pessoal: tamagi-snap ativar)",
+                 "(no home folder snapshots: tamagi-snap activate)"),
+}
+
+
+def tr(k):
+    pt, en = T[k]
+    return pt if LANG == "pt" else en
+
+
+def sh(*cmd, check=False):
+    return subprocess.run(cmd, capture_output=True, text=True, check=check)
+
+
+def image_ref():
+    """ghcr.io/dono/tamagi (sem a tag) e o transporte usado pelo bootc."""
+    r = sh("rpm-ostree", "status", "--json")
+    try:
+        deps = json.loads(r.stdout).get("deployments", [])
+    except ValueError:
+        return None
+    booted = next((d for d in deps if d.get("booted")), {})
+    ref = booted.get("container-image-reference", "")
+    ref = re.sub(r"^ostree-[a-z-]+:(docker://|registry:)?", "", ref)
+    return ref.rsplit(":", 1)[0] if ":" in ref.split("/")[-1] else ref or None
+
+
+def system_entries():
+    out = []
+    r = sh("rpm-ostree", "status", "--json")
+    try:
+        deps = json.loads(r.stdout).get("deployments", [])
+    except ValueError:
+        deps = []
+    for d in deps:
+        kind = "booted" if d.get("booted") else "staged" if d.get("staged") else "rollback"
+        ts = d.get("timestamp") or 0
+        out.append({"when": datetime.datetime.fromtimestamp(ts), "kind": "system", "sub": kind,
+                    "label": f"{tr(kind)} — {d.get('version', '?')}", "id": d.get("checksum", "")[:12]})
+    ref = image_ref()
+    if ref and shutil.which("skopeo"):
+        r = sh("skopeo", "list-tags", f"docker://{ref}")
+        try:
+            tags = json.loads(r.stdout).get("Tags", [])
+        except ValueError:
+            tags = []
+        dated = sorted(t for t in tags if re.fullmatch(r"\d+\.\d{8}", t))[-21:]
+        for t in dated:
+            day = datetime.datetime.strptime(t.split(".")[1], "%Y%m%d")
+            out.append({"when": day, "kind": "system", "sub": "tag", "label": f"{tr('tag')} {t}",
+                        "id": f"{ref}:{t}"})
+    return out
+
+
+def snapshot_entries():
+    out = []
+    try:
+        dirs = list(SNAPS.iterdir())
+    except OSError:
+        return out
+    for d in dirs:
+        if not d.name.isdigit():
+            continue
+        try:
+            info = (d / "info.xml").read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = re.search(r"<date>([^<]+)</date>", info)
+        if not m:
+            continue
+        when = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=datetime.timezone.utc).astimezone().replace(tzinfo=None)
+        has_toml = (d / "snapshot" / TOML_REL).is_file()
+        out.append({"when": when, "kind": "snapshot", "sub": "snap",
+                    "label": f"{tr('snap')} {d.name}{', tamagi.toml' if has_toml else ''})",
+                    "id": d.name})
+    return out
+
+
+def timeline():
+    items = system_entries() + snapshot_entries()
+    return sorted(items, key=lambda e: e["when"], reverse=True)
+
+
+def fmt(e):
+    return f"{e['when']:%Y-%m-%d %H:%M}  {e['label']}"
+
+
+def gum_choose(header, options):
+    r = subprocess.run(["gum", "choose", "--height", "16", "--header", header] + options,
+                       stdout=subprocess.PIPE, text=True, check=False)
+    return r.stdout.strip() or None
+
+
+def nearest_system(when, items):
+    """A versão do sistema mais recente até aquele momento."""
+    sysv = [e for e in items if e["kind"] == "system" and e["sub"] in ("tag", "rollback", "booted")
+            and e["when"] <= when + datetime.timedelta(days=1)]
+    return max(sysv, key=lambda e: e["when"]) if sysv else None
+
+
+def do_system(e):
+    if e["sub"] == "booted":
+        print(tr("no_sys"))
+        return 0
+    if e["sub"] == "rollback":
+        rc = subprocess.run(["sudo", "bootc", "rollback"], check=False).returncode
+    elif e["sub"] == "tag":
+        rc = subprocess.run(["sudo", "bootc", "switch", e["id"]], check=False).returncode
+    else:
+        print(tr("no_sys"))
+        return 1
+    if rc == 0:
+        print(tr("sys_note"))
+    return rc
+
+
+def do_apps(n):
+    toml = SNAPS / str(n) / "snapshot" / TOML_REL
+    if not toml.is_file():
+        print(tr("no_toml"))
+        return 1
+    subprocess.run(["tamagi", "diff", str(toml)], check=False)
+    return subprocess.run(["tamagi", "apply", str(toml)], check=False).returncode
+
+
+def do_file(n, path=None):
+    if path is None:
+        base = SNAPS / str(n) / "snapshot"
+        r = subprocess.run(["gum", "file", "--all", str(base)], stdout=subprocess.PIPE, text=True, check=False)
+        picked = r.stdout.strip()
+        if not picked:
+            return 0
+        path = str(HOME / pathlib.Path(picked).relative_to(base))
+    return subprocess.run(["tamagi-snap", "voltar", path, str(n)], check=False).returncode
+
+
+def interactive():
+    items = timeline()
+    if not items:
+        print(tr("empty"))
+        return 1
+    if not any(e["kind"] == "snapshot" for e in items):
+        print(tr("no_snaps"))
+    labels = [fmt(e) for e in items]
+    choice = gum_choose(tr("pick"), labels)
+    if not choice:
+        return 0
+    e = items[labels.index(choice)]
+    if e["kind"] == "system":
+        return do_system(e)
+    opts = [tr("w_file"), tr("w_apps")]
+    sysv = nearest_system(e["when"], items)
+    if sysv and sysv["sub"] != "booted":
+        opts.append(f"{tr('w_sys')}: {sysv['label']}")
+    what = gum_choose(tr("what"), opts)
+    if what == tr("w_file"):
+        return do_file(e["id"])
+    if what == tr("w_apps"):
+        return do_apps(e["id"])
+    if what and what.startswith(tr("w_sys")):
+        return do_system(sysv)
+    return 0
+
+
+def main(argv):
+    cmd = argv[0] if argv else None
+    if cmd is None:
+        return interactive()
+    if cmd in ("lista", "list"):
+        items = timeline()
+        if "--json" in argv:
+            print(json.dumps([{**e, "when": e["when"].isoformat()} for e in items], ensure_ascii=False, indent=1))
+        else:
+            for e in items:
+                print(fmt(e))
+            if not items:
+                print(tr("empty"))
+        return 0
+    if cmd in ("sistema", "system") and len(argv) == 2:
+        items = system_entries()
+        if argv[1] in ("anterior", "previous"):
+            e = next((x for x in items if x["sub"] == "rollback"), None)
+        else:
+            e = next((x for x in items if x["sub"] == "tag" and x["id"].endswith("." + argv[1])), None)
+        if not e:
+            print(tr("no_sys"))
+            return 1
+        return do_system(e)
+    if cmd in ("seguir", "follow"):
+        ref = image_ref()
+        if not ref:
+            print(tr("no_sys"))
+            return 1
+        return subprocess.run(["sudo", "bootc", "switch", f"{ref}:latest"], check=False).returncode
+    if cmd == "apps" and len(argv) == 2 and argv[1].isdigit():
+        return do_apps(argv[1])
+    if cmd in ("arquivo", "file") and len(argv) == 3 and argv[2].isdigit():
+        return do_file(argv[2], argv[1])
+    print(__doc__)
+    return 0 if cmd in ("-h", "--help", "ajuda") else 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
