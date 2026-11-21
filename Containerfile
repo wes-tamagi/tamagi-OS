@@ -8,8 +8,12 @@ ARG FEDORA_VERSION=45
 ARG BASE_IMAGE=ghcr.io/ublue-os/base-main
 # Kernel: main (padrão: o da base, assinado pelo Fedora e pelo Universal Blue) |
 # ogc (Open Gaming Collective, assinado só pelo Universal Blue).
+# ark (kernel-ark: o kernel do Fedora Rawhide, assinado pelo Fedora).
 # Veja build_files/12-kernel.sh, em especial a nota sobre Secure Boot.
 ARG KERNEL_FLAVOR=main
+# Módulos prontos do Universal Blue: o mesmo sabor do kernel (main ou ogc). O
+# ark não tem módulos lá; com ele, passe AKMODS_FLAVOR=main (o Justfile faz).
+ARG AKMODS_FLAVOR=${KERNEL_FLAVOR}
 
 # ── Estágio 1: compila o llama.cpp (CPU + Vulkan) ──────────────────────────
 FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS llama
@@ -63,13 +67,14 @@ RUN git clone --depth 1 --branch "${CLASSIC_MENU_REF}" \
 
 # ── Kernel e módulos prontos e assinados do Universal Blue (ublue-os/akmods) ──
 # build_files/12-kernel.sh troca o kernel (se o sabor pedir) e instala os módulos.
-FROM ghcr.io/ublue-os/akmods:${KERNEL_FLAVOR}-${FEDORA_VERSION} AS akmods
+FROM ghcr.io/ublue-os/akmods:${AKMODS_FLAVOR}-${FEDORA_VERSION} AS akmods
 
 # ── Estágio 2: contexto de build (scripts + arquivos) ──────────────────────
 FROM scratch AS ctx
 COPY build_files /build_files
 COPY system_files /system_files
 COPY README.md /README.md
+COPY NOTICE /NOTICE
 
 # ── Estágio 3: a imagem do sistema ─────────────────────────────────────────
 FROM ${BASE_IMAGE}:${FEDORA_VERSION}

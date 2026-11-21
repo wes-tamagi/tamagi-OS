@@ -4,6 +4,17 @@
 
 OS_RELEASE=/usr/lib/os-release
 BUILD_DATE=$(date -u +%Y%m%d)
+TAMAGI_URL=https://github.com/wes-tamagi/tamagi-system
+
+# ── Marcas do Fedora fora da imagem (o Tamagi é derivado, não é o Fedora) ──
+# Os logos do Fedora são marca registrada: entram os genéricos (generic-logos
+# cumpre a mesma dependência "system-logos" do Plymouth). Os papéis de parede
+# da edição Workstation saem; os do f45-backgrounds ficam porque o cosmic-bg
+# depende deles (arte em CC-BY-SA, não marca). ID=fedora fica: é técnico
+# (instaladores, distrobox e repositórios decidem por ele). Veja NOTICE.
+dnf5 -y swap fedora-logos generic-logos
+dnf5 -y remove fedora-workstation-backgrounds 2>/dev/null || true
+rpm -q fedora-logos >/dev/null 2>&1 && { echo "fedora-logos continua na imagem" >&2; exit 1; }
 
 sed -i \
     -e 's|^NAME=.*|NAME="Tamagi"|' \
@@ -13,6 +24,12 @@ sed -i \
     -e '/^VARIANT=/d' -e '/^VARIANT_ID=/d' \
     -e 's|^DEFAULT_HOSTNAME=.*|DEFAULT_HOSTNAME="tamagi"|' \
     -e '/^BUG_REPORT_URL=/d' \
+    -e 's|^LOGO=.*|LOGO=tamagi|' \
+    -e "s|^HOME_URL=.*|HOME_URL=\"${TAMAGI_URL}\"|" \
+    -e "s|^DOCUMENTATION_URL=.*|DOCUMENTATION_URL=\"${TAMAGI_URL}#readme\"|" \
+    -e "s|^SUPPORT_URL=.*|SUPPORT_URL=\"${TAMAGI_URL}/issues\"|" \
+    -e '/^REDHAT_BUGZILLA_PRODUCT/d' -e '/^REDHAT_SUPPORT_PRODUCT/d' \
+    -e 's|^ANSI_COLOR=.*|ANSI_COLOR="0;38;2;242;193;78"|' \
     -e '/^IMAGE_ID=/d' -e '/^IMAGE_VERSION=/d' \
     "$OS_RELEASE"
 {
@@ -39,6 +56,11 @@ cat > /usr/share/ublue-os/image-info.json <<JSON
 JSON
 
 install -Dm644 /ctx/README.md /usr/share/doc/tamagi/README.md
+install -Dm644 /ctx/NOTICE /usr/share/doc/tamagi/NOTICE
+grep -q '^LOGO=tamagi$' "$OS_RELEASE" && [[ -f /usr/share/icons/hicolor/scalable/apps/tamagi.svg ]] \
+    || { echo "os-release sem o logo do Tamagi" >&2; exit 1; }
+grep -qi 'fedoraproject' <(grep -E '^(HOME|DOCUMENTATION|SUPPORT)_URL=' "$OS_RELEASE") \
+    && { echo "os-release ainda aponta para o Fedora" >&2; exit 1; } || true
 
 # ── Tela de boot (Plymouth): o brasão do Tamagi ──
 # O anel (tamaki) com as três joias (tama), nas cores do tema Ipê; durante o

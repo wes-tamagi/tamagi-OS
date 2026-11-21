@@ -558,6 +558,18 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   Universal Blue, então com Secure Boot ligado exige a mesma chave registrada
   **antes** de trocar de imagem (`mokutil --test-key /etc/pki/akmods/certs/akmods-ublue.der`).
   O padrão é o kernel da base justamente por não ter essa exigência.
+- **kernel-ark (imagem `tamagi:ark`):** o kernel do Fedora Rawhide, que é o
+  [kernel-ark](https://gitlab.com/cki-project/kernel-ark) empacotado: o Linux
+  mais novo (muitas vezes uma -rc) com a configuração do Fedora. Pacotes com
+  GPG do Fedora e assinado pelo Fedora para o Secure Boot, então inicia em
+  qualquer máquina, como o padrão. O CI publica em paralelo:
+  `sudo bootc switch ghcr.io/wes-tamagi/tamagi:ark` (voltar:
+  `sudo bootc switch ghcr.io/wes-tamagi/tamagi:latest`; o greenboot desfaz
+  sozinho um boot que falhar). Sem os módulos do Universal Blue (não existem
+  para ele): sem `xone`/`xpadneo` (controles Xbox sem fio; por cabo, o `xpad`
+  do kernel funciona) e sem `v4l2loopback`. O build recusa um kernel com
+  depuração pesada ou sem a assinatura do Fedora. Local:
+  `KERNEL_FLAVOR=ark TAMAGI_TAG=ark just build`.
 - **Imagem assinada (cosign):** o CI segue o
   [ublue-os/image-template](https://github.com/ublue-os/image-template) e
   assina cada imagem publicada com a chave do repositório. Conferir:
@@ -642,6 +654,24 @@ O código deste repositório é BSD de 3 cláusulas (veja `LICENSE`). A imagem
 construída reúne software de terceiros, cada um com a sua licença (Fedora,
 COSMIC, llama.cpp, tik e outros). O Chrome é proprietário e não está aqui nem
 na imagem: é baixado na máquina de quem usa, do site do fabricante.
+
+### Marcas e licenças
+
+O Tamagi é um projeto independente, baseado no Fedora e no Universal Blue, e
+não é afiliado nem endossado pelo Projeto Fedora, Red Hat, System76,
+Canonical, Microsoft ou Basecamp. Fedora, Pop!_OS, COSMIC, Ubuntu, Windows e
+Omarchy são marcas de seus donos e aparecem aqui só para descrever
+compatibilidade ou inspiração. A imagem não traz os logos do Fedora (troca
+`fedora-logos` por `generic-logos`; o os-release usa o nome, o logo e os
+endereços do Tamagi).
+
+O Tamagi não redistribui Pop!_OS nem Windows: `tamagi-popos` e
+`tamagi-windows` baixam as imagens oficiais diretamente dos servidores da
+System76 e da Microsoft, na máquina do usuário. As imagens criadas com
+`tamagi-popos compactar` são para uso próprio; quem redistribuí-las responde
+pelas licenças (GPL e outras) e pelas políticas de marca da System76 e da
+Canonical. O Windows exige licença válida da Microsoft. Detalhes em `NOTICE`
+(também em `/usr/share/doc/tamagi/NOTICE`).
 
 ## Limites conhecidos
 

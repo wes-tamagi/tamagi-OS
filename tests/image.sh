@@ -39,14 +39,14 @@ kver=$(ls /usr/lib/modules | head -1); kconf=/usr/lib/modules/$kver/config
 echo "  kernel $kver"
 check "kernel com suporte a Rust"          grep -qx 'CONFIG_RUST=y' "$kconf"
 check "kernel: binder (Android em contêiner), em C ou em Rust" grep -qxE 'CONFIG_ANDROID_BINDER_IPC(_RUST)?=y' "$kconf"
-check "kernel é o do sabor escolhido no build" bash -c "f=\$(cat /usr/share/tamagi/kernel-flavor); case \$f in ogc) [[ $kver == *ogc* ]] ;; main) [[ $kver != *ogc* ]] ;; *) false ;; esac"
+check "kernel é o do sabor escolhido no build" bash -c "f=\$(cat /usr/share/tamagi/kernel-flavor); v=\$(. /usr/lib/os-release; echo \$VERSION_ID); case \$f in ogc) [[ $kver == *ogc* ]] ;; main) [[ $kver != *ogc* && $kver == *.fc\$v.* ]] ;; ark) [[ $kver != *.fc\$v.* ]] && grep -aq \"Fedora Secure Boot Signer\" /usr/lib/modules/$kver/vmlinuz ;; *) false ;; esac"
 check "um kernel só, com initramfs" bash -c "[[ \$(ls /usr/lib/modules | wc -l) -eq 1 && -s /usr/lib/modules/$kver/initramfs.img && -s /usr/lib/modules/$kver/vmlinuz ]]"
 check "kernel: aceleradores de IA (DRM_ACCEL)" grep -qx 'CONFIG_DRM_ACCEL=y' "$kconf"
 check "kernel: NPU AMD Ryzen AI (amdxdna)" bash -c "find /usr/lib/modules/$kver -name 'amdxdna.ko*' | grep -q ."
 check "kernel: NPU Intel (ivpu)"           bash -c "find /usr/lib/modules/$kver -name 'intel_vpu.ko*' | grep -q ."
 check "kernel: sched_ext (escalonadores em Rust/BPF)" grep -qx 'CONFIG_SCHED_CLASS_EXT=y' "$kconf"
-check "módulos do Universal Blue para este kernel (controles Xbox, câmera virtual)" bash -c "for m in xone_dongle hid-xpadneo v4l2loopback; do find /usr/lib/modules/$kver -name \"\$m.ko*\" | grep -q . || { echo \$m; exit 1; }; done"
-check "módulos assinados; chave do Universal Blue na imagem (Secure Boot)" bash -c "test -s /etc/pki/akmods/certs/akmods-ublue.der && f=\$(find /usr/lib/modules/$kver -name 'v4l2loopback.ko*' | head -1) && modinfo -F signer \"\$f\" | grep -q ."
+[[ $(cat /usr/share/tamagi/kernel-flavor) != ark ]] && check "módulos do Universal Blue para este kernel (controles Xbox, câmera virtual)" bash -c "for m in xone_dongle hid-xpadneo v4l2loopback; do find /usr/lib/modules/$kver -name \"\$m.ko*\" | grep -q . || { echo \$m; exit 1; }; done"
+[[ $(cat /usr/share/tamagi/kernel-flavor) != ark ]] && check "módulos assinados; chave do Universal Blue na imagem (Secure Boot)" bash -c "test -s /etc/pki/akmods/certs/akmods-ublue.der && f=\$(find /usr/lib/modules/$kver -name 'v4l2loopback.ko*' | head -1) && modinfo -F signer \"\$f\" | grep -q ."
 
 section "Redes e conectividade"
 for vpn in openvpn openconnect l2tp pptp sstp strongswan libreswan ssh; do
@@ -330,6 +330,7 @@ check "tamagi-popos: não troca a imagem com clones dependendo dela" bash -c 'I=
 check "VMs (libvirt e Windows) ficam fora dos snapshots da pasta pessoal" bash -c 'grep -q ".local/share/libvirt/images" /usr/libexec/tamagi/home-snapshots && grep -q ".local/share/tamagi-windows" /usr/libexec/tamagi/home-snapshots'
 check "Plymouth: tema tamagi padrão, com o brasão animado e a senha do disco" bash -c 'T=/usr/share/plymouth/themes/tamagi; [[ $(plymouth-set-default-theme) == tamagi ]] && [[ $(ls $T/throbber-*.png | wc -l) -ge 30 ]] && for f in watermark entry bullet lock; do [[ -s $T/$f.png ]] || exit 1; done && grep -q "^ModuleName=two-step" $T/tamagi.plymouth'
 check "Plymouth: tema dentro do initramfs e boot gráfico (rhgb quiet)" bash -c 'img=$(ls /usr/lib/modules/*/initramfs.img); lsinitrd "$img" | grep -q "plymouth/themes/tamagi/throbber-0001.png" && grep -q "\"rhgb\"" /usr/lib/bootc/kargs.d/20-tamagi-boot.toml'
+check "marcas: sem logos do Fedora; os-release com o logo e os endereços do Tamagi" bash -c '! rpm -q fedora-logos >/dev/null && rpm -q generic-logos >/dev/null && grep -qx "LOGO=tamagi" /usr/lib/os-release && ! grep -E "^(HOME|DOCUMENTATION|SUPPORT)_URL=" /usr/lib/os-release | grep -qi fedoraproject && grep -qx "ID=fedora" /usr/lib/os-release && test -s /usr/share/icons/hicolor/scalable/apps/tamagi.svg && test -s /usr/share/doc/tamagi/NOTICE'
 check "tamagi-menu: residente pelo autostart" bash -c 'desktop-file-validate /etc/xdg/autostart/tamagi-menu-service.desktop && grep -q "^Exec=tamagi-menu --service" /etc/xdg/autostart/tamagi-menu-service.desktop && env -u WAYLAND_DISPLAY -u DISPLAY tamagi-menu --service'
 check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep -q "CosmicPanel\.Dock/"'
 check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'
