@@ -1,0 +1,226 @@
+#!/usr/bin/python3 -I
+"""sandbox — roda um comando preso pelo Landlock (o pledge/unveil do Linux).
+
+Inspirado no pledge(2)/unveil(2) do OpenBSD: o processo declara o que pode
+tocar, e o kernel recusa o resto, também para os filhos e mesmo que o comando
+tente outra coisa. Não precisa de root nem de contêiner.
+
+  sandbox --mode leitura -- <comando...>
+      lê o sistema todo, menos os segredos (chaves SSH/GPG, tokens, perfis de
+      navegador), não grava em lugar nenhum (só numa pasta temporária própria),
+      não abre conexões TCP e não manda sinais para processos de fora.
+  sandbox --mode usuario -- <comando...>
+      grava na pasta pessoal, em /tmp e em /run/user; os segredos ficam só
+      leitura (dá para usá-los, não apagá-los, movê-los nem trocá-los). Rede
+      liberada. Programas que precisam de setuid (sudo, podman/distrobox
+      rootless via newuidmap) não funcionam aqui: o Landlock exige
+      no_new_privs.
+
+Sem Landlock no kernel, recusa (código 125), a não ser com --se-possivel,
+que então roda o comando sem isolamento.
+Lista dos segredos: SECRETS abaixo, mais ~/.config/tamagi/sandbox-segredos
+(um caminho por linha, relativo à pasta pessoal ou absoluto).
+"""
+import ctypes
+import os
+import shutil
+import signal
+import stat
+import sys
+import tempfile
+
+SYS_CREATE, SYS_ADD, SYS_RESTRICT = 444, 445, 446
+PR_SET_NO_NEW_PRIVS = 38
+
+# Direitos de arquivo do Landlock, por versão da interface (ABI).
+EXECUTE, WRITE_FILE, READ_FILE, READ_DIR = 1 << 0, 1 << 1, 1 << 2, 1 << 3
+REMOVE_DIR, REMOVE_FILE, MAKE_CHAR, MAKE_DIR = 1 << 4, 1 << 5, 1 << 6, 1 << 7
+MAKE_REG, MAKE_SOCK, MAKE_FIFO, MAKE_BLOCK, MAKE_SYM = 1 << 8, 1 << 9, 1 << 10, 1 << 11, 1 << 12
+REFER, TRUNCATE, IOCTL_DEV = 1 << 13, 1 << 14, 1 << 15
+FS_BY_ABI = {1: (1 << 13) - 1, 2: (1 << 14) - 1, 3: (1 << 15) - 1, 5: (1 << 16) - 1}
+FILE_ONLY = EXECUTE | WRITE_FILE | READ_FILE | TRUNCATE | IOCTL_DEV
+READ = EXECUTE | READ_FILE | READ_DIR
+NET_BIND_TCP, NET_CONNECT_TCP = 1 << 0, 1 << 1
+SCOPE_ABSTRACT_UNIX, SCOPE_SIGNAL = 1 << 0, 1 << 1
+
+HOME = os.path.realpath(os.path.expanduser("~"))
+# Segredos: nem leitura no modo "leitura"; só leitura no modo "usuario".
+SECRETS = [
+    ".ssh", ".gnupg", ".password-store", ".pki", ".aws", ".azure", ".kube", ".docker",
+    ".netrc", ".git-credentials", ".claude", ".claude.json", ".gemini", ".codex",
+    ".config/gh", ".config/rclone", ".config/google-chrome", ".config/chromium",
+    ".config/BraveSoftware", ".config/opencode", ".config/github-copilot",
+    ".config/Bitwarden", ".config/keepassxc", ".mozilla", ".config/mozilla",
+    ".local/share/keyrings", ".local/share/opencode", ".local/share/tamagi-browser",
+    ".var/app/com.google.Chrome", ".var/app/org.mozilla.firefox",
+    ".var/app/com.bitwarden.desktop", ".var/app/org.keepassxc.KeePassXC",
+]
+
+
+def abi_version(libc):
+    v = libc.syscall(SYS_CREATE, None, ctypes.c_size_t(0), ctypes.c_uint32(1))
+    return v if v > 0 else 0
+
+
+def secret_paths():
+    paths = list(SECRETS)
+    extra = os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, ".config")),
+                         "tamagi", "sandbox-segredos")
+    try:
+        with open(extra, encoding="utf-8") as fh:
+            paths += [ln.strip() for ln in fh if ln.strip() and not ln.startswith("#")]
+    except OSError:
+        pass
+    return {os.path.realpath(p if os.path.isabs(p) else os.path.join(HOME, p)) for p in paths}
+
+
+def inside(path, root):
+    return path == root or path.startswith(root.rstrip("/") + "/")
+
+
+class Ruleset:
+    def __init__(self, libc, abi, fs_rights, net, scoped):
+        self.libc, self.abi = libc, abi
+        self.handled = fs_rights
+        fields = [fs_rights]
+        if abi >= 4:
+            fields.append(net)
+        if abi >= 6:
+            fields.append(scoped)
+        attr = (ctypes.c_uint64 * len(fields))(*fields)
+        fd = libc.syscall(SYS_CREATE, ctypes.byref(attr), ctypes.c_size_t(ctypes.sizeof(attr)),
+                          ctypes.c_uint32(0))
+        if fd < 0:
+            raise OSError(ctypes.get_errno(), "landlock_create_ruleset")
+        self.fd = fd
+
+    def allow(self, path, rights):
+        try:
+            pfd = os.open(path, os.O_PATH | os.O_CLOEXEC)
+        except OSError:
+            return
+        try:
+            if not stat.S_ISDIR(os.fstat(pfd).st_mode):
+                rights &= FILE_ONLY
+            rights &= self.handled
+            if not rights:
+                return
+            # struct landlock_path_beneath_attr { u64 allowed_access; s32 parent_fd; } packed
+            buf = ctypes.create_string_buffer(rights.to_bytes(8, "little") + pfd.to_bytes(4, "little", signed=True), 12)
+            if self.libc.syscall(SYS_ADD, ctypes.c_int(self.fd), ctypes.c_int(1), buf, ctypes.c_uint32(0)) < 0:
+                raise OSError(ctypes.get_errno(), f"landlock_add_rule {path}")
+        finally:
+            os.close(pfd)
+
+    def allow_except(self, root, rights, excluded, excluded_rights=0):
+        """Libera `root` inteiro, menos os caminhos em `excluded` (que recebem
+        só `excluded_rights`).
+
+        No Landlock uma regra vale para tudo abaixo da pasta, e só existe
+        "liberar". Então as pastas acima de um segredo (/, /var/home/<você>,
+        ~/.config…) só podem ser listadas: criar, apagar ou renomear entradas
+        nelas valeria também dentro do segredo (daria para tirá-lo do lugar).
+        O resto é liberado filho a filho. Consequência no modo "usuario": não
+        se cria nem apaga arquivo direto na raiz da pasta pessoal nem direto
+        em ~/.config ou ~/.local/share (nas subpastas, sim).
+        """
+        root = os.path.realpath(root)
+        if any(inside(root, e) for e in excluded):
+            if excluded_rights:
+                self.allow(root, excluded_rights)
+            return
+        if not any(inside(e, root) for e in excluded):
+            self.allow(root, rights)
+            return
+        self.allow(root, rights & READ_DIR)
+        try:
+            names = os.listdir(root)
+        except OSError:
+            return
+        for name in names:
+            self.allow_except(os.path.join(root, name), rights, excluded, excluded_rights)
+
+    def restrict(self):
+        if self.libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+            raise OSError(ctypes.get_errno(), "prctl(NO_NEW_PRIVS)")
+        if self.libc.syscall(SYS_RESTRICT, ctypes.c_int(self.fd), ctypes.c_uint32(0)) != 0:
+            raise OSError(ctypes.get_errno(), "landlock_restrict_self")
+
+
+def main(argv):
+    mode, best_effort = "leitura", False
+    while argv and argv[0] != "--":
+        if argv[0] == "--mode" and len(argv) > 1:
+            mode = argv[1]
+            argv = argv[2:]
+        elif argv[0] == "--se-possivel":
+            best_effort, argv = True, argv[1:]
+        elif argv[0] in ("-h", "--help"):
+            print(__doc__)
+            return 0
+        else:
+            break
+    if argv and argv[0] == "--":
+        argv = argv[1:]
+    if not argv or mode not in ("leitura", "usuario"):
+        print("uso: sandbox [--mode leitura|usuario] [--se-possivel] -- <comando...>", file=sys.stderr)
+        return 2
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    abi = abi_version(libc)
+    if abi < 1:
+        if best_effort:
+            os.execvp(argv[0], argv)
+        print("sandbox: o kernel não tem Landlock; comando não executado", file=sys.stderr)
+        return 125
+
+    fs_all = FS_BY_ABI[max(k for k in FS_BY_ABI if k <= abi)]
+    secrets = secret_paths()
+    if mode == "leitura":
+        net = NET_BIND_TCP | NET_CONNECT_TCP          # nenhuma porta liberada: TCP bloqueado
+        scoped = SCOPE_ABSTRACT_UNIX | SCOPE_SIGNAL
+    else:
+        net = 0
+        scoped = SCOPE_SIGNAL
+    rs = Ruleset(libc, abi, fs_all, net, scoped)
+
+    write = fs_all & ~(MAKE_CHAR | MAKE_BLOCK)
+    tmp = None
+    if mode == "leitura":
+        rs.allow_except("/", READ, secrets)
+        tmp = tempfile.mkdtemp(prefix="tamagi-sandbox-")
+        rs.allow(tmp, write)
+        os.environ["TMPDIR"] = tmp
+        for dev in ("/dev/null", "/dev/zero", "/dev/full", "/dev/tty"):
+            rs.allow(dev, READ_FILE | WRITE_FILE | IOCTL_DEV)
+        rs.allow("/dev/pts", READ_FILE | WRITE_FILE | IOCTL_DEV)
+    else:
+        rs.allow_except("/", READ, secrets)
+        rs.allow_except(HOME, write, secrets, READ)
+        # allow_except também aqui: se a pasta pessoal (ou um segredo) estiver
+        # dentro de uma destas, os segredos continuam só leitura.
+        for d in ("/tmp", "/var/tmp", f"/run/user/{os.getuid()}", "/dev/shm"):
+            rs.allow_except(d, write, secrets, READ)
+        rs.allow("/dev", READ_FILE | WRITE_FILE | IOCTL_DEV)
+
+    os.environ["TAMAGI_SANDBOX"] = mode
+    prog = shutil.which(argv[0]) or argv[0]
+    # O comando roda num filho; o pai só espera e apaga a pasta temporária.
+    pid = os.fork()
+    if pid == 0:
+        try:
+            rs.restrict()
+            os.execv(prog, argv)
+        except OSError as exc:
+            print(f"sandbox: {argv[0]}: {exc.strerror}", file=sys.stderr)
+            os._exit(127)
+    os.close(rs.fd)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    _, status = os.waitpid(pid, 0)
+    if tmp:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return os.waitstatus_to_exitcode(status) if os.WIFEXITED(status) else 128 + os.WTERMSIG(status)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

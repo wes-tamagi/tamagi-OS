@@ -1,0 +1,16 @@
+[Unit]
+Description=Tamagi: liga os snapshots da pasta pessoal agendados (antes do login)
+Documentation=file:///usr/share/doc/tamagi/README.md
+ConditionPathExists=/var/lib/tamagi/home-snapshots.pending
+After=local-fs.target tamagi-firstboot.service
+Before=systemd-user-sessions.service display-manager.service cosmic-greeter.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/tamagi/home-snapshots pendentes
+# A cópia é com reflink (rápida), mas uma pasta enorme leva alguns minutos.
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

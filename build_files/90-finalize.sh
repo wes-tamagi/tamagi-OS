@@ -9,6 +9,11 @@ rm -f /usr/lib/greenboot/check/required.d/01_repository_dns_check.sh \
       /usr/lib/greenboot/check/required.d/02_watchdog.sh \
       /usr/lib/greenboot/check/wanted.d/01_update_platforms_check.sh
 
+# Snapshots da pasta pessoal (home-snapshots / tamagi-snap): os timers do
+# snapper só agem nas configurações criadas; o serviço faz as conversões
+# agendadas antes do login.
+systemctl enable snapper-timeline.timer snapper-cleanup.timer tamagi-home-snapshots.service
+
 # Camadas do tamagi-layer (/var/lib/extensions) entram no /usr a cada boot.
 systemctl enable systemd-sysext.service
 

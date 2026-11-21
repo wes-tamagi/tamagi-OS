@@ -84,6 +84,8 @@ erofs-utils
 # O pacote greenboot-default-health-checks fica de fora de propósito: ele
 # exige rede, e um boot sem internet não pode provocar rollback.
 greenboot
+# Histórico da pasta pessoal (snapshots btrfs a cada hora): tamagi-snap.
+snapper
 
 # ── Segurança (inspirado no GrapheneOS; veja tamagi-harden) ──
 usbguard

@@ -1,0 +1,151 @@
+#!/usr/bin/bash
+# home-snapshots — snapshots automáticos da pasta pessoal (roda como root).
+#
+# A ideia vem do HAMMER2 do DragonFly BSD: o sistema de arquivos guarda o
+# histórico sozinho. O Tamagi já volta o *sistema* (bootc + greenboot); isto
+# faz o mesmo pelos *seus arquivos*: o snapper tira um snapshot btrfs da
+# pasta pessoal a cada hora e guarda 24 por hora, 7 diários e 4 semanais.
+# `tamagi-snap voltar <arquivo>` traz um arquivo de volta.
+#
+#   home-snapshots ativar <usuário>    liga (converte a pasta em subvolume, se
+#                                      preciso; com o usuário logado, agenda
+#                                      para o próximo boot, antes do login)
+#   home-snapshots pendentes           faz as conversões agendadas (serviço de boot)
+#   home-snapshots limpar <usuário>    apaga a cópia de segurança da conversão
+#   home-snapshots status <usuário>
+#
+# Snapshot btrfs só existe de subvolume, e no Tamagi /var/home é uma pasta
+# comum. A conversão copia com reflink (instantâneo e sem ocupar espaço em
+# dobro), confere e troca os nomes; a pasta original fica como
+# /var/home/.<usuário>.antes-snapshots até `limpar`.
+# ~/.cache e ~/.local/share/containers viram subvolumes à parte: ficam fora
+# dos snapshots (cache muda o tempo todo e só ocuparia espaço).
+set -euo pipefail
+
+HOMES=/var/home
+PENDING=/var/lib/tamagi/home-snapshots.pending
+EXCLUDE=(.cache .local/share/containers)
+
+die() { echo "home-snapshots: $*" >&2; exit 1; }
+[[ $(id -u) -eq 0 ]] || die "precisa de root (use: tamagi-snap ativar)"
+
+is_subvol() { [[ $(stat -c %i "$1" 2>/dev/null) == 256 ]] && btrfs subvolume show "$1" >/dev/null 2>&1; }
+on_btrfs() { [[ $(stat -f -c %T "$1") == btrfs ]]; }
+logged_in() { loginctl show-user "$1" -p State --value 2>/dev/null | grep -qE 'active|online|lingering'; }
+config_of() { echo "home-$1"; }
+
+check_user() {
+    local user=$1
+    [[ $user =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "usuário inválido: $user"
+    id "$user" >/dev/null 2>&1 || die "usuário não existe: $user"
+    local home; home=$(getent passwd "$user" | cut -d: -f6)
+    [[ $(realpath "$home") == "$HOMES/$user" ]] || die "a pasta de $user não está em $HOMES ($home)"
+    on_btrfs "$HOMES" || die "$HOMES não está em btrfs: sem snapshots"
+}
+
+# Transforma uma pasta comum em subvolume, com o mesmo conteúdo, dono,
+# permissões e rótulos SELinux. O original só sai do lugar depois de conferido.
+to_subvol() {
+    local dir=$1 keep_backup=${2:-}
+    is_subvol "$dir" && return 0
+    local parent name new old
+    parent=$(dirname "$dir"); name=$(basename "$dir")
+    new="$parent/.$name.novo-subvol"; old="$parent/.$name.antes-snapshots"
+    [[ -e $new ]] && btrfs subvolume delete "$new" >/dev/null
+    btrfs subvolume create "$new" >/dev/null
+    if [[ -d $dir ]]; then
+        if ! cp -a --reflink=always "$dir/." "$new/"; then
+            btrfs subvolume delete "$new" >/dev/null 2>&1 || true
+            die "não deu para copiar $dir (nada foi alterado)"
+        fi
+        local a b
+        a=$(find "$dir" -xdev | wc -l); b=$(find "$new" -xdev | wc -l)
+        [[ $a == "$b" ]] || { btrfs subvolume delete "$new" >/dev/null; die "cópia de $dir não confere ($a x $b)"; }
+        chown --reference="$dir" "$new"; chmod --reference="$dir" "$new"
+        [[ -e $old ]] && die "já existe $old (rode 'limpar' antes)"
+        mv "$dir" "$old"
+    fi
+    mv "$new" "$dir"
+    command -v restorecon >/dev/null && restorecon "$dir" 2>/dev/null || true
+    if [[ -e $old && -z $keep_backup ]]; then
+        rm -rf --one-file-system "$old"
+    fi
+}
+
+convert_home() {
+    local user=$1 home="$HOMES/$1" sub
+    # A pasta pessoal guarda a cópia de segurança; as de cache, não.
+    to_subvol "$home" keep
+    for sub in "${EXCLUDE[@]}"; do
+        local p="$home/$sub"
+        if [[ ! -e $p ]]; then
+            install -d -o "$user" -g "$(id -gn "$user")" "$(dirname "$p")"
+            btrfs subvolume create "$p" >/dev/null
+            chown "$user:$(id -gn "$user")" "$p"; chmod 700 "$p"
+            command -v restorecon >/dev/null && restorecon "$p" 2>/dev/null || true
+        else
+            to_subvol "$p"
+        fi
+    done
+}
+
+setup_snapper() {
+    local user=$1 cfg; cfg=$(config_of "$1")
+    if [[ ! -f /etc/snapper/configs/$cfg ]]; then
+        snapper --no-dbus -c "$cfg" create-config "$HOMES/$user"
+    fi
+    snapper --no-dbus -c "$cfg" set-config \
+        ALLOW_USERS="$user" SYNC_ACL=yes \
+        TIMELINE_CREATE=yes TIMELINE_CLEANUP=yes TIMELINE_MIN_AGE=1800 \
+        TIMELINE_LIMIT_HOURLY=24 TIMELINE_LIMIT_DAILY=7 TIMELINE_LIMIT_WEEKLY=4 \
+        TIMELINE_LIMIT_MONTHLY=0 TIMELINE_LIMIT_QUARTERLY=0 TIMELINE_LIMIT_YEARLY=0 \
+        NUMBER_CLEANUP=yes NUMBER_LIMIT=10 SPACE_LIMIT=0.3 FREE_LIMIT=0.2
+    snapper --no-dbus -c "$cfg" create -d "snapshots ligados" -c number
+}
+
+activate() {
+    local user=$1 at_boot=${2:-}
+    check_user "$user"
+    # No boot (serviço antes do login) ninguém está usando a pasta; um usuário
+    # com "linger" aparece como logado, mas a sessão gráfica ainda não abriu.
+    if [[ -z $at_boot ]] && ! is_subvol "$HOMES/$user" && logged_in "$user"; then
+        install -d -m 755 "$(dirname "$PENDING")"
+        grep -qx "$user" "$PENDING" 2>/dev/null || echo "$user" >> "$PENDING"
+        echo "agendado: a pasta de $user vira subvolume no próximo boot, antes do login"
+        return 0
+    fi
+    convert_home "$user"
+    setup_snapper "$user"
+    echo "snapshots da pasta pessoal ligados para $user"
+    [[ -e $HOMES/.$user.antes-snapshots ]] && \
+        echo "cópia de segurança em $HOMES/.$user.antes-snapshots (tamagi-snap limpar-copia apaga)"
+    return 0
+}
+
+case "${1:-}" in
+    ativar)
+        [[ -n ${2:-} ]] || die "uso: home-snapshots ativar <usuário>"
+        activate "$2" ;;
+    pendentes)
+        [[ -f $PENDING ]] || exit 0
+        while read -r user; do
+            [[ -n $user ]] || continue
+            activate "$user" boot || echo "falhou para $user" >&2
+        done < "$PENDING"
+        rm -f "$PENDING" ;;
+    limpar)
+        [[ -n ${2:-} ]] || die "uso: home-snapshots limpar <usuário>"
+        check_user "$2"
+        old="$HOMES/.$2.antes-snapshots"
+        [[ -e $old ]] || { echo "não há cópia de segurança"; exit 0; }
+        rm -rf --one-file-system "$old"
+        echo "cópia de segurança apagada" ;;
+    status)
+        [[ -n ${2:-} ]] || die "uso: home-snapshots status <usuário>"
+        u=$2
+        echo "subvolume: $(is_subvol "$HOMES/$u" && echo sim || echo não)"
+        echo "snapper:   $([[ -f /etc/snapper/configs/$(config_of "$u") ]] && echo sim || echo não)"
+        echo "agendado:  $(grep -qx "$u" "$PENDING" 2>/dev/null && echo sim || echo não)" ;;
+    *)
+        sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 2 ;;
+esac

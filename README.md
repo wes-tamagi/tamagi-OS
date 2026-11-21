@@ -307,6 +307,47 @@ tamagi-harden malloc on        # hardened_malloc em todos os programas
 ujust setup-luks-tpm-unlock    # desbloqueio do disco por TPM
 ```
 
+### Histórico da pasta pessoal (ideia do HAMMER2, do DragonFly BSD)
+
+O sistema já volta sozinho (bootc + greenboot); os seus arquivos também. O
+snapper tira um snapshot btrfs da pasta pessoal a cada hora e guarda 24 por
+hora, 7 diários e 4 semanais. `~/.cache` e os contêineres ficam de fora.
+
+```bash
+tamagi-snap                      # estado e snapshots
+tamagi-snap versoes ~/Documentos/contrato.odt
+tamagi-snap voltar ~/Documentos/contrato.odt      # a versão mais recente diferente da atual
+tamagi-snap voltar ~/Documentos/contrato.odt 42   # a do snapshot 42
+tamagi-snap agora "antes de mexer"                # um snapshot agora
+```
+
+A versão atual nunca é sobrescrita: fica ao lado como `<arquivo>.antes-<data>`.
+Os snapshots também abrem no COSMIC Files em `~/.snapshots/<N>/snapshot`
+(arquivos ocultos visíveis). Instalações novas já vêm com isso ligado: a pasta
+pessoal nasce como subvolume btrfs. Numa instalação anterior, `tamagi-snap
+ativar` agenda a conversão para o próximo boot, antes do login. A cópia é com
+reflink, então é rápida e não ocupa o dobro, e a pasta original fica em
+`/var/home/.<você>.antes-snapshots` até `tamagi-snap limpar-copia`.
+
+### Agente preso pelo Landlock (ideia do pledge/unveil, do OpenBSD)
+
+O que o `tamagi-agent` roda sem um humano olhar fica preso pelo Landlock do
+kernel (`/usr/libexec/tamagi/sandbox`), sem root nem contêiner:
+
+| Comando | Como roda |
+|---|---|
+| só leitura (roda sem perguntar) e `read_file` | lê o sistema, **menos os segredos**; não grava (só numa pasta temporária própria), não abre conexão TCP, não manda sinal para fora |
+| aprovado sozinho pelo `-y` | grava nas subpastas da pasta pessoal, em `/tmp` e em `/run/user`; os segredos ficam só leitura (não se apagam, movem nem trocam) |
+| confirmado por você | roda normal: você leu o comando |
+
+Segredos: `~/.ssh`, `~/.gnupg`, `~/.password-store`, tokens (`~/.config/gh`,
+`~/.claude`, `~/.aws`, `~/.kube`…), chaveiros e perfis de navegador; mais o
+que você listar em `~/.config/tamagi/sandbox-segredos`. Desligar:
+`TAMAGI_AGENT_SANDBOX=0`. Limites: no modo `-y` não se cria nem apaga
+arquivo direto na raiz da pasta pessoal (nas subpastas, sim), e programas que
+dependem de setuid (`sudo`, podman e distrobox sem root) não funcionam presos;
+eles sempre pedem confirmação.
+
 ## Rust
 
 - **Desktop:** COSMIC 1.11 inteiro (compositor, painel, terminal, arquivos,
@@ -336,7 +377,8 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   `reasoning_content`, carrega o modelo sob demanda e o libera após 15 min parado.
 - **`tamagi-agent`** (alias `ia`): agente próprio que conhece o sistema e usa o
   registro declarativo `/usr/share/tamagi/actions.toml` (`tamagi_action`).
-  Comandos somente-leitura rodam direto; o resto pede confirmação.
+  Comandos somente-leitura rodam direto, presos pelo Landlock (sem rede, sem
+  gravar, sem ver chaves e tokens); o resto pede confirmação. Veja Segurança.
 - **mise** já ativado no shell: `mise use -g rust@latest node@lts python@3.13`.
 
 | Preset | Perfil | Modelo | Tamanho | Para |

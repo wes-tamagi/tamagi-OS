@@ -1,0 +1,199 @@
+#!/usr/bin/python3
+"""tamagi-snap — histórico da sua pasta pessoal (snapshots btrfs a cada hora).
+
+Uso:
+  tamagi-snap                        estado e snapshots guardados
+  tamagi-snap ativar                 liga os snapshots (pede a senha; se a pasta
+                                     ainda não for subvolume, termina no próximo boot)
+  tamagi-snap agora [descrição]      tira um snapshot agora
+  tamagi-snap versoes <arquivo>      versões guardadas de um arquivo ou pasta
+  tamagi-snap voltar <arquivo> [N]   traz de volta a versão do snapshot N (sem N:
+                                     a mais recente diferente da atual). A atual,
+                                     se existir, fica ao lado como .antes-<data>
+  tamagi-snap limpar-copia           apaga a cópia de segurança da conversão
+
+Os snapshots ficam em ~/.snapshots/<N>/snapshot (só leitura; dá para abrir no
+COSMIC Files, mostrando os arquivos ocultos). ~/.cache e os contêineres ficam
+de fora. Guardados: 24 por hora, 7 diários e 4 semanais.
+"""
+import datetime
+import filecmp
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+
+USER = os.environ.get("USER") or pathlib.Path.home().name
+HOME = pathlib.Path(os.path.realpath(pathlib.Path.home()))
+SNAPS = HOME / ".snapshots"
+CONFIG = f"home-{USER}"
+HELPER = "/usr/libexec/tamagi/home-snapshots"
+
+LANG = (os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG") or "pt")[:2].lower()
+MSG = {
+    "off": ("Snapshots da pasta pessoal: desligados. Ligue com: tamagi-snap ativar",
+            "Home folder snapshots: off. Turn them on with: tamagi-snap activate"),
+    "on": ("Snapshots da pasta pessoal: ligados (a cada hora; 24 por hora, 7 diários, 4 semanais)",
+           "Home folder snapshots: on (hourly; keeps 24 hourly, 7 daily, 4 weekly)"),
+    "none": ("Nenhum snapshot ainda.", "No snapshots yet."),
+    "outside": ("O arquivo precisa estar dentro da sua pasta pessoal.",
+                "The file must be inside your home folder."),
+    "excluded": ("Este caminho fica fora dos snapshots (cache, contêineres ou os próprios snapshots).",
+                 "This path is not covered by snapshots (cache, containers or the snapshots themselves)."),
+    "no_versions": ("Nenhuma versão guardada deste caminho.", "No saved versions of this path."),
+    "same": ("igual à atual", "same as current"),
+    "restored": ("Restaurado do snapshot", "Restored from snapshot"),
+    "kept": ("A versão atual ficou em", "The current version was kept at"),
+    "nothing_diff": ("Todas as versões guardadas são iguais à atual; nada a fazer.",
+                     "Every saved version matches the current one; nothing to do."),
+    "bad_n": ("Esse snapshot não tem este caminho:", "That snapshot does not have this path:"),
+    "backup": ("Cópia de segurança da conversão ainda existe:", "Conversion backup still exists:"),
+}
+
+
+def tr(key):
+    pt, en = MSG[key]
+    return pt if LANG == "pt" else en
+
+
+def enabled():
+    return pathlib.Path(f"/etc/snapper/configs/{CONFIG}").exists()
+
+
+def snapshots():
+    """[(número, data, descrição, pasta)] do mais antigo ao mais novo."""
+    out = []
+    try:
+        entries = list(SNAPS.iterdir())
+    except OSError:
+        return out
+    for d in entries:
+        if not d.name.isdigit():
+            continue
+        try:
+            info = (d / "info.xml").read_text(encoding="utf-8")
+        except OSError:
+            continue
+        date = re.search(r"<date>([^<]+)</date>", info)
+        desc = re.search(r"<description>([^<]*)</description>", info)
+        when = date.group(1) if date else "?"
+        try:  # snapper grava em UTC
+            when = datetime.datetime.strptime(when, "%Y-%m-%d %H:%M:%S").replace(
+                tzinfo=datetime.timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            pass
+        out.append((int(d.name), when, desc.group(1) if desc else "", d / "snapshot"))
+    return sorted(out)
+
+
+def rel_path(arg):
+    path = pathlib.Path(os.path.abspath(os.path.expanduser(arg)))
+    real_parent = pathlib.Path(os.path.realpath(path.parent))
+    path = real_parent / path.name
+    try:
+        rel = path.relative_to(HOME)
+    except ValueError:
+        sys.exit(tr("outside"))
+    first = rel.parts[0] if rel.parts else ""
+    if first in (".snapshots", ".cache") or str(rel).startswith(".local/share/containers"):
+        sys.exit(tr("excluded"))
+    return path, rel
+
+
+def same(a, b):
+    try:
+        if a.is_dir() and b.is_dir():
+            cmp = filecmp.dircmp(a, b)
+            return not (cmp.left_only or cmp.right_only or cmp.diff_files or cmp.funny_files)
+        if a.is_file() and b.is_file():
+            return filecmp.cmp(a, b, shallow=False)
+    except OSError:
+        pass
+    return False
+
+
+def status():
+    print(tr("on") if enabled() else tr("off"))
+    backup = pathlib.Path(f"/var/home/.{USER}.antes-snapshots")
+    if backup.exists():
+        print(f"{tr('backup')} {backup}  (tamagi-snap limpar-copia)")
+    if os.path.exists(HELPER) and not enabled():
+        r = subprocess.run([HELPER, "status", USER], capture_output=True, text=True, check=False)
+        if "agendado:  sim" in r.stdout:
+            print("Agendado para o próximo boot." if LANG == "pt" else "Scheduled for the next boot.")
+    snaps = snapshots()
+    if enabled() and not snaps:
+        print(tr("none"))
+    for n, when, desc, _ in snaps[-15:]:
+        print(f"  {n:>4}  {when}  {desc}")
+    return 0
+
+
+def versions(arg):
+    path, rel = rel_path(arg)
+    rows = [(n, when, d / rel) for n, when, _, d in snapshots() if (d / rel).exists() or (d / rel).is_symlink()]
+    if not rows:
+        print(tr("no_versions"))
+        return 1
+    for n, when, p in rows:
+        note = f"  ({tr('same')})" if path.exists() and same(p, path) else ""
+        size = p.stat().st_size if p.is_file() else ""
+        print(f"  {n:>4}  {when}  {size}{note}")
+    return 0
+
+
+def restore(arg, number=None):
+    path, rel = rel_path(arg)
+    snaps = snapshots()
+    if number is not None:
+        cand = [s for s in snaps if s[0] == number]
+        if not cand or not (cand[0][3] / rel).exists():
+            sys.exit(f"{tr('bad_n')} {number}")
+        n, when, _, d = cand[0]
+    else:
+        pick = [s for s in reversed(snaps) if (s[3] / rel).exists()
+                and not (path.exists() and same(s[3] / rel, path))]
+        if not pick:
+            print(tr("nothing_diff") if any((s[3] / rel).exists() for s in snaps) else tr("no_versions"))
+            return 1
+        n, when, _, d = pick[0]
+    src = d / rel
+    if path.exists() or path.is_symlink():
+        stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        kept, i = path.with_name(f"{path.name}.antes-{stamp}"), 1
+        while kept.exists() or kept.is_symlink():  # nunca sobrescreve uma cópia anterior
+            i += 1
+            kept = path.with_name(f"{path.name}.antes-{stamp}-{i}")
+        path.rename(kept)
+        print(f"{tr('kept')} {kept}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["cp", "-a", "--reflink=auto", "--", str(src), str(path)], check=True)
+    print(f"{tr('restored')} {n} ({when}): {path}")
+    return 0
+
+
+def main(argv):
+    cmd = argv[0] if argv else "status"
+    if cmd in ("status", "estado"):
+        return status()
+    if cmd in ("ativar", "activate", "enable"):
+        return subprocess.run(["pkexec", HELPER, "ativar", USER], check=False).returncode
+    if cmd in ("limpar-copia", "clean-backup"):
+        return subprocess.run(["pkexec", HELPER, "limpar", USER], check=False).returncode
+    if cmd in ("agora", "now"):
+        desc = " ".join(argv[1:]) or "manual"
+        return subprocess.run(["snapper", "-c", CONFIG, "create", "-c", "number", "-d", desc],
+                              check=False).returncode
+    if cmd in ("versoes", "versions") and len(argv) == 2:
+        return versions(argv[1])
+    if cmd in ("voltar", "restore") and len(argv) in (2, 3):
+        return restore(argv[1], int(argv[2]) if len(argv) == 3 and argv[2].isdigit() else None)
+    print(__doc__)
+    return 0 if cmd in ("-h", "--help", "ajuda") else 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -30,7 +30,7 @@ for cmd in distrobox podman flatpak bootc ujust foot alacritty cosmic-term cosmi
            llama-server llama-cli opencode claude \
            tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-assist tamagi-keys tamagi-panel tamagi-lang \
            tamagi-firstrun tamagi-pkg tamagi-update tamagi-webapp \
-           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report; do
+           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper; do
     check "comando $cmd" command -v "$cmd"
 done
 
@@ -303,6 +303,16 @@ check "menu iniciar 1.1.0: menu focado (já abre com o teclado)" bash -c 'grep -
 check "terminal padrão: foot (Super+Enter e xdg-terminal-exec)" bash -c 'grep -q "Terminal: \"foot\"" /usr/share/cosmic/com.system76.CosmicSettings.Shortcuts/v1/system_actions && [[ $(head -1 /etc/xdg/xdg-terminals.list) == foot.desktop ]] && grep -q com.system76.CosmicTerm.desktop /etc/xdg/xdg-terminals.list'
 check "foot: config do sistema válida, com o tema padrão" bash -c 'foot --check-config && grep -q "^background=1a1b26" /etc/xdg/foot/foot.ini && grep -q "JetBrains Mono" /etc/xdg/foot/foot.ini'
 check "tamagi-theme grava o foot.ini do usuário e respeita o personalizado" bash -c 'tamagi-theme set nord >/dev/null && f=$HOME/.config/foot/foot.ini && foot --config "$f" --check-config && grep -q "Gerado por tamagi-theme (Nord)" "$f" && sed -i 1d "$f" && tamagi-theme set gruvbox >/dev/null && ! grep -q Gruvbox "$f"; r=$?; rm -f "$f"; tamagi-theme set tokyo-night >/dev/null; exit $r'
+check "sandbox (Landlock): leitura não lê segredo, não grava, não conecta" bash -c 'S=/usr/libexec/tamagi/sandbox; mkdir -p $HOME/.ssh $HOME/Documents; echo CHAVE > $HOME/.ssh/id_test; echo ok > $HOME/Documents/a; $S -- cat $HOME/Documents/a | grep -qx ok && ! $S -- cat $HOME/.ssh/id_test && ! $S -- touch $HOME/Documents/b && $S -- python3 -c "
+import socket, sys
+try: socket.create_connection((\"127.0.0.1\", 9), 2)
+except PermissionError: sys.exit(0)
+except OSError: sys.exit(1)
+sys.exit(1)"'
+check "sandbox (Landlock): usuario grava em subpasta mas não mexe em segredo" bash -c 'S=/usr/libexec/tamagi/sandbox; mkdir -p $HOME/.ssh $HOME/Documents; echo CHAVE > $HOME/.ssh/id_test; $S --mode usuario -- sh -c "echo x > $HOME/Documents/c" && $S --mode usuario -- cat $HOME/.ssh/id_test | grep -qx CHAVE && ! $S --mode usuario -- rm -f $HOME/.ssh/id_test && ! $S --mode usuario -- mv $HOME/.ssh/id_test $HOME/Documents/x && [[ -f $HOME/.ssh/id_test ]]'
+check "agente: comandos de leitura passam pelo sandbox" bash -c 'grep -q "sandbox = \"leitura\"" /usr/bin/tamagi-agent && grep -q /usr/libexec/tamagi/sandbox /usr/bin/tamagi-agent'
+check "snapshots da pasta pessoal: snapper, serviço e timers" bash -c 'systemctl is-enabled snapper-timeline.timer && systemctl is-enabled snapper-cleanup.timer && systemctl is-enabled tamagi-home-snapshots.service && bash -n /usr/libexec/tamagi/home-snapshots && grep -q -- --btrfs-subvolume-home /usr/libexec/tamagi/firstboot'
+check "tamagi-snap: estado sem snapshots e recusa caminho fora da pasta pessoal" bash -c 'tamagi-snap | grep -qiE "desligad|off" && ! tamagi-snap versoes /etc/passwd 2>/dev/null'
 check "tamagi-menu: residente pelo autostart" bash -c 'desktop-file-validate /etc/xdg/autostart/tamagi-menu-service.desktop && grep -q "^Exec=tamagi-menu --service" /etc/xdg/autostart/tamagi-menu-service.desktop && env -u WAYLAND_DISPLAY -u DISPLAY tamagi-menu --service'
 check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep -q "CosmicPanel\.Dock/"'
 check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'

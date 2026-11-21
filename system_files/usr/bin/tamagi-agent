@@ -350,9 +350,20 @@ def clip(text):
             + text[-half:])
 
 
-def exec_bash(command, needs_root=False):
+SANDBOX = "/usr/libexec/tamagi/sandbox"
+
+
+def sandboxed(argv, mode):
+    """Prende o comando com o Landlock (pledge/unveil do Linux; veja
+    /usr/libexec/tamagi/sandbox). mode=None ou TAMAGI_AGENT_SANDBOX=0: sem prisão."""
+    if not mode or os.environ.get("TAMAGI_AGENT_SANDBOX") == "0" or not os.access(SANDBOX, os.X_OK):
+        return argv
+    return [SANDBOX, "--mode", mode, "--se-possivel", "--"] + argv
+
+
+def exec_bash(command, needs_root=False, sandbox=None):
     try:
-        proc = subprocess.run(["bash", "-c", command], capture_output=True, text=True,
+        proc = subprocess.run(sandboxed(["bash", "-c", command], sandbox), capture_output=True, text=True,
                               timeout=300, stdin=None if needs_root else subprocess.DEVNULL,
                               errors="replace", check=False)
     except subprocess.TimeoutExpired:
@@ -378,10 +389,13 @@ def tool_action(args, auto_yes):
     why = args.get("why")
     print(f"{C['cyan']}$ [{aid}] {cmd}{C['reset']}" + (f"  {C['dim']}# {why}{C['reset']}" if why else ""))
     needs_root = risk == "system" or bool(re.search(r"(^|[\s;&|(])(sudo|pkexec|run0|su)\b", cmd))
+    # As ações do actions.toml são do próprio Tamagi: as de leitura rodam
+    # presas como os comandos de leitura; as outras, só com confirmação.
+    sandbox = "leitura" if risk == "read" else None
     if risk != "read":
         if not ask(msg("run_action", id=aid), auto_yes and not needs_root):
             return "User declined this action. Do not retry; ask how to proceed."
-    return exec_bash(cmd, needs_root=needs_root)
+    return exec_bash(cmd, needs_root=needs_root, sandbox=sandbox)
 
 
 def tool_shell(args, auto_yes):
@@ -391,22 +405,35 @@ def tool_shell(args, auto_yes):
     why = args.get("why")
     print(f"{C['cyan']}$ {command}{C['reset']}" + (f"  {C['dim']}# {why}{C['reset']}" if why else ""))
     needs_root = bool(re.search(r"(^|[\s;&|(])(sudo|pkexec|run0|su)\b", command))
-    if not is_read_only(command):
+    # Quem roda sem um humano olhar fica preso pelo Landlock:
+    #   só leitura (roda sem perguntar)  -> modo "leitura": sem gravar, sem
+    #       rede, sem os segredos (chaves, tokens, perfis de navegador);
+    #   aprovado sozinho pelo -y          -> modo "usuario": grava na pasta
+    #       pessoal, segredos só leitura;
+    #   confirmado por você               -> roda normal (você leu o comando).
+    if is_read_only(command):
+        sandbox = "leitura"
+    else:
         # -y nunca aprova sozinho um comando com privilégio de root.
-        if not ask(msg("run_cmd"), auto_yes and not needs_root):
+        if auto_yes and not needs_root:
+            sandbox = "usuario"
+        elif ask(msg("run_cmd"), False):
+            sandbox = None
+        else:
             return "User declined this command. Do not retry; ask how to proceed."
-    return exec_bash(command, needs_root=needs_root)
+    return exec_bash(command, needs_root=needs_root, sandbox=sandbox)
 
 
 def tool_read_file(args):
     path = os.path.expanduser(str(args.get("path", "")))
     offset = max(int(args.get("offset") or 1), 1)
     print(f"{C['cyan']}ler {path}{C['reset']}")
-    try:
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            lines = fh.readlines()
-    except OSError as exc:
-        return f"error: {exc}"
+    # Lido pelo sandbox no modo "leitura": os segredos ficam de fora também aqui.
+    proc = subprocess.run(sandboxed(["cat", "--", path], "leitura"), capture_output=True,
+                          text=True, errors="replace", check=False)
+    if proc.returncode != 0:
+        return f"error: {proc.stderr.strip() or 'cannot read ' + path}"
+    lines = proc.stdout.splitlines(keepends=True)
     chunk = lines[offset - 1: offset - 1 + 400]
     more = len(lines) - (offset - 1 + len(chunk))
     text = "".join(chunk)

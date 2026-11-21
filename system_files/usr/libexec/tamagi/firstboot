@@ -20,9 +20,16 @@ user=${C[USER]:-}
 if [[ -n $user ]]; then
     [[ $user =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "nome de usuário inválido: $user" >&2; exit 1; }
     if ! id "$user" >/dev/null 2>&1; then
-        useradd --create-home --shell /bin/bash --groups wheel \
+        # Em btrfs, a pasta pessoal já nasce como subvolume: é o que permite os
+        # snapshots automáticos (home-snapshots).
+        subvol=()
+        [[ $(stat -f -c %T /var/home 2>/dev/null) == btrfs ]] && subvol=(--btrfs-subvolume-home)
+        useradd --create-home "${subvol[@]}" --shell /bin/bash --groups wheel \
             --comment "${C[FULLNAME]:-$user}" --password "${C[PASSWORD_HASH]:-!}" "$user"
         echo "usuário $user criado"
+        if [[ ${#subvol[@]} -gt 0 && ${C[HOME_SNAPSHOTS]:-yes} != no ]]; then
+            /usr/libexec/tamagi/home-snapshots ativar "$user" || echo "snapshots da pasta pessoal: não deu para ligar" >&2
+        fi
     fi
 fi
 

@@ -605,6 +605,48 @@ es = "Restaura la versión anterior del sistema en el próximo arranque"
 fr = "Restaure la version précédente au prochain démarrage"
 
 [[action]]
+id = "system.snapshots"
+category = "system"
+icon = "document-open-recent-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-snap"
+keywords = "snapshot historico history backup voltar restaurar restore undo arquivo apagado btrfs snapper"
+[action.title]
+pt = "Histórico da pasta pessoal"
+en = "Home folder history"
+es = "Historial de la carpeta personal"
+fr = "Historique du dossier personnel"
+[action.subtitle]
+pt = "Snapshots a cada hora; tamagi-snap voltar <arquivo> recupera"
+en = "Hourly snapshots; tamagi-snap restore <file> brings a file back"
+es = "Snapshots cada hora; tamagi-snap restore <archivo> lo recupera"
+fr = "Instantanés horaires ; tamagi-snap restore <fichier> le récupère"
+
+[[action]]
+id = "system.snapshots_on"
+category = "system"
+icon = "document-save-symbolic"
+risk = "system"
+terminal = true
+confirm = true
+agent = true
+command = "tamagi-snap ativar"
+keywords = "snapshot ativar ligar enable backup historico btrfs snapper"
+[action.title]
+pt = "Ligar o histórico da pasta pessoal"
+en = "Turn on home folder history"
+es = "Activar el historial de la carpeta personal"
+fr = "Activer l'historique du dossier personnel"
+[action.subtitle]
+pt = "Pede a senha; numa instalação antiga, termina no próximo boot"
+en = "Asks for your password; on older installs it finishes at next boot"
+es = "Pide la contraseña; en instalaciones antiguas termina en el próximo arranque"
+fr = "Demande le mot de passe ; sur une ancienne installation, se termine au prochain démarrage"
+
+[[action]]
 id = "system.boot_report"
 category = "system"
 icon = "dialog-warning-symbolic"
