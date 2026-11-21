@@ -271,11 +271,11 @@ case "${1:-}" in
              mapfile -t all < <(list); cur=$(current)
              for i in "${!all[@]}"; do [[ ${all[$i]} == "$cur" ]] && break; done
              apply "${all[$(( (i + 1) % ${#all[@]} ))]}" ;;
-    pick)    choice=$(list | gum choose --header "$(t "Tema")" --selected "$(current)") && apply "$choice" ;;
+    pick)    choice=$(list | gum choose --height 14 --header "$(t "Tema")" --selected "$(current)") && apply "$choice" ;;
     wallpaper|papel) # estilo do papel de parede: tamagi-theme wallpaper [estilo]
              choice=${2:-}
              if [[ -z $choice ]]; then
-                 choice=$(printf '%s\n' "${STYLES[@]}" | gum choose --header "$(t "Papel de parede")" --selected "$(style)") || exit 0
+                 choice=$(printf '%s\n' "${STYLES[@]}" | gum choose --height 12 --header "$(t "Papel de parede")" --selected "$(style)") || exit 0
              fi
              [[ " ${STYLES[*]} " == *" $choice "* ]] || { echo "estilo desconhecido: $choice (use: ${STYLES[*]})" >&2; exit 2; }
              mkdir -p "$CONFIG/tamagi"; echo "$choice" > "$WALL_STATE"

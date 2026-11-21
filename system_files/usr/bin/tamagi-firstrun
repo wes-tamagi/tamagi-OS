@@ -26,7 +26,7 @@ gum style --border double --padding "0 2" --border-foreground 4 --width "$width"
     "$(t "Apps por Flatpak, navegadores e pacotes em caixas distrobox, IA local.")"
 
 step "Aparência"
-theme=$(tamagi-theme list | gum choose --header "$(t "Tema")   $(t "↑↓ escolher · Enter confirma · Esc volta")" --selected tokyo-night) && tamagi-theme set "$theme"
+theme=$(tamagi-theme list | gum choose --height 14 --header "$(t "Tema")   $(t "↑↓ escolher · Enter confirma · Esc volta")" --selected tokyo-night) && tamagi-theme set "$theme"
 panel=$(gum choose --header "$(t "Barra")" \
     "$(t "centro — uma barra embaixo, apps no centro")" \
     "$(t "classico — uma barra embaixo, apps à esquerda")" \
@@ -92,7 +92,7 @@ fi
 step "Caixa de desenvolvimento (distrobox)"
 tl "O host não recebe pacotes: ferramentas de linha de comando vivem numa caixa."
 none=$(t "agora não")
-box=$(gum choose --header "$(t "Criar a caixa 'dev' com qual distro?")" \
+box=$(gum choose --height 10 --header "$(t "Criar a caixa 'dev' com qual distro?")" \
     "fedora" "arch" "ubuntu" "opensuse" "$none")
 if [[ -n $box && $box != "$none" ]]; then
     ujust devbox "$box" || tl "Não deu para criar agora (sem rede?). Depois: ujust devbox"
@@ -101,7 +101,7 @@ fi
 step "Linguagens e ferramentas (mise)"
 tl "O mise é o gerenciador padrão de linguagens e ferramentas de desenvolvimento:"
 tl "instala no seu usuário, troca de versão por pasta de projeto e se atualiza sozinho."
-langs=$(gum choose --no-limit --header "$(t "Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)")" \
+langs=$(gum choose --no-limit --height 12 --header "$(t "Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)")" \
     "rust@latest" "node@lts" "python@latest" "go@latest" "java@lts" "bun@latest" "deno@latest") || langs=""
 if [[ -n $langs ]]; then
     # shellcheck disable=SC2086
