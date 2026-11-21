@@ -250,3 +250,80 @@ Apagar a VM e o disco dela? O modelo compactado fica.	¿Borrar la VM y su disco?
 VM removida	VM eliminada
 não é uma imagem qcow2	no es una imagen qcow2
 ISO apagada	ISO borrada
+# primeiro login: o que instalar; tamagi-antigravity
+O que instalar	Qué instalar
+O sistema vem enxuto: escolha o que quer agora. O resto continua a um	El sistema viene ligero: elige lo que quieres ahora. Lo demás sigue a un
+clique depois, no Super+Espaço (Instalar).	clic después, en Super+Espacio (Instalar).
+Chrome — navegador, numa caixa Fedora	Chrome — navegador, en una caja Fedora
+Claude Code — agente de programação da Anthropic	Claude Code — agente de programación de Anthropic
+Antigravity — IDE agêntica do Google, com o Chrome	Antigravity — IDE agéntica de Google, con Chrome
+Espaço marca/desmarca · Enter instala · nada marcado: instala nada	Espacio marca/desmarca · Enter instala · nada marcado: no instala nada
+Não deu agora. Depois: claude	No se pudo ahora. Después: claude
+Não deu agora. Depois: tamagi-antigravity	No se pudo ahora. Después: tamagi-antigravity
+Não deu agora (sem rede?). Depois: Super+Espaço, Instalar.	No se pudo ahora (¿sin red?). Después: Super+Espacio, Instalar.
+OnlyOffice — documentos, planilhas e apresentações	OnlyOffice — documentos, hojas de cálculo y presentaciones
+Bottles — programas do Windows (Wine)	Bottles — programas de Windows (Wine)
+Mission Center — monitor do sistema	Mission Center — monitor del sistema
+DistroShelf — caixas distrobox com janelas	DistroShelf — cajas distrobox con ventanas
+COSMIC Tweaks — ajustes extras do COSMIC	COSMIC Tweaks — ajustes extra de COSMIC
+Examine — informações do hardware	Examine — información del hardware
+O Antigravity é do Google e é baixado agora, na sua máquina (termos do Google).	Antigravity es de Google y se descarga ahora, en tu equipo (términos de Google).
+Antigravity instalado. Ele já aparece no lançador.	Antigravity instalado. Ya aparece en el lanzador.
+Antigravity não está instalado	Antigravity no está instalado
+Antigravity removido	Antigravity eliminado
+# tamagi-isolar
+opção desconhecida	opción desconocida
+Jaula mantida em	Jaula conservada en
+arquivo não encontrado	archivo no encontrado
+Isolado	Aislado
+sem rede	sin red
+pasta pessoal escondida	carpeta personal oculta
+sistema só leitura	sistema de solo lectura
+COM rede	CON red
+O programa terminou	El programa terminó
+A jaula foi apagada.	La jaula se ha borrado.
+# primeiro login: catálogo de apps (inspirado no aeon-firstboot)
+O sistema vem enxuto: escolha os apps agora. Eles baixam em segundo plano	El sistema viene ligero: elige tus apps ahora. Se descargan en segundo plano
+enquanto você segue; o resto continua no Super+Espaço (Instalar).	mientras sigues; lo demás sigue en Super+Espacio (Instalar).
+Navegadores	Navegadores
+Escritório	Oficina
+Comunicação	Comunicación
+Criação	Creación
+Jogos	Juegos
+Desenvolvimento	Desarrollo
+Instalar o recomendado	Instalar lo recomendado
+Escolher app por app	Elegir app por app
+Apps	Apps
+Instalando em segundo plano: pode continuar. Uma notificação avisa quando terminar.	Instalando en segundo plano: puedes seguir. Una notificación avisa cuando termine.
+Não deu para começar agora. Depois: Super+Espaço, Instalar.	No se pudo empezar ahora. Después: Super+Espacio, Instalar.
+Depois: Super+Espaço, Instalar.	Después: Super+Espacio, Instalar.
+Instalando em segundo plano	Instalando en segundo plano
+Nada sendo instalado	Nada en instalación
+esperando a conexão com a internet	esperando la conexión a internet
+navegador padrão	navegador predeterminado
+Seus apps estão prontos	Tus apps están listas
+Tudo o que você escolheu no primeiro login foi instalado.	Todo lo que elegiste en el primer inicio de sesión está instalado.
+Alguns apps não foram instalados	Algunas apps no se instalaron
+tente de novo pelo Super+Espaço (Instalar).	inténtalo de nuevo desde Super+Espacio (Instalar).
+Pika Backup — cópias de segurança para um disco ou servidor	Pika Backup — copias de seguridad en un disco o servidor
+Firefox — navegador da Mozilla	Firefox — navegador de Mozilla
+Brave — navegador com bloqueio de anúncios	Brave — navegador con bloqueo de anuncios
+LibreOffice — documentos, planilhas e apresentações	LibreOffice — documentos, hojas de cálculo y presentaciones
+Thunderbird — e-mail e agenda	Thunderbird — correo y calendario
+Bitwarden — gerenciador de senhas	Bitwarden — gestor de contraseñas
+Telegram — mensagens	Telegram — mensajería
+Signal — mensagens com criptografia	Signal — mensajería cifrada
+Discord — voz e comunidades	Discord — voz y comunidades
+OBS Studio — gravar e transmitir	OBS Studio — grabar y transmitir
+GIMP — editar imagens	GIMP — editar imágenes
+Inkscape — desenho vetorial	Inkscape — dibujo vectorial
+VLC — vídeos e músicas	VLC — vídeos y música
+Spotify — música	Spotify — música
+Steam — loja e biblioteca de jogos	Steam — tienda y biblioteca de juegos
+Heroic — jogos da Epic, GOG e Amazon	Heroic — juegos de Epic, GOG y Amazon
+Podman Desktop — contêineres com janelas	Podman Desktop — contenedores con ventanas
+Zed — editor de código	Zed — editor de código
+Flatseal — permissões dos apps Flatpak	Flatseal — permisos de las apps Flatpak
+Warehouse — gerenciar apps Flatpak	Warehouse — gestionar apps Flatpak
+Loupe — imagens	Loupe — imágenes
+Papers — PDF e documentos	Papers — PDF y documentos

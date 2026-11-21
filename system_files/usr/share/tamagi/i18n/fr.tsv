@@ -250,3 +250,80 @@ Apagar a VM e o disco dela? O modelo compactado fica.	Supprimer la VM et son dis
 VM removida	VM supprimée
 não é uma imagem qcow2	ce n'est pas une image qcow2
 ISO apagada	ISO supprimée
+# primeiro login: o que instalar; tamagi-antigravity
+O que instalar	Que installer
+O sistema vem enxuto: escolha o que quer agora. O resto continua a um	Le système est léger : choisissez ce que vous voulez maintenant. Le reste reste à un
+clique depois, no Super+Espaço (Instalar).	clic plus tard, dans Super+Espace (Installer).
+Chrome — navegador, numa caixa Fedora	Chrome — navigateur, dans une boîte Fedora
+Claude Code — agente de programação da Anthropic	Claude Code — agent de programmation d'Anthropic
+Antigravity — IDE agêntica do Google, com o Chrome	Antigravity — IDE agentique de Google, avec Chrome
+Espaço marca/desmarca · Enter instala · nada marcado: instala nada	Espace coche/décoche · Entrée installe · rien de coché : rien n'est installé
+Não deu agora. Depois: claude	Pas maintenant. Plus tard : claude
+Não deu agora. Depois: tamagi-antigravity	Pas maintenant. Plus tard : tamagi-antigravity
+Não deu agora (sem rede?). Depois: Super+Espaço, Instalar.	Pas maintenant (pas de réseau ?). Plus tard : Super+Espace, Installer.
+OnlyOffice — documentos, planilhas e apresentações	OnlyOffice — documents, tableurs et présentations
+Bottles — programas do Windows (Wine)	Bottles — programmes Windows (Wine)
+Mission Center — monitor do sistema	Mission Center — moniteur système
+DistroShelf — caixas distrobox com janelas	DistroShelf — boîtes distrobox en interface graphique
+COSMIC Tweaks — ajustes extras do COSMIC	COSMIC Tweaks — réglages supplémentaires de COSMIC
+Examine — informações do hardware	Examine — informations sur le matériel
+O Antigravity é do Google e é baixado agora, na sua máquina (termos do Google).	Antigravity est un logiciel Google, téléchargé maintenant sur votre machine (conditions de Google).
+Antigravity instalado. Ele já aparece no lançador.	Antigravity installé. Il apparaît déjà dans le lanceur.
+Antigravity não está instalado	Antigravity n'est pas installé
+Antigravity removido	Antigravity supprimé
+# tamagi-isolar
+opção desconhecida	option inconnue
+Jaula mantida em	Prison conservée dans
+arquivo não encontrado	fichier introuvable
+Isolado	Isolé
+sem rede	sans réseau
+pasta pessoal escondida	dossier personnel masqué
+sistema só leitura	système en lecture seule
+COM rede	AVEC réseau
+O programa terminou	Le programme s'est terminé
+A jaula foi apagada.	La prison a été supprimée.
+# primeiro login: catálogo de apps (inspirado no aeon-firstboot)
+O sistema vem enxuto: escolha os apps agora. Eles baixam em segundo plano	Le système est léger : choisissez vos applications maintenant. Elles se téléchargent en arrière-plan
+enquanto você segue; o resto continua no Super+Espaço (Instalar).	pendant que vous continuez ; le reste reste dans Super+Espace (Installer).
+Navegadores	Navigateurs
+Escritório	Bureautique
+Comunicação	Communication
+Criação	Création
+Jogos	Jeux
+Desenvolvimento	Développement
+Instalar o recomendado	Installer la sélection recommandée
+Escolher app por app	Choisir appli par appli
+Apps	Applications
+Instalando em segundo plano: pode continuar. Uma notificação avisa quando terminar.	Installation en arrière-plan : vous pouvez continuer. Une notification vous préviendra à la fin.
+Não deu para começar agora. Depois: Super+Espaço, Instalar.	Impossible de commencer maintenant. Plus tard : Super+Espace, Installer.
+Depois: Super+Espaço, Instalar.	Plus tard : Super+Espace, Installer.
+Instalando em segundo plano	Installation en arrière-plan
+Nada sendo instalado	Rien en cours d'installation
+esperando a conexão com a internet	en attente de la connexion internet
+navegador padrão	navigateur par défaut
+Seus apps estão prontos	Vos applications sont prêtes
+Tudo o que você escolheu no primeiro login foi instalado.	Tout ce que vous avez choisi à la première connexion est installé.
+Alguns apps não foram instalados	Certaines applications n'ont pas été installées
+tente de novo pelo Super+Espaço (Instalar).	réessayez depuis Super+Espace (Installer).
+Pika Backup — cópias de segurança para um disco ou servidor	Pika Backup — sauvegardes vers un disque ou un serveur
+Firefox — navegador da Mozilla	Firefox — navigateur de Mozilla
+Brave — navegador com bloqueio de anúncios	Brave — navigateur avec blocage des publicités
+LibreOffice — documentos, planilhas e apresentações	LibreOffice — documents, tableurs et présentations
+Thunderbird — e-mail e agenda	Thunderbird — e-mail et agenda
+Bitwarden — gerenciador de senhas	Bitwarden — gestionnaire de mots de passe
+Telegram — mensagens	Telegram — messagerie
+Signal — mensagens com criptografia	Signal — messagerie chiffrée
+Discord — voz e comunidades	Discord — voix et communautés
+OBS Studio — gravar e transmitir	OBS Studio — enregistrer et diffuser
+GIMP — editar imagens	GIMP — retouche d'images
+Inkscape — desenho vetorial	Inkscape — dessin vectoriel
+VLC — vídeos e músicas	VLC — vidéos et musique
+Spotify — música	Spotify — musique
+Steam — loja e biblioteca de jogos	Steam — boutique et bibliothèque de jeux
+Heroic — jogos da Epic, GOG e Amazon	Heroic — jeux Epic, GOG et Amazon
+Podman Desktop — contêineres com janelas	Podman Desktop — conteneurs en interface graphique
+Zed — editor de código	Zed — éditeur de code
+Flatseal — permissões dos apps Flatpak	Flatseal — permissions des applications Flatpak
+Warehouse — gerenciar apps Flatpak	Warehouse — gérer les applications Flatpak
+Loupe — imagens	Loupe — images
+Papers — PDF e documentos	Papers — PDF et documents

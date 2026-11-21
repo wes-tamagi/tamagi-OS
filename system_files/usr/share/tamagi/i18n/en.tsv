@@ -250,3 +250,80 @@ Apagar a VM e o disco dela? O modelo compactado fica.	Delete the VM and its disk
 VM removida	VM removed
 não é uma imagem qcow2	not a qcow2 image
 ISO apagada	ISO deleted
+# primeiro login: o que instalar; tamagi-antigravity
+O que instalar	What to install
+O sistema vem enxuto: escolha o que quer agora. O resto continua a um	The system comes lean: pick what you want now. Everything else stays one
+clique depois, no Super+Espaço (Instalar).	click away later, in Super+Space (Install).
+Chrome — navegador, numa caixa Fedora	Chrome — browser, in a Fedora box
+Claude Code — agente de programação da Anthropic	Claude Code — Anthropic's coding agent
+Antigravity — IDE agêntica do Google, com o Chrome	Antigravity — Google's agentic IDE, with Chrome
+Espaço marca/desmarca · Enter instala · nada marcado: instala nada	Space toggles · Enter installs · nothing selected: installs nothing
+Não deu agora. Depois: claude	Not now. Later: claude
+Não deu agora. Depois: tamagi-antigravity	Not now. Later: tamagi-antigravity
+Não deu agora (sem rede?). Depois: Super+Espaço, Instalar.	Not now (no network?). Later: Super+Space, Install.
+OnlyOffice — documentos, planilhas e apresentações	OnlyOffice — documents, spreadsheets and presentations
+Bottles — programas do Windows (Wine)	Bottles — Windows programs (Wine)
+Mission Center — monitor do sistema	Mission Center — system monitor
+DistroShelf — caixas distrobox com janelas	DistroShelf — distrobox boxes with a GUI
+COSMIC Tweaks — ajustes extras do COSMIC	COSMIC Tweaks — extra COSMIC settings
+Examine — informações do hardware	Examine — hardware information
+O Antigravity é do Google e é baixado agora, na sua máquina (termos do Google).	Antigravity is Google software and is downloaded now, on your machine (Google's terms).
+Antigravity instalado. Ele já aparece no lançador.	Antigravity installed. It is already in the launcher.
+Antigravity não está instalado	Antigravity is not installed
+Antigravity removido	Antigravity removed
+# tamagi-isolar
+opção desconhecida	unknown option
+Jaula mantida em	Jail kept at
+arquivo não encontrado	file not found
+Isolado	Isolated
+sem rede	no network
+pasta pessoal escondida	home folder hidden
+sistema só leitura	system read-only
+COM rede	WITH network
+O programa terminou	The program finished
+A jaula foi apagada.	The jail was deleted.
+# primeiro login: catálogo de apps (inspirado no aeon-firstboot)
+O sistema vem enxuto: escolha os apps agora. Eles baixam em segundo plano	The system comes lean: pick your apps now. They download in the background
+enquanto você segue; o resto continua no Super+Espaço (Instalar).	while you carry on; everything else stays in Super+Space (Install).
+Navegadores	Browsers
+Escritório	Office
+Comunicação	Communication
+Criação	Creative
+Jogos	Games
+Desenvolvimento	Development
+Instalar o recomendado	Install the recommended set
+Escolher app por app	Pick app by app
+Apps	Apps
+Instalando em segundo plano: pode continuar. Uma notificação avisa quando terminar.	Installing in the background: you can carry on. A notification tells you when it's done.
+Não deu para começar agora. Depois: Super+Espaço, Instalar.	Could not start now. Later: Super+Space, Install.
+Depois: Super+Espaço, Instalar.	Later: Super+Space, Install.
+Instalando em segundo plano	Installing in the background
+Nada sendo instalado	Nothing being installed
+esperando a conexão com a internet	waiting for the internet connection
+navegador padrão	default browser
+Seus apps estão prontos	Your apps are ready
+Tudo o que você escolheu no primeiro login foi instalado.	Everything you picked at first login has been installed.
+Alguns apps não foram instalados	Some apps were not installed
+tente de novo pelo Super+Espaço (Instalar).	try again from Super+Space (Install).
+Pika Backup — cópias de segurança para um disco ou servidor	Pika Backup — backups to a disk or server
+Firefox — navegador da Mozilla	Firefox — Mozilla's browser
+Brave — navegador com bloqueio de anúncios	Brave — browser with ad blocking
+LibreOffice — documentos, planilhas e apresentações	LibreOffice — documents, spreadsheets and presentations
+Thunderbird — e-mail e agenda	Thunderbird — email and calendar
+Bitwarden — gerenciador de senhas	Bitwarden — password manager
+Telegram — mensagens	Telegram — messaging
+Signal — mensagens com criptografia	Signal — encrypted messaging
+Discord — voz e comunidades	Discord — voice and communities
+OBS Studio — gravar e transmitir	OBS Studio — record and stream
+GIMP — editar imagens	GIMP — image editing
+Inkscape — desenho vetorial	Inkscape — vector drawing
+VLC — vídeos e músicas	VLC — videos and music
+Spotify — música	Spotify — music
+Steam — loja e biblioteca de jogos	Steam — game store and library
+Heroic — jogos da Epic, GOG e Amazon	Heroic — Epic, GOG and Amazon games
+Podman Desktop — contêineres com janelas	Podman Desktop — containers with a GUI
+Zed — editor de código	Zed — code editor
+Flatseal — permissões dos apps Flatpak	Flatseal — Flatpak app permissions
+Warehouse — gerenciar apps Flatpak	Warehouse — manage Flatpak apps
+Loupe — imagens	Loupe — images
+Papers — PDF e documentos	Papers — PDF and documents

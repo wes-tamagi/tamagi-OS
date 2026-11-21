@@ -8,8 +8,8 @@ Microsoft, Basecamp, Tailscale, Google ou Anthropic.
 
 Marcas
 ------
-Fedora, Pop!_OS, COSMIC, Ubuntu, Windows, Omarchy, Tailscale, Chrome e Claude
-são marcas de seus respectivos donos. Aparecem no Tamagi só para descrever
+Fedora, Pop!_OS, COSMIC, Ubuntu, Windows, Omarchy, Tailscale, Chrome,
+Antigravity e Claude são marcas de seus respectivos donos. Aparecem no Tamagi só para descrever
 compatibilidade, a origem de um componente ou a inspiração de uma ideia.
 
 - A imagem não traz os logos do Fedora: o pacote fedora-logos é trocado pelo
@@ -32,8 +32,12 @@ Software que o Tamagi não redistribui
 - Windows: `tamagi-windows` usa o dockur/windows (MIT), que baixa o Windows
   dos servidores da Microsoft na máquina do usuário, depois de um aviso de
   licença. O uso do Windows exige licença válida da Microsoft.
-- Google Chrome: baixado na máquina do usuário, dentro da caixa de navegadores
-  (tamagi-browser), sob os termos do Google.
+- Google Chrome e Antigravity: baixados na máquina do usuário, dentro da
+  caixa de navegadores (tamagi-browser, tamagi-antigravity), sob os termos do
+  Google.
+- Claude Code: o comando `claude` da imagem é só um atalho que, no primeiro
+  uso, baixa o Claude Code da Anthropic na máquina do usuário (checksum do
+  manifesto conferido), sob os termos da Anthropic.
 - Apps Flatpak (Bottles, OnlyOffice, FreeRDP, GPU Screen Recorder, Smile e
   outros): instalados do Flathub na máquina do usuário, cada um com a sua
   licença.
@@ -49,7 +53,6 @@ Os pacotes do Fedora e do Universal Blue mantêm as suas licenças (veja
 - starship — ISC
 - mise — MIT
 - Tailscale — BSD-3-Clause (cliente), do repositório oficial da Tailscale
-- Claude Code — software da Anthropic, sujeito aos termos da Anthropic
 
 Código do Tamagi
 ----------------

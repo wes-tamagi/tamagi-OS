@@ -301,11 +301,36 @@ novo que o publicado, a primeira atualização automática troca o sistema pela
 imagem do registry — mais antiga. A ordem certa: `git push` (o CI publica no
 GHCR), e só então `just build-iso`.
 
+## Dois recursos do Tamagi
+
+### O que muda nesta atualização
+
+Quando uma atualização fica pronta, a notificação já diz o que muda (ex.:
+"Kernel: 7.3.4 → 7.3.6 · Desktop COSMIC: 1.11 → 1.12 · 214 pacotes
+atualizados") em vez de só "reinicie". `tamagi-update novidades` mostra os
+destaques (kernel, COSMIC, Mesa, systemd, firmware, rede, áudio…), os pacotes
+que entram e saem e, com a IA local ligada (`tamagi-ai`), um resumo de três
+frases no seu idioma, escrito só a partir da lista real de pacotes. Vem do
+`rpm-ostree db diff` entre a imagem em uso e a que está pronta.
+
+### Abrir isolado
+
+Para o script baixado da internet, o AppImage de origem duvidosa, o binário que
+um tutorial manda rodar: `tamagi-isolar arquivo` (ou, no COSMIC Files, botão
+direito → Abrir com → "Abrir isolado"). O programa roda numa jaula
+descartável do bubblewrap (o mesmo dos Flatpaks): **sem rede**, com a **pasta
+pessoal escondida** (ele vê uma pasta vazia), o resto do sistema **só para
+leitura**, sem D-Bus e sem ver os outros processos — mas com tela, som e placa
+de vídeo. O arquivo é copiado para dentro (o original não muda) e a jaula é
+apagada no fim (`--manter` guarda para inspecionar; `--rede` libera a rede).
+Limite: o X11 (Xwayland) fica disponível para os programas que só falam X11,
+e um programa X11 pode enxergar outras janelas X11.
+
 ## Programas do Windows
 
 Dois caminhos, conforme o programa:
 
-- **Bottles (Wine), o padrão:** vem no primeiro boot, e dois cliques num
+- **Bottles (Wine), o padrão:** oferecido no primeiro login, e dois cliques num
   `.exe` ou `.msi` abrem nele. Não precisa de Windows nem de licença, não
   reserva memória e usa a GPU de verdade (DXVK/VKD3D). Bom para programas e
   jogos Win32; Office 365 e Adobe costumam não funcionar.
@@ -452,7 +477,8 @@ As ferramentas `tamagi-*` são bash e Python.
 tamagi-ai setup          # recomenda um modelo pelo hardware, baixa e liga o servidor
 ia "por que meu boot está lento?"    # agente do sistema, 100% local
 tamagi-ai chat | code    # interface web do llama.cpp | opencode no modelo local
-claude                   # Claude Code, já instalado (também no menu e na dock)
+claude                   # Claude Code: baixado da Anthropic no primeiro uso (também no menu e na dock)
+tamagi-antigravity       # Antigravity (IDE do Google), instalado na caixa de navegadores no primeiro uso
 ```
 
 - **llama.cpp v1.0.0** compilado na imagem com Vulkan e variantes de CPU
@@ -511,8 +537,20 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   atalhos. `tamagi-lang pick` troca depois de instalado.
 - **Fontes:** Noto Sans na interface, Roboto Slab como fonte com serifa
   (documentos), JetBrains Mono no terminal.
-- **Flatpak (primeiro boot):** OnlyOffice, Flatseal, Warehouse, Mission Center,
-  Loupe, Papers, DistroShelf, COSMIC Tweaks, Examine e três applets do COSMIC.
+- **Apps (inspirado no primeiro login do openSUSE Aeon):** no primeiro boot
+  entram sozinhos só os essenciais e leves (Flatseal, Warehouse, Loupe, Papers
+  e três applets do COSMIC). No primeiro login, uma decisão só: **Instalar o
+  recomendado** (Chrome, Mission Center, Pika Backup) com um Enter, ou
+  **Escolher app por app** num catálogo de ~30 apps por categoria
+  (navegadores, escritório, comunicação, criação, jogos, desenvolvimento e
+  sistema), com o tamanho de cada um e preferência pelos verificados pelo
+  próprio fabricante no Flathub. Diferente do Aeon, os apps baixam **em segundo
+  plano** (unidade do systemd do usuário, esperando a rede): o assistente segue
+  com as outras perguntas e uma notificação avisa quando termina
+  (`/usr/libexec/tamagi/apps-setup status`). Escolhendo só o Firefox ou o
+  Brave, ele vira o navegador padrão. O catálogo fica em
+  `/usr/share/tamagi/flatpaks.list`; o que ficar de fora continua no
+  `Super+Espaço` (Instalar).
 - **Temas:** `tamagi-theme set <tema>` — tokyo-night, catppuccin, gruvbox,
   nord, everforest, rose-pine, kanagawa, matte-black, ristretto, latte e ipe
   (o tema próprio do Tamagi: verde-noite com destaque no amarelo do ipê).
@@ -707,10 +745,14 @@ Canonical. O Windows exige licença válida da Microsoft. Detalhes em `NOTICE`
   [pop-os/cosmic-comp#1384](https://github.com/pop-os/cosmic-comp/issues/1384)):
   o Tamagi espera entrar no oficial. VRR e `gamescope` embutido têm falhas
   conhecidas no compositor.
-- O Claude Code tem versão fixa no `Containerfile` (`CLAUDE_CODE_VERSION`):
-  só muda quando esse número é trocado.
+- Claude Code e Antigravity são proprietários e não vêm na imagem pública:
+  o `claude` baixa o Claude Code da Anthropic no primeiro uso (canal estável,
+  checksum conferido) para `~/.local/bin`, de onde ele se atualiza sozinho; o
+  `tamagi-antigravity` instala o Antigravity na caixa de navegadores, ao lado
+  do Chrome que o agente dele usa (o repositório do Google ainda não tem
+  assinatura de pacote: a integridade depende do HTTPS).
 - A imagem traz locales e traduções só de inglês, português, espanhol e
-  francês. Android (Waydroid), Qwen Code, Antigravity, omacalc/omawrite e os
+  francês. Android (Waydroid), Qwen Code, omacalc/omawrite e os
   escalonadores scx saíram da imagem para reduzir manutenção e tamanho.
 - O rollback automático grava o digest defeituoso em `/var/lib/tamagi/quarantine.list`,
   impedindo que a atualização automática reinstale a mesma imagem quebrada

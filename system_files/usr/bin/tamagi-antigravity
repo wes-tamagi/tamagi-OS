@@ -1,0 +1,42 @@
+#!/usr/bin/bash
+# tamagi-antigravity — o Antigravity (IDE agêntica do Google), sob demanda.
+#
+# Software do Google: não vem na imagem. É instalado na caixa de navegadores
+# (Fedora, distrobox), ao lado do Chrome que o agente dele usa para navegar e
+# testar páginas, e aparece no menu do COSMIC como um app comum.
+#
+#   tamagi-antigravity            abre (instala na primeira vez, ~600 MB)
+#   tamagi-antigravity instalar
+#   tamagi-antigravity remover    tira da caixa (configurações em ~/.antigravity ficam)
+#   (atualiza junto com a caixa: tamagi-browser update)
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+BOX="${TAMAGI_BROWSER_BOX:-navegadores}"
+LIBEXEC=/run/host/usr/libexec/tamagi
+
+in_box() { distrobox enter "$BOX" -- "$@"; }
+installed() { podman container exists "$BOX" 2>/dev/null && in_box sh -c 'command -v antigravity >/dev/null' 2>/dev/null; }
+
+install_app() {
+    echo "$(t "O Antigravity é do Google e é baixado agora, na sua máquina (termos do Google).")"
+    # A caixa de navegadores (com o Chrome) é a casa dele.
+    tamagi-browser setup
+    in_box sudo "$LIBEXEC/browser-provision" app antigravity
+    in_box distrobox-export --app antigravity >/dev/null
+    echo "$(t "Antigravity instalado. Ele já aparece no lançador.")"
+}
+
+case "${1:-abrir}" in
+    abrir|open)
+        installed || install_app
+        exec distrobox enter "$BOX" -- antigravity "${@:2}" ;;
+    instalar|install) install_app ;;
+    remover|remove)
+        installed || { echo "$(t "Antigravity não está instalado")"; exit 0; }
+        in_box distrobox-export --app antigravity --delete >/dev/null 2>&1 || true
+        in_box sudo dnf -y remove antigravity
+        echo "$(t "Antigravity removido")" ;;
+    -h|--help|ajuda) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) echo "uso: tamagi-antigravity [abrir|instalar|remover]" >&2; exit 2 ;;
+esac

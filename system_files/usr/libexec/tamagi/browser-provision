@@ -3,6 +3,7 @@
 # tamagi-browser, pelo /run/host.
 #   browser-provision base                  vídeo por hardware, fontes, pt-BR
 #   browser-provision install <navegador>   chrome | firefox | brave | edge | vivaldi
+#   browser-provision app antigravity       IDE do Google (usa o Chrome desta caixa)
 #   browser-provision upgrade               dnf upgrade
 set -euo pipefail
 REPOS=/etc/yum.repos.d
@@ -88,9 +89,28 @@ JS
     esac
 }
 
+install_app() {
+    [[ -f $STAMP ]] || base
+    case "$1" in
+        antigravity)
+            # Repositório oficial do Google. Ele ainda não publica chave para os
+            # pacotes (gpgcheck=0 é a instrução deles): a integridade depende do HTTPS.
+            cat > "$REPOS/antigravity.repo" <<'REPO'
+[antigravity-rpm]
+name=Antigravity RPM Repository
+baseurl=https://us-central1-yum.pkg.dev/projects/antigravity-auto-updater-dev/antigravity-rpm
+enabled=1
+gpgcheck=0
+REPO
+            dnf_install antigravity ;;
+        *) die "app desconhecido: $1 (use: antigravity)" ;;
+    esac
+}
+
 case "${1:-}" in
     base)    base ;;
+    app)     [[ -n ${2:-} ]] || die "diga o app"; install_app "$2" ;;
     install) [[ -n ${2:-} ]] || die "diga o navegador"; install_browser "$2" ;;
     upgrade) dnf -y upgrade --refresh ;;
-    *) die "uso: browser-provision base | install <navegador> | upgrade" ;;
+    *) die "uso: browser-provision base | install <navegador> | app <app> | upgrade" ;;
 esac

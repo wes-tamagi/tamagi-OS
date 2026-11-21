@@ -584,6 +584,27 @@ es = "En virt-manager, sin root; tamagi-popos compact crea la imagen para VM"
 fr = "Dans virt-manager, sans root ; tamagi-popos compact crée l'image pour VM"
 
 [[action]]
+id = "install.antigravity"
+category = "install"
+icon = "applications-development-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-antigravity instalar"
+keywords = "antigravity google ide agente ia gemini editor vscode"
+[action.title]
+pt = "Antigravity (IDE do Google)"
+en = "Antigravity (Google's IDE)"
+es = "Antigravity (IDE de Google)"
+fr = "Antigravity (IDE de Google)"
+[action.subtitle]
+pt = "Na caixa de navegadores, ao lado do Chrome que o agente usa (~700 MB)"
+en = "In the browser box, next to the Chrome its agent uses (~700 MB)"
+es = "En la caja de navegadores, junto al Chrome que usa el agente (~700 MB)"
+fr = "Dans la boîte des navigateurs, à côté du Chrome utilisé par l'agent (~700 Mo)"
+
+[[action]]
 id = "windows.stop"
 category = "power"
 icon = "media-playback-stop-symbolic"
@@ -771,6 +792,48 @@ pt = "Imagem bootc, camadas, Flatpaks, caixas e mise"
 en = "bootc image, layers, Flatpaks, boxes, and mise"
 es = "Imagen bootc, capas, Flatpaks, cajas y mise"
 fr = "Image bootc, couches, Flatpaks, boîtes et mise"
+
+[[action]]
+id = "system.changes"
+category = "system"
+icon = "software-update-available-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-update novidades"
+keywords = "novidades mudancas changelog atualizacao update o que muda kernel versao"
+[action.title]
+pt = "O que muda na próxima atualização"
+en = "What changes in the next update"
+es = "Qué cambia en la próxima actualización"
+fr = "Ce qui change dans la prochaine mise à jour"
+[action.subtitle]
+pt = "Kernel, desktop, drivers e pacotes; resumo da IA local, se ligada"
+en = "Kernel, desktop, drivers and packages; local AI summary, if on"
+es = "Kernel, escritorio, drivers y paquetes; resumen de la IA local, si está activa"
+fr = "Noyau, bureau, pilotes et paquets ; résumé de l'IA locale, si active"
+
+[[action]]
+id = "system.isolate"
+category = "system"
+icon = "security-high-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "bash -c 'f=$(gum file \"$HOME/Downloads\" 2>/dev/null) && [[ -n $f ]] && /usr/libexec/tamagi/isolar-janela \"$f\"'"
+keywords = "isolar isolado sandbox jaula seguro suspeito appimage script desconfiado"
+[action.title]
+pt = "Abrir um programa isolado"
+en = "Open a program isolated"
+es = "Abrir un programa aislado"
+fr = "Ouvrir un programme isolé"
+[action.subtitle]
+pt = "Sem rede e sem ver a sua pasta pessoal (scripts, AppImages, binários)"
+en = "No network and no access to your home folder (scripts, AppImages, binaries)"
+es = "Sin red y sin ver tu carpeta personal (scripts, AppImages, binarios)"
+fr = "Sans réseau ni accès à votre dossier personnel (scripts, AppImages, binaires)"
 
 [[action]]
 id = "system.autoupdate"

@@ -15,7 +15,7 @@ SCRIPTS = [
     "tamagi-firstrun", "tamagi-keys", "tamagi-assist", "tamagi-lang",
     "tamagi-panel", "tamagi-theme", "tamagi-ai", "tamagi-update",
     "tamagi-boot-report", "tamagi-windows", "tamagi-db", "tamagi-lembrete",
-    "tamagi-dev", "tamagi-font", "tamagi-popos",
+    "tamagi-dev", "tamagi-font", "tamagi-popos", "tamagi-antigravity", "tamagi-isolar",
 ]
 STR = r'"((?:[^"\\$]|\\.)*)"'
 CALLS = re.compile(r'(?:\$\(|\b)(?:tl?|step|confirm|input|timer_line)\s+' + STR)
@@ -68,9 +68,25 @@ def check_actions_toml(root):
     return bad
 
 
+def flatpak_catalog(root):
+    """Categorias e descrições de flatpaks.list que o assistente mostra
+    (tipos recomendado e opcional): passam por t() e precisam de tradução."""
+    path = root / "usr/share/tamagi/flatpaks.list"
+    found = []
+    if path.is_file():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(None, 5)
+            if len(parts) == 6 and parts[2] in ("recomendado", "opcional"):
+                found += [parts[3], parts[5]]
+    return found
+
+
 def main():
     root = pathlib.Path(sys.argv[1])
     wanted = strings(root)
+    wanted += [s for s in flatpak_catalog(root) if s not in wanted]
     if "--check" not in sys.argv:
         print("\n".join(wanted))
         return

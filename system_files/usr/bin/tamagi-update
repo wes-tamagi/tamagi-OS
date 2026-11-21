@@ -8,6 +8,7 @@
 #   tamagi-update auto on|off  liga ou desliga a atualização automática
 #   tamagi-update quarantine   mostra digests bloqueados após falha de boot
 #   tamagi-update unquarantine limpa a quarentena de digests
+#   tamagi-update novidades    o que muda na atualização pronta (com resumo da IA local)
 set -uo pipefail
 # shellcheck source=/dev/null
 . /usr/libexec/tamagi/i18n
@@ -65,6 +66,8 @@ update_system() {
         fi
         if bootc status --format json 2>/dev/null | jq -e '.status.staged != null' >/dev/null 2>&1; then
             tl "Nova imagem pronta: entra em uso no próximo boot."
+            echo
+            /usr/libexec/tamagi/update-changes --sem-ia || true
         fi
     else
         tl "Não consegui atualizar a imagem. Se ela foi instalada de um build local, publique-a"
@@ -134,8 +137,12 @@ update_auto() { # chamado pelo tamagi-autoupdate.timer: sem perguntas e sem senh
     fi
     # A imagem nova é baixada pelo sistema em segundo plano; aqui só o aviso.
     if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
+        # O que muda, numa linha (kernel, desktop, drivers…); detalhes e resumo
+        # da IA local: tamagi-update novidades.
+        changes=$(/usr/libexec/tamagi/update-changes --curto 2>/dev/null || true)
         notify-send -a Tamagi -i system-software-update "$(t "Atualização do sistema pronta")" \
-            "$(t "Ela entra em uso quando você reiniciar o computador.")" 2>/dev/null || true
+            "${changes:+$changes
+}$(t "Ela entra em uso quando você reiniciar o computador.") (tamagi-update novidades)" 2>/dev/null || true
     fi
 }
 
@@ -201,6 +208,7 @@ case "${1:-all}" in
     --system)     update_system ;;
     --auto)       update_auto ;;
     status)       status_auto; exit 0 ;;
+    novidades|changes) /usr/libexec/tamagi/update-changes "${@:2}"; exit $? ;;
     quarantine)   cmd_quarantine; exit 0 ;;
     unquarantine) cmd_unquarantine; exit 0 ;;
     auto)         case "${2:-}" in on|off) set_auto "$2"; exit 0 ;; *) echo "usage: tamagi-update auto on|off" >&2; exit 2 ;; esac ;;

@@ -45,14 +45,48 @@ mkdir -p ~/.config/cosmic/com.system76.CosmicComp/v1
 echo "$tiling" > ~/.config/cosmic/com.system76.CosmicComp/v1/autotile
 tl "Super+Y alterna entre os dois modos a qualquer momento."
 
-step "Navegador"
-tl "Os navegadores vivem numa caixa Fedora (distrobox), com a placa de vídeo"
-tl "do computador e sem tocar no host. O Chrome é preparado no primeiro uso"
-tl "(baixa cerca de 600 MB)."
-if ask "Preparar o Chrome agora?"; then
-    tamagi-browser setup || tl "Não deu agora (sem rede?). Ele é preparado quando você abrir o navegador."
+step "O que instalar"
+tl "O sistema vem enxuto: escolha os apps agora. Eles baixam em segundo plano"
+tl "enquanto você segue; o resto continua no Super+Espaço (Instalar)."
+# Catálogo: os Flatpaks recomendados e opcionais de flatpaks.list, mais o que
+# vive fora do Flatpak (Chrome e Antigravity na caixa de navegadores, Claude Code).
+labels=() actions=() preset=()
+add_opt() { labels+=("$1"); actions+=("$2"); [[ ${3:-} == on ]] && preset+=("$1"); return 0; }
+add_opt "[$(t "Navegadores")] $(t "Chrome — navegador, numa caixa Fedora") (≈ 600 MB)" "browser" on
+while read -r remote app kind cat size desc; do
+    [[ -z $remote || $remote == \#* ]] && continue
+    case $kind in recomendado) on=on ;; opcional) on= ;; *) continue ;; esac
+    add_opt "[$(t "$cat")] $(t "$desc") (≈ $size)" "flatpak:$remote:$app" "$on"
+done < /usr/share/tamagi/flatpaks.list
+add_opt "[$(t "Desenvolvimento")] $(t "Claude Code — agente de programação da Anthropic") (≈ 220 MB)" "claude"
+add_opt "[$(t "Desenvolvimento")] $(t "Antigravity — IDE agêntica do Google, com o Chrome") (≈ 700 MB)" "antigravity"
+
+rec=$(t "Instalar o recomendado"); pick=$(t "Escolher app por app"); skip=$(t "agora não")
+mode=$(gum choose --header "$(t "Apps")" "$rec — Chrome, Mission Center, Pika Backup" "$pick" "$skip") || mode=$skip
+chosen=""
+case $mode in
+    "$rec"*) chosen=$(printf '%s\n' "${preset[@]}") ;;
+    "$pick") selected=$(IFS=,; echo "${preset[*]}")
+             chosen=$(printf '%s\n' "${labels[@]}" | gum choose --no-limit --height 18 --selected "$selected" \
+                 --header "$(t "Espaço marca/desmarca · Enter instala · nada marcado: instala nada")") || chosen="" ;;
+esac
+if [[ -n $chosen ]]; then
+    queue="${XDG_STATE_HOME:-$HOME/.local/state}/tamagi/apps-setup.queue"
+    mkdir -p "$(dirname "$queue")"; : > "$queue"
+    while IFS= read -r line; do
+        for i in "${!labels[@]}"; do [[ ${labels[$i]} == "$line" ]] && echo "${actions[$i]}" >> "$queue"; done
+    done <<<"$chosen"
+    # Sem o Chrome, o primeiro navegador Flatpak escolhido vira o padrão.
+    if ! grep -qx browser "$queue"; then
+        fb=$(grep -oE '^flatpak:flathub:(org\.mozilla\.firefox|com\.brave\.Browser)$' "$queue" | head -1 | cut -d: -f3)
+        [[ -n $fb ]] && echo "default-browser:$fb" >> "$queue"
+    fi
+    systemd-run --user --quiet --collect --unit tamagi-apps-setup --setenv=TAMAGI_LANG="$TAMAGI_LANG" \
+        /usr/libexec/tamagi/apps-setup "$queue" \
+        && tl "Instalando em segundo plano: pode continuar. Uma notificação avisa quando terminar." \
+        || tl "Não deu para começar agora. Depois: Super+Espaço, Instalar."
 else
-    tl "Depois: abra o navegador, ou rode tamagi-browser setup"
+    tl "Depois: Super+Espaço, Instalar."
 fi
 
 step "Caixa de desenvolvimento (distrobox)"
@@ -99,6 +133,7 @@ fi
 mkdir -p "$(dirname "$STAMP")"
 touch "$STAMP"
 step "Pronto"
+/usr/libexec/tamagi/apps-setup status
 tl "Super+Espaço abre o menu · Super+K mostra os atalhos · Super+A ações rápidas."
 tl "Jogos: ujust setup-gaming · Segurança: tamagi-harden status · Idioma: tamagi-lang pick"
 read -rsn1 -p "  ($(t "qualquer tecla fecha"))"

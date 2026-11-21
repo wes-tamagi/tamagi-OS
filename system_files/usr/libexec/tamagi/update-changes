@@ -1,0 +1,211 @@
+#!/usr/bin/python3
+"""update-changes — "o que muda nesta atualização", em linguagem simples.
+
+Compara a imagem em uso com a que está pronta para o próximo boot (ou duas
+imagens quaisquer do ostree) e mostra o que importa: kernel, desktop, drivers
+de vídeo, systemd, firmware… e quantos pacotes sobem de versão, entram e saem.
+Com a IA local ligada (tamagi-ai), ela escreve um resumo curto no seu idioma.
+
+  update-changes                     imagem em uso -> atualização pronta
+  update-changes --curto             uma linha (para a notificação)
+  update-changes --sem-ia            sem o resumo da IA local
+  update-changes --de A --para B     duas imagens (commits do ostree)
+  update-changes --texto ARQUIVO     lê a saída de `rpm-ostree db diff` (testes)
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.request
+
+LANG = (os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+        or os.environ.get("LANG") or "pt")[:2].lower()
+AI_URL = os.environ.get("TAMAGI_AI_URL", "http://127.0.0.1:%s/v1" % os.environ.get("TAMAGI_AI_PORT", "9931"))
+
+# Pacotes que contam a história de uma atualização, em ordem de destaque.
+HIGHLIGHTS = [
+    ("kernel-core", {"pt": "Kernel", "en": "Kernel", "es": "Kernel", "fr": "Noyau"}),
+    ("cosmic-comp", {"pt": "Desktop COSMIC", "en": "COSMIC desktop", "es": "Escritorio COSMIC", "fr": "Bureau COSMIC"}),
+    ("mesa-dri-drivers", {"pt": "Drivers de vídeo (Mesa)", "en": "Graphics drivers (Mesa)", "es": "Drivers de vídeo (Mesa)", "fr": "Pilotes graphiques (Mesa)"}),
+    ("systemd", {"pt": "systemd", "en": "systemd", "es": "systemd", "fr": "systemd"}),
+    ("glibc", {"pt": "glibc", "en": "glibc", "es": "glibc", "fr": "glibc"}),
+    ("linux-firmware", {"pt": "Firmware", "en": "Firmware", "es": "Firmware", "fr": "Micrologiciels"}),
+    ("NetworkManager", {"pt": "Rede (NetworkManager)", "en": "Networking (NetworkManager)", "es": "Red (NetworkManager)", "fr": "Réseau (NetworkManager)"}),
+    ("pipewire", {"pt": "Áudio (PipeWire)", "en": "Audio (PipeWire)", "es": "Audio (PipeWire)", "fr": "Audio (PipeWire)"}),
+    ("podman", {"pt": "Podman", "en": "Podman", "es": "Podman", "fr": "Podman"}),
+    ("flatpak", {"pt": "Flatpak", "en": "Flatpak", "es": "Flatpak", "fr": "Flatpak"}),
+    ("tailscale", {"pt": "Tailscale", "en": "Tailscale", "es": "Tailscale", "fr": "Tailscale"}),
+    ("openssl-libs", {"pt": "OpenSSL", "en": "OpenSSL", "es": "OpenSSL", "fr": "OpenSSL"}),
+]
+MSG = {
+    "none": {"pt": "Nenhuma atualização pronta para o próximo boot.", "en": "No update staged for the next boot.",
+             "es": "No hay ninguna actualización lista para el próximo arranque.", "fr": "Aucune mise à jour prête pour le prochain démarrage."},
+    "same": {"pt": "A atualização não muda nenhum pacote (só configuração ou arte).",
+             "en": "The update changes no packages (only configuration or artwork).",
+             "es": "La actualización no cambia ningún paquete (solo configuración o arte).",
+             "fr": "La mise à jour ne change aucun paquet (seulement configuration ou visuels)."},
+    "title": {"pt": "O que muda nesta atualização", "en": "What changes in this update",
+              "es": "Qué cambia en esta actualización", "fr": "Ce qui change dans cette mise à jour"},
+    "counts": {"pt": "{u} pacotes atualizados, {a} novos, {r} removidos",
+               "en": "{u} packages upgraded, {a} added, {r} removed",
+               "es": "{u} paquetes actualizados, {a} nuevos, {r} eliminados",
+               "fr": "{u} paquets mis à jour, {a} ajoutés, {r} supprimés"},
+    "added": {"pt": "Novos", "en": "Added", "es": "Nuevos", "fr": "Ajoutés"},
+    "removed": {"pt": "Removidos", "en": "Removed", "es": "Eliminados", "fr": "Supprimés"},
+    "ai": {"pt": "Resumo da IA local", "en": "Local AI summary", "es": "Resumen de la IA local", "fr": "Résumé de l'IA locale"},
+    "reboot": {"pt": "Entra em uso quando você reiniciar.", "en": "It takes effect when you reboot.",
+               "es": "Entra en uso cuando reinicies.", "fr": "Elle s'applique au redémarrage."},
+}
+
+
+def tr(key, **kw):
+    m = MSG[key]
+    return (m.get(LANG) or m["en"]).format(**kw)
+
+
+def label(names):
+    return names.get(LANG) or names["en"]
+
+
+def parse(text):
+    """Saída de texto do `rpm-ostree db diff` -> {upgraded: {nome: (de, para)}, downgraded, added, removed}."""
+    out = {"upgraded": {}, "downgraded": {}, "added": [], "removed": []}
+    section = None
+    heads = {"Upgraded:": "upgraded", "Downgraded:": "downgraded", "Added:": "added", "Removed:": "removed"}
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        if line.strip() in heads:
+            section = heads[line.strip()]
+            continue
+        if not line.startswith(" ") or section is None:
+            if line and not line.startswith(" "):
+                section = None
+            continue
+        item = line.strip()
+        if section in ("upgraded", "downgraded"):
+            m = re.match(r"^(\S+)\s+(\S+)\s+->\s+(\S+)$", item)
+            if m:
+                out[section][m.group(1)] = (m.group(2), m.group(3))
+        else:
+            # nome-versão-release.arch -> nome
+            m = re.match(r"^(.+?)-(?:\d+:)?[^-]+-[^-]+$", item)
+            out[section].append(m.group(1) if m else item)
+    return out
+
+
+def short_ver(evr):
+    """7.3.5-200.fc45 -> 7.3.5 ; 1.11.0-2.fc45 -> 1.11.0"""
+    return re.sub(r"-[^-]+$", "", evr.split(":")[-1])
+
+
+def staged_diff():
+    st = subprocess.run(["rpm-ostree", "status", "--json"], capture_output=True, text=True, check=False)
+    try:
+        deps = json.loads(st.stdout).get("deployments", [])
+    except ValueError:
+        deps = []
+    booted = next((d for d in deps if d.get("booted")), None)
+    staged = next((d for d in deps if d.get("staged")), None)
+    if not booted or not staged:
+        return None
+    return diff(booted["checksum"], staged["checksum"])
+
+
+def diff(a, b):
+    r = subprocess.run(["rpm-ostree", "db", "diff", a, b], capture_output=True, text=True, check=False)
+    if r.returncode != 0:
+        sys.exit(r.stderr.strip() or "rpm-ostree db diff falhou")
+    return r.stdout
+
+
+def highlights(d):
+    rows = []
+    for pkg, names in HIGHLIGHTS:
+        if pkg in d["upgraded"]:
+            old, new = d["upgraded"][pkg]
+            rows.append(f"{label(names)}: {short_ver(old)} → {short_ver(new)}")
+        elif pkg in d["downgraded"]:
+            old, new = d["downgraded"][pkg]
+            rows.append(f"{label(names)}: {short_ver(old)} → {short_ver(new)} (↓)")
+    return rows
+
+
+def ai_summary(d, hl):
+    """Pede à IA local um resumo de 3 linhas. None se ela não estiver ligada."""
+    try:
+        with urllib.request.urlopen(AI_URL + "/models", timeout=2) as resp:
+            models = [m["id"] for m in json.load(resp).get("data", [])]
+    except (OSError, ValueError, KeyError):
+        return None
+    if not models:
+        return None
+    lang = {"pt": "português do Brasil", "es": "español", "fr": "français"}.get(LANG, "English")
+    pkgs = ", ".join(f"{n} {short_ver(o)}->{short_ver(v)}" for n, (o, v) in list(d["upgraded"].items())[:80])
+    prompt = (f"Responda em {lang}, em no máximo 3 frases curtas, para alguém que não é técnico: "
+              f"o que esta atualização do sistema muda na prática? Destaques: {'; '.join(hl) or 'nenhum'}. "
+              f"Novos: {', '.join(d['added'][:30]) or 'nenhum'}. Removidos: {', '.join(d['removed'][:30]) or 'nenhum'}. "
+              f"Atualizados: {pkgs or 'nenhum'}. Não invente números de versão nem correções que não estejam na lista.")
+    body = json.dumps({"model": models[0], "messages": [{"role": "user", "content": prompt}],
+                       "max_tokens": 220, "temperature": 0.2}).encode()
+    req = urllib.request.Request(AI_URL + "/chat/completions", data=body,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            text = json.load(resp)["choices"][0]["message"]["content"].strip()
+    except (OSError, ValueError, KeyError, IndexError):
+        return None
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip() or None
+
+
+def main():
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("--curto", action="store_true")
+    ap.add_argument("--sem-ia", action="store_true")
+    ap.add_argument("--de")
+    ap.add_argument("--para")
+    ap.add_argument("--texto")
+    ap.add_argument("-h", "--help", action="store_true")
+    a = ap.parse_args()
+    if a.help:
+        print(__doc__)
+        return 0
+    if a.texto:
+        with open(a.texto, encoding="utf-8") as fh:
+            text = fh.read()
+    elif a.de and a.para:
+        text = diff(a.de, a.para)
+    else:
+        text = staged_diff()
+        if text is None:
+            print(tr("none"))
+            return 1
+    d = parse(text)
+    up = len(d["upgraded"]) + len(d["downgraded"])
+    hl = highlights(d)
+    counts = tr("counts", u=up, a=len(d["added"]), r=len(d["removed"]))
+    if a.curto:
+        print(" · ".join(hl[:3] + [counts]) if (up or d["added"] or d["removed"]) else tr("same"))
+        return 0
+    print(f"\033[1m{tr('title')}\033[0m")
+    if not (up or d["added"] or d["removed"]):
+        print("  " + tr("same"))
+        return 0
+    for row in hl:
+        print("  • " + row)
+    print("  " + counts)
+    if d["added"]:
+        print(f"  {tr('added')}: " + ", ".join(d["added"][:12]) + (" …" if len(d["added"]) > 12 else ""))
+    if d["removed"]:
+        print(f"  {tr('removed')}: " + ", ".join(d["removed"][:12]) + (" …" if len(d["removed"]) > 12 else ""))
+    if not a.sem_ia:
+        summary = ai_summary(d, hl)
+        if summary:
+            print(f"\n\033[1m{tr('ai')}\033[0m\n  " + summary.replace("\n", "\n  "))
+    print("\n" + tr("reboot"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

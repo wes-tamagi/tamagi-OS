@@ -1,0 +1,44 @@
+#!/usr/bin/bash
+# claude — Claude Code, baixado na sua máquina no primeiro uso.
+#
+# O Claude Code é software da Anthropic (proprietário): a imagem pública do
+# Tamagi não o carrega. Na primeira vez este atalho baixa o binário oficial
+# (canal estável) direto da Anthropic, confere o SHA256 do manifesto
+# publicado e deixa o instalador do próprio Claude Code colocá-lo em
+# ~/.local/bin, de onde ele se atualiza sozinho. Depois, só repassa para lá.
+#
+#   TAMAGI_CLAUDE_CHANNEL=latest claude    instala o canal "latest" em vez do estável
+set -euo pipefail
+
+USER_BIN="${HOME}/.local/bin/claude"
+BASE=https://downloads.claude.ai/claude-code-releases
+SELF=$(readlink -f "$0")
+
+# Já instalado na pasta pessoal: é ele que roda.
+if [[ -x $USER_BIN && $(readlink -f "$USER_BIN") != "$SELF" ]]; then
+    exec "$USER_BIN" "$@"
+fi
+
+case "${LANG:-}" in pt*) pt=1 ;; *) pt= ;; esac
+say() { if [[ -n $pt ]]; then echo "$1"; else echo "$2"; fi; }
+
+channel=${TAMAGI_CLAUDE_CHANNEL:-stable}
+[[ $channel =~ ^(stable|latest)$ ]] || { echo "TAMAGI_CLAUDE_CHANNEL: stable ou latest" >&2; exit 2; }
+say "Claude Code é da Anthropic e é baixado agora, na sua máquina (uso sujeito aos termos da Anthropic)." \
+    "Claude Code is Anthropic software and is downloaded now, on your machine (use is subject to Anthropic's terms)."
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+version=$(curl -fsSL "$BASE/$channel")
+[[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Claude Code: versão inesperada do canal $channel" >&2; exit 1; }
+checksum=$(curl -fsSL "$BASE/$version/manifest.json" | jq -r '.platforms["linux-x64"].checksum')
+[[ $checksum =~ ^[0-9a-f]{64}$ ]] || { echo "Claude Code: manifesto sem checksum" >&2; exit 1; }
+curl -fL --progress-bar -o "$tmp/claude" "$BASE/$version/linux-x64/claude"
+echo "$checksum  $tmp/claude" | sha256sum -c --quiet - \
+    || { echo "Claude Code: o arquivo baixado não confere com o checksum publicado" >&2; exit 1; }
+chmod +x "$tmp/claude"
+# O instalador do próprio Claude Code (o mesmo que o claude.ai/install.sh usa).
+"$tmp/claude" install "$channel" >/dev/null
+[[ -x $USER_BIN ]] || { echo "Claude Code: a instalação não criou $USER_BIN" >&2; exit 1; }
+say "Claude Code $version instalado em $USER_BIN." "Claude Code $version installed in $USER_BIN."
+exec "$USER_BIN" "$@"

@@ -30,7 +30,7 @@ for cmd in distrobox podman flatpak bootc ujust foot alacritty cosmic-term cosmi
            llama-server llama-cli opencode claude \
            tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-assist tamagi-keys tamagi-panel tamagi-lang \
            tamagi-firstrun tamagi-pkg tamagi-update tamagi-webapp \
-           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper tamagi-windows tamagi-db tamagi-lembrete tamagi-capture tamagi-dev tamagi-font tesseract tamagi-popos virt-sparsify virt-sysprep; do
+           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper tamagi-windows tamagi-db tamagi-lembrete tamagi-capture tamagi-dev tamagi-font tesseract tamagi-popos virt-sparsify virt-sysprep tamagi-antigravity tamagi-isolar bwrap; do
     check "comando $cmd" command -v "$cmd"
 done
 
@@ -71,7 +71,7 @@ check "caixa dos navegadores é Fedora"    grep -q 'fedora-toolbox:45' /usr/bin/
 check "tamagi-browser status sem a caixa"   bash -c 'tamagi-browser status | grep -q "ainda não criada"'
 check "tamagi-browser recusa navegador desconhecido" bash -c '! tamagi-browser install opera 2>/dev/null'
 check "opções de aceleração de vídeo"       bash -c 'source <(sed -n "/^chromium_flags()/,/^}/p" /usr/bin/tamagi-browser); FLAGS_FILE=/nonexistent; chromium_flags | grep -q AcceleratedVideoEncoder'
-check "OnlyOffice na lista de Flatpaks"    grep -qx 'flathub org.onlyoffice.desktopeditors' /usr/share/tamagi/flatpaks.list
+check "OnlyOffice na lista de Flatpaks"    grep -qE '^flathub +org.onlyoffice.desktopeditors ' /usr/share/tamagi/flatpaks.list
 check "remote cosmic-flatpak configurado"  grep -q '^Url=https://apt.pop-os.org/cosmic/' /etc/flatpak/remotes.d/cosmic.flatpakrepo
 check "lista de Flatpaks só usa flathub e cosmic" bash -c '! grep -vE "^(#|$|flathub |cosmic )" /usr/share/tamagi/flatpaks.list | grep -q .'
 check ".deb e .rpm abrem no instalador de subsistema" grep -q 'application/vnd.debian.binary-package=tamagi-sideload.desktop' /etc/xdg/mimeapps.list
@@ -182,7 +182,7 @@ check "controles de jogo (steam-devices)"   rpm -q steam-devices
 
 section "Agentes de terceiros"
 check "Claude Code executa"                claude --version
-check "auto-update do Claude desligado (binário em /usr)" bash -lc '[[ $DISABLE_AUTOUPDATER == 1 ]]'
+check "Claude Code se atualiza sozinho (mora em ~/.local)" bash -lc '[[ -z ${DISABLE_AUTOUPDATER:-} ]]'
 
 section "Scripts"
 for f in /usr/bin/tamagi-* /usr/libexec/tamagi/*; do
@@ -314,7 +314,7 @@ check "sandbox (Landlock): usuario grava em subpasta mas não mexe em segredo" b
 check "agente: comandos de leitura passam pelo sandbox" bash -c 'grep -q "sandbox = \"leitura\"" /usr/bin/tamagi-agent && grep -q /usr/libexec/tamagi/sandbox /usr/bin/tamagi-agent'
 check "snapshots da pasta pessoal: snapper, serviço e timers" bash -c 'systemctl is-enabled snapper-timeline.timer && systemctl is-enabled snapper-cleanup.timer && systemctl is-enabled tamagi-home-snapshots.service && bash -n /usr/libexec/tamagi/home-snapshots && grep -q -- --btrfs-subvolume-home /usr/libexec/tamagi/firstboot'
 check "tamagi-snap: estado sem snapshots e recusa caminho fora da pasta pessoal" bash -c 'tamagi-snap | grep -qiE "desligad|off" && ! tamagi-snap versoes /etc/passwd 2>/dev/null'
-check "Windows: Bottles no primeiro boot e .exe/.msi abrem nele" bash -c 'grep -q "^flathub com.usebottles.bottles" /usr/share/tamagi/flatpaks.list && grep -q "^application/x-ms-dos-executable=com.usebottles.bottles.desktop" /etc/xdg/mimeapps.list && grep -q "^application/x-msi=com.usebottles.bottles.desktop" /etc/xdg/mimeapps.list'
+check "Windows: Bottles oferecido no primeiro login e .exe/.msi abrem nele" bash -c 'grep -qE "^flathub +com.usebottles.bottles" /usr/share/tamagi/flatpaks.list && grep -q "^application/x-ms-dos-executable=com.usebottles.bottles.desktop" /etc/xdg/mimeapps.list && grep -q "^application/x-msi=com.usebottles.bottles.desktop" /etc/xdg/mimeapps.list'
 check "Windows: tamagi-windows fixa a imagem do dockur e não instala nada sozinho" bash -c 'grep -q "^IMAGE=\"docker.io/dockurr/windows:[0-9]" /usr/bin/tamagi-windows && tamagi-windows status | grep -qiE "não instalado|not installed" && [[ ! -e $HOME/.config/containers/systemd/tamagi-windows.container ]]'
 check "tamagi-db: lista vazia e recusa banco desconhecido" bash -c 'tamagi-db list | grep -qiE "nenhum|no database" && ! tamagi-db add oracle 2>/dev/null'
 check "tamagi-lembrete: recusa tempo inválido" bash -c '! tamagi-lembrete amanhã x 2>/dev/null && tamagi-lembrete --help | grep -q 10m'
@@ -331,12 +331,17 @@ check "VMs (libvirt e Windows) ficam fora dos snapshots da pasta pessoal" bash -
 check "Plymouth: tema tamagi padrão, com o brasão animado e a senha do disco" bash -c 'T=/usr/share/plymouth/themes/tamagi; [[ $(plymouth-set-default-theme) == tamagi ]] && [[ $(ls $T/throbber-*.png | wc -l) -ge 30 ]] && for f in watermark entry bullet lock; do [[ -s $T/$f.png ]] || exit 1; done && grep -q "^ModuleName=two-step" $T/tamagi.plymouth'
 check "Plymouth: tema dentro do initramfs e boot gráfico (rhgb quiet)" bash -c 'img=$(ls /usr/lib/modules/*/initramfs.img); lsinitrd "$img" | grep -q "plymouth/themes/tamagi/throbber-0001.png" && grep -q "\"rhgb\"" /usr/lib/bootc/kargs.d/20-tamagi-boot.toml'
 check "marcas: sem logos do Fedora; os-release com o logo e os endereços do Tamagi" bash -c '! rpm -q fedora-logos >/dev/null && rpm -q generic-logos >/dev/null && grep -qx "LOGO=tamagi" /usr/lib/os-release && ! grep -E "^(HOME|DOCUMENTATION|SUPPORT)_URL=" /usr/lib/os-release | grep -qi fedoraproject && grep -qx "ID=fedora" /usr/lib/os-release && test -s /usr/share/icons/hicolor/scalable/apps/tamagi.svg && test -s /usr/share/doc/tamagi/NOTICE'
+check "Antigravity: sob demanda na caixa de navegadores, nada na imagem" bash -c '! rpm -q antigravity >/dev/null 2>&1 && [[ ! -e /etc/yum.repos.d/antigravity.repo ]] && grep -q "app antigravity" /usr/bin/tamagi-antigravity && grep -q "antigravity-rpm" /usr/libexec/tamagi/browser-provision'
+check "primeiro boot: só Flatpaks essenciais sozinhos; catálogo no primeiro login" bash -c 'L=/usr/share/tamagi/flatpaks.list; grep -qE "^flathub +org.onlyoffice.desktopeditors +opcional +Escritório" $L && grep -qE "^flathub +org.gnome.Loupe +essencial" $L && [[ $(grep -cE "^(flathub|cosmic) +[^ ]+ +recomendado" $L) -ge 1 ]] && grep -E "^(flathub|cosmic) " $L | awk "NF < 6 {bad=1} END {exit bad}" && grep -q "kind:-essencial" /usr/libexec/tamagi/flatpak-setup && grep -q "O que instalar" /usr/bin/tamagi-firstrun && grep -q "tamagi-apps-setup" /usr/bin/tamagi-firstrun && bash -n /usr/libexec/tamagi/apps-setup'
+check "novidades: lê o diff do rpm-ostree e destaca kernel e COSMIC" bash -c 'printf "Upgraded:\n  kernel-core 7.3.4-300.fc45.x86_64 -> 7.3.6-300.fc45.x86_64\n  cosmic-comp 1.11.0-2.fc45 -> 1.12.0-1.fc45\nAdded:\n  snapper-0.13.0-5.fc45.x86_64\n" > /tmp/d.txt && o=$(TAMAGI_LANG=pt /usr/libexec/tamagi/update-changes --texto /tmp/d.txt --curto) && grep -q "Kernel: 7.3.4 → 7.3.6" <<<"$o" && grep -q "COSMIC" <<<"$o" && grep -q "1 novos" <<<"$o" && grep -q update-changes /usr/bin/tamagi-update'
+check "Abrir isolado: comando, janela e entrada no Abrir com" bash -c 'bash -n /usr/bin/tamagi-isolar && tamagi-isolar --help | grep -q "sem rede" && desktop-file-validate /usr/share/applications/tamagi-isolar.desktop && grep -q "application/vnd.appimage" /usr/share/applications/tamagi-isolar.desktop'
+check "Abrir isolado: sem rede e sem a pasta pessoal (se o contêiner permitir userns)" bash -c 'mkdir -p $HOME/segredo && echo x > $HOME/segredo/a; out=$(tamagi-isolar --sem-tela -- sh -c "ls $HOME/segredo 2>&1; cat /proc/net/dev | wc -l" 2>&1) || { grep -qiE "namespace|permission|operation not permitted" <<<"$out" && exit 0; exit 1; }; ! grep -q "^a$" <<<"$out"'
 check "tamagi-menu: residente pelo autostart" bash -c 'desktop-file-validate /etc/xdg/autostart/tamagi-menu-service.desktop && grep -q "^Exec=tamagi-menu --service" /etc/xdg/autostart/tamagi-menu-service.desktop && env -u WAYLAND_DISPLAY -u DISPLAY tamagi-menu --service'
 check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep -q "CosmicPanel\.Dock/"'
 check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'
 check "agente de IA responde no idioma do sistema" bash -c 'grep -q "Responda sempre em" /usr/bin/tamagi-agent && ! grep -q "português do Brasil," /usr/share/tamagi/agent/system.md'
 check "tamagi-panel troca o estilo da barra" bash -c 'tamagi-panel set cosmic >/dev/null && grep -q Dock ~/.config/cosmic/com.system76.CosmicPanel/v1/entries && grep -qx Top ~/.config/cosmic/com.system76.CosmicPanel.Panel/v1/anchor && tamagi-panel set classico >/dev/null && grep -qx None ~/.config/cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center && tamagi-panel set centro >/dev/null && [[ $(tamagi-panel current) == centro ]] && ! tamagi-panel set nada 2>/dev/null'
-check "Claude Code na imagem e no menu"   bash -c 'HOME=/tmp claude --version >/dev/null && desktop-file-validate /usr/share/applications/claude-code.desktop && grep -q claude-code /usr/share/cosmic/com.system76.CosmicAppList/v1/favorites'
+check "Claude Code fora da imagem: atalho que baixa no primeiro uso, e no menu" bash -c '[[ $(stat -c %s /usr/bin/claude) -lt 20000 ]] && head -1 /usr/bin/claude | grep -q bash && bash -n /usr/bin/claude && grep -q "sha256sum -c" /usr/bin/claude && desktop-file-validate /usr/share/applications/claude-code.desktop && grep -q claude-code /usr/share/cosmic/com.system76.CosmicAppList/v1/favorites'
 check "distrobox.ini presente"            test -s /etc/distrobox/distrobox.ini
 check "tmpfiles cria /var/log/tuned (rótulo SELinux do tuned-ppd)" bash -c 'systemd-tmpfiles --cat-config 2>/dev/null | grep -qE "^d /var/log/tuned "'
 check "mcelog é pulado fora de processadores Intel" bash -c 'systemctl cat mcelog.service | grep -q "ExecCondition=.*GenuineIntel"'

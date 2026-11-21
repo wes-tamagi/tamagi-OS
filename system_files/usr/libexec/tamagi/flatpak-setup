@@ -1,5 +1,6 @@
 #!/usr/bin/bash
-# Instala os apps Flatpak padrão do Tamagi (uma vez, no primeiro boot com rede).
+# Instala os apps Flatpak essenciais do Tamagi (uma vez, no primeiro boot com
+# rede). Os opcionais quem escolhe é o usuário, no primeiro login (tamagi-firstrun).
 # Remotes: Flathub e o repositório COSMIC da System76 (applets e apps feitos
 # para o COSMIC; https://github.com/pop-os/cosmic-flatpak).
 set -uo pipefail
@@ -11,8 +12,9 @@ flatpak remote-add --system --if-not-exists flathub /etc/flatpak/remotes.d/flath
 flatpak remote-add --system --if-not-exists cosmic /etc/flatpak/remotes.d/cosmic.flatpakrepo
 
 failed=0
-while read -r remote app; do
+while read -r remote app kind _; do
     [[ -z $remote || $remote == \#* ]] && continue
+    [[ ${kind:-essencial} == essencial ]] || continue
     flatpak install --system --noninteractive --or-update "$remote" "$app" || failed=1
 done < "$LIST"
 

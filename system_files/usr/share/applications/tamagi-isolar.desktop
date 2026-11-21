@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Open isolated (no network)
+Name[pt_BR]=Abrir isolado (sem rede)
+Name[pt]=Abrir isolado (sem rede)
+Name[es]=Abrir aislado (sin red)
+Name[fr]=Ouvrir isolé (sans réseau)
+Comment=Run an untrusted program without network and without access to your home folder
+Comment[pt_BR]=Roda um programa em que você não confia sem rede e sem acesso à sua pasta pessoal
+Comment[pt]=Roda um programa em que você não confia sem rede e sem acesso à sua pasta pessoal
+Comment[es]=Ejecuta un programa no confiable sin red y sin acceso a tu carpeta personal
+Comment[fr]=Lance un programme non fiable sans réseau ni accès à votre dossier personnel
+Exec=/usr/libexec/tamagi/popup --tile --class tamagi-isolar --title Isolado /usr/libexec/tamagi/isolar-janela %f
+Icon=security-high
+Terminal=false
+NoDisplay=true
+MimeType=application/x-executable;application/x-pie-executable;application/x-shellscript;application/x-sh;text/x-shellscript;application/vnd.appimage;application/x-appimage;text/x-python;text/x-python3;
+Categories=System;Security;
