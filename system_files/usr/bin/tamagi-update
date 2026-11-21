@@ -168,6 +168,10 @@ status_auto() {
     if (( qcount > 0 )); then
         echo "$(t "Digests em quarentena"): $qcount (tamagi-update quarantine)"
     fi
+    if [[ -f /var/lib/tamagi/secureboot-blocked ]]; then
+        tl "Atualização cancelada pelo Secure Boot: falta a chave do Universal Blue."
+        echo "  ujust enroll-secure-boot-key   ($(t "senha"): universalblue)"
+    fi
     if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
         tl "Há uma imagem nova pronta: reinicie para usar."
     fi

@@ -327,3 +327,6 @@ Flatseal — permissões dos apps Flatpak	Flatseal — Flatpak app permissions
 Warehouse — gerenciar apps Flatpak	Warehouse — manage Flatpak apps
 Loupe — imagens	Loupe — images
 Papers — PDF e documentos	Papers — PDF and documents
+# secureboot-guard
+Atualização cancelada pelo Secure Boot: falta a chave do Universal Blue.	Update cancelled by Secure Boot: the Universal Blue key is missing.
+senha	password

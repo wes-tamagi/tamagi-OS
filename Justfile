@@ -3,9 +3,9 @@
 image := env("TAMAGI_IMAGE", "localhost/tamagi")
 tag := env("TAMAGI_TAG", "latest")
 fedora := env("FEDORA_VERSION", "45")
-# Kernel: main (padrão, o da base) | ogc | ark (kernel-ark, o do Rawhide).
-# Ex.: KERNEL_FLAVOR=ark TAMAGI_TAG=ark just build
-kernel := env("KERNEL_FLAVOR", "main")
+# Kernel: ogc (padrão: o do Bazzite) | main (o da base) | ark (o do Fedora Rawhide).
+# Ex.: KERNEL_FLAVOR=main TAMAGI_TAG=main just build
+kernel := env("KERNEL_FLAVOR", "ogc")
 akmods := if kernel == "ark" { "main" } else { kernel }
 # Para onde o sistema instalado olha para se atualizar (vazio: fica na imagem local).
 target := env("TAMAGI_TARGET_IMGREF", "")

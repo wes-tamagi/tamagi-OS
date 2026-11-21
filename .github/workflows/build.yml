@@ -34,20 +34,8 @@ concurrency:
 
 jobs:
   build:
-    name: Construir, testar e publicar (${{ matrix.flavor }})
+    name: Construir, testar e publicar
     runs-on: ubuntu-24.04
-    # Dois sabores de kernel, em paralelo: main (o da base, tags latest/45) e
-    # ark (kernel-ark, o do Rawhide; tags ark/ark-45). Um falhar não derruba o outro.
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - flavor: main
-            akmods: main
-            prefix: ""
-          - flavor: ark
-            akmods: main
-            prefix: "ark-"
     permissions:
       contents: read
       packages: write
@@ -70,8 +58,8 @@ jobs:
         run: |
           sudo podman build \
             --build-arg FEDORA_VERSION=${FEDORA_VERSION} \
-            --build-arg KERNEL_FLAVOR=${{ matrix.flavor }} \
-            --build-arg AKMODS_FLAVOR=${{ matrix.akmods }} \
+            --build-arg KERNEL_FLAVOR=ogc \
+            --build-arg AKMODS_FLAVOR=ogc \
             --build-arg IMAGE_VENDOR=${GITHUB_REPOSITORY_OWNER,,} \
             --build-arg IMAGE_REF=${IMAGE_REGISTRY}/${IMAGE_NAME} \
             -t ${IMAGE_NAME}:build \
@@ -91,13 +79,8 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
           set -euo pipefail
-          prefix="${{ matrix.prefix }}"
-          # main: 45, 45.AAAAMMDD, latest · ark: ark-45, ark-45.AAAAMMDD, ark
-          if [ "${{ matrix.flavor }}" = main ]; then
-            tags="${FEDORA_VERSION} ${FEDORA_VERSION}.${BUILD_DATE} latest"
-          else
-            tags="${prefix}${FEDORA_VERSION} ${prefix}${FEDORA_VERSION}.${BUILD_DATE} ${{ matrix.flavor }}"
-          fi
+          # Uma imagem só (kernel do Bazzite, ogc): 45, 45.AAAAMMDD e latest.
+          tags="${FEDORA_VERSION} ${FEDORA_VERSION}.${BUILD_DATE} latest"
           for tag in $tags; do
             sudo podman push --digestfile=/tmp/digestfile ${IMAGE_NAME}:build ${IMAGE_REGISTRY}/${IMAGE_NAME}:${tag}
           done

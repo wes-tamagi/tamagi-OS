@@ -6,12 +6,12 @@
 
 ARG FEDORA_VERSION=45
 ARG BASE_IMAGE=ghcr.io/ublue-os/base-main
-# Kernel: main (padrão: o da base, assinado pelo Fedora e pelo Universal Blue) |
-# ogc (Open Gaming Collective, assinado só pelo Universal Blue).
-# ark (kernel-ark: o kernel do Fedora Rawhide, assinado pelo Fedora).
+# Kernel: ogc (padrão: o do Bazzite, do Open Gaming Collective, assinado pelo
+# Universal Blue) | main (o da base, assinado pelo Fedora) | ark (kernel-ark,
+# o do Fedora Rawhide).
 # Veja build_files/12-kernel.sh, em especial a nota sobre Secure Boot.
-ARG KERNEL_FLAVOR=main
-# Módulos prontos do Universal Blue: o mesmo sabor do kernel (main ou ogc). O
+ARG KERNEL_FLAVOR=ogc
+# Módulos prontos do Universal Blue: o mesmo sabor do kernel (ogc ou main). O
 # ark não tem módulos lá; com ele, passe AKMODS_FLAVOR=main (o Justfile faz).
 ARG AKMODS_FLAVOR=${KERNEL_FLAVOR}
 
@@ -89,7 +89,7 @@ ARG OPENCODE_VERSION=v1.19.6
 ARG OPENCODE_SHA256=8443113b3f3dfebf8b0fa91c4377e5519a62b9231732d9344a5df001e4a852b3
 ARG STARSHIP_VERSION=v1.27.0
 ARG MISE_VERSION=v2026.11.9
-ARG KERNEL_FLAVOR=main
+ARG KERNEL_FLAVOR=ogc
 
 COPY --from=llama /out/usr /usr
 COPY --from=rustdesk /out/usr /usr

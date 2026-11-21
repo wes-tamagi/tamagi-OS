@@ -2,11 +2,11 @@
 # Kernel e módulos de fora do kernel, do Universal Blue (ghcr.io/ublue-os/akmods,
 # montado em /akmods pelo Containerfile). O sabor vem de KERNEL_FLAVOR:
 #
-#   main  (padrão) o kernel da base, sem troca. Assinado pelo Fedora e pelo
-#         Universal Blue: inicia com o Secure Boot ligado em qualquer máquina.
-#   ogc   kernel do Open Gaming Collective
+#   ogc   (padrão) o kernel do Bazzite, do Open Gaming Collective
 #         (github.com/OpenGamingCollective/linux): patches de agendamento,
-#         HDR, controles e portáteis. Variante opcional da imagem.
+#         HDR, controles e portáteis.
+#   main  o kernel da base, sem troca. Assinado pelo Fedora e pelo Universal
+#         Blue: inicia com o Secure Boot ligado em qualquer máquina.
 #   ark   o kernel-ark (gitlab.com/cki-project/kernel-ark): a árvore de onde
 #         sai o kernel do Fedora Rawhide, que é o que se instala aqui — o mais
 #         novo do Linux com a configuração do Fedora, muitas vezes uma -rc.
@@ -28,7 +28,7 @@
 #   v4l2loopback     câmera virtual (OBS, compartilhar a tela como webcam)
 # Existem na origem e ficam de fora por padrão: openrazer, wl (Wi-Fi Broadcom).
 KMODS=(xone xpadneo v4l2loopback)
-FLAVOR=${KERNEL_FLAVOR:-main}
+FLAVOR=${KERNEL_FLAVOR:-ogc}
 
 base_kver=$(ls /usr/lib/modules)
 [[ $(wc -w <<<"$base_kver") -eq 1 ]] || { echo "esperava um kernel na base, achei: $base_kver" >&2; exit 1; }

@@ -62,6 +62,15 @@ mmd -i "$EFI_IMG" ::/EFI ::/EFI/BOOT ::/EFI/fedora
 mcopy -i "$EFI_IMG" "$shim" ::/EFI/BOOT/BOOTX64.EFI
 mcopy -i "$EFI_IMG" "$grub" ::/EFI/BOOT/grubx64.efi
 [[ -f $mm ]] && mcopy -i "$EFI_IMG" "$mm" ::/EFI/BOOT/mmx64.efi
+# Chave do Universal Blue, que assina o kernel do Tamagi (o do Bazzite): com o
+# Secure Boot ligado, o shim recusa o kernel e abre o MokManager; ali,
+# "Enroll key from disk" → TAMAGI_EFI → universalblue.der registra a chave, uma
+# vez, e a ISO inicia. (Ou desligue o Secure Boot.)
+key=/live/etc/pki/akmods/certs/akmods-ublue.der
+if [[ -f $key ]]; then
+    mcopy -i "$EFI_IMG" "$key" ::/universalblue.der
+    cp "$key" "$TREE/universalblue.der"
+fi
 # O GRUB do Fedora procura a configuração em EFI/fedora; EFI/BOOT é a reserva.
 mcopy -i "$EFI_IMG" /tmp/grub.cfg ::/EFI/fedora/grub.cfg
 mcopy -i "$EFI_IMG" /tmp/grub.cfg ::/EFI/BOOT/grub.cfg

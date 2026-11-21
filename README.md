@@ -461,8 +461,8 @@ eles sempre pedem confirmação.
 
 - **Desktop:** COSMIC 1.11 inteiro (compositor, painel, terminal, arquivos,
   editor, loja, player, tela de login).
-- **Kernel:** 7.3, o da base, assinado pelo Fedora e pelo Universal Blue
-  (inicia com Secure Boot em qualquer máquina); `CONFIG_RUST=y`, Binder em Rust, sched_ext.
+- **Kernel:** o do Bazzite (Open Gaming Collective, 7.3), assinado pelo
+  Universal Blue; `CONFIG_RUST=y`, Binder, sched_ext.
 - **Terminal:** `sudo` é o sudo-rs e `ls`, `cp`, `mv` etc. são os do uutils no
   shell interativo (os originais continuam em `/usr/bin` para serviços e
   scripts; desligar: `touch ~/.config/tamagi/no-rust-defaults`). Também:
@@ -585,29 +585,31 @@ tamagi-antigravity       # Antigravity (IDE do Google), instalado na caixa de na
 
 ## Kernel, módulos e assinatura
 
+- **O kernel do Bazzite, o padrão:** o do
+  [Open Gaming Collective](https://github.com/OpenGamingCollective/linux)
+  (sabor `ogc`), o mesmo do Bazzite: patches de agendamento, controles,
+  portáteis e jogos, sobre a versão estável do Linux. Uma imagem só é
+  publicada (`latest`).
 - **Módulos do Universal Blue** ([ublue-os/akmods](https://github.com/ublue-os/akmods)),
-  prontos e assinados para o kernel da imagem: `xone` e `xpadneo` (controles
-  Xbox por cabo, adaptador e Bluetooth) e `v4l2loopback` (câmera virtual). Com
-  o Secure Boot ligado, eles só carregam depois de registrar a chave do
-  Universal Blue, uma vez: `ujust enroll-secure-boot-key`. Sem isso o sistema
-  inicia normalmente, só esses módulos ficam de fora.
-- **Kernel opcional do [Open Gaming Collective](https://github.com/OpenGamingCollective/linux):**
-  `KERNEL_FLAVOR=ogc TAMAGI_TAG=ogc just build`. Ele é assinado só pelo
-  Universal Blue, então com Secure Boot ligado exige a mesma chave registrada
-  **antes** de trocar de imagem (`mokutil --test-key /etc/pki/akmods/certs/akmods-ublue.der`).
-  O padrão é o kernel da base justamente por não ter essa exigência.
-- **kernel-ark (imagem `tamagi:ark`):** o kernel do Fedora Rawhide, que é o
-  [kernel-ark](https://gitlab.com/cki-project/kernel-ark) empacotado: o Linux
-  mais novo (muitas vezes uma -rc) com a configuração do Fedora. Pacotes com
-  GPG do Fedora e assinado pelo Fedora para o Secure Boot, então inicia em
-  qualquer máquina, como o padrão. O CI publica em paralelo:
-  `sudo bootc switch ghcr.io/wes-tamagi/tamagi:ark` (voltar:
-  `sudo bootc switch ghcr.io/wes-tamagi/tamagi:latest`; o greenboot desfaz
-  sozinho um boot que falhar). Sem os módulos do Universal Blue (não existem
-  para ele): sem `xone`/`xpadneo` (controles Xbox sem fio; por cabo, o `xpad`
-  do kernel funciona) e sem `v4l2loopback`. O build recusa um kernel com
-  depuração pesada ou sem a assinatura do Fedora. Local:
-  `KERNEL_FLAVOR=ark TAMAGI_TAG=ark just build`.
+  prontos e assinados para esse kernel: `xone` e `xpadneo` (controles Xbox por
+  cabo, adaptador e Bluetooth) e `v4l2loopback` (câmera virtual).
+- **Secure Boot:** o kernel do Bazzite é assinado pelo Universal Blue, não
+  pelo Fedora. Com o Secure Boot ligado, registre a chave uma vez:
+  `ujust enroll-secure-boot-key` (senha `universalblue`), reinicie e confirme
+  "Enroll MOK" (conferir: `mokutil --test-key /etc/pki/akmods/certs/akmods-ublue.der`).
+  Com o Secure Boot desligado não há nada a fazer. Proteções:
+  - numa instalação existente, o `tamagi-secureboot-guard` confere cada
+    atualização preparada e a **cancela** se ela não fosse iniciar (Secure
+    Boot ligado, chave ausente), avisando o que fazer — o firmware recusaria
+    o kernel antes de o greenboot poder agir;
+  - na ISO, a chave vai na partição EFI: se o shim recusar o kernel, o
+    MokManager abre; "Enroll key from disk" → `TAMAGI_EFI` →
+    `universalblue.der` registra a chave e a ISO inicia.
+- **Outros sabores, para build local:** `KERNEL_FLAVOR=main just build` (o
+  kernel da base, assinado pelo Fedora, sem exigir chave) e
+  `KERNEL_FLAVOR=ark just build` (o kernel-ark, do Fedora Rawhide, assinado
+  pelo Fedora; sem os módulos do Universal Blue). O build do `ark` recusa um
+  kernel com depuração pesada ou sem a assinatura do Fedora.
 - **Imagem assinada (cosign):** o CI segue o
   [ublue-os/image-template](https://github.com/ublue-os/image-template) e
   assina cada imagem publicada com a chave do repositório. Conferir:
@@ -668,11 +670,11 @@ O projeto agradece a todos os que tornaram esta distro possível.
 
 - **Base: [Universal Blue](https://universal-blue.org/).** A imagem de partida
   é a `base-main`: sistema atômico com codecs, firmware, distrobox e `ujust` já
-  incluídos, a mesma fundação do Bluefin, do Aurora e do Bazzite. Os pacotes e
-  o kernel vêm do Fedora 45, sem modificação.
+  incluídos, a mesma fundação do Bluefin, do Aurora e do Bazzite. Os pacotes
+  vêm do Fedora 45, sem modificação.
 - **[Bazzite](https://bazzite.gg/):** ajustes de desempenho (memória, disco,
-  rede), gamescope, MangoHud, GameMode e regras de controles. O kernel dele
-  não é usado.
+  rede), gamescope, MangoHud, GameMode, regras de controles e o kernel (o do
+  Open Gaming Collective).
 - **[Omarchy](https://omarchy.org/):** uso por teclado, temas, web apps
   e o repositório de pacotes, numa caixa Arch.
 - **[Ubuntu](https://ubuntu.com/) 26.04 LTS** na caixa `deb` do `tamagi-pkg`.

@@ -1,0 +1,62 @@
+#!/usr/bin/bash
+# secureboot-guard — impede que uma atualização deixe a máquina sem boot.
+#
+# O kernel padrão do Tamagi (o do Bazzite, Open Gaming Collective) é assinado
+# só pelo Universal Blue. Com o Secure Boot ligado e a chave do Universal Blue
+# fora da lista do firmware (MOK), o shim recusa esse kernel antes de qualquer
+# coisa do sistema rodar — nem o greenboot consegue desfazer. Por isso, quando
+# uma atualização fica preparada (/run/ostree/staged-deployment), este serviço
+# confere: kernel novo sem assinatura do Fedora + Secure Boot ligado + chave do
+# Universal Blue ausente => cancela a atualização e avisa como registrar a
+# chave (ujust enroll-secure-boot-key, senha universalblue, e reiniciar).
+#
+# Variáveis só para testes: TAMAGI_SB_ENABLED=0|1 TAMAGI_SB_KEY=0|1
+# TAMAGI_STAGED_VMLINUZ=<arquivo> TAMAGI_SB_DRYRUN=1
+set -uo pipefail
+
+KEY=/etc/pki/akmods/certs/akmods-ublue.der
+FLAG=/var/lib/tamagi/secureboot-blocked
+
+sb_enabled() {
+    [[ -n ${TAMAGI_SB_ENABLED:-} ]] && { [[ $TAMAGI_SB_ENABLED == 1 ]]; return; }
+    mokutil --sb-state 2>/dev/null | grep -qi 'SecureBoot enabled'
+}
+key_enrolled() {
+    [[ -n ${TAMAGI_SB_KEY:-} ]] && { [[ $TAMAGI_SB_KEY == 1 ]]; return; }
+    [[ -f $KEY ]] && mokutil --test-key "$KEY" 2>/dev/null | grep -qi 'already enrolled'
+}
+staged_vmlinuz() {
+    [[ -n ${TAMAGI_STAGED_VMLINUZ:-} ]] && { echo "$TAMAGI_STAGED_VMLINUZ"; return; }
+    local dep csum serial os
+    dep=$(rpm-ostree status --json 2>/dev/null | jq -c '.deployments[] | select(.staged == true)' | head -1)
+    [[ -n $dep ]] || return 1
+    csum=$(jq -r .checksum <<<"$dep"); serial=$(jq -r '.serial // 0' <<<"$dep"); os=$(jq -r '.osname // "default"' <<<"$dep")
+    compgen -G "/ostree/deploy/$os/deploy/$csum.$serial/usr/lib/modules/*/vmlinuz" | head -1
+}
+notify_users() {
+    local uid user
+    for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
+        user=$(id -nu "$uid" 2>/dev/null) || continue
+        [[ -S /run/user/$uid/bus ]] || continue
+        runuser -u "$user" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+            notify-send -a Tamagi -u critical -i dialog-warning "$1" "$2" 2>/dev/null || true
+    done
+}
+
+sb_enabled || { rm -f "$FLAG"; exit 0; }
+key_enrolled && { rm -f "$FLAG"; exit 0; }
+vmlinuz=$(staged_vmlinuz) || exit 0
+[[ -f $vmlinuz ]] || exit 0
+# Kernel assinado pelo Fedora (main, ark) inicia sem a chave do Universal Blue.
+grep -aq 'Fedora Secure Boot Signer' "$vmlinuz" && exit 0
+
+echo "secureboot-guard: Secure Boot ligado, chave do Universal Blue ausente e kernel novo assinado só por ela: atualização cancelada"
+if [[ -z ${TAMAGI_SB_DRYRUN:-} ]]; then
+    rpm-ostree cleanup -p >/dev/null 2>&1 || true
+    mkdir -p "$(dirname "$FLAG")"
+    date -Is > "$FLAG"
+    notify_users "Atualização cancelada: Secure Boot / Update cancelled: Secure Boot" \
+        "O kernel novo precisa da chave do Universal Blue registrada. Rode: ujust enroll-secure-boot-key (senha: universalblue), reinicie e confirme 'Enroll MOK'. Depois, tamagi-update.
+The new kernel needs the Universal Blue key enrolled: ujust enroll-secure-boot-key (password: universalblue), reboot and confirm 'Enroll MOK', then tamagi-update."
+fi
+exit 3
