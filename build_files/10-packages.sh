@@ -6,11 +6,30 @@
 COPRS=(secureblue/packages)
 for copr in "${COPRS[@]}"; do dnf5 -y copr enable "$copr"; done
 
+# Tailscale: o repositório oficial (o mesmo que o tailscale.com/install.sh
+# configura no Fedora), com pacotes e metadados assinados. Fica ligado só no
+# build, como os COPRs; o pacote do Fedora costuma atrasar algumas versões.
+TS_REPO=/etc/yum.repos.d/tailscale.repo
+cat > "$TS_REPO" <<'REPO'
+[tailscale-stable]
+name=Tailscale stable
+baseurl=https://pkgs.tailscale.com/stable/fedora/$basearch
+enabled=1
+type=rpm
+repo_gpgcheck=1
+gpgcheck=1
+gpgkey=https://pkgs.tailscale.com/stable/fedora/repo.gpg
+REPO
+
 mapfile -t PACKAGES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' /ctx/build_files/packages.txt | grep -v '^$')
 dnf5 -y install --setopt=install_weak_deps=False "${PACKAGES[@]}"
 
 # A imagem não consulta COPR depois de pronta: tudo se atualiza pelo rebuild.
 for copr in "${COPRS[@]}"; do dnf5 -y copr disable "$copr"; done
+[[ $(dnf5 -q repoquery --installed --qf '%{from_repo}' tailscale 2>/dev/null) == tailscale-stable ]] \
+    || echo "aviso: tailscale não veio do repositório oficial ($(rpm -q tailscale))" >&2
+rm -f "$TS_REPO"
+echo "tailscale: $(rpm -q --qf '%{VERSION}' tailscale) (repositório oficial)"
 
 # distrobox 1.8.2.5 x podman 6: em host somente-leitura (o caso do Tamagi) o
 # distrobox-create monta cada pasta da raiz com a opção ":ro:rslave", e o
