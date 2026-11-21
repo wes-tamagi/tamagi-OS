@@ -2,7 +2,7 @@
 # Kernel e módulos de fora do kernel, do Universal Blue (ghcr.io/ublue-os/akmods,
 # montado em /akmods pelo Containerfile). O sabor vem de KERNEL_FLAVOR:
 #
-#   ogc   (padrão) o kernel do Bazzite, do Open Gaming Collective
+#   ogc   (padrão) o kernel Open Gaming Collective
 #         (github.com/OpenGamingCollective/linux): patches de agendamento,
 #         HDR, controles e portáteis.
 #   main  o kernel da base, sem troca. Assinado pelo Fedora e pelo Universal

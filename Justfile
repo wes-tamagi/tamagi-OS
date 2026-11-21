@@ -3,7 +3,7 @@
 image := env("TAMAGI_IMAGE", "localhost/tamagi")
 tag := env("TAMAGI_TAG", "latest")
 fedora := env("FEDORA_VERSION", "45")
-# Kernel: ogc (padrão: o do Bazzite) | main (o da base) | ark (o do Fedora Rawhide).
+# Kernel: ogc (padrão: Open Gaming Collective) | main (o da base) | ark (o do Fedora Rawhide).
 # Ex.: KERNEL_FLAVOR=main TAMAGI_TAG=main just build
 kernel := env("KERNEL_FLAVOR", "ogc")
 akmods := if kernel == "ark" { "main" } else { kernel }

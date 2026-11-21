@@ -6,7 +6,7 @@
 
 ARG FEDORA_VERSION=45
 ARG BASE_IMAGE=ghcr.io/ublue-os/base-main
-# Kernel: ogc (padrão: o do Bazzite, do Open Gaming Collective, assinado pelo
+# Kernel: ogc (padrão: Open Gaming Collective, assinado pelo
 # Universal Blue) | main (o da base, assinado pelo Fedora) | ark (kernel-ark,
 # o do Fedora Rawhide).
 # Veja build_files/12-kernel.sh, em especial a nota sobre Secure Boot.

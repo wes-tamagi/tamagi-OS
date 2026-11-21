@@ -496,7 +496,7 @@ eles sempre pedem confirmação.
 
 - **Desktop:** COSMIC 1.11 inteiro (compositor, painel, terminal, arquivos,
   editor, loja, player, tela de login).
-- **Kernel:** o do Bazzite (Open Gaming Collective, 7.3), assinado pelo
+- **Kernel:** Open Gaming Collective (7.3), assinado pelo
   Universal Blue; `CONFIG_RUST=y`, Binder, sched_ext.
 - **Terminal:** `sudo` é o sudo-rs e `ls`, `cp`, `mv` etc. são os do uutils no
   shell interativo (os originais continuam em `/usr/bin` para serviços e
@@ -620,15 +620,14 @@ tamagi-antigravity       # Antigravity (IDE do Google), instalado na caixa de na
 
 ## Kernel, módulos e assinatura
 
-- **O kernel do Bazzite, o padrão:** o do
+- **Kernel Open Gaming Collective, o padrão:**
   [Open Gaming Collective](https://github.com/OpenGamingCollective/linux)
-  (sabor `ogc`), o mesmo do Bazzite: patches de agendamento, controles,
-  portáteis e jogos, sobre a versão estável do Linux. Uma imagem só é
-  publicada (`latest`).
+  (sabor `ogc`): patches de agendamento, controles, portáteis e jogos, sobre a
+  versão estável do Linux. Uma imagem só é publicada (`latest`).
 - **Módulos do Universal Blue** ([ublue-os/akmods](https://github.com/ublue-os/akmods)),
   prontos e assinados para esse kernel: `xone` e `xpadneo` (controles Xbox por
   cabo, adaptador e Bluetooth) e `v4l2loopback` (câmera virtual).
-- **Secure Boot:** o kernel do Bazzite é assinado pelo Universal Blue, não
+- **Secure Boot:** o kernel Open Gaming Collective é assinado pelo Universal Blue, não
   pelo Fedora. Com o Secure Boot ligado, registre a chave uma vez:
   `ujust enroll-secure-boot-key` (senha `universalblue`), reinicie e confirme
   "Enroll MOK" (conferir: `mokutil --test-key /etc/pki/akmods/certs/akmods-ublue.der`).
@@ -708,8 +707,7 @@ O projeto agradece a todos os que tornaram esta distro possível.
   incluídos, a mesma fundação do Bluefin, do Aurora e do Bazzite. Os pacotes
   vêm do Fedora 45, sem modificação.
 - **[Bazzite](https://bazzite.gg/):** ajustes de desempenho (memória, disco,
-  rede), gamescope, MangoHud, GameMode, regras de controles e o kernel (o do
-  Open Gaming Collective).
+  rede), gamescope, MangoHud, GameMode e regras de controles.
 - **[Omarchy](https://omarchy.org/):** uso por teclado, temas, web apps
   e o repositório de pacotes, numa caixa Arch.
 - **[Ubuntu](https://ubuntu.com/) 26.04 LTS** na caixa `deb` do `tamagi-pkg`.

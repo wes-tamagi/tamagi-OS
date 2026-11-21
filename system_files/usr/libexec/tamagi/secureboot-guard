@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # secureboot-guard — impede que uma atualização deixe a máquina sem boot.
 #
-# O kernel padrão do Tamagi (o do Bazzite, Open Gaming Collective) é assinado
+# O kernel padrão do Tamagi (Open Gaming Collective) é assinado
 # só pelo Universal Blue. Com o Secure Boot ligado e a chave do Universal Blue
 # fora da lista do firmware (MOK), o shim recusa esse kernel antes de qualquer
 # coisa do sistema rodar — nem o greenboot consegue desfazer. Por isso, quando

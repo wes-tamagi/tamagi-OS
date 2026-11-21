@@ -14,7 +14,7 @@ rm -f /usr/lib/greenboot/check/required.d/01_repository_dns_check.sh \
 # agendadas antes do login.
 systemctl enable snapper-timeline.timer snapper-cleanup.timer tamagi-home-snapshots.service
 
-# O kernel padrão (o do Bazzite) é assinado só pelo Universal Blue: este guarda
+# O kernel padrão (Open Gaming Collective) é assinado só pelo Universal Blue: este guarda
 # cancela uma atualização que não iniciaria com o Secure Boot (chave ausente).
 systemctl enable tamagi-secureboot-guard.path
 
