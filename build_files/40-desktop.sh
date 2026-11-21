@@ -72,10 +72,18 @@ PY
 # Paleta padrão das janelas do Tamagi (o tamagi-theme gera a do usuário).
 tamagi-theme alacritty tokyo-night > /usr/share/tamagi/alacritty.toml
 
-# ── Arquivos (COSMIC Files): lista densa, pastas primeiro ──
-# No espírito do Omarchy: menos ícones grandes, mais conteúdo por tela e uso
-# pelo teclado (setas, Enter, digitar para achar). A grade continua a um
-# clique, no botão de visualização.
+# ── Terminal padrão: foot (o cosmic-term continua instalado, no lançador) ──
+# Configuração do sistema com a fonte e as cores do tema padrão; o
+# tamagi-theme grava a do usuário em ~/.config/foot/foot.ini.
+tamagi-theme foot tokyo-night > /etc/xdg/foot/foot.ini
+foot --check-config >/dev/null || { echo "foot.ini gerado pelo tamagi-theme é inválido" >&2; exit 1; }
+# O atalho System(Terminal) do COSMIC (Super+Enter) roda o que estiver aqui.
+sed -i 's|^\(\s*Terminal: \)"cosmic-term",|\1"foot",|' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions"
+grep -q 'Terminal: "foot"' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions" \
+    || { echo "system_actions do COSMIC mudou de formato: o terminal padrão não virou foot" >&2; exit 1; }
+
+# ── Arquivos (COSMIC Files): grade, pastas primeiro ──
+# A lista continua a um clique, no botão de visualização (ou Ctrl+1/Ctrl+2).
 F="$C/com.system76.CosmicFiles/v1"
 mkdir -p "$F"
 grep -q "view:" "$F/tab" 2>/dev/null || echo "aviso: o COSMIC Files mudou o formato de 'tab'; confira os padrões" >&2
@@ -89,7 +97,7 @@ cat > "$F/tab" <<'RON'
     ),
     show_hidden: false,
     single_click: false,
-    view: List,
+    view: Grid,
 )
 RON
 
@@ -152,11 +160,17 @@ echo Bottom > "$M/search_field_position"
 echo Favorites > "$M/featured_applications"
 echo IconOnly > "$M/applet_button_style"
 echo "\"$MENU_ICON\"" > "$M/button_icon"
+# Menu focado (1.1.0): abre já com o teclado (digitar busca, setas navegam),
+# também pelo atalho. Ele abre no canto da tela do lado do botão, e sem o
+# desfoque do popup. Sem isto, só se digita depois de clicar na busca.
+echo true > "$M/focused_menu"
+grep -aq focused_menu /usr/bin/cosmic-ext-classic-menu-applet \
+    || { echo "o applet do menu não conhece focused_menu (versão antiga?)" >&2; exit 1; }
 cat > "$M/favorite_applications" <<'RON'
 [
     "google-chrome",
     "com.system76.CosmicFiles",
-    "com.system76.CosmicTerm",
+    "foot",
     "claude-code",
     "tamagi-agent",
     "com.system76.CosmicSettings",
@@ -174,7 +188,7 @@ cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
 [
     "google-chrome",
     "com.system76.CosmicFiles",
-    "com.system76.CosmicTerm",
+    "foot",
     "claude-code",
     "tamagi-agent",
     "com.system76.CosmicEdit",
@@ -227,11 +241,18 @@ print(f"atalhos do COSMIC: {len(ours)} do Tamagi aplicados")
 PY
 
 # Terminal para apps de terminal (.desktop com Terminal=true) e `xdg-terminal-exec`:
-# o alacritty aceita comando; o cosmic-term continua sendo o do Super+Enter.
+# o foot primeiro (é o padrão), depois os outros dois.
 install -Dm644 /dev/stdin /etc/xdg/xdg-terminals.list <<'LIST'
+foot.desktop
 Alacritty.desktop
 com.system76.CosmicTerm.desktop
 LIST
+# O foot instala também o modo servidor (foot-server/footclient); no lançador
+# basta o foot.
+for f in foot-server footclient; do
+    [[ -f /usr/share/applications/$f.desktop ]] && \
+        desktop-file-edit --set-key=NoDisplay --set-value=true /usr/share/applications/$f.desktop
+done
 
 gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 

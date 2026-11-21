@@ -356,7 +356,12 @@ claude                   # Claude Code, já instalado (também no menu e na dock
 ## O que vem instalado
 
 - **Desktop:** COSMIC, com terminal, arquivos, editor, loja e player próprios;
-  tiling ligado, teclado ABNT2.
+  tiling ligado, teclado ABNT2. O COSMIC Files abre em grade, pastas primeiro.
+- **Terminal:** o [foot](https://codeberg.org/dnkl/foot) é o padrão
+  (`Super+Enter`, apps de terminal, dock), com a fonte e as cores do tema; o
+  cosmic-term continua instalado, no lançador. O `tamagi-theme` grava
+  `~/.config/foot/foot.ini`; para personalizar, apague a primeira linha
+  ("Gerado por tamagi-theme") e o arquivo deixa de ser reescrito.
 - **Barra:** uma só, embaixo, com os apps no centro, a bandeja e o relógio à
   direita — o layout "Centered" do AnduinOS feito com os applets do COSMIC
   (flutuante, cantos arredondados, levemente translúcida).
@@ -366,7 +371,11 @@ claude                   # Claude Code, já instalado (também no menu e na dock
   botão, com o brasão do Tamagi como ícone: lista de apps, lugares (pasta
   pessoal, documentos, configurações), busca e os botões de energia
   ([cosmic-ext-classic-menu](https://github.com/championpeak87/cosmic-ext-classic-menu),
-  GPL-3.0, layout "Retro"; os outros layouts ficam nas configurações do menu). O lançador do COSMIC continua no `Super+Espaço`.
+  GPL-3.0, layout "Retro"; os outros layouts ficam nas configurações do menu).
+  A versão 1.1.0 é compilada na imagem (o COPR parou na 1.0.0) com o "menu
+  focado" ligado: abriu, já dá para digitar e usar as setas, sem clicar na
+  busca. Ele abre no canto da tela do lado do botão. O lançador do COSMIC fica no
+  `Super+Alt+Espaço`.
 - **Idiomas:** português (Brasil), inglês (EUA), espanhol e francês, no
   sistema, no instalador, no assistente de primeiro login, no menu e nos
   atalhos. `tamagi-lang pick` troca depois de instalado.
@@ -396,7 +405,7 @@ claude                   # Claude Code, já instalado (também no menu e na dock
 
 | Atalho | Ação |
 |---|---|
-| `Super+Enter` / `Super+Espaço` | terminal / paleta de comandos (`tamagi-menu`) |
+| `Super+Enter` / `Super+Espaço` | terminal (foot) / paleta de comandos (`tamagi-menu`) |
 | `Super+A` / `Super+Alt+Espaço` | ações rápidas / lançador de aplicativos COSMIC |
 | `Super+Shift+A` | agente de IA |
 | `Super+W` / `F` / `M` | fechar / tela cheia / maximizar |
@@ -533,8 +542,10 @@ na imagem: é baixado na máquina de quem usa, do site do fabricante.
   usuários e grupos, que o distrobox não permite configurar; tirar também o
   grupo quebra o `sudo` na caixa. `tamagi-browser fido` faz o diagnóstico.
 - A tela de login usa o papel de parede padrão do COSMIC, não o do Tamagi.
-- HDR não existe no COSMIC; VRR e `gamescope` embutido têm falhas conhecidas
-  no compositor.
+- HDR ainda não existe no COSMIC (issue
+  [pop-os/cosmic-comp#1384](https://github.com/pop-os/cosmic-comp/issues/1384)):
+  o Tamagi espera entrar no oficial. VRR e `gamescope` embutido têm falhas
+  conhecidas no compositor.
 - O Claude Code tem versão fixa no `Containerfile` (`CLAUDE_CODE_VERSION`):
   só muda quando esse número é trocado.
 - A imagem traz locales e traduções só de inglês, português, espanhol e

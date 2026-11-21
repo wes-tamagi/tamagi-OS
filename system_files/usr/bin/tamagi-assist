@@ -10,7 +10,7 @@ term() { run /usr/libexec/tamagi/popup --tile "$@"; }
 gum style --border rounded --padding "0 2" --border-foreground 4 "$(cat "$(tfile /usr/share/tamagi/assist.txt)")"
 read -rsn1 key
 case "$key" in
-    t) run cosmic-term ;;
+    t) run foot ;;
     b) run tamagi-browser ;;
     f) run cosmic-files ;;
     n) term nvim ;;

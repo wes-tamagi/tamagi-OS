@@ -6,10 +6,10 @@
 @cosmic-desktop
 cosmic-greeter
 xdg-desktop-portal-cosmic
-# Menu iniciar que abre junto ao botão da barra (applet de terceiros, GPL-3.0;
-# COPR championpeak87/cosmic-ext-classic-menu). O lançador do COSMIC continua
-# no Super+Espaço.
-cosmic-ext-classic-menu
+# O menu iniciar (cosmic-ext-classic-menu 1.1.0) é compilado no Containerfile
+# (estágio rustdesk): o COPR dele parou na 1.0.0.
+# O applet precisa do cosmic-osd (já vem no @cosmic-desktop; fica explícito).
+cosmic-osd
 xdg-desktop-portal-gtk
 gtk4
 libadwaita
@@ -54,6 +54,9 @@ difftastic
 uv
 
 # ── Terminal e desenvolvimento (estilo Omarchy) ──
+# foot: terminal padrão (Super+Enter e apps de terminal): leve e rápido para
+# abrir. O cosmic-term continua instalado e no lançador.
+foot
 git
 gh
 neovim

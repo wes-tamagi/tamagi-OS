@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Tamagi Menu (background)
+Name[pt_BR]=Menu do Tamagi (segundo plano)
+Comment=Keeps the command palette loaded so Super+Space opens it instantly
+Comment[pt_BR]=Mantém a paleta de comandos carregada para o Super+Espaço abrir na hora
+Exec=tamagi-menu --service
+Icon=tamagi-menu
+NoDisplay=true
+OnlyShowIn=COSMIC;
+X-GNOME-Autostart-enabled=true

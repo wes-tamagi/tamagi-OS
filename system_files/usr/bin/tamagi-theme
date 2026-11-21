@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # tamagi-theme — troca o tema do desktop com um comando: as cores do COSMIC
-# (fundo, destaque, claro/escuro), o papel de parede e a paleta das janelas do
-# Tamagi (alacritty).
+# (fundo, destaque, claro/escuro), o papel de parede, a paleta do terminal
+# padrão (foot) e a das janelas do Tamagi (alacritty).
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
@@ -62,6 +62,41 @@ TOML
     for i in "${!names[@]}"; do echo "${names[$i]} = \"${PALETTE[$((i + 8))]}\""; done
 }
 
+foot_config() { # configuração do foot (terminal padrão) com a paleta do tema
+    local i
+    cat <<INI
+# Gerado por tamagi-theme ($NAME). Enquanto esta primeira linha existir, trocar
+# de tema reescreve este arquivo; para personalizar o foot, apague-a.
+[main]
+font=JetBrains Mono:size=11
+pad=12x10
+term=xterm-256color
+
+[scrollback]
+lines=10000
+
+[mouse]
+hide-when-typing=yes
+
+[colors-dark]
+background=${BG#\#}
+foreground=${FG#\#}
+cursor=${BG#\#} ${CURSOR#\#}
+selection-background=${WALL[2]#\#}
+selection-foreground=${BG#\#}
+INI
+    for i in 0 1 2 3 4 5 6 7; do echo "regular$i=${PALETTE[$i]#\#}"; done
+    for i in 0 1 2 3 4 5 6 7; do echo "bright$i=${PALETTE[$((i + 8))]#\#}"; done
+}
+
+apply_foot() { # só reescreve o foot.ini que o próprio tamagi-theme gerou
+    local ini="$CONFIG/foot/foot.ini"
+    if [[ ! -e $ini ]] || head -1 "$ini" | grep -q '^# Gerado por tamagi-theme'; then
+        mkdir -p "$CONFIG/foot"
+        foot_config > "$ini"
+    fi
+}
+
 apply_omarchy_apps() { # apps do Omarchy (instalados pelo tamagi-pkg) leem as cores do tema neste arquivo
     local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme" i
     mkdir -p "$dir"
@@ -111,6 +146,7 @@ apply() {
     apply_cosmic "$name"
     mkdir -p "$CONFIG/tamagi"
     alacritty_config > "$CONFIG/tamagi/alacritty.toml"
+    apply_foot
     apply_omarchy_apps
     echo "$name" > "$STATE"
     echo "$(t "Tema aplicado"): $NAME"
@@ -136,5 +172,7 @@ case "${1:-}" in
     styles)  printf '%s\n' "${STYLES[@]}" ;;
     alacritty) # imprime a configuração do alacritty de um tema (usado no build)
              load "${2:-tokyo-night}"; alacritty_config ;;
+    foot)    # imprime a configuração do foot de um tema (usado no build)
+             load "${2:-tokyo-night}"; foot_config ;;
     *)       echo "uso: tamagi-theme [list|current|set <tema>|next|pick|wallpaper [estilo]|styles]" >&2; exit 2 ;;
 esac

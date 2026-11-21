@@ -5,8 +5,13 @@ Abre com Super+Espaço (configurado no COSMIC). Alimentado pelo registro único
 /usr/share/tamagi/actions.toml, com busca fuzzy instantânea, filtros por
 categoria, badges de estado vivo e suporte a pt/en/es/fr.
 
+Fica residente depois da primeira abertura (ou desde o login, pelo autostart
+com --service): abrir de novo só mostra a janela já montada. O pedido chega
+pelo D-Bus (gdbus), sem carregar o GTK de novo.
+
 Uso:
   tamagi-menu [categoria]      abre a paleta (ex.: ai, install, appearance, system, power)
+  tamagi-menu --service        carrega em segundo plano, sem mostrar (autostart)
   tamagi-menu --list           lista as ações disponíveis (CLI / sem display)
   tamagi-menu --json           exporta as ações em JSON
 """
@@ -129,14 +134,45 @@ def loc(mapping, lang):
     return str(mapping)
 
 
-def load_theme_colors():
-    theme_name = "tokyo-night"
+APP_ID = "org.tamagi.Menu"
+APP_PATH = "/org/tamagi/Menu"
+
+
+def current_theme():
     try:
-        t = (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip()
-        if t:
-            theme_name = t
+        return (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip() or "tokyo-night"
     except OSError:
-        pass
+        return "tokyo-night"
+
+
+def gvariant_str(value):
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def show_remote(category):
+    """Pede à instância residente que mostre a paleta. False se não houver uma.
+
+    Usa o gdbus (C, poucos milissegundos) em vez de importar o GTK só para
+    repassar o pedido. O token de ativação vai junto: com ele o compositor
+    entrega o teclado à janela também quando ela é aberta por um clique.
+    """
+    gdbus = shutil.which("gdbus")
+    if not gdbus or not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        return False
+    token = os.environ.get("XDG_ACTIVATION_TOKEN", "")
+    pdata = "{'activation-token': <%s>}" % gvariant_str(token) if token else "@a{sv} {}"
+    try:
+        r = subprocess.run(
+            [gdbus, "call", "--session", "--dest", APP_ID, "--object-path", APP_PATH,
+             "--method", "org.gtk.Actions.Activate", "show", f"[<{gvariant_str(category)}>]", pdata],
+            capture_output=True, timeout=2, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0
+
+
+def load_theme_colors():
+    theme_name = current_theme()
     colors = {
         "name": theme_name,
         "scheme": "dark",
@@ -172,11 +208,7 @@ def load_theme_colors():
 def quick_status(lang):
     """Lê estado vivo rápido em arquivos locais (sem bloquear a abertura)."""
     tr = UI[lang]
-    theme = "tokyo-night"
-    try:
-        theme = (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip() or theme
-    except OSError:
-        pass
+    theme = current_theme()
 
     ai_label = tr["ai_off"]
     try:
@@ -298,15 +330,13 @@ def run_cli_fallback(cats, actions, lang, initial_cat, list_only=False):
     return 0
 
 
-def run_gui(cats, actions, lang, initial_cat):
+def run_gui(cats, actions, lang, initial_cat, service=False):
     import gi
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
     from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
     tr = UI[lang]
-    colors = load_theme_colors()
-    status = quick_status(lang)
 
     class PaletteWindow(Adw.ApplicationWindow):
         def __init__(self, app, start_cat):
@@ -317,10 +347,32 @@ def run_gui(cats, actions, lang, initial_cat):
             self.active_cat = start_cat
             self.pending_confirm = None
             self.visible_actions = []
+            self.css_provider = None
+            self.css_theme = None
+            # Linhas montadas uma vez por ação; filtrar só reordena e esconde.
+            self.rows = {}
+            self.order = {}
 
             self._apply_css()
             self._build_ui()
+            # Fechar só esconde: a próxima abertura é imediata.
+            self.connect("close-request", self._on_close_request)
+
+        def prepare(self, cat):
+            """Deixa a paleta pronta para aparecer: busca limpa, estado atual."""
+            if self.css_theme != current_theme():
+                self._apply_css()
+            self._cancel_confirm()
+            self.search.set_text("")
+            self.active_cat = cat
+            for k, btn in self.cat_buttons.items():
+                if k == cat:
+                    btn.add_css_class("active")
+                else:
+                    btn.remove_css_class("active")
+            self._refresh_status()
             self._refresh_list()
+            self.search.grab_focus()
 
             # Checa atualização pendente em background sem travar a abertura.
             def bg_check():
@@ -328,7 +380,16 @@ def run_gui(cats, actions, lang, initial_cat):
                     GLib.idle_add(self._show_staged_badge)
             threading.Thread(target=bg_check, daemon=True).start()
 
+        def _on_close_request(self, _win):
+            self.set_visible(False)
+            return True
+
+        def dismiss(self):
+            self.set_visible(False)
+
         def _apply_css(self):
+            colors = load_theme_colors()
+            self.css_theme = colors["name"]
             is_dark = colors["scheme"] == "dark"
             sm = Adw.StyleManager.get_default()
             sm.set_color_scheme(
@@ -437,9 +498,13 @@ def run_gui(cats, actions, lang, initial_cat):
             """
             provider = Gtk.CssProvider()
             provider.load_from_string(css)
+            display = Gdk.Display.get_default()
+            if self.css_provider is not None:
+                Gtk.StyleContext.remove_provider_for_display(display, self.css_provider)
             Gtk.StyleContext.add_provider_for_display(
-                Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+                display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
             )
+            self.css_provider = provider
 
         def _build_ui(self):
             root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -454,20 +519,6 @@ def run_gui(cats, actions, lang, initial_cat):
             self.status_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
             self.status_box.set_hexpand(True)
             self.status_box.set_halign(Gtk.Align.END)
-            for txt in (status["ai"], status["theme"]):
-                chip = Gtk.Label(label=txt)
-                chip.add_css_class("status-chip")
-                self.status_box.append(chip)
-            if status["boot_pending"]:
-                warn = Gtk.Label(label=tr["boot_alert"])
-                warn.add_css_class("status-chip")
-                warn.add_css_class("status-warn")
-                self.status_box.append(warn)
-            if status["quarantined"] > 0:
-                qchip = Gtk.Label(label=f"{tr['quarantine']} ({status['quarantined']})")
-                qchip.add_css_class("status-chip")
-                qchip.add_css_class("status-warn")
-                self.status_box.append(qchip)
             header.append(self.status_box)
             root.append(header)
 
@@ -477,6 +528,9 @@ def run_gui(cats, actions, lang, initial_cat):
             self.search.add_css_class("search-box")
             self.search.connect("search-changed", lambda _e: self._refresh_list())
             self.search.connect("activate", lambda _e: self._trigger_selected())
+            # Digitar com o foco em qualquer lugar da paleta (lista, botões)
+            # escreve na busca: abriu, é só digitar.
+            self.search.set_key_capture_widget(self)
             root.append(self.search)
 
             # ── Category pills ──
@@ -501,6 +555,21 @@ def run_gui(cats, actions, lang, initial_cat):
             self.listbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
             self.listbox.add_css_class("action-list")
             self.listbox.connect("row-activated", lambda _lb, _row: self._trigger_selected())
+            self.listbox.set_sort_func(self._sort_rows)
+            self.listbox.set_filter_func(self._filter_row)
+            for a in actions:
+                row = self._make_row(a)
+                self.rows[id(a)] = row
+                self.listbox.append(row)
+            self.empty_row = Gtk.ListBoxRow()
+            self.empty_row.set_selectable(False)
+            self.empty_row.set_activatable(False)
+            lbl = Gtk.Label(label=tr["empty"], margin_top=24, margin_bottom=24)
+            lbl.add_css_class("action-sub")
+            self.empty_row.set_child(lbl)
+            self.empty_row.action = None
+            self.listbox.append(self.empty_row)
+            self.scrolled = scrolled
             scrolled.set_child(self.listbox)
             root.append(scrolled)
 
@@ -534,8 +603,71 @@ def run_gui(cats, actions, lang, initial_cat):
             self.set_content(root)
             self.search.grab_focus()
 
+        def _make_row(self, a):
+            row = Gtk.ListBoxRow()
+            row.action = a
+            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            img = Gtk.Image.new_from_icon_name(a.get("icon", "emblem-system-symbolic"))
+            img.set_pixel_size(20)
+            box.append(img)
+
+            text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            text_box.set_hexpand(True)
+            title_lbl = Gtk.Label(label=loc(a["title"], lang), xalign=0)
+            title_lbl.add_css_class("action-title")
+            title_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+            sub_lbl = Gtk.Label(label=loc(a["subtitle"], lang), xalign=0)
+            sub_lbl.add_css_class("action-sub")
+            sub_lbl.set_ellipsize(Pango.EllipsizeMode.END)
+            text_box.append(title_lbl)
+            text_box.append(sub_lbl)
+            box.append(text_box)
+
+            risk = a.get("risk", "user")
+            if risk in ("system", "read"):
+                tag = Gtk.Label(label=tr[f"risk_{risk}"])
+                tag.add_css_class("risk-tag")
+                tag.set_valign(Gtk.Align.CENTER)
+                box.append(tag)
+
+            row.set_child(box)
+            return row
+
+        def _sort_rows(self, r1, r2):
+            # A linha "nada encontrado" fica sempre por último.
+            o1 = self.order.get(id(r1.action), 1 << 30) if r1.action else 1 << 31
+            o2 = self.order.get(id(r2.action), 1 << 30) if r2.action else 1 << 31
+            return (o1 > o2) - (o1 < o2)
+
+        def _filter_row(self, row):
+            if row.action is None:
+                return not self.visible_actions
+            return id(row.action) in self.order
+
+        def _refresh_status(self):
+            status = quick_status(lang)
+            while (child := self.status_box.get_first_child()) is not None:
+                self.status_box.remove(child)
+            for txt in (status["ai"], status["theme"]):
+                chip = Gtk.Label(label=txt)
+                chip.add_css_class("status-chip")
+                self.status_box.append(chip)
+            if status["boot_pending"]:
+                warn = Gtk.Label(label=tr["boot_alert"])
+                warn.add_css_class("status-chip")
+                warn.add_css_class("status-warn")
+                self.status_box.append(warn)
+            if status["quarantined"] > 0:
+                qchip = Gtk.Label(label=f"{tr['quarantine']} ({status['quarantined']})")
+                qchip.add_css_class("status-chip")
+                qchip.add_css_class("status-warn")
+                self.status_box.append(qchip)
+
         def _show_staged_badge(self):
+            if getattr(self.status_box.get_first_child(), "staged", False):
+                return False
             chip = Gtk.Label(label=tr["update_ready"])
+            chip.staged = True
             chip.add_css_class("status-chip")
             chip.add_css_class("status-warn")
             self.status_box.prepend(chip)
@@ -576,74 +708,48 @@ def run_gui(cats, actions, lang, initial_cat):
             if query:
                 scored.sort(key=lambda x: -x[0])
             self.visible_actions = [a for _, a in scored]
+            self.order = {id(a): i for i, a in enumerate(self.visible_actions)}
+            self.listbox.invalidate_sort()
+            self.listbox.invalidate_filter()
+            if self.visible_actions:
+                self.listbox.select_row(self.rows[id(self.visible_actions[0])])
+                self.scrolled.get_vadjustment().set_value(0)
+            else:
+                self.listbox.unselect_all()
 
-            while (child := self.listbox.get_first_child()) is not None:
-                self.listbox.remove(child)
-
-            if not self.visible_actions:
-                row = Gtk.ListBoxRow()
-                row.set_selectable(False)
-                lbl = Gtk.Label(label=tr["empty"], margin_top=24, margin_bottom=24)
-                lbl.add_css_class("action-sub")
-                row.set_child(lbl)
-                self.listbox.append(row)
-                return
-
-            for a in self.visible_actions:
-                row = Gtk.ListBoxRow()
-                box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-                img = Gtk.Image.new_from_icon_name(a.get("icon", "emblem-system-symbolic"))
-                img.set_pixel_size(20)
-                box.append(img)
-
-                text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-                text_box.set_hexpand(True)
-                title_lbl = Gtk.Label(label=loc(a["title"], lang), xalign=0)
-                title_lbl.add_css_class("action-title")
-                title_lbl.set_ellipsize(Pango.EllipsizeMode.END)
-                sub_lbl = Gtk.Label(label=loc(a["subtitle"], lang), xalign=0)
-                sub_lbl.add_css_class("action-sub")
-                sub_lbl.set_ellipsize(Pango.EllipsizeMode.END)
-                text_box.append(title_lbl)
-                text_box.append(sub_lbl)
-                box.append(text_box)
-
-                risk = a.get("risk", "user")
-                if risk in ("system", "read"):
-                    tag = Gtk.Label(label=tr[f"risk_{risk}"])
-                    tag.add_css_class("risk-tag")
-                    tag.set_valign(Gtk.Align.CENTER)
-                    box.append(tag)
-
-                row.set_child(box)
-                self.listbox.append(row)
-
-            first = self.listbox.get_row_at_index(0)
-            if first:
-                self.listbox.select_row(first)
-
-        def _move_selection(self, delta):
-            if not self.visible_actions:
-                return
+        def _selected_index(self):
             row = self.listbox.get_selected_row()
-            idx = row.get_index() if row else 0
-            nxt = (idx + delta) % len(self.visible_actions)
-            target = self.listbox.get_row_at_index(nxt)
-            if target:
-                self.listbox.select_row(target)
-                target.grab_focus()
+            if row is None or row.action is None:
+                return -1
+            return self.order.get(id(row.action), -1)
+
+        def _move_selection(self, delta, wrap=True):
+            if not self.visible_actions:
+                return
+            idx = max(self._selected_index(), 0)
+            n = len(self.visible_actions)
+            nxt = (idx + delta) % n if wrap else min(max(idx + delta, 0), n - 1)
+            target = self.rows[id(self.visible_actions[nxt])]
+            self.listbox.select_row(target)
+            # Rola até a linha sem tirar o foco da busca (digitar continua filtrando).
+            ok, rect = target.compute_bounds(self.listbox)
+            if ok:
+                adj = self.scrolled.get_vadjustment()
+                top, bottom = rect.get_y(), rect.get_y() + rect.get_height()
+                if top < adj.get_value():
+                    adj.set_value(top)
+                elif bottom > adj.get_value() + adj.get_page_size():
+                    adj.set_value(bottom - adj.get_page_size())
+            if not self.search.has_focus():
                 self.search.grab_focus()
-                self.search.set_position(-1)
+            self.search.set_position(-1)
 
         def _trigger_selected(self):
             if self.pending_confirm is not None:
                 self._execute_confirmed()
                 return
-            row = self.listbox.get_selected_row()
-            if not row or not self.visible_actions:
-                return
-            idx = row.get_index()
-            if idx < 0 or idx >= len(self.visible_actions):
+            idx = self._selected_index()
+            if idx < 0:
                 return
             action = self.visible_actions[idx]
             if action.get("confirm", False):
@@ -665,7 +771,7 @@ def run_gui(cats, actions, lang, initial_cat):
 
         def _run_and_close(self, action):
             spawn_action(action, lang)
-            self.close()
+            self.dismiss()
 
         def _on_key(self, _ctrl, keyval, _keycode, state):
             if keyval == Gdk.KEY_Escape:
@@ -675,13 +781,19 @@ def run_gui(cats, actions, lang, initial_cat):
                 if self.search.get_text():
                     self.search.set_text("")
                     return True
-                self.close()
+                self.dismiss()
                 return True
             if keyval in (Gdk.KEY_Down, Gdk.KEY_KP_Down):
                 self._move_selection(1)
                 return True
             if keyval in (Gdk.KEY_Up, Gdk.KEY_KP_Up):
                 self._move_selection(-1)
+                return True
+            if keyval in (Gdk.KEY_Page_Down, Gdk.KEY_KP_Page_Down):
+                self._move_selection(8, wrap=False)
+                return True
+            if keyval in (Gdk.KEY_Page_Up, Gdk.KEY_KP_Page_Up):
+                self._move_selection(-8, wrap=False)
                 return True
             if keyval == Gdk.KEY_Tab:
                 self._cycle_category(1)
@@ -697,34 +809,53 @@ def run_gui(cats, actions, lang, initial_cat):
     class TamagiMenuApp(Adw.Application):
         def __init__(self):
             super().__init__(
-                application_id="org.tamagi.Menu",
+                application_id=APP_ID,
                 flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE,
             )
             self.win = None
+            self.held = False
+            show = Gio.SimpleAction.new("show", GLib.VariantType.new("s"))
+            show.connect("activate", lambda _a, param: self.toggle(param.get_string() or None))
+            self.add_action(show)
+
+        def _window(self):
+            if self.win is None:
+                self.win = PaletteWindow(self, initial_cat)
+            if not self.held:
+                # Continua vivo com a janela escondida: abrir de novo é instantâneo.
+                self.hold()
+                self.held = True
+            return self.win
+
+        def toggle(self, req_cat):
+            win = self._window()
+            if win.get_visible():
+                if req_cat is None:
+                    # Super+Espaço com a paleta já aberta: alterna (fecha).
+                    win.dismiss()
+                else:
+                    win.set_category(req_cat)
+                    win.present()
+                return
+            win.prepare(req_cat or "all")
+            win.present()
 
         def do_command_line(self, command_line):
             argv = command_line.get_arguments()[1:]
-            req_cat = CATEGORY_ALIASES.get(argv[0].lower(), "all") if argv else None
-            if self.win is not None:
-                if req_cat is None:
-                    # Super+Espaço com a paleta já aberta: alterna (fecha).
-                    self.win.close()
-                    self.win = None
-                else:
-                    self.win.set_category(req_cat)
-                    self.win.present()
+            if "--service" in argv:
+                # Autostart: monta a janela sem mostrar.
+                self._window()
                 return 0
-            self.win = PaletteWindow(self, req_cat or initial_cat)
-            self.win.connect("close-request", self._on_close)
-            self.win.present()
+            cat = CATEGORY_ALIASES.get(argv[0].lower(), "all") if argv else None
+            self.toggle(cat)
             return 0
 
-        def _on_close(self, _win):
-            self.win = None
-            return False
-
     app = TamagiMenuApp()
-    return app.run(sys.argv[:1] + ([initial_cat] if initial_cat != "all" else []))
+    if service:
+        args = ["--service"]
+    else:
+        args = [initial_cat] if initial_cat != "all" else []
+    return app.run(sys.argv[:1] + args)
 
 
 def main():
@@ -732,11 +863,18 @@ def main():
     parser.add_argument("category", nargs="?", default="all", help="initial category")
     parser.add_argument("--list", action="store_true", help="list actions and exit")
     parser.add_argument("--json", action="store_true", help="dump actions as JSON and exit")
+    parser.add_argument("--service", action="store_true", help="preload in the background (autostart)")
     args = parser.parse_args()
+
+    initial_cat = CATEGORY_ALIASES.get(args.category.lower(), "all")
+    has_display = bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
+    # Caminho rápido: a paleta já está carregada, só pede para aparecer.
+    if has_display and not (args.json or args.list or args.service):
+        if show_remote(initial_cat if args.category != "all" else ""):
+            return 0
 
     lang = detect_lang()
     cats, actions = load_registry()
-    initial_cat = CATEGORY_ALIASES.get(args.category.lower(), "all")
 
     if args.json:
         out = [
@@ -757,10 +895,12 @@ def main():
     if args.list:
         return run_cli_fallback(cats, actions, lang, initial_cat, list_only=True)
 
-    if not os.environ.get("WAYLAND_DISPLAY") and not os.environ.get("DISPLAY"):
+    if not has_display:
+        if args.service:
+            return 0
         return run_cli_fallback(cats, actions, lang, initial_cat, list_only=False)
 
-    return run_gui(cats, actions, lang, initial_cat)
+    return run_gui(cats, actions, lang, initial_cat, service=args.service)
 
 
 if __name__ == "__main__":

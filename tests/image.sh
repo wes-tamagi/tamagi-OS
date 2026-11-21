@@ -24,7 +24,7 @@ check "image-info.json é JSON válido"     jq -e '."image-name"' /usr/share/ubl
 check "root padrão é btrfs"               grep -q 'type = "btrfs"' /usr/lib/bootc/install/10-tamagi.toml
 
 section "Ferramentas na imagem"
-for cmd in distrobox podman flatpak bootc ujust alacritty cosmic-term cosmic-files git nvim rg fd bat \
+for cmd in distrobox podman flatpak bootc ujust foot alacritty cosmic-term cosmic-files git nvim rg fd bat \
            eza zoxide btop fastfetch gum lazygit starship mise jq dust delta hyperfine uv \
            sudo-rs uutils-coreutils gamescope mangohud gamemoderun usbguard \
            llama-server llama-cli opencode claude \
@@ -298,7 +298,12 @@ check "fontes: Noto Sans (interface) e Roboto Slab (serifa)" bash -c '[[ $(fc-ma
 check "barra: uma só, embaixo, apps no centro" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -q "^\[\"Panel\"\]$" /usr/share/cosmic/com.system76.CosmicPanel/v1/entries && grep -qx Bottom $P/anchor && grep -q CosmicAppList $P/plugins_center && grep -q CosmicAppletTime $P/plugins_wings'
 check "menu iniciar: applet instalado, primeiro botão da barra, layout Retro" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; M=/usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1; command -v cosmic-ext-classic-menu-applet && grep -q "^Some((\[\"com.championpeak87.cosmic-ext-classic-menu\"" $P/plugins_wings && ! grep -q CosmicPanelAppButton $P/plugins_wings && grep -qx Retro $M/menu_layout && grep -qx Places $M/side_panel'
 check "menu iniciar: ícone próprio do Tamagi, sem texto" bash -c 'M=/usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1; f=$(tr -d "\"" < $M/button_icon); [[ $f == /usr/share/tamagi/menu/tamagi-start-symbolic.svg && -s $f ]] && grep -qx IconOnly $M/applet_button_style && rsvg-convert "$f" -o /tmp/menu-icon.png && [[ -s /tmp/menu-icon.png ]]'
-check "Arquivos: lista, pastas primeiro" bash -c 'f=/usr/share/cosmic/com.system76.CosmicFiles/v1/tab; grep -q "view: List" $f && grep -q "folders_first: true" $f'
+check "Arquivos: grade, pastas primeiro" bash -c 'f=/usr/share/cosmic/com.system76.CosmicFiles/v1/tab; grep -q "view: Grid" $f && grep -q "folders_first: true" $f'
+check "menu iniciar 1.1.0: menu focado (já abre com o teclado)" bash -c 'grep -qx true /usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1/focused_menu && grep -aq focused_menu /usr/bin/cosmic-ext-classic-menu-applet && [[ -x /usr/bin/cosmic-ext-classic-menu-settings ]]'
+check "terminal padrão: foot (Super+Enter e xdg-terminal-exec)" bash -c 'grep -q "Terminal: \"foot\"" /usr/share/cosmic/com.system76.CosmicSettings.Shortcuts/v1/system_actions && [[ $(head -1 /etc/xdg/xdg-terminals.list) == foot.desktop ]] && grep -q com.system76.CosmicTerm.desktop /etc/xdg/xdg-terminals.list'
+check "foot: config do sistema válida, com o tema padrão" bash -c 'foot --check-config && grep -q "^background=1a1b26" /etc/xdg/foot/foot.ini && grep -q "JetBrains Mono" /etc/xdg/foot/foot.ini'
+check "tamagi-theme grava o foot.ini do usuário e respeita o personalizado" bash -c 'tamagi-theme set nord >/dev/null && f=$HOME/.config/foot/foot.ini && foot --config "$f" --check-config && grep -q "Gerado por tamagi-theme (Nord)" "$f" && sed -i 1d "$f" && tamagi-theme set gruvbox >/dev/null && ! grep -q Gruvbox "$f"; r=$?; rm -f "$f"; tamagi-theme set tokyo-night >/dev/null; exit $r'
+check "tamagi-menu: residente pelo autostart" bash -c 'desktop-file-validate /etc/xdg/autostart/tamagi-menu-service.desktop && grep -q "^Exec=tamagi-menu --service" /etc/xdg/autostart/tamagi-menu-service.desktop && env -u WAYLAND_DISPLAY -u DISPLAY tamagi-menu --service'
 check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep -q "CosmicPanel\.Dock/"'
 check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'
 check "agente de IA responde no idioma do sistema" bash -c 'grep -q "Responda sempre em" /usr/bin/tamagi-agent && ! grep -q "português do Brasil," /usr/share/tamagi/agent/system.md'

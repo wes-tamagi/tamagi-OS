@@ -42,6 +42,25 @@ RUN cmake -B build -G Ninja \
     && rm -rf /out/usr/include /out/usr/lib64/cmake /out/usr/lib64/pkgconfig \
     && install -Dm644 LICENSE /out/usr/share/licenses/llama.cpp/LICENSE
 
+# ── Estágio 1b: menu iniciar (cosmic-ext-classic-menu 1.1.0) ───────────────
+# O COPR para na 1.0.0, cujo menu só recebe o teclado depois de um clique. A
+# 1.1.0 traz o "menu focado" (focused_menu): abriu, já dá para digitar e usar
+# as setas. Versão fixa: uma nova só entra trocando CLASSIC_MENU_REF.
+FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS rustdesk
+ARG CLASSIC_MENU_REF=1.1.0
+RUN dnf -y install --setopt=install_weak_deps=False \
+        git-core cargo rust just gcc pkgconf-pkg-config \
+        libxkbcommon-devel wayland-devel fontconfig-devel freetype-devel \
+    && dnf clean all
+ENV CARGO_HOME=/cargo CARGO_TERM_COLOR=never CARGO_NET_GIT_FETCH_WITH_CLI=true
+# Menu iniciar (o justfile do projeto instala no mesmo lugar que o RPM do COPR).
+RUN git clone --depth 1 --branch "${CLASSIC_MENU_REF}" \
+        https://github.com/championpeak87/cosmic-ext-classic-menu /src/menu \
+    && cd /src/menu && just build-release --locked \
+    && just rootdir=/out install \
+    && strip /out/usr/bin/cosmic-ext-classic-menu-* \
+    && install -Dm644 LICENSE /out/usr/share/licenses/cosmic-ext-classic-menu/LICENSE
+
 # ── Kernel e módulos prontos e assinados do Universal Blue (ublue-os/akmods) ──
 # build_files/12-kernel.sh troca o kernel (se o sabor pedir) e instala os módulos.
 FROM ghcr.io/ublue-os/akmods:${KERNEL_FLAVOR}-${FEDORA_VERSION} AS akmods
@@ -70,6 +89,7 @@ ARG MISE_VERSION=v2026.11.9
 ARG KERNEL_FLAVOR=main
 
 COPY --from=llama /out/usr /usr
+COPY --from=rustdesk /out/usr /usr
 COPY --from=ctx /system_files /
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
