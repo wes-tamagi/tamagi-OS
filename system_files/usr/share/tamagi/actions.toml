@@ -131,10 +131,10 @@ en = "Claude Code"
 es = "Claude Code"
 fr = "Claude Code"
 [action.subtitle]
-pt = "Agente de programação da Anthropic pré-instalado"
-en = "Pre-installed Anthropic coding agent"
-es = "Agente de programación de Anthropic preinstalado"
-fr = "Agent de programmation d'Anthropic préinstallé"
+pt = "Agente de programação da Anthropic; baixado da Anthropic no primeiro uso"
+en = "Anthropic's coding agent; downloaded from Anthropic on first use"
+es = "Agente de programación de Anthropic; se descarga de Anthropic en el primer uso"
+fr = "Agent de programmation d'Anthropic ; téléchargé chez Anthropic à la première utilisation"
 
 [[action]]
 id = "ai.setup"
