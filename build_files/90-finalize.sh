@@ -15,6 +15,24 @@ rm -f /usr/lib/greenboot/check/required.d/01_repository_dns_check.sh \
 systemctl enable snapper-timeline.timer snapper-cleanup.timer tamagi-home-snapshots.service
 # Manutenção do btrfs (btrfsmaintenance): scrub mensal e balance semanal.
 systemctl enable btrfs-scrub.timer btrfs-balance.timer
+# TRIM: o btrfs já devolve os blocos livres ao SSD aos poucos (discard=async, o
+# padrão do kernel em SSD, com limite de taxa) — é o que dá desempenho sem
+# rajadas. O fstrim periódico fica como rede de segurança e para /boot e EFI;
+# semanal ele reenviaria o TRIM de todo o espaço livre do btrfs a cada vez,
+# então passa a mensal e não roda na bateria.
+install -Dm644 /dev/stdin /usr/lib/systemd/system/fstrim.timer.d/10-tamagi.conf <<'UNIT'
+[Timer]
+OnCalendar=
+OnCalendar=monthly
+RandomizedDelaySec=6h
+UNIT
+install -Dm644 /dev/stdin /usr/lib/systemd/system/fstrim.service.d/10-tamagi.conf <<'UNIT'
+[Unit]
+ConditionACPower=true
+[Service]
+IOSchedulingClass=idle
+UNIT
+systemctl enable fstrim.timer
 
 # O kernel padrão (Open Gaming Collective) é assinado só pelo Universal Blue: este guarda
 # cancela uma atualização que não iniciaria com o Secure Boot (chave ausente).
