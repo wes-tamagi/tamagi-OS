@@ -54,7 +54,6 @@ READ_ONLY_SUB = {
     "docker": {"ps", "images", "info", "version", "inspect", "logs"},
     "git": {"status", "log", "diff", "show"},
     "brew": {"list", "info", "search"},
-    "ujust": {"--list", "-l", "--summary"},
     "tamagi-ai": {"status", "list", "presets", "recommend"},
     "tamagi-theme": {"list", "current", "styles"},
     "tamagi-update": {"status", "quarantine"},

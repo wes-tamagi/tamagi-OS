@@ -1,0 +1,17 @@
+# Tamagi's compiled tools. Bash stays where a command only chains other
+# commands; what lives here is what gains from types and unit tests.
+[workspace]
+resolver = "2"
+members = ["agent-jail", "tamagi", "tamagi-layer"]
+
+[workspace.package]
+edition = "2021"
+version = "1.0.0"
+license = "GPL-3.0-or-later"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1

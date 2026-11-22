@@ -91,7 +91,7 @@ O que muda e o que fica depois da migração:
 | Homebrew (`brew`) | O Tamagi não traz o Homebrew. Os arquivos em `/home/linuxbrew` ficam no disco, mas o comando sai do caminho. Use as caixas de desenvolvimento (`tamagi devbox`). |
 | GNOME ou KDE | Saem com a imagem antiga. As configurações deles ficam na pasta pessoal, sem uso. |
 | Extensões do GNOME, widgets do KDE | Não funcionam no COSMIC. |
-| Comandos `ujust` do Bluefin/Aurora | Trocados pelos do Tamagi (`tamagi`, e os `ujust` que restaram). |
+| Comandos `ujust` do Bluefin/Aurora | Não existem no Tamagi: tudo é `tamagi` (`ujust update` vira `tamagi update`; chave do Secure Boot, TPM, firmware e limpeza ficam em `tamagi setup`). |
 | Snapshots da pasta pessoal (`tamagi rewind`) | Dependem de como o disco foi instalado; podem não estar disponíveis. `tamagi doctor` mostra. |
 | Assistente de primeiro login | Rode `tamagi firstrun` se ele não abrir sozinho. |
 

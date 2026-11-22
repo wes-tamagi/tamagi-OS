@@ -34,7 +34,7 @@ def strings(root):
     found = []
     for name in SCRIPTS:
         p = root / "usr/bin" / name
-        if not p.is_file():
+        if not p.is_file() or p.read_bytes()[:4] == b"\x7fELF":   # a Rust program: see below
             continue
         text = p.read_text(encoding="utf-8")
         if text.startswith("#!/usr/bin/python"):
@@ -43,6 +43,10 @@ def strings(root):
         else:
             for rx in (CALLS, ASK, PICK, HEADER):
                 found += rx.findall(text)
+    # The tools written in Rust (rust/, next to system_files in the repository;
+    # the image carries only the binaries): t("…") calls, same English keys.
+    for src in sorted((root.parent / "rust").glob("*/src/*.rs")):
+        found += [m.replace('\\"', '"') for m in PY_CALLS_DQ.findall(src.read_text(encoding="utf-8"))]
     seen = []
     for s in found:
         if s and s not in seen:
@@ -81,7 +85,11 @@ def check_actions_toml(root):
 def command_list(root):
     """Groups and descriptions of the COMMANDS table of `tamagi` (shown by
     `tamagi` with no arguments): they go through t() as variables."""
-    text = (root / "usr/bin/tamagi").read_text(encoding="utf-8")
+    # `tamagi` is a Rust program: the table is in its source, in the repository.
+    src = root.parent / "rust/tamagi/src/main.rs"
+    if not src.is_file():
+        return []
+    text = src.read_text(encoding="utf-8")
     found = []
     for group, desc in re.findall(r'^    \("([^"]+)", "[a-z-]+", "([^"]+)"\),$', text, re.M):
         found += [group, desc]

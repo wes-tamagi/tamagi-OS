@@ -1,0 +1,12 @@
+[package]
+name = "agent-jail"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+description = "Builds the bubblewrap jail of `tamagi agents run` and enters it"
+
+# No dependencies on purpose: this is the security boundary of the AI agents,
+# and it is built static (musl) because it also runs inside the development
+# boxes (Ubuntu, Arch, openSUSE), called as /run/host/usr/libexec/tamagi/agent-jail.
+[dependencies]

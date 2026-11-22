@@ -441,7 +441,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "ujust setup-lazyvim"
+command = "tamagi-setup lazyvim"
 keywords = "nvim neovim lazyvim editor vim"
 [action.title]
 pt = "Instalar LazyVim no Neovim"
@@ -1138,7 +1138,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "ujust clean-system"
+command = "tamagi-setup clean"
 keywords = "clean limpar espaco disk cache podman flatpak"
 [action.title]
 pt = "Limpar espaço em disco"

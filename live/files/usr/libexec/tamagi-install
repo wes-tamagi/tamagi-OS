@@ -222,7 +222,7 @@ progress 12 copy
 TARGET=(--target-transport registry --target-imgref "${TARGET_IMGREF:-localhost/tamagi:latest}")
 # O sistema vem da mídia e a instalação tem de funcionar sem rede: o bootc não
 # confere o registry agora. Sem registry configurado a imagem instalada ainda
-# não tem de onde se atualizar (`ujust switch-image` resolve depois).
+# não tem de onde se atualizar (`tamagi setup switch-image` resolve depois).
 TARGET+=(--skip-fetch-check)
 [[ -n ${A[EXTRA_KARGS]:-} ]] && for karg in ${A[EXTRA_KARGS]}; do KARGS+=(--karg "$karg"); done
 echo "bootc install to-filesystem --source-imgref $SOURCE ${TARGET[*]} ${KARGS[*]} $MNT" >&2

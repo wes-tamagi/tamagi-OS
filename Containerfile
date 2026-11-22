@@ -66,6 +66,23 @@ RUN git clone --depth 1 --branch "${CLASSIC_MENU_REF}" \
     && strip /out/usr/bin/cosmic-ext-classic-menu-* \
     && install -Dm644 LICENSE /out/usr/share/licenses/cosmic-ext-classic-menu/LICENSE
 
+# ── Estágio 1c: as ferramentas do Tamagi escritas em Rust (rust/) ───────────
+# tamagi (a entrada única), tamagi-layer (camadas nativas) e agent-jail (o
+# isolamento dos agentes de IA). Estáticas (glibc embutida): o agent-jail também roda dentro das caixas de
+# desenvolvimento (Ubuntu, Arch, openSUSE), onde a glibc é outra. Os testes
+# unitários rodam aqui: se falharem, a imagem não é construída.
+FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS tamagitools
+RUN dnf -y install --setopt=install_weak_deps=False cargo rust gcc glibc-static \
+    && dnf clean all
+ENV CARGO_HOME=/cargo CARGO_TERM_COLOR=never CARGO_TARGET_DIR=/target
+COPY rust /src
+WORKDIR /src
+RUN cargo test --release --locked \
+    && RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --locked --target x86_64-unknown-linux-gnu \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/agent-jail /out/usr/libexec/tamagi/agent-jail \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi /out/usr/bin/tamagi \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-layer /out/usr/bin/tamagi-layer
+
 # ── Kernel e módulos prontos e assinados do Universal Blue (ublue-os/akmods) ──
 # build_files/12-kernel.sh troca o kernel (se o sabor pedir) e instala os módulos.
 FROM ghcr.io/ublue-os/akmods:${AKMODS_FLAVOR}-${FEDORA_VERSION} AS akmods
@@ -92,6 +109,7 @@ ARG KERNEL_FLAVOR=ogc
 COPY --from=llama /out/usr /usr
 COPY --from=rustdesk /out/usr /usr
 COPY --from=ctx /system_files /
+COPY --from=tamagitools /out/usr /usr
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=bind,from=akmods,source=/,target=/akmods \

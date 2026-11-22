@@ -1,0 +1,10 @@
+[package]
+name = "tamagi-layer"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+description = "Fedora packages layered over the image (systemd-sysext), without rebuilding it"
+
+# No dependencies: linked statically, like the other tools in this workspace.
+[dependencies]

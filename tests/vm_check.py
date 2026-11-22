@@ -213,6 +213,14 @@ def main():
     # Máquinas virtuais são opcionais (tamagi vm install): nada de libvirt na imagem.
     out, _ = run("command -v virsh virt-manager | wc -l; systemctl is-enabled tamagi-layer-units.service")
     check("virt-manager fora da imagem; serviço das camadas ligado", out.split() == ["0", "enabled"], out)
+    # Uma camada de verdade, de ponta a ponta (tamagi-layer em Rust): instala um
+    # pacote pequeno por cima da imagem, confere que aparece e desfaz.
+    sudo("-v")
+    out, rc = run("tamagi-layer add teste cowsay 2>&1 | tail -3; command -v cowsay; tamagi-layer list | grep -c '^teste '", 600)
+    check("camada nativa: tamagi-layer add instala e ativa um pacote", "/usr/bin/cowsay" in out.split() and out.split()[-1:] == ["1"], out[-400:])
+    sudo("-v")
+    out, rc = run("tamagi-layer remove teste 2>&1 | tail -1; command -v cowsay | wc -l; tamagi-layer list | grep -c '^teste '")
+    check("camada nativa: tamagi-layer remove desfaz", out.split()[-2:] == ["0", "0"], out[-300:])
     out, _ = run("systemctl is-enabled rpm-ostreed-automatic.timer flatpak-system-update.timer; systemctl --user is-enabled tamagi-autoupdate.timer flatpak-user-update.timer")
     check("atualização automática: os quatro timers ligados", out.split() == ["enabled"] * 4, out)
     out, _ = run("systemctl --user list-timers --all --no-legend 2>/dev/null | grep -c tamagi-autoupdate")

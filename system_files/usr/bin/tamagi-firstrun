@@ -95,9 +95,9 @@ if lsblk -no TYPE 2>/dev/null | grep -qx crypt && [[ -e /sys/class/tpm/tpm0 ]] \
         && ! grep -qw 'tpm2-device=auto' /proc/cmdline; then
     step "Encrypted disk"
     if ask --no "Unlock the disk with the TPM chip at boot, without typing the password?"; then
-        ujust setup-luks-tpm-unlock || true
+        tamagi-setup tpm-unlock on || true
     else
-        tl "Later: ujust setup-luks-tpm-unlock"
+        tl "Later: tamagi setup tpm-unlock on"
     fi
 fi
 

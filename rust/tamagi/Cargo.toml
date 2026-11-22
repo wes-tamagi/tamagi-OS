@@ -1,0 +1,17 @@
+[package]
+name = "tamagi"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish = false
+description = "tamagi — one command for the whole system"
+
+[[bin]]
+name = "tamagi"
+path = "src/main.rs"
+
+# One dependency: the TOML reader (tamagi.toml, profiles, mise's config).
+# `preserve_order` keeps sections and keys in the order of the file, which is
+# the order of the plan. No HTTP crate: a shared file is fetched with curl.
+[dependencies]
+toml = { version = "0.8", default-features = false, features = ["parse", "preserve_order"] }

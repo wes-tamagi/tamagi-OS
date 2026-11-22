@@ -85,7 +85,7 @@ def check_kernel():
             rc2, _, _ = run_out(["mokutil", "--test-key", str(cert)])
             if rc2 == 0:
                 return item("kernel", "WARN", f"{kver} ({flav}): {t('Universal Blue Secure Boot key missing')}",
-                            "ujust enroll-secure-boot-key")
+                            "tamagi setup secure-boot-key")
     detail = f"{kver}" + (f" ({flav})" if flav else "") + (" · sched_ext" if has_scx else "")
     return item("kernel", "OK", detail)
 

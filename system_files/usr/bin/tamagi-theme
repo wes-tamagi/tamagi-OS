@@ -201,7 +201,7 @@ nvim_spec() { # plugin de cores do LazyVim para o tema (os mesmos do Omarchy)
     echo "}"
 }
 
-apply_nvim() { # só se você usa LazyVim (ujust setup-lazyvim) e não personalizou
+apply_nvim() { # só se você usa LazyVim (tamagi setup lazyvim) e não personalizou
     local dir="$CONFIG/nvim/lua/plugins" f
     [[ -d $dir ]] || return 0
     f="$dir/tamagi-theme.lua"

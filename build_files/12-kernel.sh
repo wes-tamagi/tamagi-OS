@@ -18,7 +18,7 @@
 #
 # SECURE BOOT. O "ogc" é assinado SÓ pelo Universal Blue: com o Secure Boot ligado ele só
 # inicia depois que a chave do Universal Blue for registrada na máquina, uma
-# vez:  ujust enroll-secure-boot-key   (senha: universalblue) e reiniciar.
+# vez:  tamagi setup secure-boot-key   (senha: universalblue) e reiniciar.
 # Conferir antes de trocar de imagem:
 #   mokutil --test-key /etc/pki/akmods/certs/akmods-ublue.der
 # Com o Secure Boot desligado não há nada a fazer.

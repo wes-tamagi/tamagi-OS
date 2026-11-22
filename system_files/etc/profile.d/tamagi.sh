@@ -2,7 +2,7 @@
 # Tamagi — ambiente do shell interativo (bash).
 # Para desligar tudo isto para o seu usuário: touch ~/.config/tamagi/no-shell-setup
 
-# Botões do gum (Sim/Não) legíveis: vale para ujust e para as ferramentas tamagi-*.
+# Botões do gum (Sim/Não) legíveis: vale para as ferramentas tamagi-*.
 # shellcheck source=/dev/null
 [ -r /usr/share/tamagi/gum.env ] && . /usr/share/tamagi/gum.env
 

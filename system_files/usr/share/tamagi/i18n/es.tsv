@@ -899,3 +899,12 @@ Tasks — to-do lists	Tasks — listas de tareas
 Forecast — weather	Forecast — el tiempo
 Calculator — made for COSMIC	Calculator — hecha para COSMIC
 COSMIC	COSMIC
+machine chores: Secure Boot key, TPM unlock, firmware, clean	tareas del equipo: clave de Secure Boot, TPM, firmware, limpieza
+key not found	clave no encontrada
+The key is already enrolled.	La clave ya está registrada.
+Restart. On the blue screen choose Enroll MOK, Continue, Yes and type the password: universalblue	Reinicia. En la pantalla azul elige Enroll MOK, Continue, Yes y escribe la contraseña: universalblue
+No firmware updates.	Sin actualizaciones de firmware.
+restarting into the firmware screen needs UEFI	reiniciar en la pantalla del firmware requiere UEFI
+already exists; nothing was changed	ya existe; no se cambió nada
+LazyVim installed with the colours of the current theme. Open nvim: plugins download on first start.	LazyVim instalado con los colores del tema actual. Abre nvim: los plugins se descargan la primera vez.
+Later: tamagi setup tpm-unlock on	Más tarde: tamagi setup tpm-unlock on

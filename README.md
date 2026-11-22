@@ -33,9 +33,13 @@ tamagi devbox create ubuntu                  # caixa de desenvolvimento
 tamagi db add postgres                       # banco de dados para desenvolvimento
 ```
 
-`tamagi <comando>` é o programa `tamagi-<comando>`. Não há mais receitas do
-`ujust` repetindo esses comandos: no `ujust` ficou só o que não tem comando
-próprio (`setup-lazyvim`, `switch-image` e as receitas do Universal Blue).
+`tamagi <comando>` é o programa `tamagi-<comando>`. A entrada `tamagi`, as camadas
+nativas (`tamagi layer`) e o isolamento dos agentes de IA são programas em
+Rust (pasta `rust/`, binários estáticos, com testes que rodam no build da
+imagem); os comandos que só encadeiam outros continuam em Bash. O `ujust` do Universal Blue
+não vem na imagem: há um comando só. O que ele fazia está em `tamagi update`
+e em `tamagi setup` (chave do Secure Boot, desbloqueio por TPM, firmware,
+limpeza, LazyVim, trocar de imagem).
 
 As mensagens são escritas em **inglês** (o idioma de origem) e traduzidas para
 português, espanhol e francês por catálogos em `/usr/share/tamagi/i18n`; em
@@ -235,7 +239,7 @@ Como funciona por dentro:
 Para o sistema instalado receber atualizações, publique a imagem num registry
 (`.github/workflows/build.yml` faz isso no GHCR) e gere a ISO com
 `TAMAGI_TARGET_IMGREF=ghcr.io/SEU_USUARIO/tamagi:latest just build-iso`. Numa
-máquina já instalada: `ujust switch-image ghcr.io/SEU_USUARIO/tamagi:latest`.
+máquina já instalada: `tamagi setup switch-image ghcr.io/SEU_USUARIO/tamagi:latest`.
 Em quem já roda Bluefin, Aurora, Bazzite ou outro sistema da família Universal
 Blue: `sudo bootc switch <imagem>`.
 
@@ -558,7 +562,7 @@ desenvolvimento local.
 Atalhos no estilo do Omarchy (`Super+K` lista todos): `Super+Shift+G` lazygit,
 `Super+Shift+D` bancos, `Super+Shift+O` OnlyOffice e `Super+Shift+M` Mission
 Center (instalados no primeiro uso), `Super+Shift+W` Windows, `Super+Ctrl+E` emojis (Smile, instalado no
-primeiro uso), `Super+Ctrl+R` lembrete. Com LazyVim (`ujust setup-lazyvim`),
+primeiro uso), `Super+Ctrl+R` lembrete. Com LazyVim (`tamagi setup lazyvim`),
 o `tamagi-theme` também troca o colorscheme do Neovim (os mesmos plugins do
 Omarchy; no Ipê, base16 com as cores do tema). Elixir, PHP e o que precisa
 compilar ficam numa caixa (`tamagi devbox create arch`). Ficaram de fora
@@ -620,7 +624,7 @@ tamagi-harden strict           # SMT desligado em CPUs vulneráveis, lockdown do
 tamagi-harden balanced         # desfaz
 tamagi-harden usb on           # USBGuard: só os aparelhos USB já conhecidos
 tamagi-harden malloc on        # hardened_malloc em todos os programas
-ujust setup-luks-tpm-unlock    # desbloqueio do disco por TPM
+tamagi setup tpm-unlock on     # desbloqueio do disco por TPM
 ```
 
 ### Histórico da pasta pessoal (ideia do HAMMER2, do DragonFly BSD)
@@ -811,7 +815,7 @@ ficam para a caixa de desenvolvimento.
   cabo, adaptador e Bluetooth) e `v4l2loopback` (câmera virtual).
 - **Secure Boot:** o kernel Open Gaming Collective é assinado pelo Universal Blue, não
   pelo Fedora. Com o Secure Boot ligado, registre a chave uma vez:
-  `ujust enroll-secure-boot-key` (senha `universalblue`), reinicie e confirme
+  `tamagi setup secure-boot-key` (senha `universalblue`), reinicie e confirme
   "Enroll MOK" (conferir: `mokutil --test-key /etc/pki/akmods/certs/akmods-ublue.der`).
   Com o Secure Boot desligado não há nada a fazer. Proteções:
   - numa instalação existente, o `tamagi-secureboot-guard` confere cada
@@ -837,6 +841,7 @@ ficam para a caixa de desenvolvimento.
 ```
 Containerfile            estágios: llama.cpp → apps Omarchy → contexto → imagem
 build_files/             scripts numerados do build; packages.txt
+rust/                    tamagi, tamagi-layer e agent-jail (Rust)
 system_files/            árvore copiada para a raiz da imagem
   usr/bin/tamagi         o sistema num arquivo (init, diff, apply)
   usr/bin/tamagi-*       layer, boot-report, browser, pkg, harden, ai, agent, update,
@@ -899,8 +904,8 @@ Os projetos em que o Tamagi se apoia, os forks que mantemos e o que é só
 referenciado estão em [UPSTREAMS.md](UPSTREAMS.md).
 
 - **Base: [Universal Blue](https://universal-blue.org/).** A imagem de partida
-  é a `base-main`: sistema atômico com codecs, firmware, distrobox e `ujust` já
-  incluídos, a mesma fundação do Bluefin, do Aurora e do Bazzite. Os pacotes
+  é a `base-main`: sistema atômico com codecs, firmware e distrobox já
+  incluídos (o `ujust` da base é retirado: o Tamagi tem um comando só), a mesma fundação do Bluefin, do Aurora e do Bazzite. Os pacotes
   vêm do Fedora 45, sem modificação.
 - **[Bazzite](https://bazzite.gg/):** ajustes de desempenho (memória, disco,
   rede), gamescope, MangoHud, GameMode e regras de controles.

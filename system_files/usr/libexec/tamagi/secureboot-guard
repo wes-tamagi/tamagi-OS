@@ -8,7 +8,7 @@
 # uma atualização fica preparada (/run/ostree/staged-deployment), este serviço
 # confere: kernel novo sem assinatura do Fedora + Secure Boot ligado + chave do
 # Universal Blue ausente => cancela a atualização e avisa como registrar a
-# chave (ujust enroll-secure-boot-key, senha universalblue, e reiniciar).
+# chave (tamagi setup secure-boot-key, senha universalblue, e reiniciar).
 #
 # Variáveis só para testes: TAMAGI_SB_ENABLED=0|1 TAMAGI_SB_KEY=0|1
 # TAMAGI_STAGED_VMLINUZ=<arquivo> TAMAGI_SB_DRYRUN=1
@@ -56,7 +56,7 @@ if [[ -z ${TAMAGI_SB_DRYRUN:-} ]]; then
     mkdir -p "$(dirname "$FLAG")"
     date -Is > "$FLAG"
     notify_users "Atualização cancelada: Secure Boot / Update cancelled: Secure Boot" \
-        "O kernel novo precisa da chave do Universal Blue registrada. Rode: ujust enroll-secure-boot-key (senha: universalblue), reinicie e confirme 'Enroll MOK'. Depois, tamagi-update.
-The new kernel needs the Universal Blue key enrolled: ujust enroll-secure-boot-key (password: universalblue), reboot and confirm 'Enroll MOK', then tamagi-update."
+        "O kernel novo precisa da chave do Universal Blue registrada. Rode: tamagi setup secure-boot-key (senha: universalblue), reinicie e confirme 'Enroll MOK'. Depois, tamagi-update.
+The new kernel needs the Universal Blue key enrolled: tamagi setup secure-boot-key (password: universalblue), reboot and confirm 'Enroll MOK', then tamagi-update."
 fi
 exit 3

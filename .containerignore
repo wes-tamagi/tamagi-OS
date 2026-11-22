@@ -8,3 +8,4 @@ tests
 disk_config
 *.run
 *.tar.zst
+rust/target

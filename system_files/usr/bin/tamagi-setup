@@ -1,0 +1,56 @@
+#!/usr/bin/bash
+# tamagi-setup — one-off machine chores. Tamagi has one command, `tamagi`:
+# what the recipe runner of the base image used to do lives here.
+#
+#   tamagi-setup secure-boot-key      enroll the kernel-module key for Secure Boot
+#   tamagi-setup tpm-unlock on|off    unlock the encrypted disk with the TPM chip at boot
+#   tamagi-setup firmware             update device firmware (fwupd)
+#   tamagi-setup bios                 restart into the firmware (BIOS/UEFI) screen
+#   tamagi-setup clean                free space: unused images, Flatpak runtimes, old deployments
+#   tamagi-setup lazyvim              LazyVim configuration for Neovim, with the theme colours
+#   tamagi-setup switch-image <ref>   follow another image (e.g. ghcr.io/you/tamagi:latest)
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+KEY=/etc/pki/akmods/certs/akmods-ublue.der
+die() { echo "$(t "error"): $*" >&2; exit 1; }
+usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
+
+case "${1:-}" in
+    secure-boot-key)
+        [[ -f $KEY ]] || die "$(t "key not found"): $KEY"
+        if mokutil --test-key "$KEY" 2>/dev/null | grep -q "already enrolled"; then
+            tl "The key is already enrolled."; exit 0
+        fi
+        # The password is asked again by the blue MOK screen on the next restart.
+        printf 'universalblue\nuniversalblue\n' | sudo mokutil --import "$KEY"
+        tl "Restart. On the blue screen choose Enroll MOK, Continue, Yes and type the password: universalblue" ;;
+    tpm-unlock)
+        case "${2:-}" in
+            on)  sudo /usr/libexec/luks-enable-tpm2-autounlock ;;
+            off) sudo /usr/libexec/luks-disable-tpm2-autounlock ;;
+            *)   echo "usage: tamagi-setup tpm-unlock on|off" >&2; exit 2 ;;
+        esac ;;
+    firmware)
+        fwupdmgr refresh --force || true
+        fwupdmgr get-updates || { tl "No firmware updates."; exit 0; }
+        fwupdmgr update ;;
+    bios)
+        [[ -d /sys/firmware/efi ]] || die "$(t "restarting into the firmware screen needs UEFI")"
+        systemctl reboot --firmware-setup ;;
+    clean)
+        podman image prune -af
+        flatpak uninstall --unused -y
+        sudo rpm-ostree cleanup -bm ;;
+    lazyvim)
+        dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
+        if [[ -e $dir ]]; then echo "$dir: $(t "already exists; nothing was changed")"; exit 0; fi
+        git clone --depth 1 https://github.com/LazyVim/starter "$dir"
+        tamagi-theme apps
+        tl "LazyVim installed with the colours of the current theme. Open nvim: plugins download on first start." ;;
+    switch-image)
+        [[ ${2:-} =~ ^[A-Za-z0-9][A-Za-z0-9._/:@-]+$ ]] || die "tamagi-setup switch-image <registry/name:tag>"
+        sudo bootc switch "$2" ;;
+    ""|-h|--help|help) usage ;;
+    *) usage >&2; exit 2 ;;
+esac
