@@ -1,41 +1,40 @@
- JANELAS
-   Super + W                 fechar janela
-   Super + F / M             tela cheia / maximizar
-   Super + T                 alternar janela flutuante
-   Super + Y                 ligar/desligar o tiling
-   Super + O                 alternar divisão horizontal/vertical
-   Super + Setas             mover o foco
-   Super + Shift + Setas     mover a janela
-   Super + X                 trocar janelas de lugar
-   Super + S                 empilhar janelas (abas)
+ WINDOWS
+   Super + W                 close window
+   Super + F / M             fullscreen / maximize
+   Super + T                 toggle floating window
+   Super + Y                 turn tiling on/off
+   Super + O                 toggle horizontal/vertical split
+   Super + Arrows            move focus
+   Super + Shift + Arrows    move the window
+   Super + X                 swap windows
+   Super + S                 stack windows (tabs)
 
  WORKSPACES
-   Super + 1…9               ir para o workspace
-   Super + Shift + 1…9       mandar a janela para o workspace
+   Super + 1…9               go to workspace
+   Super + Shift + 1…9       send the window to the workspace
 
- APLICATIVOS
-   Super                     lançador
-   Super + Alt + Espaço      lançador de aplicativos
+ APPLICATIONS
+   Super                     launcher
+   Super + Alt + Space       application launcher
    Super + Enter             terminal
-   Super + B / E             navegador / arquivos
+   Super + B / E             browser / files
    Super + Shift + N / T     neovim / btop
-   Super + Shift + G / D     lazygit / bancos de dados (tamagi-db)
+   Super + Shift + G / D     lazygit / databases (tamagi-db)
    Super + Shift + O / M     OnlyOffice / Mission Center
-   Super + Shift + W         Windows 11 (contêiner)
+   Super + Shift + W         Windows 11 (container)
 
  Tamagi
-   Super + Espaço            menu do Tamagi (paleta de comandos)
-   Super + A                 ações rápidas (uma tecla)
-   Super + Shift + A         agente de IA local
-   Super + K                 esta lista
-   Super + Shift+Ctrl+Espaço próximo tema
+   Super + Space             start menu (the Tamagi button)
+   Super + A                 Tamagi command palette
+   Super + Shift + A         local AI agent
+   Super + K                 this list
 
- SISTEMA
-   Super + Esc               bloquear a tela
-   Print                     captura de tela
-   Shift + Print             copiar o texto de uma área (OCR)
-   Alt + Print               gravar a tela / parar
-   Super + Ctrl + E          emojis
-   Super + Ctrl + R          lembrete
-   Super + Ctrl + P          modo privacidade (liga/desliga)
-   Super + Ctrl + Espaço     trocar layout do teclado
+ SYSTEM
+   Super + Esc               lock the screen
+   Print                     screenshot
+   Shift + Print             copy text from an area (OCR)
+   Alt + Print               record the screen / stop
+   Super + Ctrl + E          emoji
+   Super + Ctrl + R          reminder
+   Super + Ctrl + P          privacy mode (on/off)
+   Super + Ctrl + Space      switch keyboard layout

@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # privacy-helper — a parte do modo privacidade que precisa de root.
-# Chamado pelo tamagi-privacidade via pkexec (a regra do polkit libera, sem
+# Chamado pelo tamagi-privacy via pkexec (a regra do polkit libera, sem
 # senha, para quem é administrador e está na sessão ativa).
 #
 #   privacy-helper on | off | status
@@ -88,5 +88,5 @@ case "${1:-}" in
     on)     on ;;
     off)    off ;;
     status) [[ -d $STATE ]] && echo on || echo off ;;
-    *)      echo "uso: privacy-helper on|off|status" >&2; exit 2 ;;
+    *)      echo "usage: privacy-helper on|off|status" >&2; exit 2 ;;
 esac

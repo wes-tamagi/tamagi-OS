@@ -1,48 +1,124 @@
 #!/usr/bin/bash
-# tamagi-browser — navegadores numa caixa Fedora (distrobox), fora do host.
+# tamagi-browser — web browsers, your choice of browser and of how it is installed.
+#
+# No browser ships in the image. Chrome, Firefox, Vivaldi and Chromium can each
+# be installed in three ways:
+#   --flatpak   Flathub app, sandboxed (the default)
+#   --native    RPM over the image, in a reversible layer (tamagi-layer; asks
+#               for the password)
+#   --box       inside a Fedora box (distrobox), with hardware video decoding
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
 CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
-BOX="${TAMAGI_BROWSER_BOX:-navegadores}"
+STATE_DIR="$CONF_DIR/browsers"                       # one file per browser: the method
 IMAGE="${TAMAGI_BROWSER_IMAGE:-registry.fedoraproject.org/fedora-toolbox:45}"
 LIBEXEC="${TAMAGI_BROWSER_LIBEXEC:-/run/host/usr/libexec/tamagi}"
 BOX_HOME="${TAMAGI_BROWSER_HOME:-}"
-READY="$CONF_DIR/browser-$BOX.ready"
 FLAGS_FILE="$CONF_DIR/browser-flags.conf"
+# The box is called "browsers"; one created before the commands became
+# English ("navegadores") keeps being used.
+BOX="${TAMAGI_BROWSER_BOX:-browsers}"
+if [[ -z ${TAMAGI_BROWSER_BOX:-} ]] && ! podman container exists browsers 2>/dev/null \
+        && podman container exists navegadores 2>/dev/null; then
+    BOX=navegadores
+fi
 
-declare -A BIN=([chrome]=google-chrome-stable [firefox]=firefox [brave]=brave-browser
-                [edge]=microsoft-edge-stable [vivaldi]=vivaldi-stable)
-declare -A APP=([chrome]=google-chrome [firefox]=firefox [brave]=brave-browser
-                [edge]=microsoft-edge [vivaldi]=vivaldi-stable)
+NAMES=(chrome firefox vivaldi chromium)
+declare -A TITLE=([chrome]="Google Chrome" [firefox]="Firefox" [vivaldi]="Vivaldi" [chromium]="Chromium")
+declare -A FLATPAK=([chrome]=com.google.Chrome [firefox]=org.mozilla.firefox
+                    [vivaldi]=com.vivaldi.Vivaldi [chromium]=org.chromium.Chromium)
+# Binary and menu entry of the RPM (native layer and box).
+declare -A BIN=([chrome]=google-chrome-stable [firefox]=firefox [vivaldi]=vivaldi-stable [chromium]=chromium-browser)
+declare -A APP=([chrome]=google-chrome [firefox]=org.mozilla.firefox [vivaldi]=vivaldi-stable [chromium]=chromium-browser)
+declare -A RPM=([chrome]=google-chrome-stable [firefox]="firefox firefox-langpacks" [vivaldi]=vivaldi-stable [chromium]=chromium)
+# Vendor repository of the RPM: "<id> <baseurl> <signing key>".
+declare -A REPO=(
+    [chrome]="google-chrome https://dl.google.com/linux/chrome/rpm/stable/x86_64 https://dl.google.com/linux/linux_signing_key.pub"
+    [vivaldi]="vivaldi https://repo.vivaldi.com/archive/rpm/x86_64 https://repo.vivaldi.com/archive/linux_signing_key.pub"
+)
 
-die() { echo "$(t "erro"): $*" >&2; exit 1; }
+die() { echo "$(t "error"): $*" >&2; exit 1; }
 info() { echo -e "\033[1m$*\033[0m"; }
+known() { [[ -n ${1:-} && -n ${TITLE[$1]:-} ]]; }
 box_exists() { podman container exists "$BOX" 2>/dev/null; }
 in_box() { distrobox enter "$BOX" -- "$@"; }
-installed() { in_box sh -c 'command -v "$1" >/dev/null' _ "${BIN[$1]}" 2>/dev/null; }
 has_gpu() { grep -qsi "^$1\$" /sys/class/drm/card*/device/vendor; }
 
 usage() {
-    echo "tamagi-browser — $(t "navegadores na caixa Fedora (distrobox)")"
+    echo "tamagi-browser — $(t "browsers: Flatpak, native or box")"
     echo
-    echo "  tamagi-browser [URL|opções]           $(t "abre o navegador padrão")"
-    echo "  tamagi-browser chrome [URL|opções]    $(t "abre um navegador específico (chrome, firefox, brave, edge, vivaldi)")"
-    echo "  tamagi-browser chrome --profile <n>   $(t "abre num perfil isolado (cria se não existir)")"
-    echo "  profile add <nome> [navegador]        $(t "cria o perfil e um atalho no menu")"
-    echo "  profile list | remove <nome> [nav]"
-    echo "  fido                                  $(t "diagnóstico da chave de segurança USB (FIDO2)")"
-    echo "  setup                                 $(t "cria a caixa e instala o Chrome")"
-    echo "  install <navegador>                   chrome | firefox | brave | edge | vivaldi"
-    echo "  default <navegador>                   $(t "define o navegador padrão do sistema")"
-    echo "  status                                $(t "caixa, navegadores e aceleração de vídeo")"
-    echo "  update                                $(t "atualiza a caixa e os navegadores")"
-    echo "  enter                                 $(t "abre um shell na caixa")"
-    echo "  remove                                $(t "apaga a caixa (perfis e downloads ficam)")"
+    echo "  tamagi browser [URL]                      $(t "open the default browser")"
+    echo "  tamagi browser install [name] [--flatpak|--native|--box]"
+    echo "                                            $(t "installs (no name: choose from a list)")"
+    echo "  tamagi browser remove <name>              $(t "removes the browser (the profile stays)")"
+    echo "  tamagi browser list                       $(t "available and installed browsers")"
+    echo "  tamagi browser default <name>             $(t "set the system default browser")"
+    echo "  tamagi browser <name> [URL|options]       $(t "opens a specific browser")"
+    echo "  tamagi browser <name> --profile <p>       $(t "open in an isolated profile (creates if missing)")"
+    echo "  profile add <p> [name] | list | remove <p> [name]"
+    echo "  status | update | enter | fido            $(t "the box: status, update, shell and FIDO2 key")"
+    echo
+    echo "$(t "Browsers"): ${NAMES[*]}"
 }
 
-chromium_flags() { # aceleração de vídeo e GPU sem as travas padrão do Linux
+# ── Which browsers are installed, and how ──────────────────────────────────
+method_of() { # method_of <name>: prints flatpak, native or box; fails if not installed
+    local name=$1 m
+    m=$(cat "$STATE_DIR/$name" 2>/dev/null || true)
+    case $m in
+        flatpak) flatpak info "${FLATPAK[$name]}" >/dev/null 2>&1 && { echo flatpak; return 0; } ;;
+        native)  command -v "${BIN[$name]}" >/dev/null 2>&1 && { echo native; return 0; } ;;
+        box)     box_exists && { echo box; return 0; } ;;
+    esac
+    # No record (installed by other means): the host tells.
+    if flatpak info "${FLATPAK[$name]}" >/dev/null 2>&1; then echo flatpak; return 0; fi
+    if command -v "${BIN[$name]}" >/dev/null 2>&1; then echo native; return 0; fi
+    return 1
+}
+
+record() { mkdir -p "$STATE_DIR"; echo "$2" > "$STATE_DIR/$1"; }
+
+desktop_id() { # desktop_id <name> <method>: the menu entry that opens it
+    case $2 in
+        flatpak) echo "${FLATPAK[$1]}.desktop" ;;
+        native)  echo "${APP[$1]}.desktop" ;;
+        box)     echo "$BOX-${APP[$1]}.desktop" ;;
+    esac
+}
+
+default_browser() {
+    local name
+    name=$(cat "$CONF_DIR/browser-default" 2>/dev/null || true)
+    if known "$name" && method_of "$name" >/dev/null; then echo "$name"; return 0; fi
+    for name in "${NAMES[@]}"; do method_of "$name" >/dev/null && { echo "$name"; return 0; }; done
+    return 1
+}
+
+# The image pins a generic "Web Browser" on the dock and in the start menu;
+# the first browser installed takes its place.
+promote_favorite() {
+    local id=${1%.desktop} sys user f
+    for f in com.system76.CosmicAppList/v1/favorites com.championpeak87.cosmic-ext-classic-menu/v1/favorite_applications; do
+        sys="/usr/share/cosmic/$f"; user="${XDG_CONFIG_HOME:-$HOME/.config}/cosmic/$f"
+        [[ -f $user ]] || { [[ -f $sys ]] || continue; mkdir -p "$(dirname "$user")"; cp "$sys" "$user"; }
+        grep -q '"tamagi-browser"' "$user" && sed -i "s/\"tamagi-browser\"/\"$id\"/" "$user"
+    done
+    return 0
+}
+
+set_default() { # set_default <name> <method>
+    local desktop; desktop=$(desktop_id "$1" "$2")
+    mkdir -p "$CONF_DIR"
+    echo "$1" > "$CONF_DIR/browser-default"
+    xdg-settings set default-web-browser "$desktop" 2>/dev/null \
+        || xdg-mime default "$desktop" x-scheme-handler/http x-scheme-handler/https text/html 2>/dev/null || true
+    promote_favorite "$desktop"
+}
+
+# ── Chromium flags and environment ─────────────────────────────────────────
+chromium_flags() { # video acceleration and GPU without the default Linux locks
     if [[ -f $FLAGS_FILE ]]; then
         sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$FLAGS_FILE" | grep -v '^$' || true
         return
@@ -53,90 +129,140 @@ chromium_flags() { # aceleração de vídeo e GPU sem as travas padrão do Linux
         --enable-gpu-rasterization --enable-zero-copy
 }
 
-box_env() { # variáveis de ambiente para o navegador dentro da caixa
+box_env() {
     if [[ -e /proc/driver/nvidia/version ]] && ! has_gpu 0x8086 && ! has_gpu 0x1002; then
         printf '%s\n' LIBVA_DRIVER_NAME=nvidia NVD_BACKEND=direct
     fi
     printf '%s\n' MOZ_ENABLE_WAYLAND=1
 }
 
-default_browser() {
-    local name
-    name=$(cat "$CONF_DIR/browser-default" 2>/dev/null || true)
-    if [[ -n $name && -n ${BIN[$name]:-} ]]; then echo "$name"; else echo chrome; fi
-}
-
-integrate() { # põe o navegador no menu do host
-    local name=$1 flags
-    [[ -n $BOX_HOME ]] && return 0
-    if [[ $name == chrome ]]; then
-        in_box sh -c 'for s in 16 24 32 48 64 128 256; do
-                          f=/opt/google/chrome/product_logo_$s.png
-                          [ -f "$f" ] && install -Dm644 "$f" "$1/icons/hicolor/${s}x${s}/apps/google-chrome.png"
-                      done; true' _ "$DATA_DIR"
-        mkdir -p "$DATA_DIR/applications"
-        sed 's/^Icon=tamagi-browser$/Icon=google-chrome/' /usr/share/applications/google-chrome.desktop \
-            > "$DATA_DIR/applications/google-chrome.desktop"
-        update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
-        return 0
-    fi
-    flags=""
-    [[ $name != firefox ]] && flags=$(chromium_flags | tr '\n' ' ')
-    in_box distrobox-export --app "${APP[$name]}" ${flags:+--extra-flags "$flags"} >/dev/null \
-        && echo "$(t "No menu"): ${APP[$name]} ($(t "caixa") $BOX)"
-}
-
-cmd_install() {
-    local name=${1:-}
-    [[ -n $name && -n ${BIN[$name]:-} ]] || die "$(t "navegador desconhecido"): '$name' (${!BIN[*]})"
-    ensure_box
-    info "$(t "Instalando") $name ($(t "caixa") $BOX)"
-    in_box sudo "$LIBEXEC/browser-provision" install "$name"
-    integrate "$name"
-}
-
+# ── Install ────────────────────────────────────────────────────────────────
 ensure_box() {
     box_exists && return 0
-    info "$(t "Criando a caixa de navegadores") '$BOX' ($IMAGE)"
+    info "$(t "Creating browser box") '$BOX' ($IMAGE)"
     local args=(--yes --name "$BOX" --image "$IMAGE")
     [[ -e /proc/driver/nvidia/version ]] && args+=(--nvidia)
     [[ -n $BOX_HOME ]] && args+=(--home "$BOX_HOME")
     distrobox create "${args[@]}"
-    info "$(t "Preparando vídeo por hardware, fontes e idioma")"
+    info "$(t "Setting up hardware video, fonts, and locale")"
     in_box sudo "$LIBEXEC/browser-provision" base
 }
 
-cmd_setup() {
-    ensure_box
-    installed chrome || cmd_install chrome
-    mkdir -p "$CONF_DIR"
-    touch "$READY"
-    info "$(t "Navegador pronto. Estado da aceleração"): tamagi-browser status"
+install_flatpak() {
+    flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null \
+        || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+    flatpak install --user -y --noninteractive --or-update flathub "${FLATPAK[$1]}"
 }
 
-ready() { [[ -f $READY ]] && box_exists; }
+install_native() {
+    local args=() pkgs
+    [[ -n ${REPO[$1]:-} ]] && args+=(--repo "${REPO[$1]// /=}")
+    read -r -a pkgs <<<"${RPM[$1]}"
+    tamagi-layer add "browser-$1" "${args[@]}" "${pkgs[@]}"
+}
 
+install_box() {
+    local flags=""
+    ensure_box
+    in_box sudo "$LIBEXEC/browser-provision" install "$1"
+    [[ -n $BOX_HOME ]] && return 0
+    [[ $1 != firefox ]] && flags=$(chromium_flags | tr '\n' ' ')
+    in_box distrobox-export --app "${APP[$1]}" ${flags:+--extra-flags "$flags"} >/dev/null \
+        && echo "$(t "In menu"): ${TITLE[$1]} ($(t "box") $BOX)"
+}
+
+pick_browser() {
+    local choice method
+    choice=$(for n in "${NAMES[@]}"; do printf '%-9s %s\n' "$n" "${TITLE[$n]}"; done \
+        | gum choose --height 8 --header "$(t "Which browser?")") || exit 0
+    method=$(gum choose --height 6 --header "$(t "Install how?")" \
+        "flatpak  $(t "Flatpak — Flathub app, sandboxed (recommended)")" \
+        "native   $(t "native — RPM in a layer over the image (asks for the password)")" \
+        "box      $(t "box — in a Fedora box, with hardware video decoding")") || exit 0
+    PICK_NAME=${choice%% *} PICK_METHOD=${method%% *}
+}
+
+cmd_install() {
+    local name="" method="" arg
+    for arg in "$@"; do
+        case $arg in
+            --flatpak|--native|--box) method=${arg#--} ;;
+            -*) die "$(t "unknown option"): $arg" ;;
+            *)  name=$arg ;;
+        esac
+    done
+    if [[ -z $name ]]; then
+        [[ -t 0 ]] || { usage >&2; exit 2; }
+        pick_browser; name=$PICK_NAME; method=${method:-$PICK_METHOD}
+    fi
+    known "$name" || die "$(t "unknown browser"): '$name' (${NAMES[*]})"
+    method=${method:-flatpak}
+    info "$(t "Installing") ${TITLE[$name]} ($method)"
+    "install_$method" "$name"
+    record "$name" "$method"
+    # The first browser becomes the default one.
+    local current; current=$(cat "$CONF_DIR/browser-default" 2>/dev/null || true)
+    if ! known "$current" || ! method_of "$current" >/dev/null; then set_default "$name" "$method"; fi
+    echo "$(t "Installed"): ${TITLE[$name]} ($method)"
+}
+
+cmd_remove() {
+    local name=${1:-} method
+    known "$name" || die "usage: tamagi browser remove <${NAMES[*]}>"
+    method=$(method_of "$name") || die "${TITLE[$name]} $(t "is not installed")"
+    case $method in
+        flatpak) flatpak uninstall --user -y "${FLATPAK[$name]}" ;;
+        native)  tamagi-layer remove "browser-$name" ;;
+        box)     in_box distrobox-export --app "${APP[$name]}" --delete >/dev/null 2>&1 || true
+                 # shellcheck disable=SC2086
+                 in_box sudo dnf -y remove ${RPM[$name]} ;;
+    esac
+    rm -f "$STATE_DIR/$name"
+    echo "$(t "Removed"): ${TITLE[$name]}"
+}
+
+cmd_list() {
+    local name method
+    for name in "${NAMES[@]}"; do
+        if method=$(method_of "$name"); then
+            printf '  %-9s %-14s %s\n' "$name" "${TITLE[$name]}" "$(t "installed") ($method)"
+        else
+            printf '  %-9s %-14s %s\n' "$name" "${TITLE[$name]}" "-"
+        fi
+    done
+    echo "$(t "Default"): $(default_browser || echo -)"
+}
+
+cmd_installed() { # machine-readable: name:method
+    local name method
+    for name in "${NAMES[@]}"; do
+        if method=$(method_of "$name"); then echo "$name:$method"; fi
+    done
+    return 0
+}
+
+cmd_default() {
+    local name=${1:-} method
+    known "$name" || die "usage: tamagi browser default <${NAMES[*]}>"
+    method=$(method_of "$name") || die "${TITLE[$name]} $(t "is not installed"). tamagi browser install $name"
+    set_default "$name" "$method"
+    echo "$(t "Default browser"): $name"
+}
+
+# ── Open ───────────────────────────────────────────────────────────────────
 launch() {
-    local name=$1 safe=0 profile=""; shift
+    local name=$1 safe=0 profile="" method; shift
     while :; do
         case "${1:-}" in
             --safe) safe=1; shift ;;
-            --perfil|--profile) profile=${2:-}; valid_profile "$profile"; shift 2 ;;
-            --perfil=*|--profile=*) profile=${1#*=}; valid_profile "$profile"; shift ;;
+            --profile) profile=${2:-}; valid_profile "$profile"; shift 2 ;;
+            --profile=*) profile=${1#*=}; valid_profile "$profile"; shift ;;
             *) break ;;
         esac
     done
+    method=$(method_of "$name") || die "${TITLE[$name]} $(t "is not installed"). tamagi browser install $name"
     local -a flags=() env=()
-    if ! ready; then
-        if [[ -t 0 && -t 1 ]]; then
-            cmd_setup
-        else
-            exec /usr/libexec/tamagi/popup "$0" --setup-then-run "$name" "$@"
-        fi
-    fi
-    [[ $name == chrome ]] || installed "$name" || die "$name $(t "não está instalado"). tamagi-browser install $name"
-    if [[ $name != firefox && $safe == 0 ]]; then mapfile -t flags < <(chromium_flags); fi
-    mapfile -t env < <(box_env)
+    if [[ $name != firefox && $safe == 0 && $method != flatpak ]]; then mapfile -t flags < <(chromium_flags); fi
     if [[ -n $profile ]]; then
         local dir; dir=$(profile_dir "$name" "$profile")
         mkdir -p "$dir"
@@ -146,122 +272,128 @@ launch() {
             flags+=("--user-data-dir=$dir" "--class=tamagi-$name-$profile")
         fi
     fi
-    exec distrobox enter "$BOX" -- env "${env[@]}" "${BIN[$name]}" "${flags[@]}" "$@"
+    case $method in
+        flatpak) local -a fp=()
+                 [[ -n $profile ]] && fp=("--filesystem=$PROFILES_DIR")
+                 exec flatpak run "${fp[@]}" "${FLATPAK[$name]}" "${flags[@]}" "$@" ;;
+        native)  exec "${BIN[$name]}" "${flags[@]}" "$@" ;;
+        box)     mapfile -t env < <(box_env)
+                 exec distrobox enter "$BOX" -- env "${env[@]}" "${BIN[$name]}" "${flags[@]}" "$@" ;;
+    esac
 }
 
-# ── Perfis isolados ─────────────────────────────────────────────────────────
+open_default() {
+    local name
+    if name=$(default_browser); then launch "$name" "$@"; fi
+    # No browser yet: offer to install one, then open what was asked.
+    if [[ -t 0 && -t 1 ]]; then
+        cmd_install
+        name=$(default_browser) && launch "$name" "$@"
+        exit 0
+    fi
+    exec /usr/libexec/tamagi/popup "$0" --install-then-run "$@"
+}
+
+# ── Isolated profiles ──────────────────────────────────────────────────────
 PROFILES_DIR="$DATA_DIR/tamagi/browser-profiles"
-valid_profile() { [[ ${1:-} =~ ^[a-z][a-z0-9-]{0,30}$ ]] || die "$(t "nome de perfil inválido"): '${1:-}'"; }
+valid_profile() { [[ ${1:-} =~ ^[a-z][a-z0-9-]{0,30}$ ]] || die "$(t "invalid profile name"): '${1:-}'"; }
 profile_dir() { echo "$PROFILES_DIR/$1-$2"; }
 profile_desktop() { echo "$DATA_DIR/applications/tamagi-$1-$2.desktop"; }
 
 cmd_profile() {
-    local action=${1:-list} profile=${2:-} name=${3:-chrome} d
+    local action=${1:-list} profile=${2:-} name=${3:-} d
+    [[ -n $name ]] || name=$(default_browser || echo chrome)
     case "$action" in
-        list|lista)
+        list)
             local found=0
             for d in "$PROFILES_DIR"/*/; do
                 [[ -d $d ]] || continue
                 found=1; d=$(basename "$d")
                 printf '%-10s %s\n' "${d%%-*}" "${d#*-}"
             done
-            (( found )) || echo "$(t "Nenhum perfil. Crie com"): tamagi-browser profile add trabalho"
+            (( found )) || echo "$(t "No profiles yet. Create one with"): tamagi browser profile add work"
             ;;
-        add|criar)
+        add)
             valid_profile "$profile"
-            [[ -n ${BIN[$name]:-} ]] || die "$(t "navegador desconhecido"): '$name' (${!BIN[*]})"
+            known "$name" || die "$(t "unknown browser"): '$name' (${NAMES[*]})"
             mkdir -p "$(profile_dir "$name" "$profile")" "$DATA_DIR/applications"
-            local icon=tamagi-browser
-            [[ $name == chrome && -f $DATA_DIR/icons/hicolor/128x128/apps/google-chrome.png ]] && icon=google-chrome
             cat > "$(profile_desktop "$name" "$profile")" <<DESKTOP
 [Desktop Entry]
 Type=Application
-Name=${name^} ($profile)
+Name=${TITLE[$name]} ($profile)
 Comment=Isolated profile "$profile": separate logins, cookies and extensions
 Comment[pt_BR]=Perfil isolado "$profile": logins, cookies e extensões separados
 Comment[pt]=Perfil isolado "$profile": logins, cookies e extensões separados
-Exec=/usr/bin/tamagi-browser $name --perfil $profile %U
-Icon=$icon
+Comment[es]=Perfil aislado "$profile": inicios de sesión, cookies y extensiones separados
+Comment[fr]=Profil isolé « $profile » : connexions, cookies et extensions séparés
+Exec=/usr/bin/tamagi-browser $name --profile $profile %U
+Icon=tamagi-browser
 Terminal=false
 Categories=Network;WebBrowser;
 StartupWMClass=tamagi-$name-$profile
 X-Tamagi-Browser-Profile=$profile
 DESKTOP
             update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
-            echo "$(t "Perfil criado"): '$profile' ($name). $(t "No menu"): ${name^} ($profile)"
+            echo "$(t "Profile created"): '$profile' ($name). $(t "In menu"): ${TITLE[$name]} ($profile)"
             ;;
-        remove|remover)
+        remove)
             valid_profile "$profile"
             d=$(profile_dir "$name" "$profile")
-            [[ -d $d || -f $(profile_desktop "$name" "$profile") ]] || die "$(t "não existe o perfil") '$profile' ($name)"
+            [[ -d $d || -f $(profile_desktop "$name" "$profile") ]] || die "$(t "profile does not exist") '$profile' ($name)"
             if [[ -t 0 ]]; then
-                read -r -p "$(t "Apagar o perfil, com logins, histórico e extensões?") ($name/$profile) [s/y/N] " answer
-                [[ ${answer,,} =~ ^(s|sim|y|yes|o|oui)$ ]] || { echo "$(t "Nada foi alterado.")"; exit 1; }
+                read -r -p "$(t "Delete profile, including logins, history, and extensions?") ($name/$profile) [s/y/N] " answer
+                [[ ${answer,,} =~ ^(s|sim|y|yes|o|oui)$ ]] || { echo "$(t "Nothing was changed.")"; exit 1; }
             else
-                die "$(t "rode num terminal para confirmar a remoção do perfil")"
+                die "$(t "run in a terminal to confirm profile removal")"
             fi
             rm -rf -- "$d" "$(profile_desktop "$name" "$profile")"
             update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
-            echo "$(t "Perfil apagado.") ($profile)"
+            echo "$(t "Profile deleted.") ($profile)"
             ;;
-        *) die "$(t "uso"): tamagi-browser profile [list | add <nome> [navegador] | remove <nome> [navegador]]" ;;
+        *) die "usage: tamagi browser profile [list | add <profile> [name] | remove <profile> [name]]" ;;
     esac
 }
 
+# ── The box ────────────────────────────────────────────────────────────────
 cmd_fido() {
     local n dev found=0 props acl
-    echo "$(t "Chaves de segurança vistas pelo sistema"):"
+    echo "$(t "Security keys seen by the system"):"
     for dev in /dev/hidraw*; do
         [[ -e $dev ]] || continue
         props=$(udevadm info -q property "$dev" 2>/dev/null)
         grep -qE '^ID_(FIDO|SECURITY)_TOKEN=1' <<<"$props" || continue
         found=1; n=$(basename "$dev")
-        acl=$(t "não"); [[ -r $dev && -w $dev ]] && acl=$(t "sim")
+        acl=$(t "no"); [[ -r $dev && -w $dev ]] && acl=$(t "yes")
         echo "  $dev  $(sed -n 's/^HID_NAME=//p' "/sys/class/hidraw/$n/device/uevent" 2>/dev/null)"
-        echo "    $(t "liberada para você no sistema") : $acl"
+        echo "    $(t "accessible to your user on host") : $acl"
         if box_exists; then
             # shellcheck disable=SC2016
             if in_box sh -c 'exec 3<>"$1"' _ "$dev" 2>/dev/null; then
-                echo "    $(t "abre de dentro da caixa") $BOX : $(t "sim")"
+                echo "    $(t "opens from inside box") $BOX : $(t "yes")"
             else
-                echo "    $(t "abre de dentro da caixa") $BOX : $(t "NÃO")"
+                echo "    $(t "opens from inside box") $BOX : $(t "NO")"
             fi
         fi
     done
     if (( ! found )); then
-        echo "  $(t "nenhuma. Conecte a chave e rode de novo.")"
+        echo "  $(t "none. Plug in the key and run again.")"
         for dev in /sys/class/hidraw/hidraw*; do
             [[ -e $dev ]] && echo "    $(basename "$dev")  $(sed -n 's/^HID_NAME=//p' "$dev/device/uevent" 2>/dev/null)"
         done
         return 1
     fi
-    box_exists || { echo "$(t "A caixa ainda não existe"): $BOX (tamagi-browser setup)"; return 0; }
-    tl "Conecte a chave ANTES de abrir o navegador."
-}
-
-cmd_default() {
-    local name=${1:-} desktop
-    [[ -n $name && -n ${BIN[$name]:-} ]] || die "$(t "uso"): tamagi-browser default <${!BIN[*]}>"
-    ready && installed "$name" || die "$name $(t "não está instalado"). tamagi-browser install $name"
-    if [[ $name == chrome ]]; then desktop=google-chrome.desktop; else desktop="$BOX-${APP[$name]}.desktop"; fi
-    [[ $name == chrome || -f $DATA_DIR/applications/$desktop ]] || integrate "$name"
-    mkdir -p "$CONF_DIR"
-    echo "$name" > "$CONF_DIR/browser-default"
-    xdg-settings set default-web-browser "$desktop"
-    echo "$(t "Navegador padrão"): $name"
+    tl "Plug in the security key BEFORE opening the browser."
 }
 
 cmd_status() {
-    if ! box_exists; then
-        echo "$(t "Caixa") '$BOX': $(t "ainda não criada"). tamagi-browser setup"
-        return 0
-    fi
-    echo "$(t "Caixa")        : $BOX ($(podman inspect --format '{{.ImageName}}' "$BOX" 2>/dev/null))"
-    echo "$(t "Padrão")       : $(default_browser)"
+    cmd_list
+    if ! box_exists; then return 0; fi
+    echo
+    echo "$(t "Box")        : $BOX ($(podman inspect --format '{{.ImageName}}' "$BOX" 2>/dev/null))"
     # shellcheck disable=SC2016
     in_box sh -c '
         . /etc/os-release; echo "OS           : $PRETTY_NAME"
-        for b in google-chrome-stable firefox brave-browser microsoft-edge-stable vivaldi-stable; do
+        for b in google-chrome-stable firefox vivaldi-stable chromium-browser; do
             command -v "$b" >/dev/null 2>&1 && echo "Browser      : $("$b" --version 2>/dev/null | head -1)"
         done
         va=$(vainfo 2>/dev/null)
@@ -275,45 +407,45 @@ cmd_status() {
         vk=$(vulkaninfo --summary 2>/dev/null | sed -n "s/^[[:space:]]*deviceName[[:space:]]*= //p" | grep -vi llvmpipe | head -1)
         echo "Vulkan       : ${vk:--}"
     '
-    echo "$(t "Opções")       : $([[ -f $FLAGS_FILE ]] && echo "$FLAGS_FILE" || t "padrão (aceleração de vídeo ligada)")"
-    echo "$(t "Perfis")       : $(cmd_profile list | awk 'NF == 2 { printf "%s(%s) ", $2, $1; n++ } END { if (!n) printf "-" }')"
+    echo "$(t "Options")       : $([[ -f $FLAGS_FILE ]] && echo "$FLAGS_FILE" || t "default (hardware video acceleration on)")"
 }
 
-cmd_remove() {
-    box_exists || { echo "$(t "A caixa não existe"): $BOX"; return 0; }
-    if [[ -t 0 ]]; then
-        read -r -p "$(t "Apagar a caixa e os navegadores dela? Perfis e downloads ficam.") ($BOX) [s/y/N] " answer
-        [[ ${answer,,} =~ ^(s|sim|y|yes|o|oui)$ ]] || { echo "$(t "Nada foi alterado.")"; exit 1; }
-    fi
-    distrobox rm --force "$BOX"
-    rm -f -- "$READY"
-    if [[ -z $BOX_HOME && -d $DATA_DIR/applications ]]; then
-        find "$DATA_DIR/applications" -maxdepth 1 \( -name "$BOX-*.desktop" -o -name google-chrome.desktop \) -delete
-    fi
-    echo "$(t "Caixa apagada. Para recriar"): tamagi-browser setup"
+cmd_update() {
+    local name
+    for name in "${NAMES[@]}"; do
+        [[ $(method_of "$name" 2>/dev/null || true) == flatpak ]] && flatpak update --user -y "${FLATPAK[$name]}"
+    done
+    if box_exists; then in_box sudo "$LIBEXEC/browser-provision" upgrade; fi
+    # Native layers are rebuilt with the system (tamagi update).
 }
 
 case "${1:-}" in
-    setup)           cmd_setup ;;
-    install|instalar) shift; cmd_install "$@"; mkdir -p "$CONF_DIR"; touch "$READY" ;;
-    default|padrao)  shift; cmd_default "$@" ;;
-    status|estado)   cmd_status ;;
-    profile|perfil)  shift; cmd_profile "$@" ;;
+    install)         shift; cmd_install "$@" ;;
+    remove)          shift; cmd_remove "$@" ;;
+    list)            cmd_list ;;
+    installed)       cmd_installed ;;
+    default)         shift; cmd_default "$@" ;;
+    status)          cmd_status ;;
+    profile)         shift; cmd_profile "$@" ;;
     fido)            cmd_fido ;;
-    update|atualizar) box_exists || die "$(t "A caixa não existe"): $BOX"
-                     in_box sudo "$LIBEXEC/browser-provision" upgrade ;;
-    enter|entrar)    ensure_box; exec distrobox enter "$BOX" ;;
-    remove|remover)  cmd_remove ;;
-    help|-h|--help|ajuda) usage ;;
-    --setup-then-run)
-        shift; name=$1; shift
-        if cmd_setup; then
-            setsid -f "$0" "$name" "$@" >/dev/null 2>&1
+    update)          cmd_update ;;
+    enter)           ensure_box; exec distrobox enter "$BOX" ;;
+    help|-h|--help)  usage ;;
+    --install-then-run)
+        shift
+        if cmd_install; then
+            name=$(default_browser) && setsid -f "$0" "$name" "$@" >/dev/null 2>&1
             sleep 1
         else
-            echo; read -rsn1 -p "$(t "Não consegui preparar o navegador (sem rede?). Qualquer tecla fecha.")"
+            echo; read -rsn1 -p "$(t "Could not install the browser (no network?). Any key closes.")"
             exit 1
         fi ;;
-    chrome|firefox|brave|edge|vivaldi) name=$1; shift; launch "$name" "$@" ;;
-    *)       launch "$(default_browser)" "$@" ;;
+    app)             # web apps (tamagi-webapp): needs a Chromium-based browser
+        shift
+        for name in "$(default_browser || true)" chrome chromium vivaldi; do
+            [[ -n $name && $name != firefox ]] && method_of "$name" >/dev/null && launch "$name" "$@"
+        done
+        die "$(t "web apps need Chrome, Chromium or Vivaldi"): tamagi browser install chromium" ;;
+    chrome|firefox|vivaldi|chromium) name=$1; shift; launch "$name" "$@" ;;
+    *)               open_default "$@" ;;
 esac

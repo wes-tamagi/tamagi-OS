@@ -1,7 +1,8 @@
-"""Tamagi — biblioteca compartilhada de i18n para scripts Python (pt/en/es/fr).
+"""Tamagi — shared i18n library for the Python tools (en/pt/es/fr).
 
-Usa exatamente os mesmos catálogos TSV (/usr/share/tamagi/i18n/<lang>.tsv) e a
-mesma ordem de prioridade que /usr/libexec/tamagi/i18n:
+English is the source language: the key of a message is its English text.
+Uses the same TSV catalogs (/usr/share/tamagi/i18n/<lang>.tsv) and the same
+priority order as /usr/libexec/tamagi/i18n:
   TAMAGI_LANG > LC_ALL > LC_MESSAGES > ~/.config/tamagi/lang > LANG
 """
 import os
@@ -11,7 +12,7 @@ I18N_DIR = pathlib.Path(os.environ.get("TAMAGI_I18N_DIR", "/usr/share/tamagi/i18
 _CACHE = {}
 
 
-def detect_lang(default="pt"):
+def detect_lang(default="en"):
     raw = os.environ.get("TAMAGI_LANG")
     if not raw:
         raw = os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
@@ -22,7 +23,7 @@ def detect_lang(default="pt"):
         except (OSError, IndexError):
             raw = ""
     if not raw:
-        raw = os.environ.get("LANG") or (default if default == "pt" else "en")
+        raw = os.environ.get("LANG") or default
     code = raw.split("_")[0].split(".")[0].lower()
     if code in ("pt", "en", "es", "fr"):
         return code
@@ -30,7 +31,7 @@ def detect_lang(default="pt"):
 
 
 def _catalog(lang):
-    if lang == "pt":
+    if lang == "en":
         return {}
     if lang not in _CACHE:
         table = {}
@@ -50,6 +51,6 @@ def _catalog(lang):
 
 def t(text, lang=None):
     lang = lang or detect_lang()
-    if lang == "pt":
+    if lang == "en":
         return text
     return _catalog(lang).get(text, text)

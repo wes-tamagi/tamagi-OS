@@ -1,4 +1,4 @@
-// Sessão de convidado (tamagi-convidado): o convidado não monta discos, não
+// Sessão de convidado (tamagi-guest): o convidado não monta discos, não
 // mexe em VMs nem no sistema, não instala nada para todos e não usa pkexec —
 // nem sabendo uma senha. Vem antes das regras que liberam algo para o wheel.
 polkit.addRule(function(action, subject) {

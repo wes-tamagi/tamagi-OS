@@ -1,15 +1,11 @@
 [Default Applications]
-x-scheme-handler/http=google-chrome.desktop
-x-scheme-handler/https=google-chrome.desktop
-text/html=google-chrome.desktop
-application/xhtml+xml=google-chrome.desktop
+x-scheme-handler/http=tamagi-browser.desktop
+x-scheme-handler/https=tamagi-browser.desktop
+text/html=tamagi-browser.desktop
+application/xhtml+xml=tamagi-browser.desktop
 text/markdown=com.system76.CosmicEdit.desktop
 text/plain=com.system76.CosmicEdit.desktop
 inode/directory=com.system76.CosmicFiles.desktop
-application/vnd.debian.binary-package=tamagi-sideload.desktop
-application/x-deb=tamagi-sideload.desktop
-application/x-rpm=tamagi-sideload.desktop
-application/x-redhat-package-manager=tamagi-sideload.desktop
 application/x-ms-dos-executable=com.usebottles.bottles.desktop
 application/x-msdownload=com.usebottles.bottles.desktop
 application/vnd.microsoft.portable-executable=com.usebottles.bottles.desktop

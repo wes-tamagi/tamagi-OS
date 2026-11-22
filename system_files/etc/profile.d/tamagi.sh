@@ -10,13 +10,6 @@
 case $- in *i*) ;; *) return 0 ;; esac
 [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/no-shell-setup" ] && return 0
 
-# Rust no shell interativo: sudo-rs e os utilitários do uutils na frente do
-# PATH (os originais continuam em /usr/bin, para serviços e scripts).
-# Para desligar só isto: touch ~/.config/tamagi/no-rust-defaults
-if [ -d /usr/libexec/tamagi/rust-bin ] && [ ! -e "${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/no-rust-defaults" ]; then
-    case ":$PATH:" in *:/usr/libexec/tamagi/rust-bin:*) ;; *) PATH="/usr/libexec/tamagi/rust-bin:$PATH" ;; esac
-fi
-
 export EDITOR="${EDITOR:-nvim}"
 export BAT_THEME="${BAT_THEME:-ansi}"
 
@@ -37,8 +30,6 @@ if command -v starship >/dev/null 2>&1; then
     [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/starship.toml" ] \
         || export STARSHIP_CONFIG="${STARSHIP_CONFIG:-/usr/share/tamagi/starship.toml}"
 fi
-# mise grava o PATH atual na ativação: nunca vai para o cache (senão ignora mudanças de PATH / no-rust-defaults).
-if command -v mise >/dev/null 2>&1; then eval "$(mise activate bash)"; fi
 _tamagi_eval_cached zoxide zoxide zoxide init bash
 _tamagi_eval_cached fzf fzf fzf --bash
 _tamagi_eval_cached starship starship starship init bash
@@ -58,5 +49,5 @@ alias g='git'
 alias lg='lazygit'
 alias ff='fastfetch'
 alias db='distrobox'
-alias dev='distrobox enter dev'
-alias ia='tamagi-agent'
+alias dev='tamagi-devbox enter'
+alias agent='tamagi-agent'

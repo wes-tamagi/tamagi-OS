@@ -1,10 +1,15 @@
 # Tamagi
 
-**Tamagi 1.0 "Kazunobu M"** — distro Linux atômica e imutável para uso diário e
-desenvolvimento no Brasil. O host é uma imagem [bootc](https://github.com/bootc-dev/bootc)
+**Tamagi 1.0 "Kazunobu M"** — distro Linux atômica e imutável cujo foco é
+**IA e agentes de IA**: um lugar seguro e reversível para trabalhar com
+agentes de programação (Claude Code, Codex, CLIO, opencode, Qwen Code, Gemini
+CLI, OpenClaw) e com modelos locais. Cada agente roda preso à pasta do projeto,
+sem ver as suas chaves, e tudo o que ele fizer pode ser desfeito. O host é uma imagem [bootc](https://github.com/bootc-dev/bootc)
 sobre o [Universal Blue](https://universal-blue.org/) com o desktop [COSMIC](https://github.com/pop-os/cosmic-epoch)
-(escrito em Rust). Navegadores e pacotes de outras distros vivem em
-caixas [distrobox](https://distrobox.it/); a IA é local, com [llama.cpp](https://llama-cpp.com/).
+(escrito em Rust). A imagem é enxuta: navegadores, jogos, máquinas virtuais,
+agentes de IA e ferramentas de desenvolvimento são opcionais e entram pela
+escolha do usuário — por Flatpak, nativamente numa camada reversível ou em
+caixas [distrobox](https://distrobox.it/). A IA local usa o [llama.cpp](https://llama-cpp.com/), compilado na imagem.
 
 O sistema inteiro é um contêiner OCI: `podman build` gera a imagem, a máquina
 troca de versão de forma atômica e a anterior fica guardada para rollback.
@@ -12,11 +17,117 @@ troca de versão de forma atômica e a anterior fica guardada para rollback.
 Veja também: [por que mais uma distro?](#por-que-mais-uma-distro) e os
 [agradecimentos](#agradecimentos).
 
+## Um comando: `tamagi`
+
+Tudo o que é do Tamagi está atrás de um comando só, com nomes em inglês em
+qualquer idioma do sistema (as mensagens saem em português, inglês, espanhol
+ou francês):
+
+```bash
+tamagi                 # lista todos os comandos
+tamagi update          # atualiza tudo        tamagi doctor     # diagnóstico
+tamagi install         # catálogo do que é opcional
+tamagi browser install firefox --flatpak     # ou --native, ou --box
+tamagi agents install claude codex qwen      # agentes de IA
+tamagi devbox create ubuntu                  # caixa de desenvolvimento
+tamagi db add postgres                       # banco de dados para desenvolvimento
+```
+
+`tamagi <comando>` é o programa `tamagi-<comando>`. Não há mais receitas do
+`ujust` repetindo esses comandos: no `ujust` ficou só o que não tem comando
+próprio (`setup-lazyvim`, `switch-image` e as receitas do Universal Blue).
+
+As mensagens são escritas em **inglês** (o idioma de origem) e traduzidas para
+português, espanhol e francês por catálogos em `/usr/share/tamagi/i18n`; em
+qualquer outro idioma do sistema, sai inglês.
+
+## Agentes de IA: presos ao projeto, com volta no tempo
+
+```bash
+tamagi agents install claude codex opencode   # ou: tamagi apply ai (o perfil pronto)
+cd ~/Projetos/meu-app
+tamagi agents run claude                       # o agente, preso a esta pasta
+tamagi agents jail                             # um shell na mesma jaula: veja o que ele vê
+```
+
+Dentro da jaula (bubblewrap, o mesmo dos Flatpaks) o agente enxerga **a pasta
+do projeto e as próprias configurações**, e nada mais da sua pasta pessoal:
+sem chaves SSH e GPG, sem tokens, sem perfis de navegador, sem outros
+projetos, sem discos removíveis. O sistema fica só para leitura. A rede
+continua ligada (o agente fala com a API dele), a não ser com `--offline`.
+
+- **Com compiladores:** havendo a caixa de desenvolvimento (`tamagi devbox`),
+  a jaula é montada dentro dela, e o agente tem Node, Python, Rust, git e os
+  clientes de banco. Sem a caixa, roda no host (`--host` força isso).
+- **Volta no tempo:** antes de o agente começar, o estado do projeto é
+  guardado — uma referência no git (`git diff refs/tamagi/before-agent/<hora>`
+  mostra tudo o que ele mudou) e um snapshot da pasta pessoal, quando os
+  snapshots estão ligados (`tamagi rewind` traz de volta). Com `--db`, os
+  bancos do `tamagi db` em execução ganham snapshot também.
+- **Login:** faça o login do agente uma vez fora da jaula (abra `claude`,
+  `codex`… normalmente); dentro dela não há navegador nem sessão do desktop.
+- Sem chaves SSH, o agente não faz `git push`: quem publica é você.
+
+## Perfis prontos
+
+```bash
+tamagi profiles        # ai, dev, gamer, office
+tamagi apply ai        # agentes de IA + caixa de desenvolvimento (o sugerido no primeiro login)
+tamagi apply gamer     # Steam nativo, gamescope com HDR, MangoHud, Heroic
+tamagi apply https://exemplo.org/minha-maquina.toml   # um arquivo compartilhado
+```
+
+Um perfil é um `tamagi.toml` pronto em `/usr/share/tamagi/profiles`: só
+acrescenta o que falta, nunca remove. Um arquivo vindo de um endereço (só
+`https://`) é sempre mostrado antes de mudar a máquina, mesmo com `-y`.
+
+## Nesta versão
+
+Além do que está abaixo: agentes presos ao projeto e perfis prontos (acima),
+inglês como idioma de origem, Tailscale opcional (`tamagi install tailscale`)
+e duas retiradas — o `tamagi-pkg` com o repositório do Omarchy (pacotes de
+outras distros agora vão numa caixa: `tamagi devbox create ubuntu|arch`) e a
+troca de `sudo`/coreutils por versões em Rust no shell.
+
+
+**Inovação 1 — o tema é do COSMIC, e os terminais o seguem.** Temas e papéis
+de parede se escolhem do jeito normal, nas Configurações do COSMIC: os onze
+temas do Tamagi ficam em `/usr/share/cosmic-themes` (com miniatura, junto dos
+temas do próprio COSMIC) e os papéis de parede na lista do sistema. O que o
+COSMIC não alcança — o terminal (foot), o btop, o Neovim e as janelas do
+Tamagi — acompanha sozinho: uma unidade do usuário (`tamagi-theme-sync.path`)
+vê o tema mudar e roda `tamagi theme sync`. Vale para qualquer tema do COSMIC,
+não só os do Tamagi (as cores de fundo e destaque vão para a paleta do
+terminal).
+
+**Inovação 2 — `tamagi try`: experimentar sem instalar.** `tamagi try htop`
+abre um shell numa caixa descartável com o pacote; ao sair, tudo some.
+`--distro arch|ubuntu|opensuse`, `--here` (a pasta atual em `/work`) e `--gui`
+(apps gráficos na sua tela).
+
+**Inovação 3 — bancos de dados com volta no tempo.** `tamagi db snapshot
+postgres` guarda os dados como estão; `tamagi db restore postgres` os traz de
+volta (antes de uma migração arriscada, por exemplo). E mais: `tamagi db url`,
+`tamagi db env` (linhas `export DATABASE_URL=…`) e `tamagi db shell` (psql,
+mysql, redis-cli, mongosh, sem instalar nada).
+
+**A mudança — imagem enxuta, tudo opcional num catálogo.** Saíram da imagem o
+virt-manager/libvirt/QEMU, o gamescope/MangoHud/GameMode/steam-devices, o mise
+e o opencode; nenhum navegador é pressuposto. O assistente de primeiro login
+ficou curto (navegador e catálogo) e `tamagi install` oferece o mesmo catálogo
+depois: navegadores (Chrome, Firefox, Vivaldi, Chromium — Flatpak, nativo ou
+caixa), OnlyOffice, virt-manager nativo, Windows 11 (dockur), Steam e os
+pacotes de jogos nativos como no Bazzite, caixas de desenvolvimento (Fedora,
+Ubuntu, openSUSE Tumbleweed, Arch) e agentes de IA (Claude Code, Antigravity,
+Codex, Qwen Code, opencode, Gemini CLI, OpenClaw e a IA local).
+
 ## Três ideias próprias
 
 **1. O sistema num arquivo.** `~/.config/tamagi/tamagi.toml` descreve a
-máquina: tema, navegadores, Flatpaks, ferramentas do mise, pacotes dos
-subsistemas, caixas, web apps e serviços.
+máquina: tema, navegadores, Flatpaks, linguagens (mise, na caixa), agentes de
+IA, pacotes dos subsistemas, caixas, camadas, web apps e serviços. As seções e
+chaves são em inglês (`[appearance]`, `[browsers]`, `[boxes]`…); arquivos
+antigos, com as chaves em português, continuam valendo.
 
 ```bash
 tamagi init      # cria o arquivo a partir do estado atual
@@ -120,30 +231,38 @@ máquina já instalada: `ujust switch-image ghcr.io/SEU_USUARIO/tamagi:latest`.
 Em quem já roda Bluefin, Aurora, Bazzite ou outro sistema da família Universal
 Blue: `sudo bootc switch <imagem>`.
 
-## Navegadores (caixa Fedora)
+## Navegadores: Flatpak, nativo ou caixa
 
-O host não traz navegador. O Chrome vive numa caixa distrobox Fedora (o mesmo sistema do host), criada
-no primeiro uso; ela enxerga a placa de vídeo, o áudio, a webcam, as chaves de
-segurança USB e a sua pasta pessoal.
+Nenhum navegador vem na imagem. Chrome, Firefox, Vivaldi e Chromium podem ser
+instalados, cada um, de três maneiras:
 
 ```bash
-tamagi-browser                    # abre o navegador padrão (cria a caixa na 1ª vez)
-tamagi-browser install firefox    # também: brave, edge, vivaldi
-tamagi-browser default firefox    # navegador padrão do sistema
-tamagi-browser status             # caixa, navegadores, VA-API e Vulkan
-tamagi-browser chrome --safe      # sem as opções de aceleração
+tamagi browser install                     # escolhe o navegador e o método numa lista
+tamagi browser install firefox             # Flatpak (o padrão): app do Flathub, isolado
+tamagi browser install chromium --native   # RPM numa camada sobre a imagem (tamagi-layer; pede senha)
+tamagi browser install chrome --box        # numa caixa Fedora (distrobox), com vídeo por hardware
+tamagi browser list                        # o que existe e o que está instalado
+tamagi browser default firefox             # navegador padrão do sistema
+tamagi browser remove chrome
 ```
 
-- O Chrome abre com decodificação e codificação de vídeo por hardware
-  (VA-API), rasterização por GPU e sem a lista de bloqueio de GPUs. Para
-  mudar: uma opção por linha em `~/.config/tamagi/browser-flags.conf`.
-- NVIDIA com driver proprietário: a caixa é criada com `--nvidia` (as
-  bibliotecas vêm do host).
-- A entrada "Google Chrome" do menu e os web apps (`tamagi-webapp`) usam essa
-  caixa. Outros navegadores aparecem no menu pelo `distrobox-export`.
+- O botão "Navegador web" da barra abre o navegador padrão; enquanto não há
+  nenhum, oferece a instalação. O primeiro navegador instalado vira o padrão e
+  toma o lugar desse botão.
+- **Nativo:** Chrome e Vivaldi vêm do repositório do fabricante (chave
+  conferida); Firefox e Chromium, do Fedora. A camada se desfaz com `tamagi
+  browser remove` e é refeita a cada atualização do sistema.
+- **Caixa:** enxerga a placa de vídeo, o áudio, a webcam, as chaves de
+  segurança USB e a sua pasta pessoal. Os navegadores Chromium abrem com
+  decodificação e codificação de vídeo por hardware (VA-API); para mudar, uma
+  opção por linha em `~/.config/tamagi/browser-flags.conf`. NVIDIA com driver
+  proprietário: a caixa é criada com `--nvidia`. `tamagi browser status`
+  mostra VA-API e Vulkan.
+- Os web apps (`tamagi webapp`) usam o navegador Chromium que estiver
+  instalado (Chrome, Chromium ou Vivaldi).
 
-Medido na máquina de desenvolvimento (Ryzen 7 5700, RX 7600): dentro da caixa
-o `vainfo` lista H.264, HEVC, VP9 e AV1 (decodificação) e H.264, HEVC e AV1
+Medido na máquina de desenvolvimento (Ryzen 7 5700, RX 7600), na caixa: o
+`vainfo` lista H.264, HEVC, VP9 e AV1 (decodificação) e H.264, HEVC e AV1
 (codificação); o Chrome 158 usou o `VaapiVideoDecoder` para H.264, VP9 e AV1,
 com WebGL e WebGPU ligados e o sandbox do Chrome ativo (sem `--no-sandbox`).
 
@@ -152,7 +271,7 @@ com WebGL e WebGPU ligados e o sandbox do Chrome ativo (sem `--no-sandbox`).
 ```bash
 tamagi-browser profile add trabalho     # cria o perfil e um atalho "Chrome (trabalho)" no menu
 tamagi-browser profile add pessoal
-tamagi-browser chrome --perfil trabalho # abre direto
+tamagi-browser chrome --profile trabalho # abre direto
 tamagi-browser profile list | remove <nome>
 ```
 
@@ -165,39 +284,9 @@ navegador (veja [Limites conhecidos](#limites-conhecidos)). `tamagi-browser
 fido` mostra se ela é vista pelo sistema e pela caixa dos navegadores.
 
 **Internet banking:** o Tamagi não traz mais o módulo de segurança dos bancos
-(Warsaw). Para banco, use uma máquina virtual: o virt-manager vem nativo na
-imagem, com KVM, firmware UEFI, TPM virtual e pastas compartilhadas
-(veja [Máquinas virtuais](#máquinas-virtuais)).
-
-## Pacotes deb, rpm, Arch e Omarchy
-
-```bash
-tamagi-pkg install ./programa.deb     # ou clique duas vezes no .deb/.rpm
-tamagi-pkg install --arch yazi        # pacman; AUR se a caixa tiver paru/yay
-tamagi-pkg install --omarchy hype     # do repositório do Omarchy
-tamagi-pkg search --omarchy oma
-tamagi-pkg install --rpm htop
-tamagi-pkg run --deb <comando>
-tamagi-pkg list | remove | update | export | enter | status
-```
-
-Cada formato tem um subsistema (um distrobox com o gerenciador nativo), criado
-no primeiro uso; apps gráficos vão para o menu do host. O subsistema `deb` é
-Ubuntu 26.04 LTS. O do Arch já nasce com o repositório `[omarchy]`
-(`https://pkgs.omarchy.org/stable`, 264 pacotes) à frente dos do Arch; a chave
-pública do Omarchy vem na imagem e é conferida pela impressão digital. Outro
-canal: `tamagi-pkg omarchy rc`.
-
-O distrobox **não** é uma barreira de segurança: o que roda na caixa enxerga a
-sua pasta pessoal.
-
-**A caixa perde desempenho?** Não de forma mensurável. Medido na máquina de
-desenvolvimento, host contra caixa Arch com as opções do distrobox (duas
-rodadas): SHA-256 de 4 GB 2,32 s × 2,34 s; zstd de 1 GB 2,38 s × 2,39 s; 400
-execuções do `mise` 1,87 s × 1,87 s; 20 mil arquivos na pasta pessoal 1,06 s ×
-1,10 s. A única diferença é escrever muitos arquivos pequenos na raiz da
-própria caixa (overlay): 1,51 s contra 1,06 s. Não há virtualização: é o mesmo
-kernel, a mesma CPU e o mesmo disco.
+(Warsaw). Para banco, use uma máquina virtual: `tamagi vm install` traz o
+virt-manager nativo, com KVM, firmware UEFI, TPM virtual e pastas
+compartilhadas (veja [Máquinas virtuais](#máquinas-virtuais-nativo-sob-demanda)).
 
 ## Camadas: pacotes do Fedora por cima da imagem
 
@@ -223,58 +312,55 @@ que cria usuário ou mexe no boot pede imagem nova); uma camada que atualizaria
 um pacote da imagem é recusada (`--allow-upgrade` força); depois de uma
 atualização do sistema a camada fica "desatualizada" e o `tamagi-update` a
 refaz; se um boot falha na verificação de saúde, as camadas são desligadas
-antes de qualquer rollback. No `tamagi.toml`: `[camadas]` com
+antes de qualquer rollback. No `tamagi.toml`: `[layers]` com
 `nome = ["pacote", …]`.
 
-App gráfico continua sendo Flatpak; pacote de outra distro, `tamagi-pkg`;
-ferramenta de desenvolvimento, mise.
+App gráfico continua sendo Flatpak; pacote de outra distro e ferramenta de
+desenvolvimento vão na caixa (`tamagi devbox`, com o mise lá dentro).
 
-## mise: linguagens, ferramentas e tarefas
+## mise: linguagens e ferramentas, dentro da caixa
 
-O [mise](https://mise.jdx.dev/) é o padrão do Tamagi para o que ele se propõe:
-versões de linguagens e ferramentas, variáveis de ambiente por projeto e
-tarefas. Roda nativo no host (não numa caixa), instala tudo no seu usuário e
-não precisa de root.
+O [mise](https://mise.jdx.dev/) continua sendo o gerenciador de versões de
+linguagens e ferramentas, mas saiu do host: vive dentro da caixa de
+desenvolvimento, onde estão os compiladores e as bibliotecas. O host imutável
+fica sem runtimes.
 
 ```bash
-mise use -g node@lts python@latest   # global, para o seu usuário
-mise use go@1.24                     # só neste projeto (grava mise.toml)
-mise run build                       # tarefas do projeto   ·   mise ls
+tamagi devbox lang                    # escolhe: web, bun, deno, python, ruby, go, rust, java, dotnet, zig
+tamagi devbox lang node@lts python@3.13   # qualquer ferramenta do mise, na caixa dev
+tamagi devbox enter                   # dentro da caixa: mise use, mise run, mise ls
 ```
 
-- Ativado no shell interativo; os *shims* entram no `PATH` de toda sessão,
-  então IDEs e apps gráficos também enxergam as ferramentas.
-- `/etc/mise/config.toml` liga a leitura de `.nvmrc`, `.python-version` e
-  afins e a instalação automática do que o projeto declara.
-- O assistente de primeiro login oferece as linguagens mais comuns, e a
-  atualização automática mantém tudo em dia.
+- O `devbox-provision` baixa o binário oficial do mise (checksum conferido)
+  para dentro da caixa e o ativa no shell dela.
+- Cada caixa guarda as suas ferramentas em separado
+  (`~/.local/share/mise-<caixa>`): um Node instalado na caixa Arch não é
+  executado pelo Ubuntu. A lista do que você quer (`~/.config/mise/config.toml`)
+  é uma só.
+- **Sobre o erro do `~/.local` com dono root:** o mise era a vítima, não a
+  causa. A pasta era criada como root na conversão da pasta pessoal em
+  subvolume (snapshots); isso foi corrigido em `home-snapshots` e no primeiro
+  boot, e o `tamagi doctor` acusa (com o comando de conserto) se acontecer.
 
-## Máquinas virtuais
+## Máquinas virtuais (nativo, sob demanda)
 
-O virt-manager vem nativo no host, com QEMU/KVM, firmware UEFI (edk2-ovmf),
-TPM virtual (swtpm, para Windows 11), pastas compartilhadas (virtiofs),
-virt-viewer, virt-install e guestfs-tools. Os daemons do libvirt sobem por
+O virt-manager não vem na imagem. `tamagi vm install` o instala **nativamente**
+(RPM do Fedora, não Flatpak) numa camada reversível, com tudo a que tem
+direito: QEMU/KVM, firmware UEFI com Secure Boot (edk2-ovmf), TPM virtual
+(swtpm, para Windows 11), aceleração 3D no convidado (virgl), SPICE (área de
+transferência, som e redirecionamento de USB), pastas compartilhadas
+(virtiofs), a rede NAT padrão e os filtros de rede, rede sem root (passt),
+nomes das VMs no DNS (libvirt-nss), virt-viewer, virt-install, virsh, virt-top
+e as ferramentas de imagem (guestfs-tools: virt-customize, virt-sysprep,
+virt-sparsify). É oferecido no primeiro login e em `tamagi install`: instala
+quem quiser. Os daemons do libvirt sobem por
 socket, só quando usados, e quem é administrador gerencia as VMs sem digitar a
-senha. `ujust vms` abre o virt-manager.
-
-### Pop!_OS em VM, com imagem compactada própria
+senha.
 
 ```bash
-tamagi-popos instalar          # baixa a ISO oficial (SHA256 da System76) e abre a VM no virt-manager
-tamagi-popos compactar         # depois de instalar: limpa (machine-id, chaves SSH, logs) e compacta num modelo
-tamagi-popos nova trabalho     # VM nova a partir do modelo, em segundos (clone ligado, começa com poucos MB)
-tamagi-popos lista | abrir <nome> | remover <nome>
-tamagi-popos exportar ~/popos.qcow2   # leva o modelo para outra máquina (importar do outro lado)
+tamagi vm             # abre o virt-manager (instala na primeira vez)
+tamagi vm install | status | remove     # remover tira a camada; VMs e discos ficam
 ```
-
-Roda sem root, na sessão do usuário do libvirt (no virt-manager: "QEMU/KVM
-sessão do usuário", que o comando adiciona), com UEFI, CPU do host, disco
-virtio que só cresce com o uso, rede pelo passt e vídeo virtio com 3D (o
-COSMIC do Pop!_OS fica fluido). A instalação em si é a do Pop!_OS, feita uma
-vez à mão; a imagem compactada nunca altera o disco da VM original, e o
-`tamagi-popos` recusa trocar o modelo enquanto houver VMs criadas a partir
-dele. Discos em `~/.local/share/libvirt/images`, fora dos snapshots da pasta
-pessoal.
 
 ## Atualização automática
 
@@ -284,10 +370,10 @@ Tudo se atualiza sozinho, todo dia:
 |---|---|
 | Sistema (imagem) | baixada e preparada em segundo plano; entra no próximo boot, com a anterior guardada |
 | Flatpaks | timers do sistema e do usuário |
-| Caixas distrobox e mise | `tamagi-autoupdate.timer` (não roda na bateria) |
+| Subsistemas e caixas distrobox | `tamagi-autoupdate.timer` (não roda na bateria) |
 
 `tamagi-update status` mostra os quatro timers e avisa se há imagem nova
-esperando o reinício; `ujust autoupdate off` desliga e `on` religa.
+esperando o reinício; `tamagi update auto off` desliga e `on` religa.
 `tamagi-update` continua atualizando tudo na hora.
 
 A imagem só é baixada em rede não tarifada (regra da base Universal Blue) e a
@@ -316,7 +402,7 @@ frases no seu idioma, escrito só a partir da lista real de pacotes. Vem do
 ### Abrir isolado
 
 Para o script baixado da internet, o AppImage de origem duvidosa, o binário que
-um tutorial manda rodar: `tamagi-isolar arquivo` (ou, no COSMIC Files, botão
+um tutorial manda rodar: `tamagi-isolate arquivo` (ou, no COSMIC Files, botão
 direito → Abrir com → "Abrir isolado"). O programa roda numa jaula
 descartável do bubblewrap (o mesmo dos Flatpaks): **sem rede**, com a **pasta
 pessoal escondida** (ele vê uma pasta vazia), o resto do sistema **só para
@@ -341,16 +427,16 @@ Voltar o sistema não apaga nada: a versão atual fica no menu de boot, e
 
 ### Sessão de convidado descartável
 
-`tamagi-convidado ligar` acrescenta uma conta "Convidado" sem senha na tela de
+`tamagi-guest on` acrescenta uma conta "Convidado" sem senha na tela de
 login, para emprestar o computador. A pasta pessoal dela fica na memória e é
 refeita do zero a cada logout e a cada boot. Sem `sudo`; uma regra do polkit
 nega ao convidado montar discos, mexer em VMs, instalar no sistema e usar
 `pkexec`, mesmo sabendo uma senha. As suas pastas são fechadas para ele
-(`0700`). `tamagi-convidado desligar` tira tudo. Vem desligada.
+(`0700`). `tamagi-guest off` tira tudo. Vem desligada.
 
 ### Modo privacidade de um toque
 
-`Super+Ctrl+P` (ou `tamagi-privacidade`) liga e desliga, de uma vez: a câmera
+`Super+Ctrl+P` (ou `tamagi-privacy`) liga e desliga, de uma vez: a câmera
 desligada no kernel (as interfaces de vídeo USB saem do driver: nenhum programa
 a abre), todos os microfones mudos, Bluetooth bloqueado, o computador invisível
 na rede local (sem mDNS), o firewall fechado para conexões de entrada (zona
@@ -378,8 +464,8 @@ Dois caminhos, conforme o programa:
 
 ```bash
 tamagi-windows            # abre (instala na primeira vez, depois do aviso de licença)
-tamagi-windows parar      # desliga e libera a memória
-tamagi-windows navegador  # a tela pelo navegador (acompanhar a instalação)
+tamagi-windows stop      # desliga e libera a memória
+tamagi-windows web  # a tela pelo navegador (acompanhar a instalação)
 tamagi-windows status | remover
 ```
 
@@ -397,20 +483,28 @@ atividade, sem USB nem GPU no Podman) e o **WinPodX** (beta, ainda sem Fedora
 45, e embute um patch de sessões RDP simultâneas que conflita com a licença
 do Windows).
 
-## Caixa de desenvolvimento (Fedora padrão + multi-distro) e Workspaces
+## Caixa de desenvolvimento e Workspaces
 
-A caixa de desenvolvimento padrão (`dev`) é **Fedora 45**, já provisionada com
-`sqlite`/`sqlite-devel`, `rust`/`cargo`/`clippy`/`rustfmt`, `nodejs`/`npm`,
-`python3`, `gcc`/`g++`/`cmake`/`ninja`/`pkg-config` e headers nativos. Quem
-precisar testar ou desenvolver em outra distro pode criar caixas extras prontas
-com um comando:
+O host não tem compiladores nem linguagens: eles vivem na caixa. A caixa
+padrão (`dev`) é **Fedora 45**; há também Ubuntu, openSUSE Tumbleweed e Arch.
+Toda caixa vem com `gcc`/`g++`/`cmake`/`ninja`, git, SQLite, Rust/Cargo,
+Node.js/npm, Python e:
+
+- **bancos de dados:** os clientes `psql`, `mariadb` e `valkey-cli`/`redis-cli`
+  já instalados; os bancos do `tamagi db` respondem em `127.0.0.1` de dentro
+  da caixa, sem configurar nada;
+- **navegador:** links e logins (gh, npm, agentes de IA) abrem no navegador do
+  desktop (`BROWSER` aponta para o host); para testes automatizados, `tamagi
+  devbox browser` instala o Chromium na caixa e aponta `CHROME_BIN`,
+  `PUPPETEER_EXECUTABLE_PATH` e `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` para ele;
+- **mise** para outras linguagens e versões (`tamagi devbox lang`).
 
 ```bash
-tamagi-devbox                           # menu interativo (padrão: fedora)
-tamagi-devbox create                    # cria 'dev' (Fedora 45 com stack completo)
-tamagi-devbox create popos              # também: arch, ubuntu, alma, rocky, opensuse, debian, alpine
-tamagi-devbox create fedora --extra go,zig,clang,postgres
-tamagi-devbox distros | list | enter | update | remove <nome>
+tamagi devbox                           # menu interativo (padrão: fedora)
+tamagi devbox create                    # cria 'dev' (Fedora 45)
+tamagi devbox create ubuntu             # também: opensuse (Tumbleweed), arch
+tamagi devbox create fedora --extra go,zig,clang,browser
+tamagi devbox enter | lang | browser | distros | list | update | remove <nome>
 ```
 
 ### Três inovações arquiteturais
@@ -428,22 +522,24 @@ tamagi-devbox distros | list | enter | update | remove <nome>
 3. **`tamagi-doctor` — Diagnóstico autônomo de saúde, deriva e integridade:**
    executa 12 verificações arquiteturais (imagem `bootc`, kernel/Secure Boot,
    Btrfs/NoCoW em VMs, `zram`/writeback, `systemd`, camadas `sysext`, contêineres,
-   GPU, KVM/Pop!_OS, SELinux, menu/`.desktop` e IA local), com `--json` (para o
+   GPU, KVM, SELinux, menu/`.desktop` e IA local), com `--json` (para o
    agente local), `--fix` (auto-remediação segura no usuário) e `--explain`
    (diagnóstico resumido pela IA local no idioma do usuário).
 
 ## Do Omarchy: desenvolvimento, captura e atalhos
 
 ```bash
-tamagi-dev                         # escolhe: web (Node+pnpm), bun, deno, python, ruby, go, rust, java, dotnet, zig
-tamagi-dev add web python          # via mise, na pasta pessoal; só linguagens com binário pronto
-tamagi-font                        # fonte mono de tudo: foot, alacritty, COSMIC e apps GTK
-tamagi-capture texto               # Shift+Print: seleciona uma área e copia o texto (OCR, Tesseract)
-tamagi-capture gravar              # Alt+Print: grava a tela (GPU Screen Recorder, portal); de novo, para
+tamagi devbox lang web python      # linguagens pelo mise, dentro da caixa de desenvolvimento
+tamagi-font                        # fonte mono de tudo: foot, COSMIC e apps GTK
+tamagi-capture text               # Shift+Print: seleciona uma área e copia o texto (OCR, Tesseract)
+tamagi-capture record              # Alt+Print: grava a tela (GPU Screen Recorder, portal); de novo, para
 tamagi-db                          # escolhe: postgres, mysql, mariadb, redis, valkey, mongo
 tamagi-db add postgres             # 127.0.0.1:5432, sem senha, liga com a sessão
-tamagi-db list | stop | start | remove <banco>
-tamagi-lembrete 25m "Pausa"        # notificação daqui a 25 minutos
+tamagi-db url postgres | env       # URL de conexão / linhas export DATABASE_URL=…
+tamagi-db shell postgres           # o cliente do próprio banco (psql, mysql, redis-cli, mongosh)
+tamagi-db snapshot postgres        # guarda os dados como estão; restore traz de volta
+tamagi-db list | stop | start | snapshots | remove <banco>
+tamagi-remind 25m "Pausa"        # notificação daqui a 25 minutos
 ```
 
 Os bancos são contêineres Podman sem root (Quadlet em
@@ -452,30 +548,56 @@ volumes `tamagi-db-<banco>`. Sem senha, como no Omarchy: só para
 desenvolvimento local.
 
 Atalhos no estilo do Omarchy (`Super+K` lista todos): `Super+Shift+G` lazygit,
-`Super+Shift+D` bancos, `Super+Shift+O` OnlyOffice, `Super+Shift+M` Mission
-Center, `Super+Shift+W` Windows, `Super+Ctrl+E` emojis (Smile, instalado no
+`Super+Shift+D` bancos, `Super+Shift+O` OnlyOffice e `Super+Shift+M` Mission
+Center (instalados no primeiro uso), `Super+Shift+W` Windows, `Super+Ctrl+E` emojis (Smile, instalado no
 primeiro uso), `Super+Ctrl+R` lembrete. Com LazyVim (`ujust setup-lazyvim`),
 o `tamagi-theme` também troca o colorscheme do Neovim (os mesmos plugins do
 Omarchy; no Ipê, base16 com as cores do tema). Elixir, PHP e o que precisa
-compilar ficam na caixa Arch (`tamagi-pkg install --arch …`). Ficaram de fora
+compilar ficam numa caixa (`tamagi devbox create arch`). Ficaram de fora
 o conta-gotas de cor (o portal do COSMIC ainda não tem) e o que depende do
 Hyprland (clipboard universal, gaps, scratchpad).
 
-## Jogos (estilo Bazzite: nativo ou Flatpak)
+## Jogos (nativo como no Bazzite, sob demanda)
 
-O kernel OGC (Bazzite), `gamescope`, MangoHud, GameMode, controles Xbox (`xone`/`xpadneo`),
-`steam-devices` e `scx_rusty` já vêm na imagem. O restante entra sob demanda —
-**nativamente no `/usr`** (via camada `tamagi-layer` reversível, com Steam RPM
-Fusion, drivers 32-bit Mesa/Vulkan, Lutris, Wine, Winetricks, GOverlay, vkBasalt
-e Protontricks) ou via **Flatpak**:
+Na imagem fica só o que precisa estar no kernel: o kernel OGC (o do Bazzite),
+os controles Xbox (`xone`/`xpadneo`) e o `scx_rusty`. Steam, `steam-devices`,
+`gamescope`, MangoHud, GameMode, drivers 32-bit Mesa/Vulkan, Lutris, Wine,
+Winetricks, GOverlay, vkBasalt e Protontricks entram **nativamente no `/usr`**,
+com os mesmos pacotes que o Bazzite traz embutidos, numa camada reversível
+(`tamagi-layer`) — ou por **Flatpak**:
 
 ```bash
-tamagi-gaming              # menu interativo: nativo (Bazzite), Flatpak ou baixa latência
-tamagi-gaming native       # Steam nativo + 32-bit, Lutris, Wine, GOverlay, vkBasalt (camada reversível)
-tamagi-gaming flatpak      # Steam, Lutris, Heroic, ProtonUp-Qt, Bottles (Flatpak)
-tamagi-gaming latency      # ativa perfil de baixa latência (tuned + scx_rusty)
-tamagi-gaming status | remove
+tamagi gaming                    # menu: nativo, Flatpak ou baixa latência
+tamagi gaming native steam       # Steam + steam-devices + gamescope, MangoHud, GameMode e 32-bit
+tamagi gaming native lutris wine overlay protontricks   # somam à mesma camada
+tamagi gaming flatpak            # Steam, Lutris, Heroic, ProtonUp-Qt, Bottles (Flatpak)
+tamagi gaming latency            # perfil de baixa latência (tuned + scx_rusty)
+tamagi gaming status | remove
 ```
+
+### gamescope com HDR
+
+O HDR nos jogos vem do **gamescope rodando direto no vídeo**, fora do COSMIC,
+como no Bazzite e no Steam Deck: na tela de login, escolha a sessão **Tamagi
+Gaming** (aparece depois de `tamagi gaming native`). Ela abre o Steam Big
+Picture com HDR ligado (quando a tela anuncia HDR no EDID) e sincronia
+adaptativa; sair do Steam volta para a tela de login. Não depende do HDR do
+COSMIC, que continua esperando o upstream (veja Limites conhecidos).
+
+```bash
+tamagi gaming hdr                # estado: gamescope, telas com HDR, opções
+tamagi gaming hdr on | off       # HDR da sessão de jogos (padrão: ligado)
+tamagi gaming hdr nits 300       # brilho do conteúdo SDR dentro do HDR (padrão: 400)
+tamagi gaming hdr itm on         # mostra jogos SDR em HDR (inverse tone mapping)
+tamagi gaming hdr vrr on | off   # sincronia adaptativa
+tamagi gaming run -- %command%   # opção de inicialização do Steam: o jogo no gamescope
+```
+
+Dentro do COSMIC, `tamagi gaming run` também pede HDR ao gamescope, mas como
+janela ele só sai em HDR quando o compositor do desktop tiver suporte; até
+lá, o conteúdo HDR é convertido para SDR. As opções ficam em
+`~/.config/tamagi/gamescope.conf` (também `WIDTH`, `HEIGHT`, `REFRESH` e
+`CLIENT`, para abrir outro programa no lugar do Steam).
 
 ## Segurança
 
@@ -501,10 +623,10 @@ hora, 7 diários e 4 semanais. `~/.cache` e os contêineres ficam de fora.
 
 ```bash
 tamagi-snap                      # estado e snapshots
-tamagi-snap versoes ~/Documentos/contrato.odt
-tamagi-snap voltar ~/Documentos/contrato.odt      # a versão mais recente diferente da atual
-tamagi-snap voltar ~/Documentos/contrato.odt 42   # a do snapshot 42
-tamagi-snap agora "antes de mexer"                # um snapshot agora
+tamagi-snap versions ~/Documentos/contrato.odt
+tamagi-snap restore ~/Documentos/contrato.odt      # a versão mais recente diferente da atual
+tamagi-snap restore ~/Documentos/contrato.odt 42   # a do snapshot 42
+tamagi-snap now "antes de mexer"                # um snapshot agora
 ```
 
 A versão atual nunca é sobrescrita: fica ao lado como `<arquivo>.antes-<data>`.
@@ -540,33 +662,39 @@ eles sempre pedem confirmação.
   editor, loja, player, tela de login).
 - **Kernel:** Open Gaming Collective (7.3), assinado pelo
   Universal Blue; `CONFIG_RUST=y`, Binder, sched_ext.
-- **Terminal:** `sudo` é o sudo-rs e `ls`, `cp`, `mv` etc. são os do uutils no
-  shell interativo (os originais continuam em `/usr/bin` para serviços e
-  scripts; desligar: `touch ~/.config/tamagi/no-rust-defaults`). Também:
-  alacritty, ripgrep, fd, bat, eza, zoxide, dust, delta, hyperfine,
-  difftastic, uv, starship, mise.
+- **Terminal:** ripgrep, fd, bat, eza, zoxide, dust, delta,
+  hyperfine, difftastic, uv e starship. O `sudo` e os utilitários básicos
+  (`ls`, `cp`…) são os de sempre: a troca por sudo-rs e uutils foi retirada.
 
 As ferramentas `tamagi-*` são bash e Python.
 
 ## IA
 
 ```bash
-tamagi-ai setup          # recomenda um modelo pelo hardware, baixa e liga o servidor
-ia "por que meu boot está lento?"    # agente do sistema, 100% local
-tamagi-ai chat | code    # interface web do llama.cpp | opencode no modelo local
-claude                   # Claude Code: baixado da Anthropic no primeiro uso (também no menu e na dock)
-tamagi-antigravity       # Antigravity (IDE do Google), instalado na caixa de navegadores no primeiro uso
+tamagi ai setup          # recomenda um modelo pelo hardware, baixa e liga o servidor
+agent "por que meu boot está lento?"   # agente do sistema, 100% local (tamagi agent)
+tamagi ai chat | code    # interface web do llama.cpp | opencode no modelo local
+tamagi agents            # catálogo de agentes de programação (nenhum vem na imagem)
+tamagi agents install claude antigravity codex clio qwen opencode gemini openclaw
 ```
+
+| Agente | Como é instalado |
+|---|---|
+| Claude Code (`claude`) | instalador da Anthropic, checksum conferido, em `~/.local/bin` |
+| Codex CLI (`codex`), opencode | binário oficial do GitHub, digest SHA-256 conferido, em `~/.local/bin` |
+| [CLIO](https://www.syntheticautonomicmind.org/) (`clio`) | Perl puro, GPL-3.0: versão do GitHub com digest conferido; roda na caixa de desenvolvimento (o host só tem um Perl mínimo) e fala com o modelo local do llama.cpp |
+| Antigravity | IDE do Google, na caixa de navegadores, com o Chrome que o agente dela usa |
+| Qwen Code (`qwen`), Gemini CLI (`gemini`), OpenClaw (`openclaw`) | pacotes npm: vivem na caixa de desenvolvimento (Node, git e compiladores estão lá); um lançador em `~/.local/bin` os abre de qualquer lugar |
+| IA local | o agente do Tamagi com um modelo no seu computador (`tamagi ai setup`) |
 
 - **llama.cpp v1.0.0** compilado na imagem com Vulkan e variantes de CPU
   escolhidas em tempo de execução; serve em `127.0.0.1:9931` (API OpenAI e
   Anthropic) com `--jinja`, `--flash-attn auto`, `--fit on` e suporte a
   `reasoning_content`, carrega o modelo sob demanda e o libera após 15 min parado.
-- **`tamagi-agent`** (alias `ia`): agente próprio que conhece o sistema e usa o
+- **`tamagi-agent`** (alias `agent`): agente próprio que conhece o sistema e usa o
   registro declarativo `/usr/share/tamagi/actions.toml` (`tamagi_action`).
   Comandos somente-leitura rodam direto, presos pelo Landlock (sem rede, sem
   gravar, sem ver chaves e tokens); o resto pede confirmação. Veja Segurança.
-- **mise** já ativado no shell: `mise use -g rust@latest node@lts python@3.13`.
 
 | Preset | Perfil | Modelo | Tamanho | Para |
 |---|---|---|---|---|
@@ -603,8 +731,9 @@ tamagi-antigravity       # Antigravity (IDE do Google), instalado na caixa de na
   GPL-3.0, layout "Retro"; os outros layouts ficam nas configurações do menu).
   A versão 1.1.0 é compilada na imagem (o COPR parou na 1.0.0) com o "menu
   focado" ligado: abriu, já dá para digitar e usar as setas, sem clicar na
-  busca. Ele abre no canto da tela do lado do botão. O lançador do COSMIC fica no
-  `Super+Alt+Espaço`.
+  busca. `Super+Espaço` abre esse menu pelo teclado (`cosmic-ext-classic-menu-applet
+  --toggle`); a paleta de comandos do Tamagi fica no `Super+A` e o lançador do
+  COSMIC no `Super+Alt+Espaço`.
 - **Tela de boot:** o brasão do Tamagi, o anel (環, *tamaki*) com as três
   joias (玉, *tama*), nas cores do tema Ipê; as joias giram enquanto o sistema
   sobe, e a senha do disco aparece no mesmo fundo. Desenhado por código no
@@ -614,45 +743,38 @@ tamagi-antigravity       # Antigravity (IDE do Google), instalado na caixa de na
   atalhos. `tamagi-lang pick` troca depois de instalado.
 - **Fontes:** Noto Sans na interface, Roboto Slab como fonte com serifa
   (documentos), JetBrains Mono no terminal.
-- **Apps (inspirado no primeiro login do openSUSE Aeon):** no primeiro boot
-  entram sozinhos só os essenciais e leves (Flatseal, Warehouse, Loupe, Papers
-  e três applets do COSMIC). No primeiro login, uma decisão só: **Instalar o
-  recomendado** (Chrome, Mission Center, Pika Backup) com um Enter, ou
-  **Escolher app por app** num catálogo de ~30 apps por categoria
-  (navegadores, escritório, comunicação, criação, jogos, desenvolvimento e
-  sistema), com o tamanho de cada um e preferência pelos verificados pelo
-  próprio fabricante no Flathub. Diferente do Aeon, os apps baixam **em segundo
-  plano** (unidade do systemd do usuário, esperando a rede): o assistente segue
-  com as outras perguntas e uma notificação avisa quando termina
-  (`/usr/libexec/tamagi/apps-setup status`). Escolhendo só o Firefox ou o
-  Brave, ele vira o navegador padrão. O catálogo fica em
-  `/usr/share/tamagi/flatpaks.list`; o que ficar de fora continua no
-  `Super+Espaço` (Instalar).
-- **Temas:** `tamagi-theme set <tema>` — tokyo-night, catppuccin, gruvbox,
-  nord, everforest, rose-pine, kanagawa, matte-black, ristretto, latte e ipe
-  (o tema próprio do Tamagi: verde-noite com destaque no amarelo do ipê).
-  Trocam as cores do COSMIC (fundo, destaque e texto), o claro/escuro, o papel
-  de parede, o terminal (foot), o btop, o Neovim (LazyVim) e a paleta das
-  janelas do Tamagi. Cada tema vira um arquivo em
-  `/usr/share/cosmic-themes/tamagi-<tema>.ron`, que também aparece em
-  Configurações > Aparência > Importar.
-- **Papéis de parede:** oito estilos em cada tema, nas cores dele
-  (`tamagi-theme wallpaper <estilo>`), desenhados por código com motivos do
-  Japão do século XVII: `mon` (padrão; brasão no estilo dos kamon — um anel,
-  *tamaki* 環, com três joias, *tama* 玉 — sobre ondas), `seigaiha` (ondas em
-  escamas), `asanoha` (folha de cânhamo), `byobu` (biombo: nuvens, lua e
-  monte), `shippo` (círculos entrelaçados), `hinode` (nascer do sol sobre o
-  mar), `uroko` (escamas triangulares) e `ondas`.
+- **Apps:** a imagem é enxuta. No primeiro boot entram sozinhos só os
+  essenciais e leves (Flatseal, Warehouse, Loupe, Papers e três applets do
+  COSMIC). No primeiro login o assistente pergunta o navegador (e como
+  instalar) e mostra o catálogo do que é opcional, com nada pré-marcado; o
+  mesmo catálogo fica em `tamagi install` (`/usr/share/tamagi/catalog.tsv`
+  mais os Flatpaks opcionais de `flatpaks.list`).
+- **Temas:** escolhidos nas Configurações do COSMIC (Aparência); os terminais
+  seguem sozinhos. Os temas do Tamagi — tokyo-night (o padrão, também do
+  COSMIC), catppuccin, gruvbox, nord, everforest, rose-pine, kanagawa,
+  matte-black, ristretto, latte e ipe (verde-noite com destaque no amarelo do
+  ipê) — estão em `/usr/share/cosmic-themes/tamagi-<tema>.ron`, com miniatura.
+  `tamagi theme set <tema>` aplica um deles de uma vez ao COSMIC e ao terminal
+  (foot), btop, Neovim (LazyVim) e janelas do Tamagi.
+- **Papéis de parede:** escolhidos nas Configurações do COSMIC (Papel de
+  parede), onde aparecem os oito estilos de cada tema, desenhados por código
+  com motivos do Japão do século XVII: `mon` (padrão; brasão no estilo dos
+  kamon — um anel, *tamaki* 環, com três joias, *tama* 玉 — sobre ondas),
+  `seigaiha` (ondas em escamas), `asanoha` (folha de cânhamo), `byobu`
+  (biombo: nuvens, lua e monte), `shippo` (círculos entrelaçados), `hinode`
+  (nascer do sol sobre o mar), `uroko` (escamas triangulares) e `ondas`.
+  Usando um papel de parede do Tamagi, trocar de tema mantém o estilo e traz
+  as cores novas; qualquer outro papel de parede não é tocado.
 - **Redes:** WireGuard, OpenVPN, OpenConnect, L2TP, PPTP, SSTP, IKEv2/IPsec,
-  SSH, Tailscale do repositório oficial (`ujust setup-tailscale`); SMB, NFS, SSHFS, MTP, iPhone,
+  SSH; Tailscale opcional, do repositório oficial (`tamagi install tailscale`); SMB, NFS, SSHFS, MTP, iPhone,
   rclone; mDNS, impressoras e scanners sem driver.
 
 ## Atalhos (`Super+K` mostra todos)
 
 | Atalho | Ação |
 |---|---|
-| `Super+Enter` / `Super+Espaço` | terminal (foot) / paleta de comandos (`tamagi-menu`) |
-| `Super+A` / `Super+Alt+Espaço` | ações rápidas / lançador de aplicativos COSMIC |
+| `Super+Enter` / `Super+Espaço` | terminal (foot) / menu iniciar (o botão do Tamagi) |
+| `Super+A` / `Super+Alt+Espaço` | paleta de comandos (`tamagi-menu`) / lançador de aplicativos COSMIC |
 | `Super+Shift+A` | agente de IA |
 | `Super+W` / `F` / `M` | fechar / tela cheia / maximizar |
 | `Super+1…9`, `+Shift` | ir para o workspace / mandar a janela |
@@ -701,7 +823,7 @@ system_files/            árvore copiada para a raiz da imagem
   usr/bin/tamagi         o sistema num arquivo (init, diff, apply)
   usr/bin/tamagi-*       layer, boot-report, browser, pkg, harden, ai, agent, update,
                          webapp, theme, menu, assist, keys, firstrun
-  usr/libexec/tamagi/    browser-provision, omarchy-repo (rodam dentro
+  usr/libexec/tamagi/    browser-provision, devbox-provision (rodam dentro
                          das caixas), firstboot, popup
 live/                    mídia de instalação: Containerfile, módulo do tik, tamagi-install,
                          build-iso.sh
@@ -750,10 +872,8 @@ O projeto agradece a todos os que tornaram esta distro possível.
   vêm do Fedora 45, sem modificação.
 - **[Bazzite](https://bazzite.gg/):** ajustes de desempenho (memória, disco,
   rede), gamescope, MangoHud, GameMode e regras de controles.
-- **[Omarchy](https://omarchy.org/):** uso por teclado, temas, web apps
-  e o repositório de pacotes, numa caixa Arch.
-- **[Ubuntu](https://ubuntu.com/) 26.04 LTS** na caixa `deb` do `tamagi-pkg`.
-  A caixa dos navegadores é Fedora: o Chrome vem do repositório rpm do Google
+- **[Omarchy](https://omarchy.org/):** uso por teclado, temas e web apps.
+- A caixa dos navegadores é Fedora: o Chrome vem do repositório rpm do Google
   e o driver de vídeo completo (H.264/HEVC) do RPM Fusion.
 - **[COSMIC](https://github.com/pop-os/cosmic-epoch)** (System76): o desktop.
 - **Instalador:** [tik](https://github.com/sysrich/tik), do openSUSE Aeon.
@@ -780,12 +900,10 @@ compatibilidade ou inspiração. A imagem não traz os logos do Fedora (troca
 `fedora-logos` por `generic-logos`; o os-release usa o nome, o logo e os
 endereços do Tamagi).
 
-O Tamagi não redistribui Pop!_OS nem Windows: `tamagi-popos` e
-`tamagi-windows` baixam as imagens oficiais diretamente dos servidores da
-System76 e da Microsoft, na máquina do usuário. As imagens criadas com
-`tamagi-popos compactar` são para uso próprio; quem redistribuí-las responde
-pelas licenças (GPL e outras) e pelas políticas de marca da System76 e da
-Canonical. O Windows exige licença válida da Microsoft. Detalhes em `NOTICE`
+O Tamagi não redistribui o Windows nem os navegadores e agentes de IA de
+terceiros: `tamagi-windows`, `tamagi-browser` e `tamagi-agents` baixam cada
+um diretamente do fabricante, na máquina do usuário. O Windows exige licença
+válida da Microsoft. Detalhes em `NOTICE`
 (também em `/usr/share/doc/tamagi/NOTICE`).
 
 ## Limites conhecidos
@@ -795,11 +913,10 @@ Canonical. O Windows exige licença válida da Microsoft. Detalhes em `NOTICE`
   do tik). A instalação apaga o disco inteiro: não há dual boot assistido.
 - Idiomas: o sistema, o instalador, o assistente de primeiro login, o menu
   (`tamagi-menu`), as ações rápidas, os atalhos e as entradas do lançador
-  existem em pt-BR, en-US, es e fr. As mensagens das ferramentas de linha de
-  comando (`tamagi-browser`, `tamagi-pkg`, `tamagi-ai`, `tamagi-update`,
-  `tamagi-harden`, `ujust`…) ainda saem só em português; a camada de tradução
-  (`/usr/libexec/tamagi/i18n`, catálogos em `/usr/share/tamagi/i18n`) já está
-  pronta para elas.
+  existem em pt-BR, en-US, es e fr, e as ferramentas de linha de comando
+  também (inglês é o idioma de origem). Ficam só em português as mensagens de
+  serviços internos que rodam como root no boot (`home-snapshots`,
+  `firstboot`, `secureboot-guard`) e os erros do atalho `claude`.
 - Desbloqueio por TPM: a chave é selada no PCR 7 (estado do Secure Boot).
   Ligar ou desligar o Secure Boot, ou trocar as chaves dele, faz o boot voltar
   a pedir a senha do disco — é o comportamento esperado, não um defeito.
@@ -820,8 +937,10 @@ Canonical. O Windows exige licença válida da Microsoft. Detalhes em `NOTICE`
 - A tela de login usa o papel de parede padrão do COSMIC, não o do Tamagi.
 - HDR ainda não existe no COSMIC (issue
   [pop-os/cosmic-comp#1384](https://github.com/pop-os/cosmic-comp/issues/1384)):
-  o Tamagi espera entrar no oficial. VRR e `gamescope` embutido têm falhas
-  conhecidas no compositor.
+  o Tamagi espera entrar no oficial, sem fork. Nos jogos o HDR já funciona
+  pela sessão **Tamagi Gaming** (gamescope direto no vídeo, veja
+  [gamescope com HDR](#gamescope-com-hdr)); dentro do COSMIC, o `gamescope`
+  em janela sai em SDR e o VRR tem falhas conhecidas no compositor.
 - Claude Code e Antigravity são proprietários e não vêm na imagem pública:
   o `claude` baixa o Claude Code da Anthropic no primeiro uso (canal estável,
   checksum conferido) para `~/.local/bin`, de onde ele se atualiza sozinho; o
@@ -833,8 +952,8 @@ Canonical. O Windows exige licença válida da Microsoft. Detalhes em `NOTICE`
   escalonadores scx saíram da imagem para reduzir manutenção e tamanho.
 - O rollback automático grava o digest defeituoso em `/var/lib/tamagi/quarantine.list`,
   impedindo que a atualização automática reinstale a mesma imagem quebrada
-  (`tamagi-update quarantine` / `unquarantine`). `ujust rollback` continua valendo
-  para voltar à mão.
+  (`tamagi-update quarantine` / `unquarantine`). `tamagi rewind` (ou `sudo bootc rollback`)
+  continua valendo para voltar à mão.
 - NVIDIA com driver proprietário: a base atual não traz o driver. É preciso
   trocar `BASE_IMAGE` por uma base que o traga; não foi testado.
 

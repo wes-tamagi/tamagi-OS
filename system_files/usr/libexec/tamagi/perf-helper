@@ -23,7 +23,7 @@ case "$PROFILE" in
         tuned_prof=latency-performance
         want_scx=1 ;;
     *)
-        echo "uso: perf-helper <eco|balanced|performance|latency>" >&2
+        echo "usage: perf-helper <eco|balanced|performance|latency>" >&2
         exit 2 ;;
 esac
 

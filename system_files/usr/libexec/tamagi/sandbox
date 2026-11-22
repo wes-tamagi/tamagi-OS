@@ -163,7 +163,7 @@ def main(argv):
     if argv and argv[0] == "--":
         argv = argv[1:]
     if not argv or mode not in ("leitura", "usuario"):
-        print("uso: sandbox [--mode leitura|usuario] [--se-possivel] -- <comando...>", file=sys.stderr)
+        print("usage: sandbox [--mode leitura|usuario] [--se-possivel] -- <comando...>", file=sys.stderr)
         return 2
 
     libc = ctypes.CDLL(None, use_errno=True)

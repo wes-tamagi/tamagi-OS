@@ -1,0 +1,879 @@
+# Tamagi — translations (pt). Format: English<TAB>translation. See /usr/libexec/tamagi/i18n.
+# In the bar styles (centro, classico, cosmic) the first word is the name of the style: do not translate it.
+Yes	Sim
+No	Não
+Welcome to Tamagi	Bem-vindo ao Tamagi
+Atomic system: the host is read-only and updates itself.	Sistema atômico: o host é somente-leitura e se atualiza sozinho.
+Apps via Flatpak, browsers and packages in distrobox boxes, local AI.	Apps por Flatpak, navegadores e pacotes em caixas distrobox, IA local.
+Appearance	Aparência
+Theme	Tema
+Bar	Barra
+centro — one bar at the bottom, apps in the center	centro — uma barra embaixo, apps no centro
+classico — one bar at the bottom, apps on the left	classico — uma barra embaixo, apps à esquerda
+cosmic — panel on top and dock at the bottom	cosmic — painel em cima e dock embaixo
+Windows	Janelas
+Arrange windows side by side automatically (tiling)?	Organizar as janelas automaticamente lado a lado (tiling)?
+Floating	Flutuantes
+Super+Y switches between the two modes at any time.	Super+Y alterna entre os dois modos a qualquer momento.
+Browser	Navegador
+Browsers live in an Fedora box (distrobox), with the computer's	Os navegadores vivem numa caixa Fedora (distrobox), com a placa de vídeo
+graphics card and without touching the host. Chrome is set up on first use	do computador e sem tocar no host. O Chrome é preparado no primeiro uso
+(downloads about 600 MB).	(baixa cerca de 600 MB).
+That didn't work (no network?). It will be set up when you open the browser.	Não deu agora (sem rede?). Ele é preparado quando você abrir o navegador.
+Later: open the browser, or run tamagi-browser setup	Depois: abra o navegador, ou rode tamagi-browser setup
+Development box (distrobox)	Caixa de desenvolvimento (distrobox)
+The host takes no packages: command-line tools live in a box.	O host não recebe pacotes: ferramentas de linha de comando vivem numa caixa.
+not now	agora não
+Which distro for the 'dev' box?	Criar a caixa 'dev' com qual distro?
+Could not create it now (no network?). Later: ujust devbox	Não deu para criar agora (sem rede?). Depois: ujust devbox
+Languages and tools (mise)	Linguagens e ferramentas (mise)
+mise is the default manager for languages and development tools:	O mise é o gerenciador padrão de linguagens e ferramentas de desenvolvimento:
+it installs into your user account, switches versions per project folder and updates itself.	instala no seu usuário, troca de versão por pasta de projeto e se atualiza sozinho.
+Install now? (space selects, Enter confirms; may be left empty)	Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)
+That didn't work (no network?). Later: mise use -g node@lts	Não deu agora (sem rede?). Depois: mise use -g node@lts
+Later: mise use -g node@lts python@latest   ·   mise ls	Depois: mise use -g node@lts python@latest   ·   mise ls
+Encrypted disk	Disco criptografado
+Later: ujust setup-luks-tpm-unlock	Depois: ujust setup-luks-tpm-unlock
+Local AI (llama.cpp)	IA local (llama.cpp)
+Later: tamagi-ai setup	Depois: tamagi-ai setup
+Done	Pronto
+Super+K shows the shortcuts · Super+A quick actions · Super+Alt+Space opens the menu.	Super+K mostra os atalhos · Super+A ações rápidas · Super+Alt+Espaço abre o menu.
+Games: ujust setup-gaming · Security: tamagi-harden status · Language: tamagi-lang pick	Jogos: ujust setup-gaming · Segurança: tamagi-harden status · Idioma: tamagi-lang pick
+press any key to close	qualquer tecla fecha
+Set up Chrome now?	Preparar o Chrome agora?
+Unlock the disk with the TPM chip at boot, without typing the password?	Desbloquear o disco pelo chip TPM no boot, sem digitar a senha?
+Download a model now? (the download may take a few minutes)	Baixar um modelo agora? (o download pode levar alguns minutos)
+press any key to continue	qualquer tecla continua
+Format	Formato
+package name or file path	nome do pacote ou caminho do arquivo
+app name (e.g. gimp, spotify, vscode)	nome do app (ex.: gimp, spotify, vscode)
+Choose the app	Escolha o app
+e.g. node@lts, python@3.13, go, rust	ex.: node@lts, python@3.13, go, rust
+Roll back to the previous image on the next boot?	Reverter para a imagem anterior no próximo boot?
+Log out?	Sair da sessão?
+Restart the computer?	Reiniciar o computador?
+Shut down the computer?	Desligar o computador?
+Graphical app (Flatpak)	App gráfico (Flatpak)
+deb, rpm, Arch or Omarchy package (subsystem)	Pacote deb, rpm, Arch ou Omarchy (subsistema)
+Browser (Chrome, Firefox, Brave, Edge, Vivaldi)	Navegador (Chrome, Firefox, Brave, Edge, Vivaldi)
+Web app (site as an application)	Web app (site como aplicativo)
+Games (Steam, Lutris, Heroic)	Jogos (Steam, Lutris, Heroic)
+Language or runtime (mise)	Linguagem ou runtime (mise)
+LazyVim on Neovim	LazyVim no Neovim
+Another AI agent	Outro agente de IA
+Back	Voltar
+Talk to the agent	Conversar com o agente
+Chat in the web interface	Chat na interface web
+Code with opencode	Programar com opencode
+Claude Code	Claude Code
+Install or change model	Instalar ou trocar modelo
+Status	Estado
+Wallpaper	Papel de parede
+Bar style	Estilo da barra
+System language	Idioma do sistema
+Update everything	Atualizar tudo
+Image status	Estado da imagem
+Go back to the previous version	Voltar para a versão anterior
+Automatic updates	Atualização automática
+Virtual machines	Máquinas virtuais
+Boot health	Saúde do boot
+System in a file (tamagi diff)	Sistema num arquivo (tamagi diff)
+Security (hardening)	Segurança (endurecimento)
+Free up space	Limpar espaço
+Machine information	Informações da máquina
+Redo the initial setup	Refazer a configuração inicial
+Shut down	Desligar
+Lock	Bloquear
+Suspend	Suspender
+Log out	Sair da sessão
+Restart	Reiniciar
+Install	Instalar
+Local AI	IA local
+Shortcuts	Atalhos
+System	Sistema
+Power	Energia
+Quit	Sair
+AI	IA
+Tamagi	Tamagi
+unknown language	idioma desconhecido
+takes effect at the next login (log out and back in).	vale no próximo login (saia da sessão e entre de novo).
+Theme applied	Tema aplicado
+↑↓ choose · Enter confirms · Esc goes back	↑↓ escolher · Enter confirma · Esc volta
+Super+Space opens the menu · Super+K shows shortcuts · Super+A quick actions.	Super+Espaço abre o menu · Super+K mostra os atalhos · Super+A ações rápidas.
+e.g. rust@latest, node@lts, python@3.13, go	ex.: rust@latest, node@lts, python@3.13, go
+error	erro
+This machine	Esta máquina
+no .gguf file found	não achei um arquivo .gguf
+Already installed	Já instalado
+Downloading	Baixando
+unknown preset	preset desconhecido
+No models installed. Run: tamagi-ai setup	Nenhum modelo instalado. Rode: tamagi-ai setup
+model is not installed	modelo não está instalado
+Default model	Modelo padrão
+Removed	Removido
+Which model should be installed?	Qual modelo instalar?
+no model chosen	nenhum modelo escolhido
+what kernel version am I running and how much free disk space do I have?	qual a versão do kernel e quanto de disco livre eu tenho?
+llama-server did not respond; check 'tamagi-ai logs'	o llama-server não respondeu; veja 'tamagi-ai logs'
+Server	Servidor
+Model	Modelo
+none — run 'tamagi-ai setup'	nenhum — rode 'tamagi-ai setup'
+Context	Contexto
+Models	Modelos
+Memory	Memória
+Loaded	Carregados
+Quarantined digest detected; update cancelled	Digest em quarentena detectado; atualização cancelada
+Update blocked by quarantine	Atualização bloqueada pela quarentena
+The available image is the same one that failed the previous boot. Waiting for a newer build.	A imagem disponível é a mesma que falhou no boot anterior. Aguardando nova versão.
+System (atomic image)	Sistema (imagem atômica)
+New image staged: takes effect on next boot.	Nova imagem pronta: entra em uso no próximo boot.
+Could not update the image. If installed from a local build, publish it first	Não consegui atualizar a imagem. Se ela foi instalada de um build local, publique-a
+Image layers (tamagi-layer)	Camadas sobre a imagem (tamagi-layer)
+No Arch box found. Create one with: tamagi-pkg install --arch <pkg>  or  ujust devbox arch	Nenhuma caixa Arch. Crie com: tamagi-pkg install --arch <pacote>  ou  ujust devbox arch
+On battery: deferring until next run.	Na bateria: fica para a próxima.
+Box	Caixa
+Runtimes (mise)	Runtimes (mise)
+System update ready	Atualização do sistema pronta
+It will take effect the next time you reboot.	Ela entra em uso quando você reiniciar o computador.
+next	próxima
+missing	ausente
+System (image, applied on boot)	Sistema (imagem, entra no boot)
+System Flatpaks	Flatpaks do sistema
+User Flatpaks	Flatpaks do usuário
+Subsystems and mise	Subsistemas e mise
+Quarantined digests	Digests em quarentena
+A new image is staged: reboot to apply.	Há uma imagem nova pronta: reinicie para usar.
+No quarantined digests.	Nenhum digest em quarentena.
+Quarantine cleared.	Quarentena limpa.
+Flatpaks	Flatpaks
+Subsystems and distrobox boxes (deb, rpm and others)	Subsistemas e caixas distrobox (deb, rpm e outras)
+Finished with failures in	Terminou com falhas em
+Everything is up to date.	Tudo atualizado.
+Health check	Verificação de saúde
+unknown	desconhecida
+Boot marked healthy	Boot marcado como bom
+Running image	Imagem em uso
+Previous image	Imagem anterior
+none saved	nenhuma guardada
+Failure reports	Relatórios de falha
+pending	pendente(s)
+Local AI agent explanation	Explicação do agente de IA local
+(the agent did not respond; see the report above)	(o agente não respondeu; o relatório acima é o que há)
+To get a local AI explanation: tamagi-ai setup	Para ter a explicação do agente de IA local: tamagi-ai setup
+No pending boot failures.	Nenhuma falha de boot pendente.
+An update failed the boot health check. The system rebooted,	Uma atualização não passou na verificação de saúde. O sistema reiniciou,
+retried, and rolled back to the previous image, which is now active.	tentou de novo e voltou para a imagem anterior, que é a que está em uso.
+Recorded attempts	Tentativas registradas
+The failing digest was automatically quarantined to prevent re-installation.	O digest com falha foi colocado em quarentena automática para evitar reinstalação.
+No saved reports.	Nenhum relatório guardado.
+An update failed and was rolled back	Uma atualização falhou e foi desfeita
+The system rolled back to the previous version. See what happened.	O sistema voltou para a versão anterior. Veja o que aconteceu.
+Open in the browser	Abrir pelo navegador
+I accept: download and install Windows	Aceito: baixar e instalar o Windows
+Delete Windows and its whole disk? This cannot be undone.	Apagar o Windows e todo o disco dele? Isto não tem volta.
+The folder	A pasta
+Downloading the container image…	Baixando a imagem do contêiner…
+Shut down Windows	Desligar o Windows
+disk	disco
+disk up to 64 GB	disco até 64 GB
+and installed automatically; it takes 10 to 30 minutes.	e instalado sozinho; leva de 10 a 30 minutos.
+It is Microsoft software: to use it you need a	Ele é software da Microsoft: para usá-lo você precisa de uma licença
+not enough free space	espaço livre insuficiente
+/dev/net/tun is missing	falta /dev/net/tun
+was kept	foi mantida
+Windows installation started. Follow it in the browser	Instalação do Windows começou. Acompanhe pelo navegador
+Installing the remote desktop client (FreeRDP)…	Instalando o cliente de área de trabalho remota (FreeRDP)…
+Starting Windows…	Ligando o Windows…
+not enough memory for Windows	memória insuficiente para o Windows
+Memory reserved while running	Memória reservada enquanto ligado
+the Windows container stopped; see	o contêiner do Windows parou; veja
+Windows is downloaded from Microsoft now, on your machine (about 6 GB),	O Windows é baixado da Microsoft agora, na sua máquina (cerca de 6 GB),
+Windows is already installed	O Windows já está instalado
+Windows did not respond; try	o Windows não respondeu; tente
+shared folder	pasta compartilhada
+When it finishes, open it with	Quando terminar, abra com
+run it in a terminal to accept the license notice	rode num terminal para aceitar o aviso de licença
+no access to /dev/kvm: enable virtualization (VT-x/AMD-V) in the BIOS	sem acesso a /dev/kvm: ative a virtualização (VT-x/AMD-V) na BIOS
+valid license. Without an activation key it works, but stays unactivated.	válida. Sem chave de ativação ele funciona, mas fica sem ativar.
+Windows 11 in a container	Windows 11 no contêiner
+Windows 11 in a container (dockur)	Windows 11 no contêiner (dockur)
+Windows shut down	Windows desligado
+Windows installed	Windows instalado
+Windows not installed	Windows não instalado
+Windows removed	Windows removido
+running	ligado
+off	desligado
+Delete the database and all its data?	Apagar o banco e todos os dados dele?
+Downloading and starting	Baixando e ligando
+Development database	Banco de dados para desenvolvimento
+unknown database	banco desconhecido
+database not installed	banco não instalado
+Database removed	Banco removido
+Reminder	Lembrete
+Reminder in	Lembrete em
+Reminders cancelled	Lembretes cancelados
+No database installed	Nenhum banco instalado
+Tea is ready	Tirar o chá
+Done. Open a new terminal (or run: hash -r) and check with	Pronto. Abra um terminal novo (ou rode: hash -r) e confira com
+Development environments (space selects, Enter installs)	Ambientes de desenvolvimento (espaço marca, Enter instala)
+monospace font not found	fonte mono não encontrada
+Font	Fonte
+new terminals already use it	terminais novos já abrem com ela
+Monospace font	Fonte monoespaçada
+invalid name	nome inválido
+there are VMs created from the current image; remove them first	há VMs criadas a partir da imagem atual; remova-as antes
+not enough memory	memória insuficiente
+could not reach the Pop!_OS API	não consegui falar com a API do Pop!_OS
+unexpected answer from the Pop!_OS API	resposta inesperada da API do Pop!_OS
+Downloading Pop!_OS	Baixando o Pop!_OS
+the ISO does not match System76's SHA256	a ISO não confere com o SHA256 da System76
+No 3D acceleration; using plain virtio video	Sem aceleração 3D; usando vídeo virtio simples
+VM does not exist	VM não existe
+The VM already exists	A VM já existe
+a disk with that name already exists	já existe um disco com esse nome
+The VM is open in virt-manager: install Pop!_OS as usual.	A VM está aberta no virt-manager: instale o Pop!_OS normalmente.
+When you finish and shut the VM down, build the compact image with	Quando terminar e desligar a VM, faça a imagem compactada com
+shut the VM down first	desligue a VM antes
+could not find the VM's disk	não achei o disco da VM
+this VM is already a clone of the image; compact the VM where Pop!_OS was installed	esta VM já é um clone da imagem; compacte a VM onde o Pop!_OS foi instalado
+Compacting (the original VM's disk is not changed)…	Compactando (o disco da VM original não é alterado)…
+Pop!_OS VM image ready	Imagem do Pop!_OS para VM pronta
+New VM from it	VM nova a partir dela
+there is no compact image yet	ainda não há imagem compactada
+VM created	VM criada
+compact image	imagem compactada
+Delete the VM and its disk? The compact template is kept.	Apagar a VM e o disco dela? O modelo compactado fica.
+VM removed	VM removida
+not a qcow2 image	não é uma imagem qcow2
+ISO deleted	ISO apagada
+What to install	O que instalar
+The system comes lean: pick what you want now. Everything else stays one	O sistema vem enxuto: escolha o que quer agora. O resto continua a um
+click away later, in Super+Space (Install).	clique depois, no Super+Espaço (Instalar).
+Chrome — browser, in a Fedora box	Chrome — navegador, numa caixa Fedora
+Claude Code — Anthropic's coding agent	Claude Code — agente de programação da Anthropic
+Antigravity — Google's agentic IDE, with Chrome	Antigravity — IDE agêntica do Google, com o Chrome
+Space toggles · Enter installs · nothing selected: installs nothing	Espaço marca/desmarca · Enter instala · nada marcado: instala nada
+Not now. Later: claude	Não deu agora. Depois: claude
+Not now. Later: tamagi-antigravity	Não deu agora. Depois: tamagi-antigravity
+Not now (no network?). Later: Super+Space, Install.	Não deu agora (sem rede?). Depois: Super+Espaço, Instalar.
+OnlyOffice — documents, spreadsheets and presentations	OnlyOffice — documentos, planilhas e apresentações
+Bottles — Windows programs (Wine)	Bottles — programas do Windows (Wine)
+Mission Center — system monitor	Mission Center — monitor do sistema
+DistroShelf — distrobox boxes with a GUI	DistroShelf — caixas distrobox com janelas
+COSMIC Tweaks — extra COSMIC settings	COSMIC Tweaks — ajustes extras do COSMIC
+Examine — hardware information	Examine — informações do hardware
+Antigravity is Google software and is downloaded now, on your machine (Google's terms).	O Antigravity é do Google e é baixado agora, na sua máquina (termos do Google).
+Antigravity installed. It is already in the launcher.	Antigravity instalado. Ele já aparece no lançador.
+Antigravity is not installed	Antigravity não está instalado
+Antigravity removed	Antigravity removido
+unknown option	opção desconhecida
+Jail kept at	Jaula mantida em
+file not found	arquivo não encontrado
+Isolated	Isolado
+no network	sem rede
+home folder hidden	pasta pessoal escondida
+system read-only	sistema só leitura
+WITH network	COM rede
+The program finished	O programa terminou
+The jail was deleted.	A jaula foi apagada.
+The system comes lean: pick your apps now. They download in the background	O sistema vem enxuto: escolha os apps agora. Eles baixam em segundo plano
+while you carry on; everything else stays in Super+Space (Install).	enquanto você segue; o resto continua no Super+Espaço (Instalar).
+Browsers	Navegadores
+Office	Escritório
+Communication	Comunicação
+Creative	Criação
+Games	Jogos
+Development	Desenvolvimento
+Install the recommended set	Instalar o recomendado
+Pick app by app	Escolher app por app
+Apps	Apps
+Installing in the background: you can carry on. A notification tells you when it's done.	Instalando em segundo plano: pode continuar. Uma notificação avisa quando terminar.
+Could not start now. Later: Super+Space, Install.	Não deu para começar agora. Depois: Super+Espaço, Instalar.
+Later: Super+Space, Install.	Depois: Super+Espaço, Instalar.
+Installing in the background	Instalando em segundo plano
+Nothing being installed	Nada sendo instalado
+waiting for the internet connection	esperando a conexão com a internet
+default browser	navegador padrão
+Your apps are ready	Seus apps estão prontos
+Everything you picked at first login has been installed.	Tudo o que você escolheu no primeiro login foi instalado.
+Some apps were not installed	Alguns apps não foram instalados
+try again from Super+Space (Install).	tente de novo pelo Super+Espaço (Instalar).
+Pika Backup — backups to a disk or server	Pika Backup — cópias de segurança para um disco ou servidor
+Firefox — Mozilla's browser	Firefox — navegador da Mozilla
+Brave — browser with ad blocking	Brave — navegador com bloqueio de anúncios
+LibreOffice — documents, spreadsheets and presentations	LibreOffice — documentos, planilhas e apresentações
+Thunderbird — email and calendar	Thunderbird — e-mail e agenda
+Bitwarden — password manager	Bitwarden — gerenciador de senhas
+Telegram — messaging	Telegram — mensagens
+Signal — encrypted messaging	Signal — mensagens com criptografia
+Discord — voice and communities	Discord — voz e comunidades
+OBS Studio — record and stream	OBS Studio — gravar e transmitir
+GIMP — image editing	GIMP — editar imagens
+Inkscape — vector drawing	Inkscape — desenho vetorial
+VLC — videos and music	VLC — vídeos e músicas
+Spotify — music	Spotify — música
+Steam — game store and library	Steam — loja e biblioteca de jogos
+Heroic — Epic, GOG and Amazon games	Heroic — jogos da Epic, GOG e Amazon
+Podman Desktop — containers with a GUI	Podman Desktop — contêineres com janelas
+Zed — code editor	Zed — editor de código
+Flatseal — Flatpak app permissions	Flatseal — permissões dos apps Flatpak
+Warehouse — manage Flatpak apps	Warehouse — gerenciar apps Flatpak
+Loupe — images	Loupe — imagens
+Papers — PDF and documents	Papers — PDF e documentos
+Update cancelled by Secure Boot: the Universal Blue key is missing.	Atualização cancelada pelo Secure Boot: falta a chave do Universal Blue.
+password	senha
+Privacy mode is already on	Modo privacidade já está ligado
+warning: the system part was not applied	aviso: a parte de sistema não foi aplicada
+Privacy mode on	Modo privacidade ligado
+Camera and microphones off, Bluetooth and local network closed.	Câmera e microfones desligados, Bluetooth e rede local fechados.
+Privacy mode is already off	Modo privacidade já está desligado
+Privacy mode off	Modo privacidade desligado
+Everything is back as it was.	Tudo voltou como estava.
+Guest session on: pick Convidado (Guest) on the login screen (no password).	Sessão de convidado ligada: escolha Convidado na tela de login (sem senha).
+Guest session off	Sessão de convidado desligada
+Guest session on	Sessão de convidado ligada
+theme: tamagi-theme list · wallpaper: mon, seigaiha, asanoha, byobu, shippo, hinode, uroko, ondas	tema: tamagi-theme list · papel: mon, seigaiha, asanoha, byobu, shippo, hinode, uroko, ondas
+in the Fedora box: chrome, firefox, brave, edge, vivaldi	na caixa Fedora: chrome, firefox, brave, edge, vivaldi
+Flathub or COSMIC repository IDs	IDs do Flathub ou do repositório COSMIC
+global languages and tools, as in `mise use -g`	linguagens e ferramentas globais, como em `mise use -g`
+tamagi-pkg subsystems (omarchy uses the Arch box)	subsistemas do tamagi-pkg (omarchy usa a caixa Arch)
+name = distro (fedora, arch, popos, ubuntu, alma, rocky, opensuse, debian, alpine)	nome = distro (fedora, arch, popos, ubuntu, alma, rocky, opensuse, debian, alpine)
+Fedora packages layered over the image (tamagi-layer): name = [packages]	pacotes do Fedora por cima da imagem (tamagi-layer): nome = [pacotes]
+name = URL	nome = endereço
+seguranca: equilibrado or estrito · desempenho: eco, balanced, performance or latency	seguranca: equilibrado ou estrito · desempenho: eco, balanced, performance ou latency
+servicos.seguranca must be equilibrado or estrito	servicos.seguranca precisa ser equilibrado ou estrito
+servicos.desempenho must be eco, balanced, performance or latency	servicos.desempenho precisa ser eco, balanced, performance ou latency
+Your system described in a single file.	O seu sistema descrito num arquivo só.
+create the file from the current state	cria o arquivo a partir do estado atual
+print or save the current state	imprime ou grava o estado atual
+show what is missing	mostra o que falta
+apply what is missing	faz o que falta
+do not ask before starting	não pergunta antes de começar
+Nothing to do: the machine already matches the file.	Nada a fazer: a máquina já está como o arquivo descreve.
+Run in a terminal, or pass -y to apply without prompting.	Rode num terminal, ou use -y para aplicar sem perguntar.
+Nothing was changed.	Nada foi alterado.
+Done: the machine now matches the file.	Pronto: a máquina está como o arquivo descreve.
+Tamagi — your system in one file. `tamagi apply` converges the machine to it;	Tamagi — o seu sistema num arquivo. `tamagi apply` deixa a máquina assim;
+`tamagi diff` shows what is missing. Nothing absent here is removed.	`tamagi diff` mostra o que falta. Nada que não esteja aqui é removido.
+could not read	não consegui ler
+Create one with	Crie um com
+is not valid TOML	não é TOML válido
+unknown section	seção desconhecida
+must be a section	precisa ser uma seção
+unknown key	chave desconhecida
+unknown browser	navegador desconhecido
+box	caixa
+unknown distro	distro desconhecida
+invalid box name	nome de caixa inválido
+invalid layer name	nome de camada inválido
+layer	camada
+must be a list of packages	precisa ser uma lista de pacotes
+web app	web app
+URL must start with http:// or https://	o endereço precisa começar com http:// ou https://
+file error	erro no arquivo
+wallpaper	papel de parede
+theme	tema
+browser	navegador
+package	pacote
+automatic updates	atualização automática
+on	ligada
+stale	desatualizada
+security	segurança
+performance	desempenho
+already exists. To see differences	já existe. Para ver a diferença
+Saved to	Gravado em
+Edit and run	Edite e rode
+Missing	Falta
+Will apply	Vou fazer
+needs password	pede senha
+On this machine and outside the file	Na máquina e fora do arquivo
+nothing is removed	nada é removido
+Apply?	Aplicar?
+Run `tamagi diff` to see what is still missing.	Rode `tamagi diff` para ver o que ainda falta.
+The default box is Fedora (with sqlite, rust/cargo, node/npm, python, and compilers).	A caixa padrão é Fedora (com sqlite, rust/cargo, node/npm, python e compiladores).
+Create development box with which distro?	Criar caixa de desenvolvimento com qual distro?
+Could not create it now (no network?). Later: tamagi-devbox	Não deu para criar agora (sem rede?). Depois: tamagi-devbox
+Tamagi tools updated immediately; full desktop on next login.	ferramentas do Tamagi atualizadas agora; desktop completo no próximo login.
+usage	uso
+development boxes (Fedora default + multi-distro)	caixas de desenvolvimento (Fedora padrão + multi-distro)
+choose a distro and create the box	escolhe a distro e cria a caixa
+enter the box (default: dev)	entra na caixa (padrão: dev)
+install sqlite, rust/cargo, node/npm, python, gcc	instala sqlite, rust/cargo, node/npm, python, gcc
+list supported distros	lista as distros suportadas
+list created boxes	lista as caixas criadas
+update packages in box(es)	atualiza os pacotes da(s) caixa(s)
+remove the box (home files stay)	apaga a caixa (arquivos da pasta pessoal ficam)
+Distros	Distros
+unexpected argument	argumento inesperado
+Box already exists	A caixa já existe
+Creating development box	Criando caixa de desenvolvimento
+Installing development tools (sqlite, rust/cargo, node/npm, python, compilers)…	Instalando ferramentas de desenvolvimento (sqlite, rust/cargo, node/npm, python, compiladores)…
+Box ready	Caixa pronta
+Enter	Entrar
+Box does not exist	A caixa não existe
+Provisioning box	Provisionando caixa
+No development box created yet. Create one with	Nenhuma caixa de desenvolvimento criada. Crie com
+Updating box	Atualizando caixa
+Delete this box? Files in your home folder stay.	Apagar a caixa? Os arquivos da sua pasta pessoal ficam.
+Box removed	Caixa removida
+Choose development box distro (default: fedora)	Escolha a distro da caixa de desenvolvimento (padrão: fedora)
+Fedora 45 (default — sqlite, rust/cargo, node/npm, python, gcc/cmake)	Fedora 45 (padrão — sqlite, rust/cargo, node/npm, python, gcc/cmake)
+Arch Linux (rolling — pacman, base-devel, rust, node/npm, sqlite)	Arch Linux (rolling — pacman, base-devel, rust, node/npm, sqlite)
+Pop!_OS 24.04 (apt.pop-os.org + Ubuntu 24.04 — rust, node/npm, sqlite)	Pop!_OS 24.04 (apt.pop-os.org + Ubuntu 24.04 — rust, node/npm, sqlite)
+Ubuntu 26.04 LTS (apt — build-essential, rust, node/npm, sqlite)	Ubuntu 26.04 LTS (apt — build-essential, rust, node/npm, sqlite)
+AlmaLinux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)	AlmaLinux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)
+Rocky Linux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)	Rocky Linux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)
+openSUSE Tumbleweed (zypper — rust, node/npm, sqlite)	openSUSE Tumbleweed (zypper — rust, node/npm, sqlite)
+Debian 13 Trixie (apt — stable, rust, node/npm, sqlite)	Debian 13 Trixie (apt — estável, rust, node/npm, sqlite)
+Alpine Linux (musl, ultra-light — apk, rust, node/npm, sqlite)	Alpine Linux (musl, ultraleve — apk, rust, node/npm, sqlite)
+browsers in the Fedora box (distrobox)	navegadores na caixa Fedora (distrobox)
+open the default browser	abre o navegador padrão
+open a specific browser (chrome, firefox, brave, edge, vivaldi)	abre um navegador específico (chrome, firefox, brave, edge, vivaldi)
+open in an isolated profile (creates if missing)	abre num perfil isolado (cria se não existir)
+create profile and menu shortcut	cria o perfil e um atalho no menu
+USB security key (FIDO2) diagnostics	diagnóstico da chave de segurança USB (FIDO2)
+create the box and install Chrome	cria a caixa e instala o Chrome
+set the system default browser	define o navegador padrão do sistema
+box, browsers, and hardware video acceleration	caixa, navegadores e aceleração de vídeo
+update the box and browsers	atualiza a caixa e os navegadores
+open a shell in the box	abre um shell na caixa
+delete the box (profiles and downloads stay)	apaga a caixa (perfis e downloads ficam)
+In menu	No menu
+Installing	Instalando
+Creating browser box	Criando a caixa de navegadores
+Setting up hardware video, fonts, and locale	Preparando vídeo por hardware, fontes e idioma
+Browser ready. Acceleration status	Navegador pronto. Estado da aceleração
+is not installed	não está instalado
+invalid profile name	nome de perfil inválido
+No profiles yet. Create one with	Nenhum perfil. Crie com
+Profile created	Perfil criado
+profile does not exist	não existe o perfil
+Delete profile, including logins, history, and extensions?	Apagar o perfil, com logins, histórico e extensões?
+run in a terminal to confirm profile removal	rode num terminal para confirmar a remoção do perfil
+Profile deleted.	Perfil apagado.
+Security keys seen by the system	Chaves de segurança vistas pelo sistema
+no	não
+yes	sim
+accessible to your user on host	liberada para você no sistema
+opens from inside box	abre de dentro da caixa
+NO	NÃO
+none. Plug in the key and run again.	nenhuma. Conecte a chave e rode de novo.
+Box does not exist yet	A caixa ainda não existe
+Plug in the security key BEFORE opening the browser.	Conecte a chave ANTES de abrir o navegador.
+Default browser	Navegador padrão
+not created yet	ainda não criada
+Default	Padrão
+Options	Opções
+default (hardware video acceleration on)	padrão (aceleração de vídeo ligada)
+Profiles	Perfis
+Delete the box and its browsers? Profiles and downloads stay.	Apagar a caixa e os navegadores dela? Perfis e downloads ficam.
+Box deleted. To recreate	Caixa apagada. Para recriar
+Could not set up the browser (no network?). Press any key to close.	Não consegui preparar o navegador (sem rede?). Qualquer tecla fecha.
+system hardening	endurecimento do sistema
+what is active right now	o que está ativo agora
+enable strict mode (asks password; applies after reboot)	liga o modo estrito (pede a senha; vale após reiniciar)
+return to balanced default	volta ao padrão equilibrado
+USBGuard: allow only currently known USB devices	USBGuard: só os aparelhos USB já conhecidos funcionam
+hardened_malloc for all programs (may break some apps)	hardened_malloc em todos os programas (pode quebrar apps)
+not supported on this machine	sem suporte nesta máquina
+Mode	Modo
+strict	estrito
+balanced	equilibrado
+Encrypted disk (LUKS)	Disco criptografado (LUKS)
+Wi-Fi MAC	MAC do Wi-Fi
+random per connection	aleatório a cada conexão
+stable per saved network	um por rede salva
+Unprivileged BPF	BPF sem privilégio
+blocked	bloqueado
+allowed	liberado
+strict mode kernel arg(s) apply on next boot	argumento(s) do modo estrito entram no próximo boot
+Strict mode trades performance/compatibility for security (disables SMT, restricts ptrace, random MAC, lockdown).	O modo estrito reduz desempenho/compatibilidade (desliga SMT, restringe ptrace, MAC aleatório, lockdown).
+Does not affect distrobox, Flatpak, or browsers.	Não mexe em distrobox, Flatpak nem nos navegadores.
+Enable strict mode?	Ligar o modo estrito?
+Strict mode enabled. Kernel arguments take effect after reboot.	Modo estrito ligado. Os argumentos do kernel valem depois de reiniciar.
+Balanced mode restored. Reboot to revert kernel arguments.	Modo equilibrado. Reinicie para o kernel voltar aos argumentos padrão.
+Currently connected USB devices are allowed; new ones will be blocked.	Os aparelhos USB conectados AGORA ficam liberados; os novos serão bloqueados.
+hardened_malloc is not in this image	hardened_malloc não está nesta imagem
+Every new program will use hardened_malloc. To undo: tamagi-harden malloc off	Todo programa novo passa a usar o hardened_malloc. Para desfazer: tamagi-harden malloc off
+Fedora packages layered over the image (systemd-sysext)	pacotes do Fedora por cima da imagem (systemd-sysext)
+create and enable the layer (needs password)	cria a camada e a liga (pede senha)
+disable and delete the layer	desliga e apaga a camada
+layers, packages, and status	camadas, pacotes e estado
+rebuild layers against the current image	refaz as camadas contra a imagem atual
+disable / re-enable all layers (without deleting)	desliga / religa todas (sem apagar)
+writable /usr until next reboot	/usr gravável até o próximo reinício
+only build the file (-o <file>), without installing	só gera o arquivo (-o <arquivo>), sem instalar
+mkfs.erofs missing (erofs-utils package)	falta o mkfs.erofs (pacote erofs-utils)
+nothing to do: all requested packages are already in the image	nada a fazer: tudo isso já está na imagem
+these base image packages would be upgraded by the layer:	estes pacotes da imagem seriam atualizados pela camada:
+update the system first (tamagi-update) or retry with --allow-upgrade	atualize o sistema primeiro (tamagi-update) ou repita com --allow-upgrade
+packages install nothing into /usr	os pacotes não instalam nada em /usr
+specify at least one package	diga pelo menos um pacote
+invalid package	pacote inválido
+Enabling layer	Ligando a camada
+Layer enabled	Camada ligada
+package(s)	pacote(s)
+To undo	Para desfazer
+Generated	Gerado
+Package /etc files	Arquivos de /etc dos pacotes
+layer does not exist	não existe a camada
+Layer removed	Camada removida
+No layers yet. Example	Nenhuma camada. Exemplo
+missing package list, cannot rebuild	sem a lista de pacotes, não dá para refazer
+Rebuilding layer	Refazendo a camada
+could not rebuild; kept previous version	não consegui refazer; ela continua como estava
+No active layers.	Nenhuma camada ligada.
+Layers disabled. To re-enable	Camadas desligadas. Para religar
+No disabled layers.	Nenhuma camada desligada.
+Layers re-enabled.	Camadas religadas.
+/usr is writable until the next reboot; all changes vanish on reboot.	O /usr fica gravável até o próximo reinício; tudo o que mudar some ao reiniciar.
+deb, rpm, Arch, and Omarchy packages in subsystems (distrobox)	pacotes deb, rpm, Arch e Omarchy em subsistemas (distrobox)
+install and export GUI apps to the menu	instala e põe os apps no menu
+remove	remove
+search	procura
+packages you installed	pacotes que você instalou
+update subsystem(s)	atualiza o(s) subsistema(s)
+run a command inside the subsystem	roda um comando do subsistema
+export command to host (~/.local/bin)	cria o comando no host (~/.local/bin)
+open a shell in the subsystem	abre um shell no subsistema
+existing subsystems	subsistemas existentes
+(re)configure the Omarchy repository	(re)configura o repositório do Omarchy
+Creating subsystem	Criando o subsistema
+warning: could not configure the Omarchy repo (no network?). Later: tamagi-pkg omarchy	aviso: não configurei o repositório do Omarchy (sem rede?). Depois: tamagi-pkg omarchy
+app in menu	app no menu
+cannot install file	não sei instalar o arquivo
+specify what to install	diga o que instalar
+Installed in	Instalado em
+Terminal commands	Comandos de terminal
+specify what to remove	diga o que remover
+subsystem does not exist	o subsistema não existe
+specify what to search	diga o que procurar
+Updating subsystem	Atualizando o subsistema
+created	criado
+(created on first use)	(criado no primeiro uso)
+specify the command	diga o comando
+App name (e.g. WhatsApp)	Nome do app (ex.: WhatsApp)
+URL (e.g. https://web.whatsapp.com)	Endereço (ex.: https://web.whatsapp.com)
+Web app created	Web app criado
+Remove which one?	Remover qual?
+web app not found	não achei o web app
+Web app removed	Web app removido
+Performance profile	Perfil de desempenho
+Kernel	Kernel
+CPU (driver/gov/EPP)	CPU (driver/gov/EPP)
+sched_ext scheduler	Escalonador sched_ext
+Writeback (dirty)	Writeback (dirty)
+NMI watchdog	NMI watchdog
+Network (TCP)	Rede (TCP)
+zram	zram
+Disks (scheduler)	Discos (escalonador)
+unknown profile	perfil desconhecido
+Performance profile activated	Perfil de desempenho ativado
+Battery saver (powersave, default EEVDF)	Economia de bateria (powersave, EEVDF padrão)
+Balanced for daily use (default)	Equilibrado para uso diário (padrão)
+Max performance (throughput-performance + scx_rusty)	Desempenho máximo (throughput-performance + scx_rusty)
+Low latency for gaming and audio (latency-performance + scx_rusty)	Baixa latência para jogos e áudio (latency-performance + scx_rusty)
+current	atual
+Running quick micro-benchmark…	Executando micro-benchmark rápido…
+SHA-256 (256 MiB)	SHA-256 (256 MiB)
+zstd -1 multi-core (64 MiB)	zstd -1 multi-core (64 MiB)
+Shell startup (avg)	Abertura do shell (média)
+performance profiles, sched_ext, and telemetry	perfis de desempenho, sched_ext e telemetria
+show performance telemetry	mostra telemetria de desempenho
+pick a profile from a list	escolhe o perfil numa lista
+adjust based on AC or battery	ajusta conforme tomada ou bateria
+quick micro-benchmark	micro-benchmark rápido
+telemetry as JSON	telemetria em JSON
+Declarative per-project environments (tamagi-workspace.toml)	Ambientes declarativos por projeto (tamagi-workspace.toml)
+project directory	diretório do projeto
+detect stack and generate tamagi-workspace.toml	detecta o stack e gera tamagi-workspace.toml
+distrobox container name	nome da caixa distrobox
+overwrite if it already exists	sobrescreve se já existir
+show workspace status	mostra o estado do workspace
+provision box, packages, and project databases	prepara caixa, pacotes e bancos do projeto
+provision and enter the project shell	prepara e entra no shell do projeto
+run a declared task inside the project box	executa uma tarefa declarada na caixa do projeto
+list declared tasks	lista as tarefas declaradas
+declarative project environment (tamagi-workspace)	ambiente declarativo do projeto (tamagi-workspace)
+File already exists	Arquivo já existe
+Workspace created	Workspace criado
+Detected stack	Stack detectado
+Detected databases	Bancos detectados
+Workspace	Workspace
+not initialized — run: tamagi-workspace init	não inicializado — rode: tamagi-workspace init
+ready	pronta
+Stack	Stack
+Databases	Bancos
+Tasks	Tarefas
+Workspace ready	Workspace pronto
+not found	não encontrado
+unknown task	tarefa desconhecida
+distro	distro
+could not measure disk space	não foi possível medir o espaço em disco
+systemd unavailable in this environment	systemd indisponível neste ambiente
+no failed units	nenhuma unidade com falha
+layers up to date	camadas em dia
+podman unavailable in this environment	podman indisponível neste ambiente
+no DRM render node found	nenhum nó DRM render encontrado
+/dev/kvm missing (virtualization disabled in BIOS?)	/dev/kvm ausente (virtualização desligada na BIOS?)
+no read/write permission on /dev/kvm	sem permissão de leitura/escrita em /dev/kvm
+popos VM has Secure Boot enabled (Pop!_OS will not boot with it)	VM popos está com Secure Boot ligado (o Pop!_OS não inicia assim)
+agy is installed but missing from the menu	agy instalado mas sem entrada no menu
+menu and .desktop entries are valid	menu e entradas .desktop válidos
+llama.cpp Vulkan backend missing	backend Vulkan do llama.cpp ausente
+No issues found to explain.	Nenhum problema encontrado para explicar.
+Local AI unavailable (start with: tamagi-ai start).	IA local indisponível (inicie com: tamagi-ai start).
+Autonomous health, integrity, and performance diagnostics for Tamagi	Diagnóstico autônomo de saúde, integridade e desempenho do Tamagi
+structured JSON output	saída estruturada em JSON
+apply safe user-level fixes	aplica correções seguras no usuário
+ask local AI (llama.cpp) for an explanation	pede explicação à IA local (llama.cpp)
+Quarantined digest	Digest em quarentena
+Pending boot report	Relatório de boot pendente
+Universal Blue Secure Boot key missing	chave Secure Boot do Universal Blue ausente
+critical disk space	espaço crítico
+low disk space	espaço baixo
+VM directory missing NoCoW (+C) attribute	pasta de VMs sem atributo NoCoW (+C)
+free	livres
+failed units	unidades com falha
+stale layers	camadas desatualizadas
+distrobox containers	caixas distrobox
+mode	modo
+invalid .desktop entries	entradas .desktop inválidas
+stopped	parado
+Applied fixes	Correções aplicadas
+Summary	Resumo
+Local AI analysis	Análise da IA local
+is owned by another user (root?)	pertence a outro usuário (root?)
+gaming on Tamagi (Bazzite-style: native or Flatpak)	jogos no Tamagi (estilo Bazzite: nativo ou Flatpak)
+choose between native mode (Bazzite-style), Flatpak, or both	escolhe entre modo nativo (Bazzite), Flatpak ou ambos
+install Steam, 32-bit drivers, Lutris, Wine, GOverlay, vkBasalt natively	instala Steam, drivers 32-bit, Lutris, Wine, GOverlay, vkBasalt nativamente
+install Steam, Lutris, Heroic, ProtonUp-Qt, and Bottles via Flatpak	instala Steam, Lutris, Heroic, ProtonUp-Qt e Bottles por Flatpak
+enable the low-latency profile (tuned + scx_rusty)	ativa o perfil de baixa latência (tuned + scx_rusty)
+show installed gaming components	mostra o que está instalado para jogos
+remove the native gaming layer	remove a camada nativa de jogos
+Native Steam + 32-bit libraries (RPM Fusion)	Steam nativo + bibliotecas 32-bit (RPM Fusion)
+Native Lutris (game manager)	Lutris nativo (gestor de jogos)
+Native Wine + Winetricks (Windows games)	Wine + Winetricks nativos (jogos Windows)
+GOverlay + vkBasalt (MangoHud UI and post-processing)	GOverlay + vkBasalt (interface para MangoHud e pós-processamento)
+Protontricks (Proton prefix tweaks)	Protontricks (ajustes de prefixos Proton)
+Space/Tab toggles · Enter installs natively (reversible layer)	Espaço/Tab marca · Enter instala nativamente (camada reversível)
+Nothing selected.	Nada escolhido.
+Building native gaming layer	Construindo camada nativa de jogos
+Native gaming ready ('gaming' layer over /usr). To undo: tamagi-gaming remove	Jogos nativos prontos (camada 'gaming' sobre /usr). Para desfazer: tamagi-gaming remove
+Steam tip (launch options)	Dica Steam (opções de inicialização)
+Also enable the low-latency profile (tuned + scx_rusty)?	Ativar também o perfil de baixa latência (tuned + scx_rusty)?
+Space/Tab toggles · Enter installs (Flatpak)	Espaço/Tab marca · Enter instala (Flatpak)
+Gaming Flatpak apps installed.	Apps Flatpak de jogos instalados.
+Native base	Base nativa
+Native gaming layer	Camada nativa gaming
+not installed	não instalada
+Native Steam	Steam nativo
+Native Lutris / Wine	Lutris / Wine nativo
+Gaming Flatpaks	Jogos Flatpak
+gamescope, MangoHud, GameMode, Xbox drivers, and OGC kernel are already in the image.	gamescope, MangoHud, GameMode, controles Xbox e kernel OGC já vêm na imagem.
+Native (Bazzite-style) — Steam, 32-bit, Lutris, Wine, GOverlay, vkBasalt	Nativo (estilo Bazzite) — Steam, 32-bit, Lutris, Wine, GOverlay, vkBasalt
+Flatpak (sandbox) — Steam, Lutris, Heroic, ProtonUp-Qt, Bottles	Flatpak (sandbox) — Steam, Lutris, Heroic, ProtonUp-Qt, Bottles
+Low-latency profile — tuned + scx_rusty BPF scheduler	Perfil de baixa latência — tuned + escalonador BPF scx_rusty
+How would you like to install gaming tools?	Como instalar os recursos de jogos?
+Retry with --allow-upgrade to align 32-bit libraries with the current Fedora version?	Repetir com --allow-upgrade para alinhar as bibliotecas 32-bit à versão atual do Fedora?
+no zram0	sem zram0
+theme: tamagi theme list · the wallpaper is chosen in COSMIC Settings	theme: tamagi theme list · o papel de parede é escolhido nas Configurações do COSMIC
+chrome, firefox, vivaldi or chromium; method after the colon: flatpak (default), native or box	chrome, firefox, vivaldi ou chromium; método depois dos dois-pontos: flatpak (padrão), native ou box
+languages and tools in the development box, as in `mise use -g`	linguagens e ferramentas na caixa de desenvolvimento, como em `mise use -g`
+AI agents: claude, antigravity, codex, qwen, opencode, gemini, openclaw	agentes de IA: claude, antigravity, codex, qwen, opencode, gemini, openclaw
+tamagi pkg subsystems (omarchy uses the Arch box)	subsistemas do tamagi pkg (omarchy usa a caixa Arch)
+name = distro (fedora, ubuntu, opensuse, arch)	nome = distro (fedora, ubuntu, opensuse, arch)
+Fedora packages on top of the image (tamagi layer): name = [packages]	pacotes do Fedora por cima da imagem (tamagi layer): nome = [pacotes]
+security: balanced or strict · performance: eco, balanced, performance or latency	security: balanced ou strict · performance: eco, balanced, performance ou latency
+services.security must be balanced or strict	services.security precisa ser balanced ou strict
+services.performance must be eco, balanced, performance or latency	services.performance precisa ser eco, balanced, performance ou latency
+unknown method	método desconhecido
+unknown agent	agente desconhecido
+agent	agente
+one command for the whole system	um comando para o sistema inteiro
+The system in one file	O sistema num arquivo
+unknown command	comando desconhecido
+see	veja
+Atomic, lean system: the host is read-only and updates itself.	Sistema atômico e enxuto: o host é somente-leitura e se atualiza sozinho.
+Almost nothing comes installed: you choose what you want, now or later.	Quase nada vem instalado: você escolhe o que quer, agora ou depois.
+No browser ships in the image. Choose one (you can install others later).	Nenhum navegador vem na imagem. Escolha um (dá para instalar outros depois).
+Which browser?	Qual navegador?
+Install how?	Instalar como?
+Flatpak — Flathub app, sandboxed (recommended)	Flatpak — app do Flathub, isolado (recomendado)
+native — RPM in a layer over the image (asks for the password)	nativo — RPM numa camada sobre a imagem (pede senha)
+box — in a Fedora box, with hardware video decoding	caixa — numa caixa Fedora, com vídeo por hardware
+Everything here is optional and stays available later in: tamagi install	Tudo aqui é opcional e fica disponível depois em: tamagi install
+Installing what you chose	Instalando o que você escolheu
+You can keep using the computer: this window tells you when it is done.	Pode continuar usando o computador: esta janela avisa quando terminar.
+What you chose at first login has been installed.	O que você escolheu no primeiro login foi instalado.
+Super+Space opens the menu · Super+A the command palette · Super+K the shortcuts.	Super+Espaço abre o menu · Super+A a paleta de comandos · Super+K os atalhos.
+Themes and wallpapers: COSMIC Settings (Appearance and Wallpaper).	Temas e papéis de parede: Configurações do COSMIC (Aparência e Papel de parede).
+Every command of the system: tamagi	Todos os comandos do sistema: tamagi
+Native games	Jogos nativos
+Could not install	Não deu para instalar
+Try again with	Tente de novo com
+Everything installed.	Tudo instalado.
+is not in the catalog	não está no catálogo
+unknown theme	tema desconhecido
+Terminals following the COSMIC theme	Terminais seguindo o tema do COSMIC
+Subsystems and boxes	Subsistemas e caixas
+AI agents	Agentes de IA
+could not find the binary in the latest release	não achei o binário na última versão publicada
+the release does not carry the SHA-256 digest; nothing was installed	a versão publicada não traz o digest SHA-256; nada foi instalado
+the downloaded file does not match the published digest	o arquivo baixado não confere com o digest publicado
+the package has no executable	o pacote não traz um executável
+npm did not create the executable	o npm não criou o executável
+Local models are deleted with	Os modelos locais se apagam com
+installed	instalado
+AI agents (space marks, Enter installs)	Agentes de IA (espaço marca, Enter instala)
+failed	falhou
+invalid snapshot name	nome de snapshot inválido
+a snapshot with that name already exists	já existe um snapshot com esse nome
+could not write the snapshot	não consegui gravar o snapshot
+Snapshot saved	Snapshot gravado
+no snapshot saved for	nenhum snapshot guardado para
+there is no snapshot	não existe o snapshot
+Replace the current data of the database with the snapshot's?	Trocar os dados atuais do banco pelos do snapshot?
+run it in a terminal to confirm	rode num terminal para confirmar
+Snapshot restored	Snapshot restaurado
+No snapshots. Create one with	Nenhum snapshot. Crie com
+virt-manager is already installed.	virt-manager já está instalado.
+warning: virtualization (VT-x/AMD-V) seems to be disabled in the firmware; VMs will be slow.	aviso: a virtualização (VT-x/AMD-V) parece desligada no firmware; as VMs ficarão lentas.
+Installing virt-manager, libvirt and QEMU/KVM natively (layer 'virt')…	Instalando virt-manager, libvirt e QEMU/KVM nativamente (camada 'virt')…
+Done. Open it with	Pronto. Abra com
+development boxes (Fedora, Ubuntu, openSUSE, Arch)	caixas de desenvolvimento (Fedora, Ubuntu, openSUSE, Arch)
+languages via mise, inside the box	linguagens pelo mise, dentro da caixa
+Chromium in the box for tests (Playwright, Puppeteer)	Chromium na caixa para testes (Playwright, Puppeteer)
+reinstalls the tools	refaz a instalação das ferramentas
+supported distros / boxes created	distros suportadas / caixas criadas
+Languages	Linguagens
+Installing compilers, languages, database clients and mise…	Instalando compiladores, linguagens, clientes de banco de dados e mise…
+Languages (space marks, Enter installs in the box)	Linguagens (espaço marca, Enter instala na caixa)
+invalid tool	ferramenta inválida
+Chromium installed in the box. Playwright and Puppeteer find it through CHROME_BIN.	Chromium instalado na caixa. Playwright e Puppeteer o encontram por CHROME_BIN.
+Disposable box	Caixa descartável
+When you leave, everything is gone. Nothing is installed on the system.	Ao sair, tudo some. Nada é instalado no sistema.
+browsers: Flatpak, native or box	navegadores: Flatpak, nativo ou caixa
+installs (no name: choose from a list)	instala (sem nome: escolhe numa lista)
+removes the browser (the profile stays)	remove o navegador (o perfil fica)
+available and installed browsers	navegadores disponíveis e instalados
+opens a specific browser	abre um navegador específico
+the box: status, update, shell and FIDO2 key	a caixa: estado, atualização, shell e chave FIDO2
+Installed	Instalado
+Could not install the browser (no network?). Any key closes.	Não consegui instalar o navegador (sem rede?). Qualquer tecla fecha.
+web apps need Chrome, Chromium or Vivaldi	os web apps precisam do Chrome, Chromium ou Vivaldi
+extra RPM repository (e.g. Google Chrome's)	repositório RPM extra (ex.: o do Google Chrome)
+systemd unit the layer starts at every boot	unit do systemd que a camada liga a cada boot
+installs natively: Steam + steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine	instala nativamente: Steam + steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine
+Native Steam + steam-devices + 32-bit libraries (RPM Fusion)	Steam nativo + steam-devices + bibliotecas 32-bit (RPM Fusion)
+In the image	Na imagem
+OGC kernel, Xbox controllers (xone/xpadneo), scx_rusty	kernel OGC, controles Xbox (xone/xpadneo), scx_rusty
+The OGC kernel and the Xbox controller drivers ship in the image; the rest is optional.	O kernel OGC e os controles Xbox já vêm na imagem; o resto é opcional.
+Native (like Bazzite) — Steam, steam-devices, gamescope, MangoHud, Lutris, Wine	Nativo (como no Bazzite) — Steam, steam-devices, gamescope, MangoHud, Lutris, Wine
+Firefox — Mozilla's browser (Flatpak)	Firefox — navegador da Mozilla (Flatpak)
+Google Chrome (Flatpak)	Google Chrome (Flatpak)
+Vivaldi (Flatpak)	Vivaldi (Flatpak)
+Chromium (Flatpak)	Chromium (Flatpak)
+Virtualization	Virtualização
+virt-manager — KVM virtual machines, native (asks for the password)	virt-manager — máquinas virtuais KVM, nativo (pede senha)
+Windows 11 in a container (dockur/windows)	Windows 11 num contêiner (dockur/windows)
+Steam + steam-devices, native like on Bazzite (asks for the password)	Steam + steam-devices, nativo como no Bazzite (pede senha)
+gamescope, MangoHud and GameMode, native (asks for the password)	gamescope, MangoHud e GameMode, nativos (pede senha)
+Lutris — game manager, native (asks for the password)	Lutris — gestor de jogos, nativo (pede senha)
+Wine + Winetricks, native (asks for the password)	Wine + Winetricks, nativos (pede senha)
+GOverlay + vkBasalt, native (asks for the password)	GOverlay + vkBasalt, nativos (pede senha)
+Protontricks, native (asks for the password)	Protontricks, nativo (pede senha)
+Fedora development box (distrobox)	Caixa de desenvolvimento Fedora (distrobox)
+Ubuntu development box (distrobox)	Caixa de desenvolvimento Ubuntu (distrobox)
+openSUSE Tumbleweed development box (distrobox)	Caixa de desenvolvimento openSUSE Tumbleweed (distrobox)
+Arch development box (distrobox)	Caixa de desenvolvimento Arch (distrobox)
+Codex CLI — OpenAI's coding agent	Codex CLI — agente de programação da OpenAI
+Qwen Code — Alibaba's coding agent (in the dev box)	Qwen Code — agente de programação da Alibaba (na caixa dev)
+opencode — open-source coding agent	opencode — agente de programação de código aberto
+Gemini CLI — Google's agent (in the dev box)	Gemini CLI — agente do Google (na caixa dev)
+OpenClaw — open-source personal assistant (in the dev box)	OpenClaw — assistente pessoal de código aberto (na caixa dev)
+Local AI — the Tamagi agent with a model on your computer (llama.cpp)	IA local — agente do Tamagi com um modelo no seu computador (llama.cpp)
+updates everything: image, Flatpaks, boxes	atualiza tudo: imagem, Flatpaks, caixas
+goes back in time: system, files and apps	volta no tempo: sistema, arquivos e apps
+health, integrity and performance check	diagnóstico de saúde, integridade e desempenho
+boot health check and rolled-back updates	verificação de saúde do boot e atualizações desfeitas
+history of the home folder (snapshots)	histórico da pasta pessoal (snapshots)
+Fedora packages on top of the image	pacotes do Fedora por cima da imagem
+performance profiles and sched_ext	perfis de desempenho e sched_ext
+security: status, strict, balanced, usb, malloc	segurança: status, strict, balanced, usb, malloc
+one-touch privacy mode	modo privacidade de um toque
+disposable guest session	sessão de convidado descartável
+system language	idioma do sistema
+everything optional, in one catalog	tudo o que é opcional, num catálogo só
+AI agents: Claude Code, Codex, Qwen Code, opencode…	agentes de IA: Claude Code, Codex, Qwen Code, opencode…
+local AI (llama.cpp): models and server	IA local (llama.cpp): modelos e servidor
+chat with the local AI agent	conversa com o agente de IA local
+native games (like on Bazzite) or Flatpak	jogos nativos (como no Bazzite) ou Flatpak
+virtual machines (native virt-manager)	máquinas virtuais (virt-manager nativo)
+deb, rpm and Arch packages in subsystems	pacotes deb, rpm e Arch em subsistemas
+turns a website into an app	transforma um site em app
+tries a package in a disposable box	experimenta um pacote numa caixa descartável
+development databases	bancos de dados para desenvolvimento
+declarative per-project environments	ambientes declarativos por projeto
+runs a program in a disposable jail	roda um programa numa jaula descartável
+Desktop	Desktop
+terminal theme (follows COSMIC)	tema dos terminais (segue o COSMIC)
+bar style	estilo da barra
+monospace font	fonte monoespaçada
+automatic tiling: on, off or toggle	tiling automático: on, off ou toggle
+keyboard shortcuts	atalhos de teclado
+screenshot, OCR and screen recording	captura, OCR e gravação da tela
+reminder after a while	lembrete daqui a um tempo
+command palette	paleta de comandos
+Fedora 45 (default — dnf)	Fedora 45 (padrão — dnf)
+Ubuntu LTS (apt)	Ubuntu LTS (apt)
+openSUSE Tumbleweed (rolling — zypper)	openSUSE Tumbleweed (rolling — zypper)
+Arch Linux (rolling — pacman)	Arch Linux (rolling — pacman)
+Fedora package to try (e.g. htop)	pacote do Fedora para experimentar (ex.: htop)
+No Arch box. Create one with	Nenhuma caixa Arch. Crie com
+gamescope HDR (the Tamagi Gaming session of the login screen)	HDR do gamescope (sessão Tamagi Gaming da tela de login)
+runs a game in gamescope (Steam launch option)	roda um jogo no gamescope (opção de inicialização do Steam)
+HDR: at the login screen, choose the Tamagi Gaming session (gamescope + Steam Big Picture).	HDR: na tela de login, escolha a sessão Tamagi Gaming (gamescope + Steam Big Picture).
+displays	telas
+HDR displays	Telas com HDR
+none (the display does not announce HDR)	nenhuma (a tela não anuncia HDR)
+Gaming session	Sessão de jogos
+at the login screen, choose Tamagi Gaming (Steam Big Picture with HDR)	na tela de login, escolha Tamagi Gaming (Steam Big Picture com HDR)
+Inside COSMIC	Dentro do COSMIC
+gamescope asks for HDR; it only comes out in HDR once COSMIC supports it	o gamescope pede HDR; só sai em HDR quando o COSMIC tiver suporte
+gamescope is not installed	gamescope não está instalado
+gamescope, MangoHud and GameMode, native, with the HDR gaming session (asks for the password)	gamescope, MangoHud e GameMode, nativos, com a sessão de jogos em HDR (pede senha)
+full virt-manager — KVM, UEFI, TPM, 3D, SPICE and virtiofs, native (asks for the password)	virt-manager completo — KVM, UEFI, TPM, 3D, SPICE e virtiofs, nativo (pede senha)
+catalog items (tamagi install list): steam, gaming-tools, virt-manager, windows, tailscale…	itens do catálogo (tamagi install list): steam, gaming-tools, virt-manager, windows, tailscale…
+warning	aviso
+no longer exists (use a box: tamagi devbox); ignored	não existe mais (use uma caixa: tamagi devbox); ignorado
+catalog	catálogo
+A profile only adds what is missing; nothing is removed.	Um perfil só acrescenta o que falta; nada é removido.
+could not download	não consegui baixar
+file too large for a tamagi.toml	arquivo grande demais para um tamagi.toml
+Downloaded from	Baixado de
+only https:// addresses are accepted	só endereços https:// são aceitos
+Ready-made profiles	Perfis prontos
+Profile	Perfil
+A profile installs a ready-made set. You can apply others later: tamagi profiles	Um perfil instala um conjunto pronto. Dá para aplicar outros depois: tamagi profiles
+AI and agents: Claude Code, Codex, opencode and the development box	IA e agentes: Claude Code, Codex, opencode e a caixa de desenvolvimento
+Development: Fedora box, Node and Python, Zed and opencode	Desenvolvimento: caixa Fedora, Node e Python, Zed e opencode
+Games: native Steam, gamescope with HDR, MangoHud and Heroic	Jogos: Steam nativo, gamescope com HDR, MangoHud e Heroic
+Office: Firefox, OnlyOffice and Thunderbird	Escritório: Firefox, OnlyOffice e Thunderbird
+choose item by item from the catalog	escolher item por item no catálogo
+Which profile?	Qual perfil?
+AI agents jailed in the project: tamagi agents run claude (inside the project folder).	Agentes de IA presos ao projeto: tamagi agents run claude (dentro da pasta do projeto).
+Distrobox boxes	Caixas distrobox
+enter a project folder: the jail cannot be the whole home folder	entre na pasta de um projeto: a jaula não pode ser a pasta pessoal inteira
+Save point (git)	Ponto de retorno (git)
+Save point (files)	Ponto de retorno (arquivos)
+runs in the development box	roda na caixa de desenvolvimento
+Jail	Jaula
+on the host, without compilers	no host, sem compiladores
+bubblewrap is missing in the box; run	falta o bubblewrap na caixa; rode
+Networks	Redes
+Tailscale — mesh VPN between your devices, native (asks for the password)	Tailscale — VPN mesh entre os seus aparelhos, nativo (pede senha)
+Connecting this computer to your Tailscale network…	Conectando este computador à sua rede Tailscale…
+CLIO — coding agent in pure Perl, works with the local model (in the dev box)	CLIO — agente de programação em Perl puro, funciona com o modelo local (na caixa dev)
+needs Perl, which is missing here	precisa do Perl, que não está aqui
+the box has no complete Perl; run	a caixa não tem o Perl completo; rode

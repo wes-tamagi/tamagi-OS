@@ -7,19 +7,19 @@ set -euo pipefail
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/tamagi-webapps"
 
-die() { echo "$(t "erro"): $*" >&2; exit 1; }
+die() { echo "$(t "error"): $*" >&2; exit 1; }
 slug() { tr '[:upper:]' '[:lower:]' <<<"$1" | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g'; }
 
 install_app() {
     local name=${1:-} url=${2:-} icon_url=${3:-} id icon origin candidate
     if [[ -z $name || -z $url ]]; then
-        [[ -t 0 ]] || die "$(t "uso"): tamagi-webapp install <nome> <url> [url-do-ícone]"
-        name=$(gum input --placeholder "$(t "Nome do app (ex.: WhatsApp)")")
-        url=$(gum input --placeholder "$(t "Endereço (ex.: https://web.whatsapp.com)")")
+        [[ -t 0 ]] || die "usage: tamagi webapp install <name> <url> [icon-url]"
+        name=$(gum input --placeholder "$(t "App name (e.g. WhatsApp)")")
+        url=$(gum input --placeholder "$(t "URL (e.g. https://web.whatsapp.com)")")
     fi
-    [[ $url =~ ^https?:// ]] || die "$(t "o endereço precisa começar com http:// ou https://")"
+    [[ $url =~ ^https?:// ]] || die "$(t "URL must start with http:// or https://")"
     id="webapp-$(slug "$name")"
-    [[ $id != webapp- ]] || die "$(t "nome inválido")"
+    [[ $id != webapp- ]] || die "$(t "invalid name")"
     mkdir -p "$APPS" "$ICONS"
 
     icon=web-browser
@@ -40,7 +40,7 @@ install_app() {
 Type=Application
 Name=$name
 Comment=Web app: $url
-Exec=tamagi-browser chrome --app=$url --class=$id
+Exec=tamagi-browser app --app=$url --class=$id
 Icon=$icon
 Terminal=false
 Categories=Network;
@@ -48,7 +48,7 @@ StartupWMClass=$id
 X-Tamagi-WebApp=true
 DESKTOP
     update-desktop-database "$APPS" 2>/dev/null || true
-    echo "$(t "Web app criado"): '$name'."
+    echo "$(t "Web app created"): '$name'."
 }
 
 list_apps() {
@@ -63,20 +63,20 @@ list_apps() {
 remove_app() {
     local name=${1:-} id
     if [[ -z $name ]]; then
-        [[ -t 0 ]] || die "$(t "uso"): tamagi-webapp remove <nome>"
-        name=$(list_apps | gum choose --header "$(t "Remover qual?")" | sed -E 's/ {2,}.*//') || exit 0
+        [[ -t 0 ]] || die "usage: tamagi webapp remove <name>"
+        name=$(list_apps | gum choose --header "$(t "Remove which one?")" | sed -E 's/ {2,}.*//') || exit 0
     fi
     id="webapp-$(slug "$name")"
-    [[ -f $APPS/$id.desktop ]] || die "$(t "não achei o web app") '$name'"
+    [[ -f $APPS/$id.desktop ]] || die "$(t "web app not found") '$name'"
     rm -f "${APPS:?}/${id:?}.desktop" "${ICONS:?}/${id:?}.png"
     update-desktop-database "$APPS" 2>/dev/null || true
-    echo "$(t "Web app removido"): '$name'."
+    echo "$(t "Web app removed"): '$name'."
 }
 
 case "${1:-}" in
-    install|instalar) shift; install_app "$@" ;;
-    remove|remover)   shift; remove_app "$@" ;;
-    list|lista)       list_apps ;;
-    -h|--help|help|ajuda) echo "tamagi-webapp [install <nome> <url> [url-do-ícone] | remove <nome> | list]" ;;
-    *) echo "$(t "uso"): tamagi-webapp install <nome> <url> [url-do-ícone] | remove <nome> | list" >&2; exit 2 ;;
+    install) shift; install_app "$@" ;;
+    remove)   shift; remove_app "$@" ;;
+    list)       list_apps ;;
+    -h|--help|help) echo "tamagi webapp [install <name> <url> [icon-url] | remove <name> | list]" ;;
+    *) echo "usage: tamagi webapp install <name> <url> [icon-url] | remove <name> | list" >&2; exit 2 ;;
 esac

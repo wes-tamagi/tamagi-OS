@@ -1,0 +1,40 @@
+ JANELAS
+   Super + W                 fechar janela
+   Super + F / M             tela cheia / maximizar
+   Super + T                 alternar janela flutuante
+   Super + Y                 ligar/desligar o tiling
+   Super + O                 alternar divisão horizontal/vertical
+   Super + Setas             mover o foco
+   Super + Shift + Setas     mover a janela
+   Super + X                 trocar janelas de lugar
+   Super + S                 empilhar janelas (abas)
+
+ WORKSPACES
+   Super + 1…9               ir para o workspace
+   Super + Shift + 1…9       mandar a janela para o workspace
+
+ APLICATIVOS
+   Super                     lançador
+   Super + Alt + Espaço      lançador de aplicativos
+   Super + Enter             terminal
+   Super + B / E             navegador / arquivos
+   Super + Shift + N / T     neovim / btop
+   Super + Shift + G / D     lazygit / bancos de dados (tamagi-db)
+   Super + Shift + O / M     OnlyOffice / Mission Center
+   Super + Shift + W         Windows 11 (contêiner)
+
+ Tamagi
+   Super + Espaço            menu iniciar (o botão do Tamagi)
+   Super + A                 paleta de comandos do Tamagi
+   Super + Shift + A         agente de IA local
+   Super + K                 esta lista
+
+ SISTEMA
+   Super + Esc               bloquear a tela
+   Print                     captura de tela
+   Shift + Print             copiar o texto de uma área (OCR)
+   Alt + Print               gravar a tela / parar
+   Super + Ctrl + E          emojis
+   Super + Ctrl + R          lembrete
+   Super + Ctrl + P          modo privacidade (liga/desliga)
+   Super + Ctrl + Espaço     trocar layout do teclado

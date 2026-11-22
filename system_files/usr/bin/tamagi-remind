@@ -1,0 +1,44 @@
+#!/usr/bin/bash
+# tamagi-remind — notifies you after a while.
+#
+#   tamagi remind 10m "Take the tea out"
+#   tamagi remind 1h30m "Meeting"
+#   tamagi remind list             pending reminders
+#   tamagi remind cancel           cancels all of them
+#   tamagi remind                  asks (Super+Ctrl+R)
+#
+# Uses a systemd user timer: it survives closing the terminal (not a reboot)
+# and shows up as a COSMIC notification.
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+case "${1:-}" in
+    list)
+        systemctl --user list-timers 'tamagi-remind-*' -o json 2>/dev/null \
+            | jq -r '.[] | [(.next / 1000000 | strflocaltime("%H:%M:%S")), .activates] | @tsv' \
+            | while IFS=$'\t' read -r at svc; do
+                  desc=$(systemctl --user show -p Description --value "$svc")
+                  printf '  %s  %s\n' "$at" "${desc##*alarm-symbolic }"
+              done
+        exit 0 ;;
+    cancel)
+        systemctl --user stop 'tamagi-remind-*.timer' 2>/dev/null || true
+        echo "$(t "Reminders cancelled")"; exit 0 ;;
+    -h|--help)
+        sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+    "")
+        # Sem argumentos num terminal (Super+Ctrl+R): pergunta.
+        [[ -t 0 ]] || { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0; }
+        read -r -a ask <<<"$(gum input --placeholder "10m $(t "Tea is ready")")" || exit 0
+        [[ ${#ask[@]} -gt 0 ]] || exit 0
+        set -- "${ask[@]}" ;;
+esac
+
+when=$1; shift
+[[ $when =~ ^([0-9]+[smhd]?)+$ ]] || { echo "usage: tamagi-remind <tempo, ex.: 10m> <texto>" >&2; exit 2; }
+[[ $when =~ [smhd]$ ]] || when="${when}m"   # só número: minutos
+text=${*:-$(t "Reminder")}
+systemd-run --user --quiet --unit="tamagi-remind-$(date +%s%N)" --on-active="$when" \
+    --timer-property=AccuracySec=1s \
+    notify-send --app-name=Tamagi --urgency=critical --icon=alarm-symbolic "$(t "Reminder")" "$text"
+echo "$(t "Reminder in") $when: $text"

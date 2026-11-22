@@ -22,19 +22,16 @@ compatibilidade, a origem de um componente ou a inspiração de uma ideia.
 
 Software que o Tamagi não redistribui
 -------------------------------------
-- Pop!_OS: `tamagi-popos` baixa a ISO oficial diretamente dos servidores da
-  System76, na máquina do usuário, e confere o SHA256 publicado. As imagens
-  criadas com `tamagi-popos compactar` são para uso próprio. Quem as
-  redistribuir responde pelas licenças do software incluído (GPL e outras) e
-  pelas políticas de marca da System76 e da Canonical (Pop!_OS é derivado do
-  Ubuntu; a política da Canonical pede remover as marcas do Ubuntu de versões
-  modificadas redistribuídas).
 - Windows: `tamagi-windows` usa o dockur/windows (MIT), que baixa o Windows
   dos servidores da Microsoft na máquina do usuário, depois de um aviso de
   licença. O uso do Windows exige licença válida da Microsoft.
-- Google Chrome e Antigravity: baixados na máquina do usuário, dentro da
-  caixa de navegadores (tamagi-browser, tamagi-antigravity), sob os termos do
-  Google.
+- Navegadores (Google Chrome, Vivaldi, Firefox, Chromium) e Antigravity:
+  baixados na máquina do usuário, por escolha dele (tamagi-browser,
+  tamagi-antigravity), do Flathub ou do fabricante, sob os termos de cada
+  um.
+- Agentes de IA (Codex CLI, CLIO, Qwen Code, opencode, Gemini CLI, OpenClaw):
+  baixados na máquina do usuário por `tamagi-agents`, do GitHub (digest
+  conferido) ou do npm, cada um com a sua licença e os seus termos.
 - Claude Code: o comando `claude` da imagem é só um atalho que, no primeiro
   uso, baixa o Claude Code da Anthropic na máquina do usuário (checksum do
   manifesto conferido), sob os termos da Anthropic.
@@ -49,10 +46,7 @@ Os pacotes do Fedora e do Universal Blue mantêm as suas licenças (veja
 
 - llama.cpp — MIT
 - cosmic-ext-classic-menu — GPL-3.0
-- opencode — MIT
 - starship — ISC
-- mise — MIT
-- Tailscale — BSD-3-Clause (cliente), do repositório oficial da Tailscale
 
 Código do Tamagi
 ----------------

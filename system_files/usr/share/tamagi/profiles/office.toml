@@ -1,0 +1,8 @@
+# Tamagi profile: office.
+# A browser, documents and e-mail, all Flatpak. Apply with: tamagi apply office
+
+[browsers]
+install = ["firefox"]
+
+[flatpak]
+apps = ["org.onlyoffice.desktopeditors", "org.mozilla.Thunderbird"]

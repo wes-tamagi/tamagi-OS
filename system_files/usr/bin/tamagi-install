@@ -1,0 +1,144 @@
+#!/usr/bin/bash
+# tamagi-install — everything optional, in one catalog.
+#
+# The image is lean. Browsers, office, virtual machines, Windows, games, AI
+# agents and development boxes are your choice, here:
+#
+#   tamagi install              choose from the catalog (space marks, Enter installs)
+#   tamagi install list         the catalog, with what each item is
+#   tamagi install <id>…        installs by id (e.g.: tamagi install steam codex firefox)
+#
+# Each item is installed the way that suits it: Flatpak, native RPM in a
+# reversible layer (asks for the password), a distrobox, or in your user.
+set -uo pipefail
+. /usr/libexec/tamagi/i18n
+# shellcheck source=/dev/null
+[[ -r /usr/share/tamagi/gum.env ]] && . /usr/share/tamagi/gum.env
+
+CATALOG=${TAMAGI_CATALOG:-/usr/share/tamagi/catalog.tsv}
+FLATPAKS=${TAMAGI_FLATPAKS:-/usr/share/tamagi/flatpaks.list}
+MULTI=/usr/libexec/tamagi/gum-multi
+
+ids=() cats=() sizes=() actions=() descs=()
+load_catalog() {
+    local id cat size action desc remote app kind
+    while IFS=$'\t' read -r id cat size action desc; do
+        [[ -z $id || $id == \#* ]] && continue
+        ids+=("$id"); cats+=("$cat"); sizes+=("$size"); actions+=("$action"); descs+=("$desc")
+    done < "$CATALOG"
+    while read -r remote app kind cat size desc; do
+        [[ -z $remote || $remote == \#* || $kind != opcional ]] && continue
+        id=${desc%% — *}; id=${id,,}; id=${id// /-}      # "Mission Center — …" -> mission-center
+        ids+=("$id"); cats+=("$cat"); sizes+=("$size"); actions+=("flatpak:$remote:$app"); descs+=("$desc")
+    done < "$FLATPAKS"
+}
+label() { echo "[$(t "${cats[$1]}")] $(t "${descs[$1]}") (≈ ${sizes[$1]})"; }
+
+cmd_list() {
+    local i
+    for i in "${!ids[@]}"; do printf '  %-18s %s\n' "${ids[$i]}" "$(label "$i")"; done
+}
+
+# is_installed <index>: whether the item is already on this machine.
+is_installed() {
+    local action=${actions[$1]} key pkg
+    case $action in
+        flatpak:*)  flatpak info "${action##*:}" >/dev/null 2>&1 ;;
+        gaming:*)   key=${action#gaming:}
+                    case $key in base) pkg=gamescope ;; overlay) pkg=goverlay ;; *) pkg=$key ;; esac
+                    grep -qx "$pkg" /var/lib/tamagi/layers/gaming.request 2>/dev/null ;;
+        agent:local) return 1 ;;
+        agent:*)    tamagi-agents installed 2>/dev/null | grep -qx "${action#agent:}" ;;
+        run:tamagi-browser\ install\ *) key=${action#run:tamagi-browser install }
+                    tamagi-browser installed 2>/dev/null | grep -q "^${key%% *}:" ;;
+        run:tamagi-vm\ *)      command -v virt-manager >/dev/null 2>&1 ;;
+        run:tamagi-windows\ *) [[ -f ${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd/tamagi-windows.container ]] ;;
+        run:tamagi-devbox\ create\ *) key=${action##* }
+                    podman container exists "$([[ $key == fedora ]] && echo dev || echo "dev-$key")" 2>/dev/null ;;
+        run:*tailscale-setup)  command -v tailscale >/dev/null 2>&1 ;;
+        *)          return 1 ;;
+    esac
+}
+
+cmd_installed() { # machine-readable: id <TAB> action
+    local i
+    for i in "${!ids[@]}"; do
+        if is_installed "$i"; then printf '%s\t%s\n' "${ids[$i]}" "${actions[$i]}"; fi
+    done
+    return 0
+}
+
+# Runs the chosen actions: Flatpaks in one transaction per remote, the native
+# gaming packages in one layer, the agents together, then the rest in order.
+run_actions() {
+    local a failed=() gaming=() agents=() runs=() remote app
+    local -A by_remote=()
+    for a in "$@"; do
+        case $a in
+            flatpak:*) IFS=: read -r _ remote app <<<"$a"; by_remote[$remote]+="$app " ;;
+            gaming:*)  gaming+=("${a#gaming:}") ;;
+            agent:*)   agents+=("${a#agent:}") ;;
+            run:*)     runs+=("${a#run:}") ;;
+        esac
+    done
+    step() { echo; gum style --foreground 4 --bold "── $1"; }
+    if (( ${#by_remote[@]} )); then
+        flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null \
+            || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+        flatpak remote-add --user --if-not-exists cosmic /etc/flatpak/remotes.d/cosmic.flatpakrepo 2>/dev/null || true
+        for remote in "${!by_remote[@]}"; do
+            read -r -a apps <<<"${by_remote[$remote]}"
+            step "Flatpak: ${apps[*]}"
+            flatpak install --user -y --noninteractive --or-update "$remote" "${apps[@]}" || failed+=("${apps[@]}")
+        done
+    fi
+    if (( ${#gaming[@]} )); then
+        step "$(t "Native games"): ${gaming[*]}"
+        tamagi-gaming native "${gaming[@]}" || failed+=("gaming")
+    fi
+    for a in "${runs[@]}"; do
+        step "$a"
+        # shellcheck disable=SC2086
+        $a || failed+=("$a")
+    done
+    for a in "${agents[@]}"; do
+        tamagi-agents install "$a" || failed+=("$a")
+    done
+    echo
+    if (( ${#failed[@]} )); then
+        echo "$(t "Could not install"): ${failed[*]}"
+        echo "$(t "Try again with"): tamagi install"
+        return 1
+    fi
+    tl "Everything installed."
+}
+
+load_catalog
+case "${1:-}" in
+    list) cmd_list ;;
+    ids)  printf '%s\n' "${ids[@]}" ;;
+    installed) cmd_installed ;;
+    --actions) shift; run_actions "$@" ;;      # used by the first-login assistant
+    -h|--help|help) sed -n '2,/^set -uo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    "")
+        [[ -t 0 ]] || { cmd_list; exit 0; }
+        labels=(); for i in "${!ids[@]}"; do labels+=("$(label "$i")"); done
+        chosen=$(printf '%s\n' "${labels[@]}" | "$MULTI" --height 20 \
+            --header "$(t "Space toggles · Enter installs · nothing selected: installs nothing")") || exit 0
+        [[ -n $chosen ]] || { tl "Nothing selected."; exit 0; }
+        picked=()
+        while IFS= read -r line; do
+            for i in "${!labels[@]}"; do [[ ${labels[$i]} == "$line" ]] && picked+=("${actions[$i]}"); done
+        done <<<"$chosen"
+        run_actions "${picked[@]}" ;;
+    *)
+        picked=()
+        for want in "$@"; do
+            found=0
+            for i in "${!ids[@]}"; do
+                [[ ${ids[$i]} == "$want" ]] && { picked+=("${actions[$i]}"); found=1; break; }
+            done
+            (( found )) || { echo "$(t "error"): $(t "is not in the catalog"): $want  (tamagi install list)" >&2; exit 2; }
+        done
+        run_actions "${picked[@]}" ;;
+esac

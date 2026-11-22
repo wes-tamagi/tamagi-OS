@@ -1,6 +1,7 @@
 # Pacotes RPM adicionados à base ghcr.io/ublue-os/base-main (um por linha;
 # '#' comenta). Regra do Tamagi: aqui só entra o que precisa estar no host.
-# Apps gráficos vão por Flatpak; navegadores, .deb, .rpm e Arch por distrobox.
+# O resto é opcional e escolhido pelo usuário (`tamagi install`): Flatpak,
+# camada nativa (tamagi-layer) ou caixa distrobox.
 
 # ── Desktop COSMIC (System76, escrito em Rust; tiling nativo) ──
 @cosmic-desktop
@@ -41,13 +42,8 @@ langpacks-core-pt_BR
 langpacks-core-es
 langpacks-core-fr
 
-# ── Rust no lugar de C onde o Fedora empacota ──
-# alacritty: janelas utilitárias do Tamagi (o cosmic-term não aceita comando
-# nem título pela linha de comando). sudo-rs e uutils ficam ao lado dos
-# originais; o shell interativo usa os de Rust (veja /etc/profile.d/tamagi.sh).
-alacritty
-sudo-rs
-uutils-coreutils
+# ── Ferramentas de terminal em Rust ──
+# (as janelas utilitárias do Tamagi usam o foot, o terminal padrão)
 ripgrep
 fd-find
 bat
@@ -75,12 +71,10 @@ direnv
 yq
 ShellCheck
 
-# ── Jogos e desempenho (o melhor do Bazzite que não depende de KDE/Steam Deck) ──
-# Steam, Lutris e Heroic entram sob demanda: ujust setup-gaming.
-gamescope
-mangohud
-gamemode
-steam-devices
+# ── Desempenho ──
+# Jogos (Steam, steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine)
+# não vêm na imagem: entram nativamente, sob demanda, numa camada reversível
+# (`tamagi gaming native`), como os pacotes que o Bazzite traz embutidos.
 # Escalonador de CPU em espaço de usuário via BPF (sched_ext), gerido por tamagi-perf.
 scx_rusty
 
@@ -112,7 +106,7 @@ NetworkManager-strongswan-gnome
 NetworkManager-libreswan-gnome
 NetworkManager-ssh-gnome
 NetworkManager-tui
-tailscale
+# Tailscale não vem na imagem: é opcional (`tamagi install tailscale`).
 # Celulares, pastas remotas e nuvem
 gvfs-smb
 gvfs-mtp
@@ -129,22 +123,9 @@ iperf3
 nmap-ncat
 wol
 
-# ── Máquinas virtuais (KVM), nativo no host ──
-# virt-manager com os complementos: firmware UEFI, TPM virtual (Windows 11),
-# pastas compartilhadas (virtiofs), console SPICE e ferramentas de imagem.
-virt-manager
-virt-viewer
-virt-install
-libvirt-daemon-kvm
-libvirt-daemon-config-network
-libvirt-nss
-qemu-kvm
-qemu-img
-edk2-ovmf
-swtpm
-swtpm-tools
-virtiofsd
-guestfs-tools
+# ── Máquinas virtuais ──
+# virt-manager, libvirt e QEMU não vêm na imagem: `tamagi vm install` os
+# instala nativamente (RPM do Fedora numa camada do tamagi-layer, não Flatpak).
 
 # ── IA local ──
 vulkan-tools

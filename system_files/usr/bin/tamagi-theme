@@ -1,29 +1,44 @@
 #!/usr/bin/bash
-# tamagi-theme — troca o tema do desktop com um comando: as cores do COSMIC
-# (fundo, destaque, claro/escuro), o papel de parede, a paleta do terminal
-# padrão (foot), do btop, do Neovim (LazyVim) e a das janelas do Tamagi (alacritty).
+# tamagi-theme — the colours of the terminal apps follow the COSMIC theme.
+#
+# Themes and wallpapers are chosen the normal way, in COSMIC Settings
+# (Appearance and Wallpaper): the Tamagi themes are there to import
+# (/usr/share/cosmic-themes) and the wallpapers are in the system list.
+# What COSMIC does not reach — the terminal and the Tamagi windows (foot),
+# btop and Neovim — is kept in step by `tamagi theme sync`, which
+# a user unit runs whenever the COSMIC theme changes.
+#
+#   tamagi theme                 current theme
+#   tamagi theme list            Tamagi themes
+#   tamagi theme set <theme>     applies it to COSMIC and to the terminal apps
+#   tamagi theme next | pick     next one / choose from a list
+#   tamagi theme sync            re-reads the COSMIC theme (automatic)
+#   tamagi theme settings        opens COSMIC Settings › Appearance
+#   tamagi theme wallpaper       opens COSMIC Settings › Wallpaper
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
-THEMES=/usr/share/tamagi/themes
+THEMES=${TAMAGI_THEMES:-/usr/share/tamagi/themes}
 WALLS=/usr/share/backgrounds/tamagi
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
 STATE="$CONFIG/tamagi/theme"
-WALL_STATE="$CONFIG/tamagi/wallpaper"
-# Estilos de papel de parede (cada tema tem todos, nas cores dele):
-#   mon       brasão: anel (tamaki) com três joias (tama) sobre ondas seigaiha
-#   seigaiha  ondas em escamas    asanoha  folha de cânhamo
-#   byobu     biombo: nuvens, lua e monte    shippo   círculos entrelaçados
-#   hinode    nascer do sol sobre o mar      uroko    escamas triangulares
-#   ondas     o papel de parede original
-STYLES=(mon seigaiha asanoha byobu shippo hinode uroko ondas)
+USER_THEMES="$CONFIG/tamagi/themes"      # "cosmic.conf": made from a COSMIC theme that is not a Tamagi one
+COSMIC_SYS=${TAMAGI_COSMIC_DEFAULTS:-/usr/share/cosmic}
 
 list() { find "$THEMES" -name '*.conf' -printf '%f\n' | sed 's/\.conf$//' | sort; }
 current() { cat "$STATE" 2>/dev/null || echo tokyo-night; }
-style() { cat "$WALL_STATE" 2>/dev/null || echo mon; }
-wall_file() { # wall_file <tema>: caminho do PNG no estilo atual
-    local st; st=$(style)
-    if [[ $st == ondas ]]; then echo "$WALLS/$1.png"; else echo "$WALLS/$1-$st.png"; fi
+
+# The wallpaper belongs to COSMIC. When the one in use is a Tamagi wallpaper
+# (one style drawn in the colours of each theme), changing theme keeps the
+# style and brings the new colours; any other wallpaper is left alone.
+wall_file() { # wall_file <theme>: path to swap to, or nothing
+    local bg="$CONFIG/cosmic/com.system76.CosmicBackground/v1/all" cur style
+    [[ -f $bg ]] || bg="$COSMIC_SYS/com.system76.CosmicBackground/v1/all"
+    cur=$(sed -n 's/.*source: Path("\(.*\)").*/\1/p' "$bg" 2>/dev/null | head -1)
+    [[ $cur == "$WALLS"/* ]] || return 0
+    style=$(basename "$cur" .png); style=${style##*-}
+    [[ -f $WALLS/$1-$style.png ]] && echo "$WALLS/$1-$style.png"
+    return 0
 }
 
 # Fonte dos terminais (tamagi-font set troca).
@@ -31,38 +46,10 @@ mono_font() { local f; f=$(head -1 "$CONFIG/tamagi/font" 2>/dev/null || true); e
 
 load() {
     local conf="$THEMES/$1.conf"
-    [[ -f $conf ]] || { echo "tema desconhecido: $1 (veja 'tamagi-theme list')" >&2; exit 1; }
+    [[ -f $conf ]] || conf="$USER_THEMES/$1.conf"
+    [[ -f $conf ]] || { echo "$(t "unknown theme"): $1 (tamagi theme list)" >&2; exit 1; }
     # shellcheck disable=SC1090
     source "$conf"
-}
-
-alacritty_config() { # configuração completa do alacritty com a paleta do tema
-    local names=(black red green yellow blue magenta cyan white) i
-    cat <<TOML
-# Gerado por tamagi-theme ($NAME). Usado pelas janelas do Tamagi
-# (/usr/libexec/tamagi/popup); para o seu alacritty, use ~/.config/alacritty.
-[window]
-dimensions = { columns = 104, lines = 30 }
-padding = { x = 14, y = 12 }
-
-[font]
-normal = { family = "$(mono_font)" }
-size = 11.0
-
-[colors.primary]
-background = "$BG"
-foreground = "$FG"
-
-[colors.cursor]
-cursor = "$CURSOR"
-text = "$BG"
-
-[colors.normal]
-TOML
-    for i in "${!names[@]}"; do echo "${names[$i]} = \"${PALETTE[$i]}\""; done
-    echo
-    echo "[colors.bright]"
-    for i in "${!names[@]}"; do echo "${names[$i]} = \"${PALETTE[$((i + 8))]}\""; done
 }
 
 foot_config() { # configuração do foot (terminal padrão) com a paleta do tema
@@ -206,30 +193,17 @@ apply_nvim() { # só se você usa LazyVim (ujust setup-lazyvim) e não personali
     fi
 }
 
-apply_omarchy_apps() { # apps do Omarchy (instalados pelo tamagi-pkg) leem as cores do tema neste arquivo
-    local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/current/theme" i
-    mkdir -p "$dir"
-    {
-        echo "# Gerado por tamagi-theme ($NAME)"
-        echo "accent = \"${WALL[2]}\""
-        echo "cursor = \"$CURSOR\""
-        echo "foreground = \"$FG\""
-        echo "background = \"$BG\""
-        echo "selection_foreground = \"$BG\""
-        echo "selection_background = \"${WALL[2]}\""
-        for i in "${!PALETTE[@]}"; do echo "color$i = \"${PALETTE[$i]}\""; done
-    } > "$dir/colors.toml"
-}
-
-apply_cosmic() { # o COSMIC guarda a configuração em arquivos, um por chave
-    local name=$1 cfg="$CONFIG/cosmic"
+apply_cosmic() { # COSMIC keeps its configuration in files, one per key
+    local name=$1 cfg="$CONFIG/cosmic" wall
     mkdir -p "$cfg/com.system76.CosmicTheme.Mode/v1" "$cfg/com.system76.CosmicBackground/v1"
     [[ $SCHEME == dark ]] && echo true > "$cfg/com.system76.CosmicTheme.Mode/v1/is_dark" \
                           || echo false > "$cfg/com.system76.CosmicTheme.Mode/v1/is_dark"
-    cat > "$cfg/com.system76.CosmicBackground/v1/all" <<RON
+    wall=$(wall_file "$name")
+    if [[ -n $wall ]]; then
+        cat > "$cfg/com.system76.CosmicBackground/v1/all" <<RON
 (
     output: "all",
-    source: Path("$(wall_file "$name")"),
+    source: Path("$wall"),
     filter_by_theme: false,
     rotation_frequency: 3600,
     filter_method: Lanczos,
@@ -237,57 +211,126 @@ apply_cosmic() { # o COSMIC guarda a configuração em arquivos, um por chave
     sampling_method: Alphanumeric,
 )
 RON
-    # Cores do próprio COSMIC (fundo, destaque, texto): cada tema do Tamagi tem
-    # um tema do COSMIC gerado no build (make-cosmic-themes.py). Só dentro da
-    # sessão gráfica; fora dela ficam o claro/escuro e o papel de parede.
+    fi
+    # The colours of COSMIC itself: every Tamagi theme has a COSMIC theme made
+    # at build time (make-cosmic-themes.py), the same file that Settings ›
+    # Appearance › Import reads.
     local ron="${TAMAGI_COSMIC_THEMES:-/usr/share/cosmic-themes}/tamagi-$name.ron"
-    if [[ -r $ron && -n ${WAYLAND_DISPLAY:-} ]] && command -v cosmic-settings >/dev/null 2>&1; then
+    if [[ -r $ron ]] && command -v cosmic-settings >/dev/null 2>&1; then
         timeout 20 cosmic-settings appearance import "$ron" >/dev/null 2>&1 || true
     fi
-    # Apps GTK e o navegador seguem o esquema claro/escuro pelo portal.
+    # GTK apps and the browser follow light/dark through the portal.
     gsettings set org.gnome.desktop.interface color-scheme \
         "$([[ $SCHEME == dark ]] && echo prefer-dark || echo default)" 2>/dev/null || true
+}
+
+apply_terminal() { # foot (terminal and Tamagi windows), btop and Neovim
+    local name=$1
+    load "$name"
+    mkdir -p "$CONFIG/tamagi"
+    foot_config > "$CONFIG/tamagi/foot.ini"      # the Tamagi windows (/usr/libexec/tamagi/popup)
+    rm -f "$CONFIG/tamagi/alacritty.toml"        # from when those windows were alacritty
+    apply_foot
+    apply_btop
+    apply_nvim "$name"
+    echo "$name" > "$STATE"
 }
 
 apply() {
     local name=$1
     load "$name"
     apply_cosmic "$name"
-    mkdir -p "$CONFIG/tamagi"
-    alacritty_config > "$CONFIG/tamagi/alacritty.toml"
-    apply_foot
-    apply_btop
-    apply_nvim "$name"
-    apply_omarchy_apps
-    echo "$name" > "$STATE"
-    echo "$(t "Tema aplicado"): $NAME"
+    apply_terminal "$name"
+    echo "$(t "Theme applied"): $NAME"
+}
+
+# What COSMIC is showing now: "<dark|light> <background #rrggbb or -> <accent or ->".
+cosmic_now() {
+    python3 - "$CONFIG/cosmic" "$COSMIC_SYS" <<'PY'
+import pathlib, re, sys
+roots = [pathlib.Path(p) for p in sys.argv[1:3]]
+def read(rel):
+    for root in roots:
+        try:
+            return (root / rel).read_text()
+        except OSError:
+            continue
+    return ""
+dark = read("com.system76.CosmicTheme.Mode/v1/is_dark").strip() != "false"
+builder = "com.system76.CosmicTheme.%s.Builder/" % ("Dark" if dark else "Light")
+def colour(key):
+    text = read(builder + "v2/" + key) or read(builder + "v1/" + key)   # v2 since COSMIC 1.1x
+    m = re.search(r'"#([0-9A-Fa-f]{6})', text)                          # v2: Some("#16211CFF")
+    if m:
+        return "#" + m.group(1).lower()
+    m = re.search(r"red:\s*([0-9.]+).*?green:\s*([0-9.]+).*?blue:\s*([0-9.]+)", text, re.S)
+    return "#%02x%02x%02x" % tuple(round(float(v) * 255) for v in m.groups()) if m else "-"
+print("dark" if dark else "light", colour("bg_color"), colour("accent"))
+PY
+}
+
+close_to() { # close_to #rrggbb #rrggbb: equal within the rounding of the theme file
+    local c1=${1#\#} c2=${2#\#} i d
+    [[ ${#c1} -eq 6 && ${#c2} -eq 6 ]] || return 1
+    for i in 0 2 4; do
+        d=$(( 0x${c1:$i:2} - 0x${c2:$i:2} )); (( d < 0 )) && d=$(( -d ))
+        (( d <= 2 )) || return 1
+    done
+}
+
+sync() { # the terminal apps follow whatever theme COSMIC has now
+    local mode bg accent name target="" cur
+    read -r mode bg accent <<<"$(cosmic_now)"
+    cur=$(current)
+    for name in $(list); do
+        if ( load "$name"; [[ $SCHEME == "$mode" ]] && close_to "$BG" "$bg" && close_to "${WALL[2]}" "$accent" ); then
+            target=$name; break
+        fi
+    done
+    if [[ -z $target && $bg != - ]]; then
+        # A COSMIC theme that is not a Tamagi one: its background and accent
+        # over the terminal palette of the default theme of that mode.
+        local base=tokyo-night new="$USER_THEMES/cosmic.conf.new"
+        [[ $mode == light ]] && base=latte
+        [[ $accent == - ]] && accent=$(load "$base"; echo "${WALL[2]}")
+        mkdir -p "$USER_THEMES"
+        sed -e 's/^NAME=.*/NAME="COSMIC"/' -e "s/^BG=.*/BG=\"$bg\"/" \
+            -e "s/^WALL=(\"\([^\"]*\)\" \"\([^\"]*\)\" \"[^\"]*\"/WALL=(\"\1\" \"\2\" \"$accent\"/" \
+            "$THEMES/$base.conf" > "$new"
+        if cmp -s "$new" "$USER_THEMES/cosmic.conf" 2>/dev/null; then
+            : > "$new"
+        else
+            cp "$new" "$USER_THEMES/cosmic.conf"; : > "$new"; cur=""
+        fi
+        target=cosmic
+    fi
+    if [[ -z $target ]]; then
+        # COSMIC's own default theme: only light/dark has to agree.
+        [[ $(load "$cur" 2>/dev/null; echo "${SCHEME:-}") == "$mode" ]] && return 0
+        target=tokyo-night; [[ $mode == light ]] && target=latte
+    fi
+    [[ $target == "$cur" ]] && return 0
+    apply_terminal "$target"
+    echo "$(t "Terminals following the COSMIC theme"): $target"
 }
 
 case "${1:-}" in
+    "")      current ;;
     list)    list ;;
     current) current ;;
-    set)     [[ -n ${2:-} ]] || { echo "uso: tamagi-theme set <tema>" >&2; exit 2; }; apply "$2" ;;
-    next)    # próximo tema em ordem alfabética (bom para um atalho)
-             mapfile -t all < <(list); cur=$(current)
+    set)     [[ -n ${2:-} ]] || { echo "usage: tamagi theme set <theme>" >&2; exit 2; }; apply "$2" ;;
+    next)    # next theme in alphabetical order (good for a shortcut)
+             mapfile -t all < <(list); cur=$(current); i=0
              for i in "${!all[@]}"; do [[ ${all[$i]} == "$cur" ]] && break; done
              apply "${all[$(( (i + 1) % ${#all[@]} ))]}" ;;
-    pick)    choice=$(list | gum choose --height 14 --header "$(t "Tema")" --selected "$(current)") && apply "$choice" ;;
-    wallpaper|papel) # estilo do papel de parede: tamagi-theme wallpaper [estilo]
-             choice=${2:-}
-             if [[ -z $choice ]]; then
-                 choice=$(printf '%s\n' "${STYLES[@]}" | gum choose --height 12 --header "$(t "Papel de parede")" --selected "$(style)") || exit 0
-             fi
-             [[ " ${STYLES[*]} " == *" $choice "* ]] || { echo "estilo desconhecido: $choice (use: ${STYLES[*]})" >&2; exit 2; }
-             mkdir -p "$CONFIG/tamagi"; echo "$choice" > "$WALL_STATE"
-             apply "$(current)" >/dev/null; echo "$(t "Papel de parede"): $choice" ;;
-    styles)  printf '%s\n' "${STYLES[@]}" ;;
-    alacritty) # imprime a configuração do alacritty de um tema (usado no build)
-             load "${2:-tokyo-night}"; alacritty_config ;;
-    apps)    # reaplica o tema atual só nos apps de terminal (foot, btop, Neovim)
-             name=$(current); load "$name"; apply_foot; apply_btop; apply_nvim "$name" ;;
-    nvim)    # imprime o plugin de cores do LazyVim de um tema
-             load "${2:-tokyo-night}"; nvim_spec "${2:-tokyo-night}" ;;
-    foot)    # imprime a configuração do foot de um tema (usado no build)
-             load "${2:-tokyo-night}"; foot_config ;;
-    *)       echo "uso: tamagi-theme [list|current|set <tema>|next|pick|wallpaper [estilo]|styles]" >&2; exit 2 ;;
+    pick)    choice=$(list | gum choose --height 14 --header "$(t "Theme")" --selected "$(current)") && apply "$choice" ;;
+    sync)    sync ;;
+    settings)  setsid -f cosmic-settings appearance >/dev/null 2>&1 ;;
+    wallpaper) setsid -f cosmic-settings wallpaper >/dev/null 2>&1 ;;
+    apps)    # re-applies the current theme to the terminal apps only
+             apply_terminal "$(current)" ;;
+    nvim)    load "${2:-tokyo-night}"; nvim_spec "${2:-tokyo-night}" ;;
+    foot)    load "${2:-tokyo-night}"; foot_config ;;
+    -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *)       echo "usage: tamagi theme [list|current|set <theme>|next|pick|sync|settings|wallpaper]" >&2; exit 2 ;;
 esac

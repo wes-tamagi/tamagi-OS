@@ -1,0 +1,13 @@
+# Tamagi profile: AI and agents — the focus of the system.
+# Coding agents in your user, and the development box where they find
+# compilers, Node, git and the database clients. Apply with: tamagi apply ai
+# (a local model is a separate, larger download: tamagi ai setup)
+
+[agents]
+install = ["claude", "codex", "opencode", "clio"]
+
+[boxes]
+dev = "fedora"
+
+[services]
+autoupdate = true

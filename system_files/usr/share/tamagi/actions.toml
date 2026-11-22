@@ -224,6 +224,48 @@ fr = "Liste les profils par usage et la recommandation matérielle"
 # ── Instalar ────────────────────────────────────────────────────────────────
 
 [[action]]
+id = "install.catalog"
+category = "install"
+icon = "system-software-install-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-install"
+keywords = "install instalar catalog catalogo opcional steam virt-manager onlyoffice windows browser agent devbox"
+[action.title]
+pt = "Catálogo: tudo o que é opcional"
+en = "Catalog: everything optional"
+es = "Catálogo: todo lo opcional"
+fr = "Catalogue : tout ce qui est optionnel"
+[action.subtitle]
+pt = "Navegadores, escritório, VMs, Windows, jogos nativos, caixas dev e agentes de IA"
+en = "Browsers, office, VMs, Windows, native games, dev boxes and AI agents"
+es = "Navegadores, ofimática, VMs, Windows, juegos nativos, cajas dev y agentes de IA"
+fr = "Navigateurs, bureautique, VM, Windows, jeux natifs, boîtes dev et agents d'IA"
+
+[[action]]
+id = "install.try"
+category = "install"
+icon = "utilities-terminal-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "bash -c '. /usr/libexec/tamagi/i18n; pkg=$(gum input --placeholder \"$(t \"Fedora package to try (e.g. htop)\")\") || exit 0; [[ -n $pkg ]] && tamagi-try $pkg'"
+keywords = "try experimentar testar descartavel disposable package pacote"
+[action.title]
+pt = "Experimentar um pacote sem instalar"
+en = "Try a package without installing"
+es = "Probar un paquete sin instalar"
+fr = "Essayer un paquet sans l'installer"
+[action.subtitle]
+pt = "Abre numa caixa descartável; ao sair, tudo some"
+en = "Opens in a disposable box; when you leave, everything is gone"
+es = "Se abre en una caja desechable; al salir, todo desaparece"
+fr = "S'ouvre dans une boîte jetable ; en sortant, tout disparaît"
+
+[[action]]
 id = "install.flatpak"
 category = "install"
 icon = "system-software-install-symbolic"
@@ -231,7 +273,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "bash -c '. /usr/libexec/tamagi/i18n; term=$(gum input --placeholder \"$(t \"nome do app (ex.: gimp, spotify, vscode)\")\") || exit 0; [[ -n $term ]] || exit 0; app=$(flatpak search --columns=application,name,description \"$term\" 2>/dev/null | gum filter --header \"$(t \"Escolha o app\")\" | awk \"{print \\$1}\") || exit 0; [[ -n $app ]] && flatpak install -y flathub \"$app\"'"
+command = "bash -c '. /usr/libexec/tamagi/i18n; term=$(gum input --placeholder \"$(t \"app name (e.g. gimp, spotify, vscode)\")\") || exit 0; [[ -n $term ]] || exit 0; app=$(flatpak search --columns=application,name,description \"$term\" 2>/dev/null | gum filter --header \"$(t \"Choose the app\")\" | awk \"{print \\$1}\") || exit 0; [[ -n $app ]] && flatpak install -y flathub \"$app\"'"
 keywords = "flatpak flathub app loja store install instalar"
 [action.title]
 pt = "Instalar app gráfico (Flatpak)"
@@ -245,27 +287,6 @@ es = "Busca e instala directamente desde Flathub"
 fr = "Recherche et installe directement depuis Flathub"
 
 [[action]]
-id = "install.pkg"
-category = "install"
-icon = "package-x-generic-symbolic"
-risk = "user"
-terminal = true
-confirm = false
-agent = false
-command = "bash -c '. /usr/libexec/tamagi/i18n; kind=$(gum choose --header \"$(t \"Formato\")\" deb rpm arch omarchy) || exit 0; pkg=$(gum input --placeholder \"$(t \"nome do pacote ou caminho do arquivo\")\") || exit 0; [[ -n $pkg ]] && tamagi-pkg install \"--$kind\" \"$pkg\"'"
-keywords = "deb rpm arch aur omarchy pacman apt package pacote"
-[action.title]
-pt = "Instalar pacote deb, rpm, Arch ou Omarchy"
-en = "Install deb, rpm, Arch or Omarchy package"
-es = "Instalar paquete deb, rpm, Arch u Omarchy"
-fr = "Installer un paquet deb, rpm, Arch ou Omarchy"
-[action.subtitle]
-pt = "Usa os subsistemas distrobox sem tocar no host"
-en = "Uses distrobox subsystems without touching the host"
-es = "Usa subsistemas distrobox sin tocar el host"
-fr = "Utilise les sous-systèmes distrobox sans toucher l'hôte"
-
-[[action]]
 id = "install.browser"
 category = "install"
 icon = "web-browser-symbolic"
@@ -273,18 +294,18 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "bash -c '. /usr/libexec/tamagi/i18n; b=$(gum choose --header \"$(t \"Navegador\")\" chrome firefox brave edge vivaldi) || exit 0; tamagi-browser install \"$b\"'"
-keywords = "browser navegador chrome firefox brave edge vivaldi"
+command = "tamagi-browser install"
+keywords = "browser navegador chrome firefox vivaldi chromium flatpak"
 [action.title]
-pt = "Instalar navegador (caixa Fedora)"
-en = "Install browser (Fedora box)"
-es = "Instalar navegador (caja Fedora)"
-fr = "Installer un navigateur (boîte Fedora)"
+pt = "Instalar navegador"
+en = "Install a browser"
+es = "Instalar navegador"
+fr = "Installer un navigateur"
 [action.subtitle]
-pt = "Chrome, Firefox, Brave, Edge ou Vivaldi com aceleração GPU"
-en = "Chrome, Firefox, Brave, Edge or Vivaldi with GPU acceleration"
-es = "Chrome, Firefox, Brave, Edge o Vivaldi con aceleración GPU"
-fr = "Chrome, Firefox, Brave, Edge ou Vivaldi avec accélération GPU"
+pt = "Chrome, Firefox, Vivaldi ou Chromium: Flatpak, nativo ou caixa"
+en = "Chrome, Firefox, Vivaldi or Chromium: Flatpak, native or box"
+es = "Chrome, Firefox, Vivaldi o Chromium: Flatpak, nativo o caja"
+fr = "Chrome, Firefox, Vivaldi ou Chromium : Flatpak, natif ou boîte"
 
 [[action]]
 id = "install.mise"
@@ -294,39 +315,18 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "bash -c '. /usr/libexec/tamagi/i18n; tool=$(gum input --placeholder \"$(t \"ex.: rust@latest, node@lts, python@3.13, go\")\") || exit 0; [[ -n $tool ]] && mise use -g $tool'"
+command = "bash -c '. /usr/libexec/tamagi/i18n; tool=$(gum input --placeholder \"$(t \"e.g. rust@latest, node@lts, python@3.13, go\")\") || exit 0; [[ -n $tool ]] && tamagi-devbox lang $tool'"
 keywords = "mise rust node python go java bun deno runtime dev"
 [action.title]
-pt = "Instalar linguagem ou runtime (mise)"
-en = "Install language or runtime (mise)"
-es = "Instalar lenguaje o runtime (mise)"
-fr = "Installer un langage ou runtime (mise)"
+pt = "Instalar linguagem ou runtime (mise, na caixa dev)"
+en = "Install a language or runtime (mise, in the dev box)"
+es = "Instalar lenguaje o runtime (mise, en la caja dev)"
+fr = "Installer un langage ou runtime (mise, dans la boîte dev)"
 [action.subtitle]
-pt = "Rust, Node, Python, Go, Java, Bun e Deno sem root"
-en = "Rust, Node, Python, Go, Java, Bun, and Deno without root"
-es = "Rust, Node, Python, Go, Java, Bun y Deno sin root"
-fr = "Rust, Node, Python, Go, Java, Bun et Deno sans root"
-
-[[action]]
-id = "install.rust"
-category = "install"
-icon = "applications-engineering-symbolic"
-risk = "user"
-terminal = true
-confirm = false
-agent = true
-command = "mise use -g rust@latest"
-keywords = "rust cargo rustc toolchain mise dev"
-[action.title]
-pt = "Instalar toolchain Rust (mise)"
-en = "Install Rust toolchain (mise)"
-es = "Instalar toolchain de Rust (mise)"
-fr = "Installer la chaîne d'outils Rust (mise)"
-[action.subtitle]
-pt = "Instala rustc e cargo atualizados no seu usuário"
-en = "Installs up-to-date rustc and cargo in your user account"
-es = "Instala rustc y cargo actualizados en tu usuario"
-fr = "Installe rustc et cargo à jour dans votre compte"
+pt = "Rust, Node, Python, Go, Java, Bun e Deno dentro da caixa de desenvolvimento"
+en = "Rust, Node, Python, Go, Java, Bun, and Deno inside the development box"
+es = "Rust, Node, Python, Go, Java, Bun y Deno dentro de la caja de desarrollo"
+fr = "Rust, Node, Python, Go, Java, Bun et Deno dans la boîte de développement"
 
 [[action]]
 id = "install.devbox"
@@ -420,7 +420,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "bash -c 'if flatpak info org.onlyoffice.desktopeditors >/dev/null 2>&1; then setsid -f flatpak run org.onlyoffice.desktopeditors >/dev/null 2>&1; else flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo; flatpak install --user -y flathub org.onlyoffice.desktopeditors; fi'"
+command = "/usr/libexec/tamagi/open-or-install org.onlyoffice.desktopeditors"
 keywords = "onlyoffice office escritorio documentos word excel powerpoint planilhas apresentacoes"
 [action.title]
 pt = "OnlyOffice (Escritório — opcional)"
@@ -462,18 +462,18 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "ujust install-agent"
-keywords = "agent agente codex gemini cli ai ia"
+command = "tamagi-agents"
+keywords = "agent agente ia ai claude codex qwen opencode gemini openclaw antigravity"
 [action.title]
-pt = "Instalar outro agente de IA (Codex / Gemini)"
-en = "Install another AI agent (Codex / Gemini)"
-es = "Instalar otro agente de IA (Codex / Gemini)"
-fr = "Installer un autre agent d'IA (Codex / Gemini)"
+pt = "Instalar agentes de IA"
+en = "Install AI agents"
+es = "Instalar agentes de IA"
+fr = "Installer des agents d'IA"
 [action.subtitle]
-pt = "Instala via mise sem tocar no sistema"
-en = "Installs via mise without touching the host"
-es = "Instala mediante mise sin tocar el host"
-fr = "Installe via mise sans toucher l'hôte"
+pt = "Claude Code, Antigravity, Codex, Qwen Code, opencode, Gemini, OpenClaw ou IA local"
+en = "Claude Code, Antigravity, Codex, Qwen Code, opencode, Gemini, OpenClaw or local AI"
+es = "Claude Code, Antigravity, Codex, Qwen Code, opencode, Gemini, OpenClaw o IA local"
+fr = "Claude Code, Antigravity, Codex, Qwen Code, opencode, Gemini, OpenClaw ou IA locale"
 
 # ── Aparência ───────────────────────────────────────────────────────────────
 
@@ -493,52 +493,31 @@ en = "Choose desktop theme"
 es = "Elegir tema del escritorio"
 fr = "Choisir le thème du bureau"
 [action.subtitle]
-pt = "11 paletas integradas ao COSMIC, papel de parede e terminal"
-en = "11 palettes integrated with COSMIC, wallpaper, and terminal"
-es = "11 paletas integradas con COSMIC, fondo y terminal"
-fr = "11 palettes intégrées à COSMIC, au fond d'écran et au terminal"
-
-[[action]]
-id = "appearance.theme_next"
-category = "appearance"
-icon = "media-playlist-shuffle-symbolic"
-risk = "user"
-terminal = false
-confirm = false
-agent = true
-command = "tamagi-theme next"
-keywords = "next theme proximo tema trocar switch"
-[action.title]
-pt = "Próximo tema"
-en = "Next theme"
-es = "Siguiente tema"
-fr = "Thème suivant"
-[action.subtitle]
-pt = "Alterna imediatamente para a próxima paleta"
-en = "Immediately switches to the next palette"
-es = "Cambia de inmediato a la siguiente paleta"
-fr = "Passe immédiatement à la palette suivante"
+pt = "Aplica ao COSMIC e aos terminais; também em Configurações › Aparência"
+en = "Applies to COSMIC and the terminals; also in Settings › Appearance"
+es = "Se aplica a COSMIC y a los terminales; también en Configuración › Apariencia"
+fr = "S'applique à COSMIC et aux terminaux ; aussi dans Paramètres › Apparence"
 
 [[action]]
 id = "appearance.wallpaper"
 category = "appearance"
 icon = "preferences-desktop-wallpaper-symbolic"
 risk = "user"
-terminal = true
+terminal = false
 confirm = false
 agent = false
-command = "tamagi-theme wallpaper"
-keywords = "wallpaper papel parede mon seigaiha asanoha byobu shippo hinode uroko"
+command = "cosmic-settings wallpaper"
+keywords = "wallpaper papel parede fondo fond background"
 [action.title]
-pt = "Estilo do papel de parede"
-en = "Wallpaper style"
-es = "Estilo del fondo de pantalla"
-fr = "Style du fond d'écran"
+pt = "Papel de parede"
+en = "Wallpaper"
+es = "Fondo de pantalla"
+fr = "Fond d'écran"
 [action.subtitle]
-pt = "8 estilos geométricos gerados nas cores do tema"
-en = "8 geometric styles rendered in the active theme colors"
-es = "8 estilos geométricos en los colores del tema activo"
-fr = "8 styles géométriques aux couleurs du thème actif"
+pt = "Abre as Configurações do COSMIC; os papéis do Tamagi estão na lista"
+en = "Opens COSMIC Settings; the Tamagi wallpapers are in the list"
+es = "Abre la Configuración de COSMIC; los fondos de Tamagi están en la lista"
+fr = "Ouvre les Paramètres de COSMIC ; les fonds de Tamagi sont dans la liste"
 
 [[action]]
 id = "appearance.panel"
@@ -627,27 +606,6 @@ es = "Para Office 365, Adobe y lo que Wine no ejecuta; 4–8 GB de RAM encendido
 fr = "Pour Office 365, Adobe et ce que Wine ne lance pas ; 4–8 Go de RAM allumé"
 
 [[action]]
-id = "vm.popos"
-category = "install"
-icon = "computer-symbolic"
-risk = "user"
-terminal = true
-confirm = false
-agent = false
-command = "bash -c 'if tamagi-popos lista 2>/dev/null | grep -qw popos; then tamagi-popos abrir popos; else tamagi-popos instalar; fi'"
-keywords = "pop os popos vm maquina virtual virt-manager system76 cosmic ubuntu"
-[action.title]
-pt = "Pop!_OS em máquina virtual"
-en = "Pop!_OS in a virtual machine"
-es = "Pop!_OS en máquina virtual"
-fr = "Pop!_OS en machine virtuelle"
-[action.subtitle]
-pt = "No virt-manager, sem root; tamagi-popos compactar faz a imagem para VM"
-en = "In virt-manager, no root; tamagi-popos compact builds the VM image"
-es = "En virt-manager, sin root; tamagi-popos compact crea la imagen para VM"
-fr = "Dans virt-manager, sans root ; tamagi-popos compact crée l'image pour VM"
-
-[[action]]
 id = "install.antigravity"
 category = "install"
 icon = "applications-development-symbolic"
@@ -676,7 +634,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = true
-command = "tamagi-windows parar"
+command = "tamagi-windows stop"
 keywords = "windows desligar parar stop memoria liberar"
 [action.title]
 pt = "Desligar o Windows do contêiner"
@@ -718,7 +676,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = true
-command = "bash -c 'q=$(gum input --placeholder \"10m Tirar o chá\") && tamagi-lembrete $q'"
+command = "tamagi-remind"
 keywords = "lembrete reminder alarme timer avisar notificacao"
 [action.title]
 pt = "Lembrete"
@@ -739,7 +697,7 @@ risk = "user"
 terminal = false
 confirm = false
 agent = false
-command = "tamagi-capture texto"
+command = "tamagi-capture text"
 keywords = "ocr texto text copiar captura screenshot tesseract imagem"
 [action.title]
 pt = "Copiar texto da tela (OCR)"
@@ -760,7 +718,7 @@ risk = "user"
 terminal = false
 confirm = false
 agent = false
-command = "tamagi-capture gravar"
+command = "tamagi-capture record"
 keywords = "gravar record video tela screen screencast gravacao"
 [action.title]
 pt = "Gravar a tela / parar"
@@ -781,7 +739,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = true
-command = "tamagi-dev"
+command = "tamagi-devbox lang"
 keywords = "dev desenvolvimento node python ruby rails go rust java dotnet zig bun deno mise linguagem"
 [action.title]
 pt = "Ambiente de desenvolvimento"
@@ -789,10 +747,10 @@ en = "Development environment"
 es = "Entorno de desarrollo"
 fr = "Environnement de développement"
 [action.subtitle]
-pt = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… pelo mise"
-en = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… via mise"
-es = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… con mise"
-fr = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… via mise"
+pt = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… pelo mise, na caixa dev"
+en = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… via mise, in the dev box"
+es = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… con mise, en la caja dev"
+fr = "Node, Python, Ruby, Go, Rust, Java, .NET, Zig… via mise, dans la boîte dev"
 
 [[action]]
 id = "appearance.font"
@@ -845,17 +803,17 @@ terminal = true
 confirm = false
 agent = true
 command = "tamagi-update"
-keywords = "update atualizar upgrade bootc flatpak mise distrobox"
+keywords = "update atualizar upgrade bootc flatpak distrobox agents"
 [action.title]
 pt = "Atualizar tudo agora"
 en = "Update everything now"
 es = "Actualizar todo ahora"
 fr = "Tout mettre à jour maintenant"
 [action.subtitle]
-pt = "Imagem bootc, camadas, Flatpaks, caixas e mise"
-en = "bootc image, layers, Flatpaks, boxes, and mise"
-es = "Imagen bootc, capas, Flatpaks, cajas y mise"
-fr = "Image bootc, couches, Flatpaks, boîtes et mise"
+pt = "Imagem bootc, camadas, Flatpaks, caixas e agentes de IA"
+en = "bootc image, layers, Flatpaks, boxes, and AI agents"
+es = "Imagen bootc, capas, Flatpaks, cajas y agentes de IA"
+fr = "Image bootc, couches, Flatpaks, boîtes et agents d'IA"
 
 [[action]]
 id = "system.changes"
@@ -865,7 +823,7 @@ risk = "read"
 terminal = true
 confirm = false
 agent = true
-command = "tamagi-update novidades"
+command = "tamagi-update changes"
 keywords = "novidades mudancas changelog atualizacao update o que muda kernel versao"
 [action.title]
 pt = "O que muda na próxima atualização"
@@ -886,7 +844,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "bash -c 'f=$(gum file \"$HOME/Downloads\" 2>/dev/null) && [[ -n $f ]] && /usr/libexec/tamagi/isolar-janela \"$f\"'"
+command = "bash -c 'f=$(gum file \"$HOME/Downloads\" 2>/dev/null) && [[ -n $f ]] && /usr/libexec/tamagi/isolate-window \"$f\"'"
 keywords = "isolar isolado sandbox jaula seguro suspeito appimage script desconfiado"
 [action.title]
 pt = "Abrir um programa isolado"
@@ -907,7 +865,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "tamagi-voltar"
+command = "tamagi-rewind"
 keywords = "voltar tempo timeline rewind restaurar rollback ontem snapshot versao anterior desfazer"
 [action.title]
 pt = "Voltar no tempo"
@@ -928,7 +886,7 @@ risk = "user"
 terminal = false
 confirm = false
 agent = true
-command = "tamagi-privacidade"
+command = "tamagi-privacy"
 keywords = "privacidade privacy camera microfone bluetooth firewall mac viagem cafe reuniao"
 [action.title]
 pt = "Modo privacidade (liga/desliga)"
@@ -949,7 +907,7 @@ risk = "system"
 terminal = true
 confirm = true
 agent = false
-command = "bash -c 'if id convidado >/dev/null 2>&1; then tamagi-convidado desligar; else tamagi-convidado ligar; fi'"
+command = "bash -c 'if id convidado >/dev/null 2>&1; then tamagi-guest off; else tamagi-guest on; fi'"
 keywords = "convidado guest visitante emprestar sessao temporaria descartavel"
 [action.title]
 pt = "Sessão de convidado (liga/desliga)"
@@ -1005,27 +963,6 @@ es = "Muestra los despliegues activo, preparado y de rollback"
 fr = "Affiche les déploiements actif, préparé et de retour"
 
 [[action]]
-id = "system.rollback"
-category = "system"
-icon = "edit-undo-symbolic"
-risk = "system"
-terminal = true
-confirm = true
-agent = true
-command = "sudo bootc rollback"
-keywords = "rollback reverter voltar imagem anterior previous"
-[action.title]
-pt = "Reverter para a imagem anterior"
-en = "Roll back to previous image"
-es = "Volver a la imagen anterior"
-fr = "Revenir à l'image précédente"
-[action.subtitle]
-pt = "Restaura a versão anterior do sistema no próximo boot"
-en = "Restores the previous OS deployment on next boot"
-es = "Restaura la versión anterior del sistema en el próximo arranque"
-fr = "Restaure la version précédente au prochain démarrage"
-
-[[action]]
 id = "system.snapshots"
 category = "system"
 icon = "document-open-recent-symbolic"
@@ -1041,7 +978,7 @@ en = "Home folder history"
 es = "Historial de la carpeta personal"
 fr = "Historique du dossier personnel"
 [action.subtitle]
-pt = "Snapshots a cada hora; tamagi-snap voltar <arquivo> recupera"
+pt = "Snapshots a cada hora; tamagi-snap restore <arquivo> recupera"
 en = "Hourly snapshots; tamagi-snap restore <file> brings a file back"
 es = "Snapshots cada hora; tamagi-snap restore <archivo> lo recupera"
 fr = "Instantanés horaires ; tamagi-snap restore <fichier> le récupère"
@@ -1054,7 +991,7 @@ risk = "system"
 terminal = true
 confirm = true
 agent = true
-command = "tamagi-snap ativar"
+command = "tamagi-snap enable"
 keywords = "snapshot ativar ligar enable backup historico btrfs snapper"
 [action.title]
 pt = "Ligar o histórico da pasta pessoal"
@@ -1135,10 +1072,10 @@ id = "system.vm"
 category = "system"
 icon = "computer-symbolic"
 risk = "user"
-terminal = false
+terminal = true
 confirm = false
 agent = false
-command = "virt-manager"
+command = "tamagi-vm"
 keywords = "vm virtual machine virt-manager kvm qemu banco banking"
 [action.title]
 pt = "Máquinas virtuais (virt-manager)"

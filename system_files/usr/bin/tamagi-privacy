@@ -1,19 +1,19 @@
 #!/usr/bin/bash
-# tamagi-privacidade — modo privacidade de um toque (Super+Ctrl+P alterna).
+# tamagi-privacy — one-touch privacy mode (Super+Ctrl+P toggles).
 #
-# Como uma chave física, em software. Ligado:
-#   • câmera desligada no kernel e todos os microfones mudos
-#   • Bluetooth bloqueado e o computador invisível na rede local (sem mDNS)
-#   • firewall fechado para conexões de entrada
-#   • Wi-Fi com endereço MAC sorteado (reconecta uma vez)
-#   • tráfego pelo nó de saída do Tailscale, se configurado
-#   • notificações em "não perturbe" e tela apagando em 1 minuto
-# Desligado, tudo volta exatamente como estava. Reiniciar também desliga.
+# Like a hardware switch, in software. When on:
+#   • camera disabled in the kernel and every microphone muted
+#   • Bluetooth blocked and the computer invisible on the local network (no mDNS)
+#   • firewall closed to incoming connections
+#   • Wi-Fi with a random MAC address (reconnects once)
+#   • traffic through the Tailscale exit node, if configured
+#   • notifications in "do not disturb" and the screen blanking after 1 minute
+# When off, everything goes back exactly as it was. Rebooting also turns it off.
 #
-#   tamagi-privacidade               alterna
-#   tamagi-privacidade on | off | status
-# Opções em ~/.config/tamagi/privacidade.conf (uma por linha):
-#   EXIT_NODE=<nó do Tailscale>     MAC=nao (não troca o MAC)
+#   tamagi privacy               toggles
+#   tamagi privacy on | off | status
+# Options in ~/.config/tamagi/privacidade.conf (one per line):
+#   EXIT_NODE=<Tailscale node>     MAC=nao (keeps the MAC)
 set -uo pipefail
 . /usr/libexec/tamagi/i18n
 
@@ -36,7 +36,7 @@ sources() { pw-dump 2>/dev/null | jq -r '.[] | select(.info.props["media.class"]
 is_on() { [[ -d $RUN ]]; }
 
 on() {
-    is_on && { echo "$(t "Modo privacidade já está ligado")"; return 0; }
+    is_on && { echo "$(t "Privacy mode is already on")"; return 0; }
     mkdir -p "$RUN"
     # Microfones: muta todos e lembra quais estavam abertos.
     local id
@@ -49,7 +49,7 @@ on() {
     save_file "$NOTIF" notif; mkdir -p "$(dirname "$NOTIF")"; echo true > "$NOTIF"
     save_file "$IDLE" idle; mkdir -p "$(dirname "$IDLE")"; echo "Some(60000)" > "$IDLE"
     # Câmera, Bluetooth, firewall e mDNS (root).
-    pkexec "$HELPER" on || echo "$(t "aviso: a parte de sistema não foi aplicada")" >&2
+    pkexec "$HELPER" on || echo "$(t "warning: the system part was not applied")" >&2
     # Wi-Fi com MAC sorteado.
     if [[ $(conf MAC) != nao ]]; then
         local uuid
@@ -66,14 +66,14 @@ on() {
         tailscale set --exit-node="$exit_node" && touch "$RUN/tailscale"
     fi
     # Indicador: notificação fixa enquanto o modo estiver ligado.
-    notify-send -a Tamagi -u critical -i security-high -p "$(t "Modo privacidade ligado")" \
-        "$(t "Câmera e microfones desligados, Bluetooth e rede local fechados.") Super+Ctrl+P" \
+    notify-send -a Tamagi -u critical -i security-high -p "$(t "Privacy mode on")" \
+        "$(t "Camera and microphones off, Bluetooth and local network closed.") Super+Ctrl+P" \
         > "$RUN/notif-id" 2>/dev/null || true
-    echo "$(t "Modo privacidade ligado")"
+    echo "$(t "Privacy mode on")"
 }
 
 off() {
-    is_on || { echo "$(t "Modo privacidade já está desligado")"; return 0; }
+    is_on || { echo "$(t "Privacy mode is already off")"; return 0; }
     local id uuid mac
     [[ -f $RUN/mics ]] && while read -r id; do wpctl set-mute "$id" 0 2>/dev/null; done < "$RUN/mics"
     restore_file "$NOTIF" notif
@@ -88,17 +88,17 @@ off() {
     # Fecha a notificação fixa (substitui por uma curta).
     if [[ -s $RUN/notif-id ]]; then
         notify-send -a Tamagi -t 3000 -i security-low -r "$(cat "$RUN/notif-id")" \
-            "$(t "Modo privacidade desligado")" "$(t "Tudo voltou como estava.")" 2>/dev/null || true
+            "$(t "Privacy mode off")" "$(t "Everything is back as it was.")" 2>/dev/null || true
     fi
     rm -rf "$RUN"
-    echo "$(t "Modo privacidade desligado")"
+    echo "$(t "Privacy mode off")"
 }
 
 case "${1:-toggle}" in
-    on|ligar)      on ;;
-    off|desligar)  off ;;
+    on)      on ;;
+    off)  off ;;
     toggle)        if is_on; then off; else on; fi ;;
-    status)        if is_on; then echo "$(t "Modo privacidade ligado")"; else echo "$(t "Modo privacidade desligado")"; fi ;;
-    -h|--help|ajuda) sed -n '2,/^set -uo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-    *) echo "uso: tamagi-privacidade [on|off|status]" >&2; exit 2 ;;
+    status)        if is_on; then echo "$(t "Privacy mode on")"; else echo "$(t "Privacy mode off")"; fi ;;
+    -h|--help) sed -n '2,/^set -uo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) echo "usage: tamagi-privacy [on|off|status]" >&2; exit 2 ;;
 esac

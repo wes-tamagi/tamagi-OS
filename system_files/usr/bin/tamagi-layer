@@ -10,29 +10,31 @@ SUDO=sudo; (( EUID == 0 )) && SUDO=
 
 die() { echo "tamagi-layer: $*" >&2; exit 1; }
 usage() {
-    echo "tamagi-layer — $(t "pacotes do Fedora por cima da imagem (systemd-sysext)")"
+    echo "tamagi-layer — $(t "Fedora packages layered over the image (systemd-sysext)")"
     echo
-    echo "  tamagi-layer add <nome> <pacote>…    $(t "cria a camada e a liga (pede senha)")"
-    echo "  tamagi-layer remove <nome>           $(t "desliga e apaga a camada")"
-    echo "  tamagi-layer list                    $(t "camadas, pacotes e estado")"
-    echo "  tamagi-layer rebuild [nome]          $(t "refaz as camadas contra a imagem atual")"
-    echo "  tamagi-layer off | on                $(t "desliga / religa todas (sem apagar)")"
-    echo "  tamagi-layer temp                    $(t "/usr gravável até o próximo reinício")"
-    echo "  tamagi-layer build <nome> <pacote>…  $(t "só gera o arquivo (-o <arquivo>), sem instalar")"
-    echo "  --copr dono/projeto   --rpmfusion   --allow-upgrade"
+    echo "  tamagi-layer add <nome> <pacote>…    $(t "create and enable the layer (needs password)")"
+    echo "  tamagi-layer remove <nome>           $(t "disable and delete the layer")"
+    echo "  tamagi-layer list                    $(t "layers, packages, and status")"
+    echo "  tamagi-layer rebuild [nome]          $(t "rebuild layers against the current image")"
+    echo "  tamagi-layer off | on                $(t "disable / re-enable all layers (without deleting)")"
+    echo "  tamagi-layer temp                    $(t "writable /usr until next reboot")"
+    echo "  tamagi-layer build <nome> <pacote>…  $(t "only build the file (-o <file>), without installing")"
+    echo "  --copr owner/project   --rpmfusion   --allow-upgrade"
+    echo "  --repo id=baseurl[=gpgkey-url]       $(t "extra RPM repository (e.g. Google Chrome's)")"
+    echo "  --unit name.socket                   $(t "systemd unit the layer starts at every boot")"
     exit "${1:-0}"
 }
 
 # shellcheck disable=SC1091
 os() { ( . /usr/lib/os-release; echo "${!1:-}" ); }
 image_version() { local v; v=$(os IMAGE_VERSION); echo "${v:-$(os OSTREE_VERSION)}"; }
-valid_name() { [[ $1 =~ ^[a-z][a-z0-9-]{0,39}$ ]] || die "$(t "nome inválido"): '$1'"; }
+valid_name() { [[ $1 =~ ^[a-z][a-z0-9-]{0,39}$ ]] || die "$(t "invalid name"): '$1'"; }
 names() { local f; for f in "$EXT"/*.raw "$OFF"/*.raw; do [[ -e $f ]] && basename "$f" .raw; done | sort -u; }
 meta() { cat "$META/$1.$2" 2>/dev/null || true; }
 
 build_layer() {
     local name=$1 out=$2 work
-    command -v mkfs.erofs >/dev/null || die "$(t "falta o mkfs.erofs (pacote erofs-utils)")"
+    command -v mkfs.erofs >/dev/null || die "$(t "mkfs.erofs missing (erofs-utils package)")"
     mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/tamagi"
     work=$(mktemp -d "${XDG_CACHE_HOME:-$HOME/.cache}/tamagi/layer.XXXXXX")
     # shellcheck disable=SC2064
@@ -40,12 +42,13 @@ build_layer() {
     printf '%s\n' "${PKGS[@]}" > "$work/request"
     printf '%s\n' "${COPRS[@]}" > "$work/coprs"
     printf '%s\n' "$RPMFUSION" > "$work/rpmfusion"
+    printf '%s\n' "${REPOS[@]}" > "$work/repos"
 
     local msg_already msg_upgraded msg_upgrade_hint msg_nousr
-    msg_already=$(t "nada a fazer: tudo isso já está na imagem")
-    msg_upgraded=$(t "estes pacotes da imagem seriam atualizados pela camada:")
-    msg_upgrade_hint=$(t "atualize o sistema primeiro (tamagi-update) ou repita com --allow-upgrade")
-    msg_nousr=$(t "os pacotes não instalam nada em /usr")
+    msg_already=$(t "nothing to do: all requested packages are already in the image")
+    msg_upgraded=$(t "these base image packages would be upgraded by the layer:")
+    msg_upgrade_hint=$(t "update the system first (tamagi-update) or retry with --allow-upgrade")
+    msg_nousr=$(t "packages install nothing into /usr")
 
     cat > "$work/inner.sh" <<'INNER'
 set -euo pipefail
@@ -68,6 +71,12 @@ while read -r copr; do
     repo+=("--repofrompath=$id,$base/fedora-$ver-$arch/"
            "--setopt=$id.gpgcheck=1" "--setopt=$id.gpgkey=$base/pubkey.gpg")
 done < "$work/coprs"
+while IFS='=' read -r id base key; do
+    [[ -n $id && -n $base ]] || continue
+    base=${base//\$basearch/$arch}
+    repo+=("--repofrompath=$id,$base")
+    if [[ -n $key ]]; then repo+=("--setopt=$id.gpgcheck=1" "--setopt=$id.gpgkey=$key"); else repo+=("--setopt=$id.gpgcheck=0"); fi
+done < "$work/repos"
 if [[ $(cat "$work/rpmfusion" 2>/dev/null || echo 0) == 1 ]]; then
     repo+=(
         "--repofrompath=rpmfusion-free,https://download1.rpmfusion.org/free/fedora/releases/$ver/Everything/$arch/os/"
@@ -107,7 +116,18 @@ if [[ -d $R/etc ]]; then
     tar -C "$R" -cf "$work/etc.tar" etc
 fi
 rm -rf "$R$dbpath" "$R/usr/lib/sysimage" "$R/var" "$R/etc" "$R/run" "$R/tmp" "$R/dev" "$R/proc" "$R/sys"
-find "$R" -mindepth 1 -maxdepth 1 ! -name usr ! -name opt -exec rm -rf {} +
+# /opt is a link to /var/opt on this system (state, not image): packages that
+# install there (Chrome, Vivaldi) go to /usr/lib/opt, and a tmpfiles line puts
+# the /opt/<name> link back — the same thing rpm-ostree does.
+if [[ -d $R/opt ]] && compgen -G "$R/opt/*" >/dev/null; then
+    mkdir -p "$R/usr/lib/opt" "$R/usr/lib/tmpfiles.d"
+    for d in "$R"/opt/*; do
+        n=$(basename "$d")
+        mv "$d" "$R/usr/lib/opt/$n"
+        printf 'L+ /opt/%s - - - - /usr/lib/opt/%s\n' "$n" "$n" >> "$R/usr/lib/tmpfiles.d/tamagi-layer-$name.conf"
+    done
+fi
+find "$R" -mindepth 1 -maxdepth 1 ! -name usr -exec rm -rf {} +
 [[ -d $R/usr ]] || { echo "$MSG_NOUSR" >&2; exit 5; }
 
 mkdir -p "$R/usr/lib/extension-release.d" "$R/usr/share/tamagi/layers"
@@ -141,34 +161,40 @@ INNER
 }
 
 parse_build_args() {
-    NAME="" PKGS=() COPRS=() ALLOW_UPGRADE=0 RPMFUSION=0 OUT=""
+    NAME="" PKGS=() COPRS=() REPOS=() UNITS=() ALLOW_UPGRADE=0 RPMFUSION=0 OUT=""
     while (( $# )); do
         case "$1" in
             --copr)          [[ ${2:-} =~ ^[A-Za-z0-9@_.-]+/[A-Za-z0-9_.-]+$ ]] || die "--copr dono/projeto"
                              COPRS+=("$2"); shift ;;
             --rpmfusion)     RPMFUSION=1 ;;
+            --repo)          [[ ${2:-} =~ ^[a-z][a-z0-9-]*=https://[^=[:space:]]+(=https://[^=[:space:]]+)?$ ]] || die "--repo id=https://baseurl[=https://gpgkey]"
+                             REPOS+=("$2"); shift ;;
+            --unit)          [[ ${2:-} =~ ^[A-Za-z0-9@_.-]+\.(service|socket|timer|path)$ ]] || die "--unit name.service|socket|timer|path"
+                             UNITS+=("$2"); shift ;;
             --allow-upgrade) ALLOW_UPGRADE=1 ;;
             -o)              OUT=${2:?-o <arquivo>}; shift ;;
-            -*)              die "$(t "opção desconhecida"): $1" ;;
+            -*)              die "$(t "unknown option"): $1" ;;
             *)               if [[ -z $NAME ]]; then NAME=$1; else PKGS+=("$1"); fi ;;
         esac
         shift
     done
     [[ -n $NAME ]] || usage 2
     valid_name "$NAME"
-    (( ${#PKGS[@]} )) || die "$(t "diga pelo menos um pacote")"
-    local p; for p in "${PKGS[@]}"; do [[ $p =~ ^[A-Za-z0-9@][A-Za-z0-9+._:@/-]*$ ]] || die "$(t "pacote inválido"): $p"; done
+    (( ${#PKGS[@]} )) || die "$(t "specify at least one package")"
+    local p; for p in "${PKGS[@]}"; do [[ $p =~ ^[A-Za-z0-9@][A-Za-z0-9+._:@/-]*$ ]] || die "$(t "invalid package"): $p"; done
 }
 
 install_layer() {
     local name=$1 raw=$2
-    echo "$(t "Ligando a camada") '$name' ($(t "pede senha"))…"
+    echo "$(t "Enabling layer") '$name' ($(t "needs password"))…"
     $SUDO install -d -m 755 "$EXT" "$META"
     $SUDO install -m 644 "$raw" "$EXT/$name.raw"
     $SUDO rm -f "$OFF/$name.raw"
     printf '%s\n' "${PKGS[@]}"  | $SUDO install -m 644 /dev/stdin "$META/$name.request"
     printf '%s\n' "${COPRS[@]}" | $SUDO install -m 644 /dev/stdin "$META/$name.coprs"
     printf '%s\n' "$RPMFUSION"  | $SUDO install -m 644 /dev/stdin "$META/$name.rpmfusion"
+    printf '%s\n' "${REPOS[@]}" | $SUDO install -m 644 /dev/stdin "$META/$name.repos"
+    printf '%s\n' "${UNITS[@]}" | $SUDO install -m 644 /dev/stdin "$META/$name.units"
     echo "$BUILT_PACKAGES"      | $SUDO install -m 644 /dev/stdin "$META/$name.packages"
     image_version               | $SUDO install -m 644 /dev/stdin "$META/$name.image"
     if [[ -n $BUILT_ETC ]]; then
@@ -182,8 +208,25 @@ install_layer() {
 refresh() {
     command -v restorecon >/dev/null && $SUDO restorecon -R "$EXT" 2>/dev/null || true
     $SUDO systemd-sysext refresh
+    settle
+}
+
+# What the packages' scriptlets would have done (the layer installs without
+# them): users and groups, folders in /var and /opt links, library cache,
+# udev rules — and the units each layer asked for (--unit).
+settle() {
     command -v ldconfig >/dev/null && $SUDO ldconfig 2>/dev/null || true
+    $SUDO systemd-sysusers 2>/dev/null || true
+    $SUDO systemd-tmpfiles --create 2>/dev/null || true
     $SUDO systemctl daemon-reload 2>/dev/null || true
+    $SUDO udevadm control --reload 2>/dev/null || true
+    local f unit
+    for f in "$META"/*.units; do
+        [[ -e $f && -e $EXT/$(basename "$f" .units).raw ]] || continue
+        while read -r unit; do
+            [[ -n $unit ]] && { $SUDO systemctl start --no-block "$unit" 2>/dev/null || true; }
+        done < "$f"
+    done
 }
 
 cmd_add() {
@@ -192,25 +235,29 @@ cmd_add() {
     build_layer "$NAME" "$tmp/$NAME.raw"
     install_layer "$NAME" "$tmp/$NAME.raw"
     rm -rf "$tmp"
-    echo "$(t "Camada ligada"): '$NAME' ($(wc -l <<<"$BUILT_PACKAGES") $(t "pacote(s)"), $(image_version))."
-    echo "$(t "Para desfazer"): tamagi-layer remove $NAME"
+    echo "$(t "Layer enabled"): '$NAME' ($(wc -l <<<"$BUILT_PACKAGES") $(t "package(s)"), $(image_version))."
+    echo "$(t "To undo"): tamagi-layer remove $NAME"
 }
 
 cmd_build() {
     parse_build_args "$@"
     OUT=${OUT:-$PWD/$NAME.raw}
     build_layer "$NAME" "$OUT"
-    echo "$(t "Gerado"): $OUT ($(wc -l <<<"$BUILT_PACKAGES") $(t "pacote(s)"))"
-    [[ -z $BUILT_ETC ]] || echo "$(t "Arquivos de /etc dos pacotes"): $BUILT_ETC"
+    echo "$(t "Generated"): $OUT ($(wc -l <<<"$BUILT_PACKAGES") $(t "package(s)"))"
+    [[ -z $BUILT_ETC ]] || echo "$(t "Package /etc files"): $BUILT_ETC"
 }
 
 cmd_remove() {
-    local name=${1:?$(t "uso"): tamagi-layer remove <nome>}
+    local name=${1:?$(t "usage"): tamagi-layer remove <nome>}
     valid_name "$name"
-    [[ -e $EXT/$name.raw || -e $OFF/$name.raw ]] || die "$(t "não existe a camada") '$name'"
-    $SUDO rm -f "$EXT/$name.raw" "$OFF/$name.raw" "$META/$name".{request,coprs,rpmfusion,packages,image}
+    [[ -e $EXT/$name.raw || -e $OFF/$name.raw ]] || die "$(t "layer does not exist") '$name'"
+    local unit
+    while read -r unit; do
+        [[ -n $unit ]] && { $SUDO systemctl stop "$unit" 2>/dev/null || true; }
+    done < <(meta "$name" units)
+    $SUDO rm -f "$EXT/$name.raw" "$OFF/$name.raw" "$META/$name".{request,coprs,rpmfusion,repos,units,packages,image}
     refresh
-    echo "$(t "Camada removida"): '$name'."
+    echo "$(t "Layer removed"): '$name'."
 }
 
 state_of() {
@@ -226,7 +273,7 @@ cmd_list() {
         st=$(state_of "$name")
         printf '%-20s %-14s %s\n' "$name" "$(t "$st")" "$(meta "$name" request | tr '\n' ' ')"
     done
-    (( found )) || echo "$(t "Nenhuma camada. Exemplo"): tamagi-layer add ferramentas strace ltrace"
+    (( found )) || echo "$(t "No layers yet. Example"): tamagi-layer add ferramentas strace ltrace"
 }
 
 cmd_rebuild() {
@@ -235,13 +282,14 @@ cmd_rebuild() {
         [[ -z $only || $only == "$name" ]] || continue
         [[ -e $EXT/$name.raw ]] || continue
         mapfile -t PKGS < <(meta "$name" request); mapfile -t COPRS < <(meta "$name" coprs | grep . || true)
+        mapfile -t REPOS < <(meta "$name" repos | grep . || true); mapfile -t UNITS < <(meta "$name" units | grep . || true)
         RPMFUSION=$(meta "$name" rpmfusion); RPMFUSION=${RPMFUSION:-0}
-        (( ${#PKGS[@]} )) || { echo "$(t "camada") '$name': $(t "sem a lista de pacotes, não dá para refazer")" >&2; rc=1; continue; }
+        (( ${#PKGS[@]} )) || { echo "$(t "layer") '$name': $(t "missing package list, cannot rebuild")" >&2; rc=1; continue; }
         ALLOW_UPGRADE=0
-        echo "── $(t "Refazendo a camada") '$name' ($(image_version))"
+        echo "── $(t "Rebuilding layer") '$name' ($(image_version))"
         tmp=$(mktemp -d)
         if ( build_layer "$name" "$tmp/$name.raw"; install_layer "$name" "$tmp/$name.raw" ); then :; else
-            echo "$(t "camada") '$name': $(t "não consegui refazer; ela continua como estava")" >&2; rc=1
+            echo "$(t "layer") '$name': $(t "could not rebuild; kept previous version")" >&2; rc=1
         fi
         rm -rf "$tmp"
     done
@@ -255,36 +303,37 @@ cmd_stale() {
 }
 
 cmd_off() {
-    compgen -G "$EXT/*.raw" >/dev/null || { tl "Nenhuma camada ligada."; return 0; }
+    compgen -G "$EXT/*.raw" >/dev/null || { tl "No active layers."; return 0; }
     $SUDO install -d -m 755 "$OFF"
     $SUDO sh -c "mv '$EXT'/*.raw '$OFF'/"
     refresh
-    echo "$(t "Camadas desligadas. Para religar"): tamagi-layer on"
+    echo "$(t "Layers disabled. To re-enable"): tamagi-layer on"
 }
 
 cmd_on() {
-    compgen -G "$OFF/*.raw" >/dev/null || { tl "Nenhuma camada desligada."; return 0; }
+    compgen -G "$OFF/*.raw" >/dev/null || { tl "No disabled layers."; return 0; }
     $SUDO install -d -m 755 "$EXT"
     $SUDO sh -c "mv '$OFF'/*.raw '$EXT'/"
     refresh
-    tl "Camadas religadas."
+    tl "Layers re-enabled."
 }
 
 cmd_temp() {
-    tl "O /usr fica gravável até o próximo reinício; tudo o que mudar some ao reiniciar."
+    tl "/usr is writable until the next reboot; all changes vanish on reboot."
     exec $SUDO bootc usr-overlay
 }
 
 case "${1:-}" in
-    add|adicionar)   shift; cmd_add "$@" ;;
-    build|construir) shift; cmd_build "$@" ;;
-    remove|rm|remover) shift; cmd_remove "$@" ;;
-    list|ls|lista)   cmd_list ;;
-    rebuild|refazer) shift; cmd_rebuild "$@" ;;
+    add)   shift; cmd_add "$@" ;;
+    build) shift; cmd_build "$@" ;;
+    remove|rm) shift; cmd_remove "$@" ;;
+    list|ls)   cmd_list ;;
+    rebuild) shift; cmd_rebuild "$@" ;;
     stale)           cmd_stale ;;
-    off|desligar)    cmd_off ;;
-    on|ligar)        cmd_on ;;
+    off)    cmd_off ;;
+    on)        cmd_on ;;
     temp)            cmd_temp ;;
-    -h|--help|help|ajuda) usage 0 ;;
+    boot)            settle ;;   # tamagi-layer-units.service, after systemd-sysext at boot
+    -h|--help|help) usage 0 ;;
     *)               usage 2 ;;
 esac

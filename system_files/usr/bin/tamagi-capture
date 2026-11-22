@@ -1,17 +1,17 @@
 #!/usr/bin/python3
-"""tamagi-capture — captura de tela, OCR e gravação (o menu de captura do Omarchy).
+"""tamagi-capture — screenshot, OCR and screen recording.
 
-  tamagi-capture                 menu
-  tamagi-capture tela            captura de tela (a do COSMIC)
-  tamagi-capture texto           seleciona uma área e copia o TEXTO dela (OCR)
-  tamagi-capture gravar          começa a gravar a tela; de novo, para
-  tamagi-capture parar           para a gravação
+  tamagi capture                 menu
+  tamagi capture screenshot      screenshot (COSMIC's own)
+  tamagi capture text            select an area and copy its TEXT (OCR)
+  tamagi capture record          starts recording the screen; again, stops
+  tamagi capture stop            stops the recording
 
-Atalhos: Print captura, Shift+Print copia texto, Alt+Print grava/para.
-O OCR usa o Tesseract (português, inglês, espanhol e francês) e a seleção de
-área do próprio COSMIC (portal de captura). A gravação usa o GPU Screen
-Recorder (Flatpak, instalado no primeiro uso) pelo portal de compartilhamento
-de tela: codifica na GPU e salva em ~/Vídeos/Gravações.
+Shortcuts: Print takes a screenshot, Shift+Print copies text, Alt+Print
+records/stops. OCR uses Tesseract (Portuguese, English, Spanish and French)
+and COSMIC's own area selection (screenshot portal). Recording uses GPU Screen
+Recorder (Flatpak, installed on first use) through the screen-sharing portal:
+it encodes on the GPU and saves to the Videos folder.
 """
 import datetime
 import os
@@ -41,7 +41,7 @@ MSG = {
     "no_text": ("Nenhum texto encontrado na área", "No text found in the area"),
     "cancel": ("Captura cancelada", "Capture cancelled"),
     "rec_on": ("Gravando a tela", "Recording the screen"),
-    "rec_on_body": ("Alt+Print (ou tamagi-capture parar) para parar", "Alt+Print (or tamagi-capture stop) to stop"),
+    "rec_on_body": ("Alt+Print (ou tamagi-capture stop) para parar", "Alt+Print (or tamagi-capture stop) to stop"),
     "rec_off": ("Gravação salva", "Recording saved"),
     "installing": ("Instalando o GPU Screen Recorder…", "Installing GPU Screen Recorder…"),
     "menu_shot": ("Captura de tela", "Screenshot"),
@@ -193,8 +193,8 @@ def stop():
 
 def menu():
     rec = recording_pid()
-    opts = [("tela", tr("menu_shot")), ("texto", tr("menu_ocr")),
-            ("parar" if rec else "gravar", tr("menu_stop") if rec else tr("menu_rec"))]
+    opts = [("screenshot", tr("menu_shot")), ("text", tr("menu_ocr")),
+            ("stop" if rec else "record", tr("menu_stop") if rec else tr("menu_rec"))]
     if shutil.which("gum") and sys.stdin.isatty():
         r = subprocess.run(["gum", "choose"] + [label for _, label in opts],
                            stdout=subprocess.PIPE, text=True, check=False)
@@ -202,23 +202,23 @@ def menu():
     else:
         choice = None
         for k, label in opts:
-            print(f"  tamagi-capture {k:7} {label}")
+            print(f"  tamagi-capture {k:10} {label}")
     return run(choice) if choice else 0
 
 
 def run(cmd):
-    if cmd in ("tela", "screenshot"):
+    if cmd in ("screenshot",):
         return subprocess.run(["cosmic-screenshot"], check=False).returncode
-    if cmd in ("texto", "text", "ocr"):
+    if cmd in ("text", "ocr"):
         return text()
-    if cmd in ("gravar", "record"):
+    if cmd in ("record",):
         return record()
-    if cmd in ("parar", "stop"):
+    if cmd in ("stop",):
         return stop()
     if cmd in (None, "menu"):
         return menu()
     print(__doc__)
-    return 0 if cmd in ("-h", "--help", "ajuda") else 2
+    return 0 if cmd in ("-h", "--help", "help") else 2
 
 
 if __name__ == "__main__":

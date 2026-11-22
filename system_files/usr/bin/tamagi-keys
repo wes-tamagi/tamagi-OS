@@ -4,7 +4,7 @@
 file=$(tfile /usr/share/tamagi/keys.txt)
 if [[ -t 1 ]]; then
     gum style --border rounded --padding "0 2" --border-foreground 4 "$(cat "$file")"
-    read -rsn1 -p "  ($(t "qualquer tecla fecha"))"
+    read -rsn1 -p "  ($(t "press any key to close"))"
 else
     cat "$file"
 fi

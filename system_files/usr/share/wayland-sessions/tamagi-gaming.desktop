@@ -1,0 +1,15 @@
+[Desktop Entry]
+Name=Tamagi Gaming (gamescope + HDR)
+Name[pt_BR]=Tamagi Jogos (gamescope + HDR)
+Name[pt]=Tamagi Jogos (gamescope + HDR)
+Name[es]=Tamagi Juegos (gamescope + HDR)
+Name[fr]=Tamagi Jeux (gamescope + HDR)
+Comment=Steam Big Picture in gamescope, straight on the display, with HDR and adaptive sync
+Comment[pt_BR]=Steam Big Picture no gamescope, direto no vídeo, com HDR e sincronia adaptativa
+Comment[pt]=Steam Big Picture no gamescope, direto no vídeo, com HDR e sincronia adaptativa
+Comment[es]=Steam Big Picture en gamescope, directo a la pantalla, con HDR y sincronización adaptativa
+Comment[fr]=Steam Big Picture dans gamescope, directement sur l'écran, avec HDR et synchronisation adaptative
+Exec=/usr/libexec/tamagi/gamescope-session
+TryExec=gamescope
+Type=Application
+DesktopNames=gamescope

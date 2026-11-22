@@ -1,0 +1,67 @@
+#!/usr/bin/bash
+# tamagi-vm — virtual machines with virt-manager, native and on demand.
+#
+# virt-manager, libvirt and QEMU/KVM do not ship in the image. This installs
+# the Fedora RPMs natively (not Flatpak) in a reversible layer over /usr
+# (tamagi-layer), with everything: UEFI and Secure Boot firmware, virtual TPM
+# (Windows 11), 3D acceleration in the guest (virgl), SPICE (clipboard, sound,
+# USB redirection), shared folders (virtiofs), the default NAT network,
+# rootless networking (passt), VM names in DNS (libvirt-nss) and the image
+# tools (guestfs-tools). The libvirt daemons start by socket, only when used.
+#
+#   tamagi vm             opens virt-manager (installs the first time)
+#   tamagi vm install     installs the virtualization layer (asks for the password)
+#   tamagi vm status
+#   tamagi vm remove      removes the layer (your VMs and disks stay)
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+LAYER=virt
+# The complete stack, as a desktop distro would ship it built in.
+PKGS=(
+    virt-manager virt-viewer virt-install virt-top            # the app, the console and the CLI tools
+    libvirt-daemon-kvm libvirt-client libvirt-dbus            # libvirt for KVM (virsh included)
+    libvirt-daemon-config-network libvirt-daemon-config-nwfilter dnsmasq   # default NAT network and filters
+    libvirt-nss                                               # reach VMs by name (ssh my-vm)
+    qemu-kvm qemu-img                                         # QEMU/KVM and disk images
+    qemu-device-display-virtio-gpu-gl qemu-device-display-virtio-vga-gl qemu-ui-opengl virglrenderer   # 3D in the guest
+    qemu-ui-spice-core qemu-audio-spice qemu-char-spice qemu-device-usb-redirect   # SPICE: clipboard, sound, USB
+    edk2-ovmf swtpm swtpm-tools                               # UEFI, Secure Boot and virtual TPM (Windows 11)
+    virtiofsd                                                 # shared folders
+    passt                                                     # networking for VMs without root (session)
+    guestfs-tools                                             # virt-customize, virt-sysprep, virt-sparsify
+)
+UNITS=(virtqemud.socket virtnetworkd.socket virtstoraged.socket virtnodedevd.socket
+       virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket virtlogd.socket)
+
+installed() { command -v virt-manager >/dev/null 2>&1; }
+
+install_vm() {
+    if installed; then echo "$(t "virt-manager is already installed.")"; return 0; fi
+    grep -qE 'vmx|svm' /proc/cpuinfo || echo "$(t "warning: virtualization (VT-x/AMD-V) seems to be disabled in the firmware; VMs will be slow.")" >&2
+    echo -e "\033[1m$(t "Installing virt-manager, libvirt and QEMU/KVM natively (layer 'virt')…")\033[0m"
+    local args=() u
+    for u in "${UNITS[@]}"; do args+=(--unit "$u"); done
+    tamagi-layer add "$LAYER" "${args[@]}" "${PKGS[@]}"
+    echo "$(t "Done. Open it with"): tamagi vm"
+}
+
+case "${1:-open}" in
+    open)
+        if ! installed; then
+            [[ -t 0 ]] || exec /usr/libexec/tamagi/popup "$0" install
+            install_vm
+        fi
+        setsid -f virt-manager >/dev/null 2>&1 ;;
+    install) install_vm ;;
+    status)
+        if installed; then
+            echo "virt-manager: $(t "installed") ($(rpm -q --qf '%{VERSION}' virt-manager 2>/dev/null || echo "$LAYER"))"
+            echo "KVM: $([[ -e /dev/kvm ]] && t "yes" || t "no")"
+        else
+            echo "virt-manager: $(t "not installed") (tamagi vm install)"
+        fi ;;
+    remove) tamagi-layer remove "$LAYER" ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) echo "usage: tamagi vm [open|install|status|remove]" >&2; exit 2 ;;
+esac

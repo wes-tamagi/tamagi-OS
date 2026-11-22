@@ -15,13 +15,16 @@ systemctl set-default graphical.target
 # quem aparece é o assistente do Tamagi; o do COSMIC continua no lançador.
 rm -f /etc/xdg/autostart/com.system76.CosmicInitialSetup.desktop
 
-# ── Papéis de parede: cinco estilos por tema, gerados das cores do .conf ──
-# (o brasão "mon" é o padrão; tamagi-theme wallpaper troca o estilo)
-python3 /ctx/build_files/make-wallpapers.py /usr/share/tamagi/themes \
-    /usr/share/backgrounds/tamagi /usr/share/tamagi/wallpapers.xml
-# O cosmic-bg recebe PNG.
-for svg in /usr/share/backgrounds/tamagi/*.svg; do
-    rsvg-convert -w 3840 "$svg" -o "${svg%.svg}.png"
+# ── Papéis de parede: aparecem em Configurações › Papel de parede ──
+# Oito estilos por tema, desenhados a partir das cores do .conf. Só os PNG
+# vão para /usr/share/backgrounds/tamagi, a pasta que o COSMIC lista: o
+# usuário escolhe o papel de parede do jeito normal, nas Configurações.
+WALL_SVG=/tmp/tamagi-wallpapers
+python3 /ctx/build_files/make-wallpapers.py /usr/share/tamagi/themes "$WALL_SVG" /tmp/tamagi-wallpapers.xml
+mkdir -p /usr/share/backgrounds/tamagi
+for svg in "$WALL_SVG"/*.svg; do
+    python3 -c 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])' "$svg"
+    rsvg-convert -w 3840 "$svg" -o "/usr/share/backgrounds/tamagi/$(basename "${svg%.svg}").png"
 done
 cat > "$C/com.system76.CosmicBackground/v1/all" <<'RON'
 (
@@ -35,11 +38,36 @@ cat > "$C/com.system76.CosmicBackground/v1/all" <<'RON'
 )
 RON
 
-# ── Um tema do COSMIC para cada tema do Tamagi (tamagi-theme importa) ──
+# ── Temas: um tema do COSMIC para cada tema do Tamagi ──
+# Ficam em /usr/share/cosmic-themes, junto dos temas do próprio COSMIC, cada
+# um com a sua miniatura: é dali que o COSMIC os oferece (escolha de tema) e
+# que Configurações › Aparência › Importar os lê. O `tamagi theme sync` leva
+# as cores do tema escolhido no COSMIC para os apps de terminal.
 python3 /ctx/build_files/make-cosmic-themes.py /usr/share/tamagi/themes /usr/share/cosmic-themes
 n_conf=$(find /usr/share/tamagi/themes -name '*.conf' | wc -l)
 [[ $(find /usr/share/cosmic-themes -name 'tamagi-*.ron' | wc -l) -eq $n_conf ]] \
     || { echo "faltou gerar tema do COSMIC para algum tema do Tamagi" >&2; exit 1; }
+for conf in /usr/share/tamagi/themes/*.conf; do
+    name=$(basename "$conf" .conf)
+    rsvg-convert -w 768 -h 432 "$WALL_SVG/$name-mon.svg" -o "/usr/share/cosmic-themes/tamagi-$name.png"
+done
+# O tema padrão da imagem é o Tokyo Night do Tamagi, também para o COSMIC
+# (janelas, barra e apps): o import escreve o tema completo numa pasta
+# temporária, que vira o padrão do sistema. O que o usuário escolher depois
+# fica em ~/.config/cosmic e tem prioridade.
+THEME_TMP=$(mktemp -d)
+if XDG_CONFIG_HOME="$THEME_TMP" HOME="$THEME_TMP" timeout 60 \
+        cosmic-settings appearance import /usr/share/cosmic-themes/tamagi-tokyo-night.ron >/dev/null 2>&1 \
+        && compgen -G "$THEME_TMP/cosmic/com.system76.CosmicTheme.Dark.Builder/v*/bg_color" >/dev/null; then
+    for d in "$THEME_TMP"/cosmic/com.system76.CosmicTheme.*; do
+        [[ -n $(find "$d" -type f -print -quit) ]] || continue
+        mkdir -p "$C/$(basename "$d")"
+        cp -a "$d/." "$C/$(basename "$d")/"
+    done
+    echo "tema padrão do COSMIC: Tamagi Tokyo Night"
+else
+    echo "aviso: não deu para gravar o tema padrão do COSMIC (o cosmic-settings mudou?); fica o tema do COSMIC" >&2
+fi
 
 # ── Janelas ──
 # Tiling automático ligado em todos os workspaces (Super+Y alterna).
@@ -58,7 +86,7 @@ cat > "$C/com.system76.CosmicComp/v1/xkb_config" <<'RON'
 )
 RON
 # Janelas utilitárias do Tamagi (menu, ações rápidas, agente) abrem flutuando:
-# o popup usa o alacritty com a classe "tamagi-popup".
+# o popup usa o foot com o app id "tamagi-popup".
 rules="$C/com.system76.CosmicSettings.WindowRules/v1/tiling_exception_defaults"
 python3 - "$rules" <<'PY'
 import sys
@@ -70,7 +98,8 @@ open(path, "w", encoding="utf-8").write(text)
 PY
 
 # Paleta padrão das janelas do Tamagi (o tamagi-theme gera a do usuário).
-tamagi-theme alacritty tokyo-night > /usr/share/tamagi/alacritty.toml
+tamagi-theme foot tokyo-night > /usr/share/tamagi/foot.ini
+foot --config=/usr/share/tamagi/foot.ini --check-config >/dev/null || { echo "foot.ini das janelas do Tamagi é inválido" >&2; exit 1; }
 
 # ── Terminal padrão: foot (o cosmic-term continua instalado, no lançador) ──
 # Configuração do sistema com a fonte e as cores do tema padrão; o
@@ -168,11 +197,11 @@ grep -aq focused_menu /usr/bin/cosmic-ext-classic-menu-applet \
     || { echo "o applet do menu não conhece focused_menu (versão antiga?)" >&2; exit 1; }
 cat > "$M/favorite_applications" <<'RON'
 [
-    "google-chrome",
+    "tamagi-browser",
     "com.system76.CosmicFiles",
     "foot",
-    "claude-code",
     "tamagi-agent",
+    "tamagi-menu",
     "com.system76.CosmicSettings",
 ]
 RON
@@ -181,17 +210,18 @@ RON
 mkdir -p "$C/com.system76.CosmicAppletTime/v1"
 echo true > "$C/com.system76.CosmicAppletTime/v1/military_time"
 
-# Seis favoritos: é o que cabe à vista numa tela de 1280 px; com mais, os
-# últimos somem atrás da seta. Loja e Configurações ficam no lançador.
-# ── Dock: o navegador é o Chrome da caixa (google-chrome.desktop do Tamagi) ──
+# Poucos favoritos: a imagem é enxuta, e o foco é IA (o agente local fica à
+# mão). "tamagi-browser" é o navegador
+# genérico: abre o navegador padrão e, enquanto não há nenhum, deixa escolher
+# um; o primeiro instalado toma o lugar dele na barra (tamagi-browser).
 cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
 [
-    "google-chrome",
+    "tamagi-browser",
     "com.system76.CosmicFiles",
     "foot",
-    "claude-code",
     "tamagi-agent",
     "com.system76.CosmicEdit",
+    "com.system76.CosmicSettings",
 ]
 RON
 
@@ -206,30 +236,31 @@ popup = "/usr/libexec/tamagi/popup"
 ours = [
     ("[Super]", "Return", "System(Terminal)"),
     ("[Super]", "w", "Close"),
-    ("[Super]", "space", 'Spawn("tamagi-menu")'),
+    # Super+Espaço: o menu iniciar da barra (o botão do Tamagi).
+    ("[Super]", "space", 'Spawn("/usr/libexec/tamagi/start-menu")'),
     ("[Super, Ctrl]", "space", "System(InputSourceSwitch)"),
     ("[Super]", "b", "System(WebBrowser)"),
     ("[Super]", "e", "System(HomeFolder)"),
     ("[Super]", "f", "Fullscreen"),
     ("[Super]", "t", "ToggleWindowFloating"),
-    ("[Super]", "a", f'Spawn("{popup} tamagi-assist")'),
+    # Super+A: a paleta de comandos (ações do Tamagi, instalar, configurar).
+    ("[Super]", "a", 'Spawn("tamagi-menu")'),
     ("[Super, Alt]", "space", "System(Launcher)"),
     ("[Super, Shift]", "a", f'Spawn("{popup} tamagi-agent")'),
     ("[Super]", "k", f'Spawn("{popup} tamagi-keys")'),
     ("[Super, Shift]", "t", f'Spawn("{popup} btop")'),
     ("[Super, Shift]", "n", f'Spawn("{popup} --tile nvim")'),
-    ("[Super, Shift, Ctrl]", "space", 'Spawn("tamagi-theme next")'),
     # Do Omarchy: captura, apps com Super+Shift+letra, emoji e lembrete.
-    ("[Shift]", "Print", 'Spawn("tamagi-capture texto")'),
-    ("[Alt]", "Print", 'Spawn("tamagi-capture gravar")'),
+    ("[Shift]", "Print", 'Spawn("tamagi-capture text")'),
+    ("[Alt]", "Print", 'Spawn("tamagi-capture record")'),
     ("[Super, Shift]", "g", f'Spawn("{popup} --tile lazygit")'),
     ("[Super, Shift]", "d", f'Spawn("{popup} tamagi-db")'),
-    ("[Super, Shift]", "o", f'Spawn("sh -c \'if flatpak info org.onlyoffice.desktopeditors >/dev/null 2>&1; then exec flatpak run org.onlyoffice.desktopeditors; else exec {popup} bash -c \\\"(flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo) && flatpak install --user -y flathub org.onlyoffice.desktopeditors && setsid -f flatpak run org.onlyoffice.desktopeditors >/dev/null 2>&1\\\"; fi\'")'),
-    ("[Super, Shift]", "m", 'Spawn("flatpak run io.missioncenter.MissionCenter")'),
-    ("[Super, Shift]", "w", 'Spawn("tamagi-windows abrir")'),
+    ("[Super, Shift]", "o", 'Spawn("/usr/libexec/tamagi/open-or-install org.onlyoffice.desktopeditors")'),
+    ("[Super, Shift]", "m", 'Spawn("/usr/libexec/tamagi/open-or-install io.missioncenter.MissionCenter")'),
+    ("[Super, Shift]", "w", 'Spawn("tamagi-windows open")'),
     ("[Super, Ctrl]", "e", 'Spawn("/usr/libexec/tamagi/emoji")'),
-    ("[Super, Ctrl]", "r", f'Spawn("{popup} tamagi-lembrete")'),
-    ("[Super, Ctrl]", "p", 'Spawn("tamagi-privacidade")'),
+    ("[Super, Ctrl]", "r", f'Spawn("{popup} tamagi-remind")'),
+    ("[Super, Ctrl]", "p", 'Spawn("tamagi-privacy")'),
 ]
 
 def norm(mods):
@@ -252,10 +283,9 @@ print(f"atalhos do COSMIC: {len(ours)} do Tamagi aplicados")
 PY
 
 # Terminal para apps de terminal (.desktop com Terminal=true) e `xdg-terminal-exec`:
-# o foot primeiro (é o padrão), depois os outros dois.
+# o foot primeiro (é o padrão), depois o cosmic-term.
 install -Dm644 /dev/stdin /etc/xdg/xdg-terminals.list <<'LIST'
 foot.desktop
-Alacritty.desktop
 com.system76.CosmicTerm.desktop
 LIST
 # O foot instala também o modo servidor (foot-server/footclient); no lançador
@@ -267,7 +297,7 @@ done
 
 gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 
-for f in /usr/share/applications/tamagi-*.desktop /usr/share/applications/google-chrome.desktop \
+for f in /usr/share/applications/tamagi-*.desktop \
          /usr/share/applications/claude-code.desktop /usr/share/applications/agy.desktop \
          /etc/xdg/autostart/tamagi-*.desktop; do
     desktop-file-validate "$f"

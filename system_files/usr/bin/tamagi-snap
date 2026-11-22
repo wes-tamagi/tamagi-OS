@@ -1,20 +1,21 @@
 #!/usr/bin/python3
-"""tamagi-snap — histórico da sua pasta pessoal (snapshots btrfs a cada hora).
+"""tamagi-snap — history of your home folder (hourly btrfs snapshots).
 
-Uso:
-  tamagi-snap                        estado e snapshots guardados
-  tamagi-snap ativar                 liga os snapshots (pede a senha; se a pasta
-                                     ainda não for subvolume, termina no próximo boot)
-  tamagi-snap agora [descrição]      tira um snapshot agora
-  tamagi-snap versoes <arquivo>      versões guardadas de um arquivo ou pasta
-  tamagi-snap voltar <arquivo> [N]   traz de volta a versão do snapshot N (sem N:
-                                     a mais recente diferente da atual). A atual,
-                                     se existir, fica ao lado como .antes-<data>
-  tamagi-snap limpar-copia           apaga a cópia de segurança da conversão
+  tamagi snap                        status and saved snapshots
+  tamagi snap enable                 turns the snapshots on (asks for the password;
+                                     if the folder is not a subvolume yet, it
+                                     finishes at the next boot)
+  tamagi snap now [description]      takes a snapshot now
+  tamagi snap versions <file>        saved versions of a file or folder
+  tamagi snap restore <file> [N]     brings back the version of snapshot N (no N:
+                                     the latest one that differs from the current).
+                                     The current one, if any, stays next to it
+                                     as .antes-<date>
+  tamagi snap clean-backup           deletes the safety copy of the conversion
 
-Os snapshots ficam em ~/.snapshots/<N>/snapshot (só leitura; dá para abrir no
-COSMIC Files, mostrando os arquivos ocultos). ~/.cache e os contêineres ficam
-de fora. Guardados: 24 por hora, 7 diários e 4 semanais.
+Snapshots live in ~/.snapshots/<N>/snapshot (read-only; you can open them in
+COSMIC Files, showing hidden files). ~/.cache and the containers stay out.
+Kept: 24 hourly, 7 daily and 4 weekly.
 """
 import datetime
 import filecmp
@@ -43,7 +44,7 @@ def _lang():
 
 LANG = _lang()
 MSG = {
-    "off": ("Snapshots da pasta pessoal: desligados. Ligue com: tamagi-snap ativar",
+    "off": ("Snapshots da pasta pessoal: desligados. Ligue com: tamagi-snap enable",
             "Home folder snapshots: off. Turn them on with: tamagi-snap activate"),
     "on": ("Snapshots da pasta pessoal: ligados (a cada hora; 24 por hora, 7 diários, 4 semanais)",
            "Home folder snapshots: on (hourly; keeps 24 hourly, 7 daily, 4 weekly)"),
@@ -129,7 +130,7 @@ def status():
     print(tr("on") if enabled() else tr("off"))
     backup = pathlib.Path(f"/var/home/.{USER}.antes-snapshots")
     if backup.exists():
-        print(f"{tr('backup')} {backup}  (tamagi-snap limpar-copia)")
+        print(f"{tr('backup')} {backup}  (tamagi-snap clean-backup)")
     if os.path.exists(HELPER) and not enabled():
         r = subprocess.run([HELPER, "status", USER], capture_output=True, text=True, check=False)
         if "agendado:  sim" in r.stdout:
@@ -187,22 +188,22 @@ def restore(arg, number=None):
 
 def main(argv):
     cmd = argv[0] if argv else "status"
-    if cmd in ("status", "estado"):
+    if cmd in ("status",):
         return status()
-    if cmd in ("ativar", "activate", "enable"):
-        return subprocess.run(["pkexec", HELPER, "ativar", USER], check=False).returncode
-    if cmd in ("limpar-copia", "clean-backup"):
-        return subprocess.run(["pkexec", HELPER, "limpar", USER], check=False).returncode
-    if cmd in ("agora", "now"):
+    if cmd in ("enable", "activate"):
+        return subprocess.run(["pkexec", HELPER, "enable", USER], check=False).returncode
+    if cmd in ("clean-backup",):
+        return subprocess.run(["pkexec", HELPER, "clean", USER], check=False).returncode
+    if cmd in ("now",):
         desc = " ".join(argv[1:]) or "manual"
         return subprocess.run(["snapper", "-c", CONFIG, "create", "-c", "number", "-d", desc],
                               check=False).returncode
-    if cmd in ("versoes", "versions") and len(argv) == 2:
+    if cmd in ("versions",) and len(argv) == 2:
         return versions(argv[1])
-    if cmd in ("voltar", "restore") and len(argv) in (2, 3):
+    if cmd in ("restore",) and len(argv) in (2, 3):
         return restore(argv[1], int(argv[2]) if len(argv) == 3 and argv[2].isdigit() else None)
     print(__doc__)
-    return 0 if cmd in ("-h", "--help", "ajuda") else 2
+    return 0 if cmd in ("-h", "--help", "help") else 2
 
 
 if __name__ == "__main__":

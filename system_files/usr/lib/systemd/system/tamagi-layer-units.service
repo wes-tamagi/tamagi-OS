@@ -1,0 +1,12 @@
+[Unit]
+Description=Tamagi: users, folders and units of the layers (tamagi-layer)
+Documentation=file:///usr/share/doc/tamagi/README.md
+After=systemd-sysext.service local-fs.target
+ConditionDirectoryNotEmpty=/var/lib/extensions
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/tamagi-layer boot
+
+[Install]
+WantedBy=multi-user.target

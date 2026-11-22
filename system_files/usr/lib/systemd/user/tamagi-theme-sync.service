@@ -1,0 +1,8 @@
+[Unit]
+Description=Tamagi: apply the COSMIC theme to foot, btop, Neovim and the Tamagi windows
+
+[Service]
+Type=oneshot
+# COSMIC writes a theme as a burst of files: wait for it to finish.
+ExecStartPre=/usr/bin/sleep 1
+ExecStart=/usr/bin/tamagi-theme sync

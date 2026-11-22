@@ -24,11 +24,10 @@
    Super + Shift + W         Windows 11 (contenedor)
 
  Tamagi
-   Super + Espacio           menú de Tamagi (paleta de comandos)
-   Super + A                 acciones rápidas (una tecla)
+   Super + Espacio           menú de inicio (el botón de Tamagi)
+   Super + A                 paleta de comandos de Tamagi
    Super + Shift + A         agente de IA local
    Super + K                 esta lista
-   Super+Shift+Ctrl+Espacio  siguiente tema
 
  SISTEMA
    Super + Esc               bloquear la pantalla

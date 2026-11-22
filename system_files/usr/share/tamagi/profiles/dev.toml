@@ -1,0 +1,15 @@
+# Tamagi profile: development.
+# The Fedora development box with Node and Python (mise), an editor and an
+# open-source agent. Apply with: tamagi apply dev
+
+[boxes]
+dev = "fedora"
+
+[mise]
+tools = ["node@lts", "python@3.13"]
+
+[flatpak]
+apps = ["dev.zed.Zed"]
+
+[agents]
+install = ["opencode"]

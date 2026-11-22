@@ -1,0 +1,67 @@
+#!/usr/bin/bash
+# gamescope-session — the "Tamagi Gaming" session of the login screen.
+#
+# gamescope runs straight on the display (DRM backend), outside COSMIC, the
+# way Bazzite and the Steam Deck do: that is what lets it output HDR today,
+# with no dependency on HDR support in the desktop compositor. It opens Steam
+# in Big Picture; leaving Steam returns to the login screen.
+#
+# Settings: ~/.config/tamagi/gamescope.conf (written by `tamagi gaming hdr`)
+#   HDR=on|off        HDR output, when the display announces HDR (default: on)
+#   SDR_NITS=400      brightness of SDR content inside HDR
+#   ITM=on|off        show SDR games in HDR (inverse tone mapping; default: off)
+#   VRR=on|off        adaptive sync (default: on)
+#   WIDTH= HEIGHT= REFRESH=   output mode (default: the display's own)
+#   CLIENT=           command to run instead of Steam
+set -uo pipefail
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/gamescope.conf"
+LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tamagi"
+HDR=on SDR_NITS=400 ITM=off VRR=on WIDTH="" HEIGHT="" REFRESH="" CLIENT=""
+if [[ -r $CONF ]]; then
+    while IFS='=' read -r key value; do
+        case $key in
+            HDR|ITM|VRR)          [[ $value == on || $value == off ]] && printf -v "$key" '%s' "$value" ;;
+            SDR_NITS|WIDTH|HEIGHT|REFRESH) [[ $value =~ ^[0-9]{1,5}$ ]] && printf -v "$key" '%s' "$value" ;;
+            CLIENT)               CLIENT=$value ;;
+        esac
+    done < "$CONF"
+fi
+
+# gamescope_args: the options of this machine, one per line (also used by
+# `tamagi gaming run` and `tamagi gaming hdr status`).
+gamescope_args() {
+    local nested=${1:-0}
+    if [[ $HDR == on ]] && { (( nested )) || /usr/libexec/tamagi/hdr-displays >/dev/null 2>&1; }; then
+        printf '%s\n' --hdr-enabled --hdr-sdr-content-nits "$SDR_NITS"
+        [[ $ITM == on ]] && printf '%s\n' --hdr-itm-enabled
+    fi
+    [[ $VRR == on ]] && printf '%s\n' --adaptive-sync
+    [[ -n $WIDTH && -n $HEIGHT ]] && printf '%s\n' -W "$WIDTH" -H "$HEIGHT"
+    [[ -n $REFRESH ]] && printf '%s\n' -r "$REFRESH"
+    return 0
+}
+
+if [[ ${1:-} == --print-args ]]; then gamescope_args "${2:-0}"; exit 0; fi
+
+mkdir -p "$LOG_DIR"
+exec >"$LOG_DIR/gamescope-session.log" 2>&1
+echo "== $(date -Is) gamescope-session"
+
+command -v gamescope >/dev/null || { echo "gamescope is not installed: tamagi gaming native"; exit 1; }
+if [[ -n $CLIENT ]]; then
+    read -r -a client <<<"$CLIENT"
+elif command -v steam >/dev/null; then
+    client=(steam -gamepadui)
+elif flatpak info com.valvesoftware.Steam >/dev/null 2>&1; then
+    client=(flatpak run com.valvesoftware.Steam -gamepadui)
+else
+    echo "Steam is not installed: tamagi gaming native steam"; exit 1
+fi
+
+# Games reach HDR through gamescope's Vulkan layer; DXVK/VKD3D (Proton) are
+# told that HDR is available.
+export ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1 XDG_CURRENT_DESKTOP=gamescope XDG_SESSION_TYPE=wayland
+mapfile -t args < <(gamescope_args 0)
+echo "gamescope --backend drm -e ${args[*]} -- ${client[*]}"
+exec gamescope --backend drm -e "${args[@]}" -- "${client[@]}"

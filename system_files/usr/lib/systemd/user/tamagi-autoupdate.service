@@ -1,5 +1,5 @@
 [Unit]
-Description=Tamagi: atualiza os subsistemas distrobox e as ferramentas do mise
+Description=Tamagi: atualiza os subsistemas e as caixas distrobox
 Documentation=file:///usr/share/doc/tamagi/README.md
 Wants=network-online.target
 After=network-online.target

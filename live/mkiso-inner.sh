@@ -25,7 +25,7 @@ fi
 # os agentes de IA de terceiros, documentação e manuais.
 exclude=(
     'usr/lib/modules/*/initramfs.img' 'usr/lib/modules/*/initramfs-live.img'
-    usr/bin/claude usr/bin/opencode
+    usr/bin/claude
     usr/share/doc usr/share/man
 )
 mksquashfs /live "$TREE/LiveOS/squashfs.img" -noappend -no-progress -b 1M "${comp[@]}" \

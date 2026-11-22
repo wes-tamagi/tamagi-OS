@@ -6,30 +6,11 @@
 COPRS=(secureblue/packages)
 for copr in "${COPRS[@]}"; do dnf5 -y copr enable "$copr"; done
 
-# Tailscale: o repositório oficial (o mesmo que o tailscale.com/install.sh
-# configura no Fedora), com pacotes e metadados assinados. Fica ligado só no
-# build, como os COPRs; o pacote do Fedora costuma atrasar algumas versões.
-TS_REPO=/etc/yum.repos.d/tailscale.repo
-cat > "$TS_REPO" <<'REPO'
-[tailscale-stable]
-name=Tailscale stable
-baseurl=https://pkgs.tailscale.com/stable/fedora/$basearch
-enabled=1
-type=rpm
-repo_gpgcheck=1
-gpgcheck=1
-gpgkey=https://pkgs.tailscale.com/stable/fedora/repo.gpg
-REPO
-
 mapfile -t PACKAGES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' /ctx/build_files/packages.txt | grep -v '^$')
 dnf5 -y install --setopt=install_weak_deps=False "${PACKAGES[@]}"
 
 # A imagem não consulta COPR depois de pronta: tudo se atualiza pelo rebuild.
 for copr in "${COPRS[@]}"; do dnf5 -y copr disable "$copr"; done
-[[ $(dnf5 -q repoquery --installed --qf '%{from_repo}' tailscale 2>/dev/null) == tailscale-stable ]] \
-    || echo "aviso: tailscale não veio do repositório oficial ($(rpm -q tailscale))" >&2
-rm -f "$TS_REPO"
-echo "tailscale: $(rpm -q --qf '%{VERSION}' tailscale) (repositório oficial)"
 
 # distrobox 1.8.2.5 x podman 6: em host somente-leitura (o caso do Tamagi) o
 # distrobox-create monta cada pasta da raiz com a opção ":ro:rslave", e o
@@ -46,7 +27,8 @@ if grep -qE ':ro\$\{rslave\}|:ro:rslave' "$DBX"; then
 fi
 sh -n "$DBX"
 
-# Navegadores não vivem no host (tamagi-browser cria a caixa Fedora).
+# Nenhum navegador vem na imagem: o usuário escolhe (Flatpak, nativo ou caixa)
+# no primeiro login ou com `tamagi browser install`.
 dnf5 -y remove firefox firefox-langpacks 2>/dev/null || true
 
 # Ferramentas sem pacote no Fedora: binários oficiais, com checksum conferido.
@@ -59,34 +41,9 @@ echo "$(cat starship-x86_64-unknown-linux-gnu.tar.gz.sha256)  starship-x86_64-un
 tar -xzf starship-x86_64-unknown-linux-gnu.tar.gz starship
 install -Dm755 starship /usr/bin/starship
 
-curl -fsSLO "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64"
-curl -fsSLO "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/SHASUMS256.txt"
-grep -E " (\./)?mise-${MISE_VERSION}-linux-x64\$" SHASUMS256.txt | sha256sum -c -
-install -Dm755 "mise-${MISE_VERSION}-linux-x64" /usr/bin/mise
+# O mise (linguagens e ferramentas de desenvolvimento) não vive mais no host:
+# é instalado dentro da caixa de desenvolvimento (devbox-provision), onde há
+# compiladores e bibliotecas. O host imutável fica sem runtimes.
 
 cd /
 rm -rf "$tmp"
-
-# ── Rust como padrão no shell interativo ──
-# sudo-rs e uutils não substituem os originais em /usr/bin (serviços e scripts
-# do sistema continuam com os de sempre). Este diretório entra na frente do
-# PATH só em shells interativos; quem não quiser:
-#   touch ~/.config/tamagi/no-rust-defaults
-RUST_BIN=/usr/libexec/tamagi/rust-bin
-mkdir -p "$RUST_BIN"
-ln -sf /usr/bin/sudo-rs "$RUST_BIN/sudo"
-ln -sf /usr/bin/su-rs "$RUST_BIN/su"
-ln -sf /usr/bin/visudo-rs "$RUST_BIN/visudo"
-count=0
-for uu in /usr/bin/uu_*; do
-    [[ -x $uu ]] || continue
-    name=$(basename "$uu"); name=${name#uu_}
-    # Só substitui o que o host já tem com o mesmo nome (não inventa comandos).
-    [[ -x /usr/bin/$name ]] || continue
-    ln -sf "$uu" "$RUST_BIN/$name"
-    count=$((count + 1))
-done
-(( count > 50 )) || { echo "uutils: esperava dezenas de utilitários, achei $count" >&2; exit 1; }
-"$RUST_BIN/ls" --version | grep -qi uutils || { echo "ls em $RUST_BIN não é o do uutils" >&2; exit 1; }
-"$RUST_BIN/sudo" --version | grep -qi 'sudo-rs' || { echo "sudo em $RUST_BIN não é o sudo-rs" >&2; exit 1; }
-echo "Rust no shell interativo: sudo-rs e $count utilitários do uutils"

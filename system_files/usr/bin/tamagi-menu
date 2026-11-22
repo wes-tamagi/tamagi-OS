@@ -53,9 +53,9 @@ UI = {
         "confirm_q": "Confirmar ação:",
         "ai_off": "IA: não configurada",
         "update_ready": "Atualização pronta (reinicie)",
-        "boot_alert": "Relatório de boot pendente",
-        "quarantine": "Digest em quarentena",
-        "press_any": "qualquer tecla fecha",
+        "boot_alert": "Pending boot report",
+        "quarantine": "Quarantined digest",
+        "press_any": "press any key to close",
         "risk_system": "sistema",
         "risk_read": "leitura",
     },
@@ -109,7 +109,8 @@ UI = {
 INTERACTIVE_NO_PAUSE = {
     "tamagi-agent", "claude", "agy", "tamagi-ai code", "tamagi-firstrun --force",
     "tamagi-keys", "tamagi-theme pick", "tamagi-panel pick", "tamagi-lang pick",
-    "tamagi-devbox", "tamagi-perf pick", "tamagi-gaming",
+    "tamagi-devbox", "tamagi-perf pick", "tamagi-gaming", "tamagi-install", "tamagi-agents",
+    "tamagi-browser install", "tamagi-devbox lang", "tamagi-remind",
 }
 
 
@@ -123,7 +124,6 @@ def is_available(action):
     home = pathlib.Path.home()
     return (
         os.access(home / ".local/bin" / req, os.X_OK)
-        or os.access(home / ".local/share/mise/shims" / req, os.X_OK)
     )
 
 

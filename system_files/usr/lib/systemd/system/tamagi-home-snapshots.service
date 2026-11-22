@@ -8,7 +8,7 @@ Before=systemd-user-sessions.service display-manager.service cosmic-greeter.serv
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/libexec/tamagi/home-snapshots pendentes
+ExecStart=/usr/libexec/tamagi/home-snapshots pending
 # A cópia é com reflink (rápida), mas uma pasta enorme leva alguns minutos.
 TimeoutStartSec=30min
 

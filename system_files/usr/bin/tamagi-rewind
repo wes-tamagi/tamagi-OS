@@ -1,22 +1,22 @@
 #!/usr/bin/python3
-"""tamagi-voltar — voltar no tempo: sistema, arquivos e apps numa linha do tempo só.
+"""tamagi-rewind — go back in time: system, files and apps in one timeline.
 
-Junta três históricos que já existem no Tamagi:
-  • sistema: as versões da imagem nesta máquina (bootc) e as publicadas com
-    data no registro (ex.: tamagi:45.20261118)
-  • arquivos: os snapshots da pasta pessoal, de hora em hora (tamagi-snap)
-  • apps e configurações: o ~/.config/tamagi/tamagi.toml guardado em cada
-    snapshot (o que estava instalado naquele momento)
+Joins three histories that already exist in Tamagi:
+  • system: the versions of the image on this machine (bootc) and the dated
+    ones published in the registry (e.g.: tamagi:45.20261118)
+  • files: the hourly snapshots of the home folder (tamagi snap)
+  • apps and settings: the ~/.config/tamagi/tamagi.toml kept in each snapshot
+    (what was installed at that moment)
 
-  tamagi-voltar                 escolhe um momento e o que voltar (menu)
-  tamagi-voltar lista [--json]  a linha do tempo
-  tamagi-voltar sistema anterior | <AAAAMMDD>    volta a imagem do sistema
-  tamagi-voltar seguir          volta a seguir as atualizações (tag latest)
-  tamagi-voltar apps <N>        reinstala os apps do snapshot N (tamagi apply)
-  tamagi-voltar arquivo <caminho> <N>          traz um arquivo do snapshot N
+  tamagi rewind                 choose a moment and what to bring back (menu)
+  tamagi rewind list [--json]   the timeline
+  tamagi rewind system previous | <YYYYMMDD>    goes back to that system image
+  tamagi rewind follow          follows the updates again (tag latest)
+  tamagi rewind apps <N>        reinstalls the apps of snapshot N (tamagi apply)
+  tamagi rewind file <path> <N> brings a file back from snapshot N
 
-Voltar o sistema nunca apaga nada: a versão atual fica como alternativa no
-menu de boot, e `tamagi-voltar seguir` retoma as atualizações.
+Going back never deletes anything: the current version stays as an
+alternative in the boot menu, and `tamagi rewind follow` resumes the updates.
 """
 import datetime
 import json
@@ -56,11 +56,11 @@ T = {
                 "That snapshot has no tamagi.toml (create it with: tamagi init)."),
     "no_sys": ("Não há versão do sistema daquele momento.", "No system version from that moment."),
     "sys_note": ("No próximo boot entra essa versão. A atual continua no menu de boot. "
-                 "Para voltar a receber atualizações: tamagi-voltar seguir",
+                 "Para voltar a receber atualizações: tamagi-rewind follow",
                  "That version boots next. The current one stays in the boot menu. "
-                 "To get updates again: tamagi-voltar follow"),
+                 "To get updates again: tamagi-rewind follow"),
     "empty": ("Nada na linha do tempo ainda.", "Nothing in the timeline yet."),
-    "no_snaps": ("(sem snapshots da pasta pessoal: tamagi-snap ativar)",
+    "no_snaps": ("(sem snapshots da pasta pessoal: tamagi-snap enable)",
                  "(no home folder snapshots: tamagi-snap activate)"),
 }
 
@@ -194,7 +194,7 @@ def do_file(n, path=None):
         if not picked:
             return 0
         path = str(HOME / pathlib.Path(picked).relative_to(base))
-    return subprocess.run(["tamagi-snap", "voltar", path, str(n)], check=False).returncode
+    return subprocess.run(["tamagi-snap", "restore", path, str(n)], check=False).returncode
 
 
 def interactive():
@@ -229,7 +229,7 @@ def main(argv):
     cmd = argv[0] if argv else None
     if cmd is None:
         return interactive()
-    if cmd in ("lista", "list"):
+    if cmd in ("list",):
         items = timeline()
         if "--json" in argv:
             print(json.dumps([{**e, "when": e["when"].isoformat()} for e in items], ensure_ascii=False, indent=1))
@@ -239,9 +239,9 @@ def main(argv):
             if not items:
                 print(tr("empty"))
         return 0
-    if cmd in ("sistema", "system") and len(argv) == 2:
+    if cmd in ("system",) and len(argv) == 2:
         items = system_entries()
-        if argv[1] in ("anterior", "previous"):
+        if argv[1] in ("previous",):
             e = next((x for x in items if x["sub"] == "rollback"), None)
         else:
             e = next((x for x in items if x["sub"] == "tag" and x["id"].endswith("." + argv[1])), None)
@@ -249,7 +249,7 @@ def main(argv):
             print(tr("no_sys"))
             return 1
         return do_system(e)
-    if cmd in ("seguir", "follow"):
+    if cmd in ("follow",):
         ref = image_ref()
         if not ref:
             print(tr("no_sys"))
@@ -257,10 +257,10 @@ def main(argv):
         return subprocess.run(["sudo", "bootc", "switch", f"{ref}:latest"], check=False).returncode
     if cmd == "apps" and len(argv) == 2 and argv[1].isdigit():
         return do_apps(argv[1])
-    if cmd in ("arquivo", "file") and len(argv) == 3 and argv[2].isdigit():
+    if cmd in ("file",) and len(argv) == 3 and argv[2].isdigit():
         return do_file(argv[2], argv[1])
     print(__doc__)
-    return 0 if cmd in ("-h", "--help", "ajuda") else 2
+    return 0 if cmd in ("-h", "--help", "help") else 2
 
 
 if __name__ == "__main__":

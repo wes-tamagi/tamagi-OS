@@ -1,5 +1,5 @@
 [Unit]
-Description=Tamagi: atualização automática diária (subsistemas e mise)
+Description=Tamagi: atualização automática diária (subsistemas e caixas)
 
 [Timer]
 OnStartupSec=20min

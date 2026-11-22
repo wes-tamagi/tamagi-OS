@@ -1,13 +1,13 @@
 #!/usr/bin/bash
-# tamagi-convidado — sessão de convidado descartável (para emprestar o computador).
+# tamagi-guest — disposable guest session (for lending the computer).
 #
-# Liga uma conta "Convidado" na tela de login, sem senha, que abre um desktop
-# limpo. A pasta pessoal dela fica na memória (tmpfs) e é refeita do zero a
-# cada logout e a cada boot: nada do que o convidado fizer fica no disco.
-# Sem sudo, sem acesso às suas pastas, caixas, VMs e Flatpaks pessoais; não
-# monta discos nem instala nada no sistema (regra do polkit).
+# Adds a password-less "Guest" account to the login screen that opens a clean
+# desktop. Its home lives in memory (tmpfs) and is rebuilt from scratch at
+# every logout and boot: nothing the guest does stays on disk. No sudo, no
+# access to your folders, boxes, VMs or personal Flatpaks; it cannot mount
+# disks or install anything on the system (polkit rule).
 #
-#   tamagi-convidado ligar | desligar | status      (pede a senha de administrador)
+#   tamagi guest on | off | status      (asks for the administrator password)
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
@@ -15,7 +15,7 @@ USER_NAME=convidado
 UID_GUEST=1990
 HOME_DIR=/var/home/$USER_NAME
 MOUNT_UNIT=/etc/systemd/system/var-home-convidado.mount
-DROPIN=/etc/systemd/system/user-runtime-dir@$UID_GUEST.service.d/tamagi-convidado.conf
+DROPIN=/etc/systemd/system/user-runtime-dir@$UID_GUEST.service.d/tamagi-guest.conf
 
 as_root() { [[ $(id -u) == 0 ]] || exec pkexec "$0" "$@"; }
 
@@ -28,7 +28,7 @@ enable() {
         passwd -d "$USER_NAME" >/dev/null
     fi
     cat > "$MOUNT_UNIT" <<UNIT
-# Gerado por tamagi-convidado: a pasta do convidado vive na memória.
+# Gerado por tamagi-guest: a pasta do convidado vive na memória.
 [Unit]
 Description=Pasta pessoal do convidado (na memória)
 
@@ -43,15 +43,15 @@ WantedBy=multi-user.target
 UNIT
     mkdir -p "$(dirname "$DROPIN")"
     cat > "$DROPIN" <<UNIT
-# Gerado por tamagi-convidado: no logout do convidado, a pasta é refeita.
+# Gerado por tamagi-guest: no logout do convidado, a pasta é refeita.
 [Service]
-ExecStopPost=/usr/libexec/tamagi/convidado-reset
+ExecStopPost=/usr/libexec/tamagi/guest-reset
 UNIT
     mkdir -p "$HOME_DIR"
     systemctl daemon-reload
     systemctl enable --now var-home-convidado.mount
-    /usr/libexec/tamagi/convidado-reset
-    echo "$(t "Sessão de convidado ligada: escolha Convidado na tela de login (sem senha).")"
+    /usr/libexec/tamagi/guest-reset
+    echo "$(t "Guest session on: pick Convidado (Guest) on the login screen (no password).")"
 }
 
 disable() {
@@ -63,13 +63,13 @@ disable() {
     systemctl daemon-reload
     id "$USER_NAME" >/dev/null 2>&1 && userdel "$USER_NAME"
     rmdir "$HOME_DIR" 2>/dev/null || true
-    echo "$(t "Sessão de convidado desligada")"
+    echo "$(t "Guest session off")"
 }
 
 case "${1:-status}" in
-    ligar|on)      enable ;;
-    desligar|off)  disable ;;
-    status)        if id "$USER_NAME" >/dev/null 2>&1; then echo "$(t "Sessão de convidado ligada")"; else echo "$(t "Sessão de convidado desligada")"; fi ;;
-    -h|--help|ajuda) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-    *) echo "uso: tamagi-convidado [ligar|desligar|status]" >&2; exit 2 ;;
+    on)      enable ;;
+    off)  disable ;;
+    status)        if id "$USER_NAME" >/dev/null 2>&1; then echo "$(t "Guest session on")"; else echo "$(t "Guest session off")"; fi ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) echo "usage: tamagi-guest [on|off|status]" >&2; exit 2 ;;
 esac

@@ -1,15 +1,15 @@
 # shellcheck shell=bash
-# Tamagi — textos das ferramentas em quatro idiomas: português (o original),
-# inglês (EUA), espanhol e francês. Para usar num script:
+# Tamagi — messages of the tools in four languages: English (the source),
+# Portuguese (Brazil), Spanish and French. To use it in a script:
 #
 #   . /usr/libexec/tamagi/i18n
-#   echo "$(t "Texto em português")"        # ou: tl "Texto" (com quebra de linha)
+#   echo "$(t "Text in English")"        # or: tl "Text" (with a line break)
 #
-# A chave é o próprio texto em português; as traduções ficam em
-# /usr/share/tamagi/i18n/<idioma>.tsv (português<TAB>tradução, uma por linha).
-# Sem tradução, sai o português. Prioridade do idioma:
+# The key is the English text itself; translations live in
+# /usr/share/tamagi/i18n/<language>.tsv (English<TAB>translation, one per
+# line). With no translation, the English text is shown. Language priority:
 #   TAMAGI_LANG > LC_ALL > LC_MESSAGES > ~/.config/tamagi/lang > LANG
-# Idiomas fora de pt/es/fr caem no inglês.
+# Languages other than pt/es/fr fall back to English.
 declare -gA TAMAGI_TR=()
 _tamagi_cfg_lang="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/lang"
 if [[ -n ${TAMAGI_LANG:-} ]]; then
@@ -21,7 +21,7 @@ elif [[ -n ${LC_MESSAGES:-} ]]; then
 elif [[ -r $_tamagi_cfg_lang ]]; then
     _tamagi_raw=$(head -n 1 "$_tamagi_cfg_lang" 2>/dev/null || true)
 else
-    _tamagi_raw="${LANG:-pt_BR}"
+    _tamagi_raw="${LANG:-en_US}"
 fi
 case "${_tamagi_raw,,}" in
     pt*) TAMAGI_LANG=pt ;;
@@ -30,7 +30,7 @@ case "${_tamagi_raw,,}" in
     *)   TAMAGI_LANG=en ;;
 esac
 unset _tamagi_cfg_lang _tamagi_raw
-if [[ $TAMAGI_LANG != pt && -r ${TAMAGI_I18N_DIR:-/usr/share/tamagi/i18n}/$TAMAGI_LANG.tsv ]]; then
+if [[ $TAMAGI_LANG != en && -r ${TAMAGI_I18N_DIR:-/usr/share/tamagi/i18n}/$TAMAGI_LANG.tsv ]]; then
     while IFS=$'\t' read -r _k _v; do
         [[ -n $_k && $_k != \#* && -n $_v ]] && TAMAGI_TR[$_k]=$_v
     done < "${TAMAGI_I18N_DIR:-/usr/share/tamagi/i18n}/$TAMAGI_LANG.tsv"
@@ -38,5 +38,5 @@ if [[ $TAMAGI_LANG != pt && -r ${TAMAGI_I18N_DIR:-/usr/share/tamagi/i18n}/$TAMAG
 fi
 t() { printf '%s' "${TAMAGI_TR[$1]:-$1}"; }
 tl() { printf '%s\n' "${TAMAGI_TR[$1]:-$1}"; }
-# Arquivo de texto traduzido: tfile /usr/share/tamagi/keys.txt -> keys.en.txt se existir.
-tfile() { local f="${1%.*}.$TAMAGI_LANG.${1##*.}"; [[ $TAMAGI_LANG != pt && -r $f ]] && echo "$f" || echo "$1"; }
+# Translated text file: tfile /usr/share/tamagi/keys.txt -> keys.pt.txt when it exists.
+tfile() { local f="${1%.*}.$TAMAGI_LANG.${1##*.}"; [[ $TAMAGI_LANG != en && -r $f ]] && echo "$f" || echo "$1"; }

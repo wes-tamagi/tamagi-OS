@@ -29,21 +29,21 @@ pending() { # relatórios que este usuário ainda não viu
 status() {
     local qcount=0
     [[ -r $QUARANTINE ]] && qcount=$(grep -cvE '^(#|[[:space:]]*$)' "$QUARANTINE" 2>/dev/null || echo 0)
-    echo "$(t "Verificação de saúde") : $(systemctl is-active greenboot-healthcheck.service 2>/dev/null || t "desconhecida")"
-    echo "$(t "Boot marcado como bom"): $(systemctl is-active boot-complete.target 2>/dev/null || true)"
-    echo "$(t "Imagem em uso")        : $(rpm-ostree status -b 2>/dev/null | grep -m1 Version | sed 's/^ *Version: *//')"
-    echo "$(t "Imagem anterior")      : $(rpm-ostree status 2>/dev/null | grep Version | sed -n '2s/^ *Version: *//p' | grep . || t "nenhuma guardada")"
-    echo "$(t "Digests em quarentena"): $qcount"
-    echo "$(t "Relatórios de falha")  : $(find "$DIR" -name '*.txt' 2>/dev/null | wc -l), $(pending | wc -l) $(t "pendente(s)")"
+    echo "$(t "Health check") : $(systemctl is-active greenboot-healthcheck.service 2>/dev/null || t "unknown")"
+    echo "$(t "Boot marked healthy"): $(systemctl is-active boot-complete.target 2>/dev/null || true)"
+    echo "$(t "Running image")        : $(rpm-ostree status -b 2>/dev/null | grep -m1 Version | sed 's/^ *Version: *//')"
+    echo "$(t "Previous image")      : $(rpm-ostree status 2>/dev/null | grep Version | sed -n '2s/^ *Version: *//p' | grep . || t "none saved")"
+    echo "$(t "Quarantined digests"): $qcount"
+    echo "$(t "Failure reports")  : $(find "$DIR" -name '*.txt' 2>/dev/null | wc -l), $(pending | wc -l) $(t "pending")"
 }
 
 explain() { # explain <arquivo>: explicação do agente local, se houver modelo
     if command -v tamagi-ai >/dev/null && [[ -n $(tamagi-ai list 2>/dev/null) ]]; then
-        echo; echo "── $(t "Explicação do agente de IA local") ──"
+        echo; echo "── $(t "Local AI agent explanation") ──"
         tamagi-agent "A system update failed the greenboot health check and automatically rolled back to the previous image. Below is the failure report. Explain simply, in up to six sentences, what broke and what the user can do next. Do not run any commands." < "$1" \
-            || tl "(o agente não respondeu; o relatório acima é o que há)"
+            || tl "(the agent did not respond; see the report above)"
     else
-        echo; tl "Para ter a explicação do agente de IA local: tamagi-ai setup"
+        echo; tl "To get a local AI explanation: tamagi-ai setup"
     fi
 }
 
@@ -51,29 +51,29 @@ show() {
     local files f
     mapfile -t files < <(pending)
     if (( ${#files[@]} == 0 )); then
-        tl "Nenhuma falha de boot pendente."; status; return 0
+        tl "No pending boot failures."; status; return 0
     fi
-    tl "Uma atualização não passou na verificação de saúde. O sistema reiniciou,"
-    tl "tentou de novo e voltou para a imagem anterior, que é a que está em uso."
-    echo "$(t "Tentativas registradas"): ${#files[@]}"
+    tl "An update failed the boot health check. The system rebooted,"
+    tl "retried, and rolled back to the previous image, which is now active."
+    echo "$(t "Recorded attempts"): ${#files[@]}"
     echo; echo "════ $(basename "${files[-1]}" .txt) ════"
     sed -n '1,45p' "${files[-1]}"
     for f in "${files[@]}"; do basename "$f" >> "$SEEN"; done
     explain "${files[-1]}"
     echo
-    tl "O digest com falha foi colocado em quarentena automática para evitar reinstalação."
-    echo "  tamagi-update quarantine   ·   ujust autoupdate off"
+    tl "The failing digest was automatically quarantined to prevent re-installation."
+    echo "  tamagi-update quarantine   ·   tamagi update auto off"
 }
 
 case "${1:-show}" in
-    show)   show; [[ -t 0 ]] && read -rsn1 -p "  ($(t "qualquer tecla fecha"))" ;;
-    list)   ls -1 "$DIR"/*.txt 2>/dev/null || tl "Nenhum relatório guardado." ;;
+    show)   show; [[ -t 0 ]] && read -rsn1 -p "  ($(t "press any key to close"))" ;;
+    list)   ls -1 "$DIR"/*.txt 2>/dev/null || tl "No saved reports." ;;
     status) status ;;
     notify) # chamado no login: só incomoda se houver algo novo
         [[ -n $(pending) ]] || exit 0
         sleep 6
-        notify-send -a Tamagi -i dialog-warning "$(t "Uma atualização falhou e foi desfeita")" \
-            "$(t "O sistema voltou para a versão anterior. Veja o que aconteceu.")" 2>/dev/null || true
+        notify-send -a Tamagi -i dialog-warning "$(t "An update failed and was rolled back")" \
+            "$(t "The system rolled back to the previous version. See what happened.")" 2>/dev/null || true
         exec /usr/libexec/tamagi/popup tamagi-boot-report show ;;
     *) echo "usage: tamagi-boot-report [show|list|status]" >&2; exit 2 ;;
 esac

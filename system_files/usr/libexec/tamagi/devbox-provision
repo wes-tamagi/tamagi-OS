@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
-# devbox-provision — roda DENTRO de uma caixa de desenvolvimento (como root),
-# chamado por tamagi-devbox via /run/host/usr/libexec/tamagi/devbox-provision.
+# devbox-provision — runs INSIDE a development box (as root), called by
+# tamagi-devbox through /run/host/usr/libexec/tamagi/devbox-provision.
 #
-# Instala o conjunto padrão de desenvolvimento da distro escolhida:
-#   compiladores (gcc/g++/make/cmake/ninja/pkg-config), SQLite + headers,
-#   Rust + Cargo, Node.js + npm, Python + pip/headers, git, jq, ripgrep, tmux.
-#
-# Uso:
 #   devbox-provision <distro> [extras_csv]
-#   distros: fedora | arch | popos | ubuntu | alma | rocky | opensuse | debian | alpine
-#   extras:  go,zig,clang,postgres,omarchy
+#   distros: fedora | ubuntu | opensuse | arch
+#   extras:  go, zig, clang, browser (Chromium for tests),
+#            only (install just the extras, skip the base set)
+#
+# Base set of every box:
+#   compilers (gcc/g++/make/cmake/ninja/pkg-config), git, jq, ripgrep, tmux
+#   SQLite + headers, Rust + Cargo, Node.js + npm, Python + pip/venv
+#   database clients: psql, mariadb, valkey-cli/redis-cli
+#   bubblewrap (the jail of `tamagi agents run`)
+#   mise (other languages and versions, per box) and the bridge to the
+#   browser of the host (links and logins open on the desktop)
 set -euo pipefail
 
 DISTRO=${1:-fedora}
@@ -17,145 +21,143 @@ EXTRAS=${2:-}
 STAMP=/var/lib/tamagi-devbox-provisioned
 
 has_extra() { [[ ,$EXTRAS, == *,"$1",* ]]; }
+# Database clients and the test browser are a bonus: a package renamed by the
+# distro must not undo the whole box.
+try() { "$@" || echo "devbox-provision: warning: '$*' failed; the box continues without it" >&2; }
 
 provision_fedora() {
-    dnf -y install --setopt=install_weak_deps=False \
-        gcc gcc-c++ make cmake ninja-build pkgconf-pkg-config autoconf automake \
-        git curl wget unzip tar jq ripgrep fd-find htop tmux \
-        sqlite sqlite-devel openssl-devel zlib-devel libffi-devel libpq-devel \
-        rust cargo clippy rustfmt rust-analyzer \
-        nodejs npm \
-        python3 python3-pip python3-devel python3-virtualenv
-    local extra_pkgs=()
-    has_extra go       && extra_pkgs+=(golang)
-    has_extra zig      && extra_pkgs+=(zig)
-    has_extra clang    && extra_pkgs+=(clang lld lldb)
-    has_extra postgres && extra_pkgs+=(postgresql)
-    (( ${#extra_pkgs[@]} )) && dnf -y install --setopt=install_weak_deps=False "${extra_pkgs[@]}"
-    return 0
-}
-
-provision_arch() {
-    pacman -Syu --noconfirm --needed \
-        base-devel cmake ninja pkgconf git curl wget unzip jq ripgrep fd htop tmux \
-        sqlite openssl rust nodejs npm python python-pip
-    local extra_pkgs=()
-    has_extra go       && extra_pkgs+=(go)
-    has_extra zig      && extra_pkgs+=(zig)
-    has_extra clang    && extra_pkgs+=(clang lld lldb)
-    has_extra postgres && extra_pkgs+=(postgresql-libs)
-    (( ${#extra_pkgs[@]} )) && pacman -S --noconfirm --needed "${extra_pkgs[@]}"
-    if has_extra omarchy && [[ -x /run/host/usr/libexec/tamagi/omarchy-repo ]]; then
-        /run/host/usr/libexec/tamagi/omarchy-repo stable || true
+    local dnf=(dnf -y install --setopt=install_weak_deps=False)
+    if ! has_extra only; then
+        "${dnf[@]}" gcc gcc-c++ make cmake ninja-build pkgconf-pkg-config autoconf automake \
+            git curl wget unzip tar jq ripgrep fd-find htop tmux xdg-utils bubblewrap perl \
+            sqlite sqlite-devel openssl-devel zlib-devel libffi-devel libpq-devel \
+            rust cargo clippy rustfmt rust-analyzer nodejs npm \
+            python3 python3-pip python3-devel python3-virtualenv
+        try "${dnf[@]}" postgresql mariadb valkey
     fi
+    local extra=()
+    has_extra go    && extra+=(golang)
+    has_extra zig   && extra+=(zig)
+    has_extra clang && extra+=(clang lld lldb)
+    (( ${#extra[@]} )) && "${dnf[@]}" "${extra[@]}"
+    has_extra browser && try "${dnf[@]}" chromium chromium-headless liberation-fonts google-noto-color-emoji-fonts
     return 0
 }
 
-provision_apt() {
-    local is_popos=${1:-0}
+provision_ubuntu() {
     export DEBIAN_FRONTEND=noninteractive
+    local apt=(apt-get install -y --no-install-recommends)
     apt-get update -qq
-    apt-get install -y --no-install-recommends ca-certificates curl gnupg
-    if [[ $is_popos == 1 ]]; then
-        # Configura os repositórios do Pop!_OS 24.04 (noble) sobre Ubuntu 24.04.
-        # Se a chave/repositório estiver inacessível, segue com os pacotes base do Ubuntu 24.04.
-        mkdir -p /etc/apt/keyrings
-        if curl -fsSL https://raw.githubusercontent.com/pop-os/iso/master_noble/scripts/pop-os.asc \
-                -o /etc/apt/keyrings/pop-os.asc 2>/dev/null \
-                || curl -fsSL 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x63c46df0140d738961429f4e204dd8aec33a7aff' \
-                -o /etc/apt/keyrings/pop-os.asc 2>/dev/null; then
-            cat > /etc/apt/sources.list.d/pop-os.sources <<'SOURCES'
-Types: deb
-URIs: http://apt.pop-os.org/release
-Suites: noble
-Components: main
-Signed-By: /etc/apt/keyrings/pop-os.asc
-
-Types: deb
-URIs: http://apt.pop-os.org/proprietary
-Suites: noble
-Components: main
-Signed-By: /etc/apt/keyrings/pop-os.asc
-SOURCES
-            apt-get update -qq || rm -f /etc/apt/sources.list.d/pop-os.sources
-        fi
+    if ! has_extra only; then
+        "${apt[@]}" ca-certificates curl gnupg build-essential cmake ninja-build pkg-config autoconf automake \
+            git wget unzip jq ripgrep fd-find htop tmux xdg-utils bubblewrap perl \
+            sqlite3 libsqlite3-dev libssl-dev zlib1g-dev libffi-dev libpq-dev \
+            rustc cargo nodejs npm python3 python3-pip python3-dev python3-venv
+        try "${apt[@]}" postgresql-client mariadb-client redis-tools
     fi
-    apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build pkg-config autoconf automake \
-        git wget unzip jq ripgrep fd-find htop tmux \
-        sqlite3 libsqlite3-dev libssl-dev zlib1g-dev libffi-dev libpq-dev \
-        rustc cargo nodejs npm \
-        python3 python3-pip python3-dev python3-venv
-    local extra_pkgs=()
-    has_extra go       && extra_pkgs+=(golang-go)
-    has_extra clang    && extra_pkgs+=(clang lld lldb)
-    has_extra postgres && extra_pkgs+=(postgresql-client)
-    (( ${#extra_pkgs[@]} )) && apt-get install -y --no-install-recommends "${extra_pkgs[@]}"
-    return 0
-}
-
-provision_rhel() {
-    dnf -y install epel-release || true
-    dnf -y install dnf-plugins-core || true
-    dnf config-manager --set-enabled crb 2>/dev/null || dnf config-manager --set-enabled powertools 2>/dev/null || true
-    dnf -y install --setopt=install_weak_deps=False \
-        gcc gcc-c++ make cmake pkgconf-pkg-config autoconf automake \
-        git curl wget unzip tar jq tmux \
-        sqlite sqlite-devel openssl-devel zlib-devel libffi-devel \
-        rust cargo nodejs npm \
-        python3 python3-pip python3-devel
-    local extra_pkgs=()
-    has_extra go       && extra_pkgs+=(golang)
-    has_extra clang    && extra_pkgs+=(clang lld)
-    has_extra postgres && extra_pkgs+=(postgresql)
-    (( ${#extra_pkgs[@]} )) && dnf -y install --setopt=install_weak_deps=False "${extra_pkgs[@]}"
+    local extra=()
+    has_extra go    && extra+=(golang-go)
+    has_extra clang && extra+=(clang lld lldb)
+    (( ${#extra[@]} )) && "${apt[@]}" "${extra[@]}"
+    # Ubuntu's "chromium" is a snap stub; Playwright brings its own build.
+    has_extra browser && try "${apt[@]}" fonts-liberation fonts-noto-color-emoji libnss3 libatk-bridge2.0-0 libgbm1 libasound2t64
     return 0
 }
 
 provision_opensuse() {
+    local zy=(zypper --non-interactive install --no-recommends)
     zypper --non-interactive refresh
-    zypper --non-interactive install --no-recommends \
-        gcc gcc-c++ make cmake ninja pkg-config autoconf automake \
-        git curl wget unzip tar jq ripgrep fd tmux \
-        sqlite3 sqlite3-devel libopenssl-devel zlib-devel libffi-devel \
-        rust cargo nodejs-default npm-default \
-        python3-devel python3-pip
-    local extra_pkgs=()
-    has_extra go       && extra_pkgs+=(go)
-    has_extra zig      && extra_pkgs+=(zig)
-    has_extra clang    && extra_pkgs+=(clang lld)
-    has_extra postgres && extra_pkgs+=(postgresql)
-    (( ${#extra_pkgs[@]} )) && zypper --non-interactive install --no-recommends "${extra_pkgs[@]}"
+    if ! has_extra only; then
+        "${zy[@]}" gcc gcc-c++ make cmake ninja pkg-config autoconf automake \
+            git curl wget unzip tar jq ripgrep fd tmux xdg-utils bubblewrap perl \
+            sqlite3 sqlite3-devel libopenssl-devel zlib-devel libffi-devel \
+            rust cargo nodejs-default npm-default python3-devel python3-pip
+        try "${zy[@]}" postgresql mariadb-client valkey
+    fi
+    local extra=()
+    has_extra go    && extra+=(go)
+    has_extra zig   && extra+=(zig)
+    has_extra clang && extra+=(clang lld)
+    (( ${#extra[@]} )) && "${zy[@]}" "${extra[@]}"
+    has_extra browser && try "${zy[@]}" chromium liberation-fonts google-noto-coloremoji-fonts
     return 0
 }
 
-provision_alpine() {
-    apk update
-    apk add --no-cache \
-        build-base cmake samurai pkgconf autoconf automake \
-        git curl wget unzip tar jq ripgrep fd tmux bash \
-        sqlite sqlite-dev openssl-dev zlib-dev libffi-dev \
-        rust cargo nodejs npm \
-        python3 py3-pip python3-dev
-    local extra_pkgs=()
-    has_extra go       && extra_pkgs+=(go)
-    has_extra zig      && extra_pkgs+=(zig)
-    has_extra clang    && extra_pkgs+=(clang lld)
-    has_extra postgres && extra_pkgs+=(postgresql-client)
-    (( ${#extra_pkgs[@]} )) && apk add --no-cache "${extra_pkgs[@]}"
+provision_arch() {
+    local pm=(pacman -S --noconfirm --needed)
+    if ! has_extra only; then
+        pacman -Syu --noconfirm --needed base-devel cmake ninja pkgconf git curl wget unzip jq ripgrep fd htop tmux \
+            xdg-utils bubblewrap perl sqlite openssl rust nodejs npm python python-pip
+        try "${pm[@]}" postgresql-libs postgresql mariadb-clients valkey
+    fi
+    local extra=()
+    has_extra go    && extra+=(go)
+    has_extra zig   && extra+=(zig)
+    has_extra clang && extra+=(clang lld lldb)
+    (( ${#extra[@]} )) && "${pm[@]}" "${extra[@]}"
+    has_extra browser && try "${pm[@]}" chromium ttf-liberation noto-fonts-emoji
     return 0
+}
+
+# mise: official binary of the latest release, checksum verified. It lives in
+# the box (not on the immutable host), and keeps the tools of each box apart:
+# a Node built for Arch is not run by Ubuntu.
+install_mise() {
+    command -v mise >/dev/null 2>&1 && return 0
+    local tmp tag asset
+    tmp=$(mktemp -d)
+    tag=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/jdx/mise/releases/latest)
+    tag=${tag##*/}
+    [[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "mise: unexpected release tag '$tag'" >&2; return 1; }
+    asset="mise-$tag-linux-x64"
+    curl -fsSL -o "$tmp/$asset" "https://github.com/jdx/mise/releases/download/$tag/$asset"
+    curl -fsSL -o "$tmp/SHASUMS256.txt" "https://github.com/jdx/mise/releases/download/$tag/SHASUMS256.txt"
+    ( cd "$tmp" && grep -E " (\./)?$asset\$" SHASUMS256.txt | sha256sum -c - >/dev/null )
+    install -Dm755 "$tmp/$asset" /usr/local/bin/mise
+    rm -rf "$tmp"
+    echo "mise $tag installed in the box"
+}
+
+# Environment of the box: mise per box, links open on the host, and the test
+# browser (when installed) is where Playwright/Puppeteer/Selenium look for it.
+write_profile() {
+    install -Dm755 /dev/stdin /usr/local/bin/tamagi-open <<'SH'
+#!/bin/sh
+# Opens a link or file with the desktop of the host (outside the box).
+exec distrobox-host-exec xdg-open "$@"
+SH
+    install -Dm644 /dev/stdin /etc/profile.d/tamagi-devbox.sh <<'SH'
+# Tamagi development box (written by devbox-provision).
+_box="${CONTAINER_ID:-box}"
+export MISE_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/mise-$_box"
+export MISE_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/mise-$_box"
+export MISE_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/mise-$_box"
+case ":$PATH:" in *":$MISE_DATA_DIR/shims:"*) ;; *) PATH="$MISE_DATA_DIR/shims:$PATH" ;; esac
+export PATH
+export BROWSER=/usr/local/bin/tamagi-open
+for _b in chromium-browser chromium chromium-headless; do
+    if command -v "$_b" >/dev/null 2>&1; then
+        CHROME_BIN=$(command -v "$_b"); export CHROME_BIN
+        export PUPPETEER_EXECUTABLE_PATH="$CHROME_BIN" PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="$CHROME_BIN"
+        break
+    fi
+done
+unset _b _box
+if [ -n "${BASH_VERSION:-}" ] && command -v mise >/dev/null 2>&1; then
+    case $- in *i*) eval "$(mise activate bash)" ;; esac
+fi
+SH
 }
 
 case "$DISTRO" in
-    fedora)        provision_fedora ;;
-    arch)          provision_arch ;;
-    popos)         provision_apt 1 ;;
-    ubuntu|debian) provision_apt 0 ;;
-    alma|rocky)    provision_rhel ;;
-    opensuse)      provision_opensuse ;;
-    alpine)        provision_alpine ;;
-    *) echo "erro: distro desconhecida: $DISTRO" >&2; exit 2 ;;
+    fedora)   provision_fedora ;;
+    ubuntu)   provision_ubuntu ;;
+    opensuse) provision_opensuse ;;
+    arch)     provision_arch ;;
+    *) echo "devbox-provision: unknown distro: $DISTRO (fedora, ubuntu, opensuse, arch)" >&2; exit 2 ;;
 esac
+try install_mise
+write_profile
 
 mkdir -p "$(dirname "$STAMP")"
 printf '%s\n' "$DISTRO" > "$STAMP"

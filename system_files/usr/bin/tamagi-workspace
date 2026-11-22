@@ -35,7 +35,7 @@ _I18N = _load_i18n()
 t = _I18N.t
 
 WS_FILENAME = "tamagi-workspace.toml"
-VALID_DISTROS = ("fedora", "arch", "popos", "ubuntu", "alma", "rocky", "opensuse", "debian", "alpine")
+VALID_DISTROS = ("fedora", "ubuntu", "opensuse", "arch")
 VALID_DBS = ("postgres", "mysql", "mariadb", "redis", "valkey", "mongo")
 
 
@@ -131,7 +131,7 @@ def detect_project(root):
 def render_toml(info, distro="fedora", box_name=None):
     box = box_name or ("dev" if distro == "fedora" else f"dev-{distro}")
     lines = [
-        f"# {WS_FILENAME} — {t('ambiente declarativo do projeto (tamagi-workspace)')}",
+        f"# {WS_FILENAME} — {t('declarative project environment (tamagi-workspace)')}",
         "",
         "[workspace]",
         f'name = {json.dumps(info["name"])}',
@@ -159,18 +159,18 @@ def load_workspace(path):
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as e:
-        sys.exit(f"{t('erro')}: {path}: {e}")
+        sys.exit(f"{t('error')}: {path}: {e}")
     ws = data.get("workspace", {})
     distro = ws.get("distro", "fedora")
     if distro not in VALID_DISTROS:
-        sys.exit(f"{t('erro')}: {t('distro desconhecida')}: {distro}")
+        sys.exit(f"{t('error')}: {t('unknown distro')}: {distro}")
     box = ws.get("box") or ("dev" if distro == "fedora" else f"dev-{distro}")
     if not re.fullmatch(r"[a-z][a-z0-9_-]{0,40}", box):
-        sys.exit(f"{t('erro')}: {t('nome inválido')}: {box}")
+        sys.exit(f"{t('error')}: {t('invalid name')}: {box}")
     dbs = data.get("services", {}).get("databases", [])
     for db in dbs:
         if db not in VALID_DBS:
-            sys.exit(f"{t('erro')}: {t('banco desconhecido')}: {db}")
+            sys.exit(f"{t('error')}: {t('unknown database')}: {db}")
     return {
         "root": path.parent,
         "file": path,
@@ -229,18 +229,18 @@ def cmd_init(args):
     root = pathlib.Path(args.dir or os.getcwd()).resolve()
     target = root / WS_FILENAME
     if target.exists() and not args.force:
-        sys.exit(f"{t('Arquivo já existe')}: {target} (--force)")
+        sys.exit(f"{t('File already exists')}: {target} (--force)")
     distro = args.distro or "fedora"
     if distro not in VALID_DISTROS:
-        sys.exit(f"{t('erro')}: {t('distro desconhecida')}: {distro}")
+        sys.exit(f"{t('error')}: {t('unknown distro')}: {distro}")
     info = detect_project(root)
     target.write_text(render_toml(info, distro=distro, box_name=args.box), encoding="utf-8")
-    print(f"{t('Workspace criado')}: {target}")
-    print(f"  {t('Caixa')}: {args.box or ('dev' if distro == 'fedora' else f'dev-{distro}')} ({distro})")
-    print(f"  {t('Stack detectado')}: {', '.join(info['stack'])}")
+    print(f"{t('Workspace created')}: {target}")
+    print(f"  {t('Box')}: {args.box or ('dev' if distro == 'fedora' else f'dev-{distro}')} ({distro})")
+    print(f"  {t('Detected stack')}: {', '.join(info['stack'])}")
     if info["databases"]:
-        print(f"  {t('Bancos detectados')}: {', '.join(info['databases'])}")
-    print(f"  {t('Entrar')}: tamagi-workspace enter")
+        print(f"  {t('Detected databases')}: {', '.join(info['databases'])}")
+    print(f"  {t('Enter')}: tamagi-workspace enter")
 
 
 def cmd_status(args):
@@ -278,13 +278,13 @@ def cmd_status(args):
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return
-    print(f"{t('Workspace')}     : {payload['name']} ({payload['file'] or t('não inicializado — rode: tamagi-workspace init')})")
-    print(f"{t('Caixa')}         : {payload['box']} ({payload['distro']}) — {t('pronta') if payload['box_ready'] else t('ainda não criada')}")
+    print(f"{t('Workspace')}     : {payload['name']} ({payload['file'] or t('not initialized — run: tamagi-workspace init')})")
+    print(f"{t('Box')}         : {payload['box']} ({payload['distro']}) — {t('ready') if payload['box_ready'] else t('not created yet')}")
     print(f"{t('Stack')}         : {', '.join(payload['stack']) or '-'}")
     if payload["databases"]:
-        print(f"{t('Bancos')}        : {', '.join(payload['databases'])}")
+        print(f"{t('Databases')}        : {', '.join(payload['databases'])}")
     if payload["tasks"]:
-        print(f"{t('Tarefas')}       : {', '.join(payload['tasks'])}")
+        print(f"{t('Tasks')}       : {', '.join(payload['tasks'])}")
 
 
 def cmd_up_or_enter(args, enter=False):
@@ -298,7 +298,7 @@ def cmd_up_or_enter(args, enter=False):
         ws = load_workspace(wf)
     ensure_up(ws)
     if not enter:
-        print(f"{t('Workspace pronto')}: {ws['name']} ({ws['box']})")
+        print(f"{t('Workspace ready')}: {ws['name']} ({ws['box']})")
         return
     os.chdir(ws["root"])
     cmd = ["distrobox", "enter", ws["box"]]
@@ -310,12 +310,12 @@ def cmd_up_or_enter(args, enter=False):
 def cmd_run(args):
     wf = find_workspace_file(args.dir)
     if not wf:
-        sys.exit(f"{t('erro')}: {WS_FILENAME} {t('não encontrado')} (tamagi-workspace init)")
+        sys.exit(f"{t('error')}: {WS_FILENAME} {t('not found')} (tamagi-workspace init)")
     ws = load_workspace(wf)
     task_cmd = ws["tasks"].get(args.task)
     if not task_cmd:
         avail = ", ".join(ws["tasks"].keys()) or "-"
-        sys.exit(f"{t('erro')}: {t('tarefa desconhecida')}: {args.task} ({avail})")
+        sys.exit(f"{t('error')}: {t('unknown task')}: {args.task} ({avail})")
     ensure_up(ws)
     os.chdir(ws["root"])
     extra = " ".join(shlex.quote(a) for a in args.extra)
@@ -327,44 +327,44 @@ def cmd_run(args):
 def main():
     p = argparse.ArgumentParser(
         prog="tamagi-workspace",
-        description=t("Ambientes declarativos por projeto (tamagi-workspace.toml)"),
+        description=t("Declarative per-project environments (tamagi-workspace.toml)"),
     )
-    p.add_argument("-C", "--dir", default=None, help=t("diretório do projeto"))
+    p.add_argument("-C", "--dir", default=None, help=t("project directory"))
     sub = p.add_subparsers(dest="cmd")
 
-    pi = sub.add_parser("init", aliases=["iniciar", "criar"], help=t("detecta o stack e gera tamagi-workspace.toml"))
+    pi = sub.add_parser("init", help=t("detect stack and generate tamagi-workspace.toml"))
     pi.add_argument("--distro", default="fedora", help=f"{t('distro')} ({', '.join(VALID_DISTROS)})")
-    pi.add_argument("--box", default=None, help=t("nome da caixa distrobox"))
-    pi.add_argument("--force", action="store_true", help=t("sobrescreve se já existir"))
+    pi.add_argument("--box", default=None, help=t("distrobox container name"))
+    pi.add_argument("--force", action="store_true", help=t("overwrite if it already exists"))
 
-    ps = sub.add_parser("status", aliases=["estado", "info"], help=t("mostra o estado do workspace"))
+    ps = sub.add_parser("status", aliases=["info"], help=t("show workspace status"))
     ps.add_argument("--json", action="store_true")
 
-    sub.add_parser("up", aliases=["subir", "preparar"], help=t("prepara caixa, pacotes e bancos do projeto"))
-    sub.add_parser("enter", aliases=["entrar", "shell"], help=t("prepara e entra no shell do projeto"))
+    sub.add_parser("up", help=t("provision box, packages, and project databases"))
+    sub.add_parser("enter", aliases=["shell"], help=t("provision and enter the project shell"))
 
-    pr = sub.add_parser("run", aliases=["executar", "rodar"], help=t("executa uma tarefa declarada na caixa do projeto"))
+    pr = sub.add_parser("run", help=t("run a declared task inside the project box"))
     pr.add_argument("task")
     pr.add_argument("extra", nargs=argparse.REMAINDER)
 
-    sub.add_parser("tasks", aliases=["tarefas"], help=t("lista as tarefas declaradas"))
+    sub.add_parser("tasks", help=t("list declared tasks"))
 
     args = p.parse_args()
-    if args.cmd in (None, "status", "estado", "info"):
+    if args.cmd in (None, "status", "info"):
         args.json = getattr(args, "json", False)
         cmd_status(args)
-    elif args.cmd in ("init", "iniciar", "criar"):
+    elif args.cmd in ("init",):
         cmd_init(args)
-    elif args.cmd in ("up", "subir", "preparar"):
+    elif args.cmd in ("up",):
         cmd_up_or_enter(args, enter=False)
-    elif args.cmd in ("enter", "entrar", "shell"):
+    elif args.cmd in ("enter", "shell"):
         cmd_up_or_enter(args, enter=True)
-    elif args.cmd in ("run", "executar", "rodar"):
+    elif args.cmd in ("run",):
         cmd_run(args)
-    elif args.cmd in ("tasks", "tarefas"):
+    elif args.cmd in ("tasks",):
         wf = find_workspace_file(args.dir)
         if not wf:
-            sys.exit(f"{t('erro')}: {WS_FILENAME} {t('não encontrado')}")
+            sys.exit(f"{t('error')}: {WS_FILENAME} {t('not found')}")
         ws = load_workspace(wf)
         for k, v in ws["tasks"].items():
             print(f"  {k:16} {v}")

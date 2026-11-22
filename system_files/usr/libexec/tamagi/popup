@@ -1,10 +1,10 @@
 #!/usr/bin/bash
-# Abre um comando de terminal numa janela própria do alacritty.
-#   popup <comando...>          janela flutuante (classe tamagi-popup; a regra
-#                               está em CosmicSettings.WindowRules)
-#   popup --tile <comando...>   janela comum, entra no tiling
-#   popup --class <id> --title <texto> <comando...>   janela com identidade
-#                               própria (o dock reconhece o app fixado)
+# Opens a terminal command in a window of its own (foot, the system terminal).
+#   popup <command...>          floating window (app id tamagi-popup; the rule
+#                               is in CosmicSettings.WindowRules)
+#   popup --tile <command...>   ordinary window, joins the tiling
+#   popup --class <id> --title <text> <command...>   window with an identity
+#                               of its own (the dock recognises the pinned app)
 class=tamagi-popup
 title=Tamagi
 while [[ ${1:-} == --* ]]; do
@@ -15,22 +15,21 @@ while [[ ${1:-} == --* ]]; do
         *) break ;;
     esac
 done
-# Botões do gum (Sim/Não) legíveis em qualquer tema.
+# gum buttons (Yes/No) readable in any theme.
 # shellcheck source=/dev/null
 . /usr/share/tamagi/gum.env
-cfg="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/alacritty.toml"
-[[ -f $cfg ]] || cfg=/usr/share/tamagi/alacritty.toml
-# Tema claro: o botão selecionado precisa ser o mais forte dos dois.
-bg=$(sed -n 's/^background = "#\(......\)".*/\1/p' "$cfg" | head -1)
+# Colours and font of the current theme (tamagi-theme writes this file; it is
+# apart from ~/.config/foot/foot.ini, which the user may have customised).
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/foot.ini"
+[[ -f $cfg ]] || cfg=/usr/share/tamagi/foot.ini
+# Light theme: the selected button has to be the stronger of the two.
+bg=$(sed -n 's/^background=\([0-9a-fA-F]\{6\}\).*/\1/p' "$cfg" | head -1)
 if [[ $bg =~ ^[0-9a-fA-F]{6}$ ]] && (( (0x${bg:0:2} * 299 + 0x${bg:2:2} * 587 + 0x${bg:4:2} * 114) / 1000 > 140 )); then
     export GUM_CONFIRM_SELECTED_FOREGROUND="#ffffff" GUM_CONFIRM_SELECTED_BACKGROUND="#1e66f5"
     export GUM_CONFIRM_UNSELECTED_FOREGROUND="#4c4f69" GUM_CONFIRM_UNSELECTED_BACKGROUND="#ccd0da"
 fi
-# Garante ~/.local/bin e mise shims no PATH (ferramentas do usuário como agy/claude abertas pelo menu).
-for _d in "$HOME/.local/share/mise/shims" "$HOME/.local/bin"; do
-    if [[ -d $_d ]]; then
-        case ":$PATH:" in *":$_d:"*) ;; *) export PATH="$_d:$PATH" ;; esac
-    fi
-done
-unset _d
-exec alacritty --config-file "$cfg" --class "$class" --title "$title" -e "$@"
+# ~/.local/bin in the PATH (the user's tools, such as claude and codex, opened from the menu).
+if [[ -d $HOME/.local/bin ]]; then
+    case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
+fi
+exec foot --config="$cfg" --app-id="$class" --title="$title" --window-size-chars=104x30 --override=pad=14x12 "$@"

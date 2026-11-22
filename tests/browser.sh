@@ -1,6 +1,7 @@
 #!/usr/bin/bash
 # Testa a caixa de navegadores DE VERDADE neste computador (precisa de podman
-# e distrobox): cria uma caixa Fedora, instala o Chrome com o tamagi-browser
+# e distrobox): cria uma caixa Fedora, instala o Chrome nela (tamagi-browser
+# install chrome --box)
 # e confere a aceleração de vídeo. Roda fora da imagem porque depende da placa
 # de vídeo e do podman do host.
 #
@@ -41,22 +42,22 @@ bad() { echo "  FALHA $*"; fail=$((fail + 1)); }
 check() { local desc=$1; shift; if "$@" >/dev/null 2>&1; then ok "$desc"; else bad "$desc"; fi; }
 
 echo "== Caixa de navegadores (Fedora)"
-browser setup </dev/null 2>&1 | tail -3
+browser install chrome --box </dev/null 2>&1 | tail -3
 check "caixa criada"                         podman container exists "$TAMAGI_BROWSER_BOX"
 status=$(browser status 2>/dev/null)
 echo "$status" | sed 's/^/    /'
-check "é Fedora"                             grep -q 'Sistema.*Fedora' <<<"$status"
-check "Chrome instalado"                     grep -q 'Navegador.*Google Chrome' <<<"$status"
+check "é Fedora"                             grep -q 'OS .*Fedora' <<<"$status"
+check "Chrome instalado"                     grep -q 'Browser .*Google Chrome' <<<"$status"
 check "Chrome abre com as opções de aceleração" bash -c "bash '$P/usr/bin/tamagi-browser' chrome --version | grep -q 'Google Chrome'"
 check "navegador desconhecido é recusado"    bash -c "! bash '$P/usr/bin/tamagi-browser' install opera"
 
 echo "== Vídeo"
-if grep -q 'decodifica : .*H264' <<<"$status"; then
-    ok "VA-API dentro da caixa: $(sed -n 's/.*decodifica : //p' <<<"$status")"
+if grep -q 'decode  *: .*H264' <<<"$status"; then
+    ok "VA-API dentro da caixa: $(sed -n 's/.*decode  *: //p' <<<"$status")"
 else
     echo "  aviso sem decodificação de vídeo por hardware nesta máquina (sem driver VA-API)"
 fi
-if grep -q 'Vulkan  *: indisponível' <<<"$status"; then
+if grep -q 'Vulkan  *: -$' <<<"$status"; then
     echo "  aviso Vulkan indisponível nesta máquina"
 else
     ok "Vulkan dentro da caixa: $(sed -n 's/^Vulkan  *: //p' <<<"$status")"

@@ -21,23 +21,26 @@ systemctl enable tamagi-secureboot-guard.path
 # Camadas do tamagi-layer (/var/lib/extensions) entram no /usr a cada boot.
 systemctl enable systemd-sysext.service
 
-# Virtualização: os daemons do libvirt sobem por socket, só quando usados.
-systemctl disable virtqemud.service 2>/dev/null || true
-systemctl enable virtqemud.socket virtnetworkd.socket virtstoraged.socket \
-    virtnodedevd.socket virtsecretd.socket virtinterfaced.socket virtlogd.socket
+# Camadas que trazem serviços (ex.: `tamagi vm install`, com o libvirt): depois
+# do sysext entrar no /usr, cria usuários/pastas e liga as units pedidas.
+systemctl enable tamagi-layer-units.service
 
 # Boot mais rápido e menos ruído em background:
 #   - NetworkManager-wait-online atrasa o boot esperando DHCP/Wi-Fi sem necessidade;
 #   - dnf-makecache.timer não serve num host imutável (bootc não usa dnf no host).
 systemctl disable NetworkManager-wait-online.service dnf-makecache.timer 2>/dev/null || true
 
-# Atualização automática dos subsistemas e do mise, para todo usuário (a da
+# Atualização automática dos subsistemas (caixas), para todo usuário (a da
 # imagem e a dos Flatpaks já vêm ligadas pela base).
 systemctl --global enable tamagi-autoupdate.timer
 
+# Os apps de terminal (foot, btop, Neovim, janelas do Tamagi) acompanham o tema
+# escolhido nas Configurações do COSMIC.
+systemctl --global enable tamagi-theme-sync.path
+
 # Sob demanda: ficam na imagem, desligados.
-#   usbguard  -> tamagi-harden usb on      tailscale -> ujust setup-tailscale
-systemctl disable usbguard.service tailscaled.service 2>/dev/null || true
+#   usbguard  -> tamagi-harden usb on
+systemctl disable usbguard.service 2>/dev/null || true
 
 # hardened_malloc fica instalado, mas não é carregado em todo processo por
 # padrão (quebraria jogos e alguns apps); `tamagi-harden malloc on` liga.

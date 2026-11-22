@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+# open-or-install <flatpak id> — opens a Flatpak app; the first time, installs
+# it (in a small window) and then opens it. For shortcuts to optional apps.
+set -euo pipefail
+app=${1:?usage: open-or-install <flatpak id>}
+[[ $app =~ ^[A-Za-z0-9_.-]+$ ]] || exit 2
+if flatpak info "$app" >/dev/null 2>&1; then exec flatpak run "$app"; fi
+if [[ ! -t 0 ]]; then exec /usr/libexec/tamagi/popup "$0" "$app"; fi
+flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null \
+    || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user -y flathub "$app"
+setsid -f flatpak run "$app" >/dev/null 2>&1

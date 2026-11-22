@@ -1,218 +1,251 @@
 #!/usr/bin/bash
-# tamagi-devbox — caixas de desenvolvimento distrobox com Fedora como padrão.
+# tamagi-devbox — development boxes (distrobox): Fedora, Ubuntu, openSUSE
+# Tumbleweed or Arch.
 #
-# A caixa padrão ('dev') usa Fedora 45 já provisionado com SQLite, Rust/Cargo,
-# Node.js/npm, Python, compiladores C/C++ (gcc/cmake/ninja/pkg-config) e
-# headers de desenvolvimento. Também cria caixas prontas de Arch, Pop!_OS,
-# Ubuntu, AlmaLinux, Rocky Linux, openSUSE, Debian e Alpine.
+# The host is immutable and carries no compilers or language runtimes: they
+# live in the box. Each box comes with compilers (gcc/cmake/ninja), git,
+# SQLite, Rust/Cargo, Node.js/npm, Python, the database clients (psql,
+# mariadb, valkey/redis-cli — the databases of `tamagi db` answer on
+# 127.0.0.1 from inside the box), mise for other languages and versions, and
+# opens links in the browser of the host (logins of gh, npm, AI agents).
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
 LIBEXEC="${TAMAGI_DEVBOX_LIBEXEC:-/run/host/usr/libexec/tamagi}"
-DISTRO_ORDER=(fedora arch popos ubuntu alma rocky opensuse debian alpine)
+DISTRO_ORDER=(fedora ubuntu opensuse arch)
 
 declare -A IMAGE=(
     [fedora]="registry.fedoraproject.org/fedora-toolbox:45"
-    [arch]="ghcr.io/ublue-os/arch-toolbox:latest"
-    [popos]="docker.io/library/ubuntu:24.04"
     [ubuntu]="ghcr.io/ublue-os/ubuntu-toolbox:latest"
-    [alma]="docker.io/library/almalinux:9"
-    [rocky]="docker.io/library/rockylinux:9"
     [opensuse]="quay.io/toolbx-images/opensuse-toolbox:tumbleweed"
-    [debian]="docker.io/library/debian:trixie"
-    [alpine]="docker.io/library/alpine:latest"
+    [arch]="ghcr.io/ublue-os/arch-toolbox:latest"
 )
 declare -A LABEL=(
-    [fedora]="Fedora 45 (padrão — sqlite, rust/cargo, node/npm, python, gcc/cmake)"
-    [arch]="Arch Linux (rolling — pacman, base-devel, rust, node/npm, sqlite)"
-    [popos]="Pop!_OS 24.04 (apt.pop-os.org + Ubuntu 24.04 — rust, node/npm, sqlite)"
-    [ubuntu]="Ubuntu 26.04 LTS (apt — build-essential, rust, node/npm, sqlite)"
-    [alma]="AlmaLinux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)"
-    [rocky]="Rocky Linux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)"
-    [opensuse]="openSUSE Tumbleweed (zypper — rust, node/npm, sqlite)"
-    [debian]="Debian 13 Trixie (apt — estável, rust, node/npm, sqlite)"
-    [alpine]="Alpine Linux (musl, ultraleve — apk, rust, node/npm, sqlite)"
+    [fedora]="Fedora 45 (default — dnf)"
+    [ubuntu]="Ubuntu LTS (apt)"
+    [opensuse]="openSUSE Tumbleweed (rolling — zypper)"
+    [arch]="Arch Linux (rolling — pacman)"
 )
+# Language presets for `tamagi devbox lang` (installed by mise inside the box).
+declare -A PRESET=(
+    [web]="node@lts pnpm@latest" [bun]="bun@latest" [deno]="deno@latest" [python]="python@3.13"
+    [ruby]="ruby@latest" [go]="go@latest" [rust]="rust@latest" [java]="java@temurin-25"
+    [dotnet]="dotnet@10" [zig]="zig@latest"
+)
+PRESET_ORDER=(web bun deno python ruby go rust java dotnet zig)
 
-die() { echo "$(t "erro"): $*" >&2; exit 1; }
+die() { echo "$(t "error"): $*" >&2; exit 1; }
 info() { echo -e "\033[1m$*\033[0m"; }
 box_exists() { podman container exists "$1" 2>/dev/null; }
-valid_distro() { [[ -n ${1:-} && -n ${IMAGE[$1]:-} ]]; }
-valid_name() { [[ ${1:-} =~ ^[a-z][a-z0-9_-]{0,40}$ ]] || die "$(t "nome inválido"): ${1:-}"; }
-
-default_box_name() {
-    local distro=$1
-    if [[ $distro == fedora ]]; then echo "dev"; else echo "dev-$distro"; fi
-}
+valid_name() { [[ ${1:-} =~ ^[a-z][a-z0-9_-]{0,40}$ ]] || die "$(t "invalid name"): ${1:-}"; }
+canon() { case "${1:-}" in tumbleweed|opensuse-tumbleweed|suse) echo opensuse ;; archlinux) echo arch ;; *) echo "${1:-}" ;; esac; }
+valid_distro() { local d; d=$(canon "${1:-}"); [[ -n $d && -n ${IMAGE[$d]:-} ]]; }
+default_box_name() { if [[ $1 == fedora ]]; then echo dev; else echo "dev-$1"; fi; }
+is_system_box() { [[ $1 == browsers || $1 == navegadores || $1 == "${TAMAGI_BROWSER_BOX:-browsers}" ]]; }
 
 usage() {
-    echo "tamagi-devbox — $(t "caixas de desenvolvimento (Fedora padrão + multi-distro)")"
+    echo "tamagi-devbox — $(t "development boxes (Fedora, Ubuntu, openSUSE, Arch)")"
     echo
-    echo "  tamagi-devbox                                       $(t "escolhe a distro e cria a caixa")"
-    echo "  tamagi-devbox create [distro] [--name N] [--minimal] [--extra go,zig,clang,postgres]"
-    echo "  tamagi-devbox enter [nome|distro]                   $(t "entra na caixa (padrão: dev)")"
-    echo "  tamagi-devbox provision <nome> [distro] [--extra …] $(t "instala sqlite, rust/cargo, node/npm, python, gcc")"
-    echo "  tamagi-devbox distros                               $(t "lista as distros suportadas")"
-    echo "  tamagi-devbox list | status                         $(t "lista as caixas criadas")"
-    echo "  tamagi-devbox update [nome]                         $(t "atualiza os pacotes da(s) caixa(s)")"
-    echo "  tamagi-devbox remove <nome>                         $(t "apaga a caixa (arquivos da pasta pessoal ficam)")"
+    echo "  tamagi devbox                                   $(t "choose a distro and create the box")"
+    echo "  tamagi devbox create [distro] [--name N] [--minimal] [--extra go,zig,clang,browser]"
+    echo "  tamagi devbox enter [name|distro]               $(t "enter the box (default: dev)")"
+    echo "  tamagi devbox lang [box] <preset|tool@version>… $(t "languages via mise, inside the box")"
+    echo "  tamagi devbox browser [box]                     $(t "Chromium in the box for tests (Playwright, Puppeteer)")"
+    echo "  tamagi devbox provision <name> [--extra …]      $(t "reinstalls the tools")"
+    echo "  tamagi devbox distros | list                    $(t "supported distros / boxes created")"
+    echo "  tamagi devbox update [name]                     $(t "update packages in box(es)")"
+    echo "  tamagi devbox remove <name>                     $(t "remove the box (home files stay)")"
     echo
-    echo "$(t "Distros"): ${DISTRO_ORDER[*]}"
+    echo "$(t "Distros"): ${DISTRO_ORDER[*]}    $(t "Languages"): ${PRESET_ORDER[*]}"
 }
 
 cmd_distros() {
     local d
     for d in "${DISTRO_ORDER[@]}"; do
-        printf '  %-9s %-46s %s\n' "$d" "${IMAGE[$d]}" "$(t "${LABEL[$d]}")"
+        printf '  %-9s %-50s %s\n' "$d" "${IMAGE[$d]}" "$(t "${LABEL[$d]}")"
     done
+}
+
+distro_of() { # distro_of <box>: from the image of an existing box
+    local img; img=$(podman inspect --format '{{.ImageName}}' "$1" 2>/dev/null || true)
+    case "$img" in
+        *arch*)                  echo arch ;;
+        *ubuntu*)                echo ubuntu ;;
+        *opensuse*|*tumbleweed*) echo opensuse ;;
+        *)                       echo fedora ;;
+    esac
+}
+
+provision() { # provision <box> <distro> <extras>
+    distrobox enter "$1" -- sudo "$LIBEXEC/devbox-provision" "$2" "$3"
 }
 
 cmd_create() {
     local distro="" name="" minimal=0 extras=""
     while (( $# )); do
         case "$1" in
-            --name|--nome)    [[ $# -ge 2 ]] || die "$(t "opção desconhecida"): $1"; name=$2; shift ;;
-            --minimal|--minima) minimal=1 ;;
-            --extra|--extras) [[ $# -ge 2 ]] || die "$(t "opção desconhecida"): $1"; extras=$2; shift ;;
-            -*) die "$(t "opção desconhecida"): $1" ;;
-            *)  [[ -z $distro ]] && distro=$1 || die "$(t "argumento inesperado"): $1" ;;
+            --name)    [[ $# -ge 2 ]] || die "$(t "unknown option"): $1"; name=$2; shift ;;
+            --minimal) minimal=1 ;;
+            --extra)   [[ $# -ge 2 ]] || die "$(t "unknown option"): $1"; extras=$2; shift ;;
+            -*) die "$(t "unknown option"): $1" ;;
+            *)  [[ -z $distro ]] && distro=$1 || die "$(t "unexpected argument"): $1" ;;
         esac
         shift
     done
-    distro=${distro:-fedora}
-    valid_distro "$distro" || die "$(t "distro desconhecida"): '$distro' (${DISTRO_ORDER[*]})"
+    distro=$(canon "${distro:-fedora}")
+    valid_distro "$distro" || die "$(t "unknown distro"): '$distro' (${DISTRO_ORDER[*]})"
     name=${name:-$(default_box_name "$distro")}
     valid_name "$name"
 
     if box_exists "$name"; then
-        echo "$(t "A caixa já existe"): $name — distrobox enter $name"
+        echo "$(t "Box already exists"): $name — tamagi devbox enter $name"
         return 0
     fi
-    info "$(t "Criando caixa de desenvolvimento") '$name' ($distro · ${IMAGE[$distro]})"
+    info "$(t "Creating development box") '$name' ($distro · ${IMAGE[$distro]})"
     local args=(--yes --name "$name" --image "${IMAGE[$distro]}")
     [[ -e /proc/driver/nvidia/version ]] && args+=(--nvidia)
     distrobox create "${args[@]}"
 
     if (( ! minimal )); then
-        info "$(t "Instalando ferramentas de desenvolvimento (sqlite, rust/cargo, node/npm, python, compiladores)…")"
-        distrobox enter "$name" -- sudo "$LIBEXEC/devbox-provision" "$distro" "$extras"
+        info "$(t "Installing compilers, languages, database clients and mise…")"
+        provision "$name" "$distro" "$extras"
     fi
     echo
-    echo "$(t "Caixa pronta"): $name"
-    echo "$(t "Entrar"): distrobox enter $name   (ou: tamagi-devbox enter $name)"
+    echo "$(t "Box ready"): $name"
+    echo "$(t "Enter"): tamagi devbox enter $name"
 }
 
 cmd_provision() {
-    local name=${1:-dev} distro="" extras=""
+    local name=${1:-dev} extras=""
     shift || true
-    if [[ $# -gt 0 && $1 != --* ]]; then
-        distro=$1
-        shift
-    fi
     while (( $# )); do
         case "$1" in
-            --extra|--extras) [[ $# -ge 2 ]] || die "$(t "opção desconhecida"): $1"; extras=$2; shift ;;
-            *) die "$(t "opção desconhecida"): $1" ;;
+            --extra) [[ $# -ge 2 ]] || die "$(t "unknown option"): $1"; extras=$2; shift ;;
+            *) die "$(t "unknown option"): $1" ;;
         esac
         shift
     done
-    box_exists "$name" || die "$(t "A caixa não existe"): $name"
-    if [[ -z $distro ]]; then
-        local img
-        img=$(podman inspect --format '{{.ImageName}}' "$name" 2>/dev/null || true)
-        case "$name:$img" in
-            *popos*)         distro=popos ;;
-            *arch*)          distro=arch ;;
-            *ubuntu*)        distro=ubuntu ;;
-            *alma*)          distro=alma ;;
-            *rocky*)         distro=rocky ;;
-            *opensuse*|*tumbleweed*) distro=opensuse ;;
-            *debian*)        distro=debian ;;
-            *alpine*)        distro=alpine ;;
-            *)               distro=fedora ;;
-        esac
-    fi
-    valid_distro "$distro" || die "$(t "distro desconhecida"): '$distro'"
-    info "$(t "Provisionando caixa") '$name' ($distro)…"
-    distrobox enter "$name" -- sudo "$LIBEXEC/devbox-provision" "$distro" "$extras"
+    box_exists "$name" || die "$(t "Box does not exist"): $name"
+    info "$(t "Provisioning box") '$name' ($(distro_of "$name"))…"
+    provision "$name" "$(distro_of "$name")" "$extras"
 }
+
+ensure_default_box() { box_exists dev || cmd_create fedora --name dev; }
 
 cmd_enter() {
     local target=${1:-dev}
     if ! box_exists "$target"; then
         if valid_distro "$target"; then
-            local cand; cand=$(default_box_name "$target")
-            if box_exists "$cand"; then
-                target=$cand
-            else
-                cmd_create "$target"
-                target=$cand
-            fi
+            local d; d=$(canon "$target")
+            target=$(default_box_name "$d")
+            box_exists "$target" || cmd_create "$d"
         elif [[ $target == dev ]]; then
-            cmd_create fedora --name dev
+            ensure_default_box
         else
-            die "$(t "A caixa não existe"): $target"
+            die "$(t "Box does not exist"): $target"
         fi
     fi
     exec distrobox enter "$target"
 }
 
-cmd_list() {
-    local found=0 name img status
-    while IFS=$'\t' read -r name img status; do
+cmd_lang() {
+    local box=dev tools=() item
+    if [[ -n ${1:-} ]] && box_exists "$1"; then box=$1; shift; fi
+    if (( $# == 0 )); then
+        if [[ ! -t 0 ]]; then
+            for item in "${PRESET_ORDER[@]}"; do printf '  %-7s %s\n' "$item" "${PRESET[$item]}"; done
+            return 0
+        fi
+        mapfile -t picked < <(for item in "${PRESET_ORDER[@]}"; do printf '%-7s %s\n' "$item" "${PRESET[$item]}"; done \
+            | /usr/libexec/tamagi/gum-multi --height 12 --header "$(t "Languages (space marks, Enter installs in the box)")" \
+            | awk '{print $1}')
+        set -- "${picked[@]}"
+        (( $# )) || return 0
+    fi
+    for item in "$@"; do
+        if [[ -n ${PRESET[$item]:-} ]]; then
+            read -r -a more <<<"${PRESET[$item]}"; tools+=("${more[@]}")
+        else
+            [[ $item =~ ^[A-Za-z0-9_:@./+-]+$ ]] || die "$(t "invalid tool"): $item"
+            tools+=("$item")
+        fi
+    done
+    [[ $box == dev ]] && ensure_default_box
+    box_exists "$box" || die "$(t "Box does not exist"): $box"
+    info "mise use -g ${tools[*]}   ($(t "box") $box)"
+    distrobox enter "$box" -- mise use -g "${tools[@]}"
+}
+
+cmd_browser() {
+    local box=${1:-dev}
+    [[ $box == dev ]] && ensure_default_box
+    box_exists "$box" || die "$(t "Box does not exist"): $box"
+    provision "$box" "$(distro_of "$box")" "browser,only"
+    echo "$(t "Chromium installed in the box. Playwright and Puppeteer find it through CHROME_BIN.")"
+}
+
+each_box() { # names of the development boxes
+    local name
+    while read -r name; do
         [[ -n $name ]] || continue
-        [[ $name == deb || $name == rpm || $name == arch || $name == "${TAMAGI_BROWSER_BOX:-navegadores}" ]] && continue
+        is_system_box "$name" || echo "$name"
+    done < <(podman ps -a --filter label=manager=distrobox --format '{{.Names}}' 2>/dev/null || true)
+}
+
+cmd_list() {
+    local found=0 name
+    while read -r name; do
         found=1
-        printf '  %-18s %-44s %s\n' "$name" "$img" "$status"
-    done < <(podman ps -a --filter label=manager=distrobox --format '{{.Names}}\t{{.Image}}\t{{.Status}}' 2>/dev/null || true)
-    (( found )) || echo "$(t "Nenhuma caixa de desenvolvimento criada. Crie com"): tamagi-devbox create"
+        printf '  %-18s %-10s %s\n' "$name" "$(distro_of "$name")" "$(podman inspect --format '{{.State.Status}}' "$name" 2>/dev/null)"
+    done < <(each_box)
+    (( found )) || echo "$(t "No development box created yet. Create one with"): tamagi devbox create"
 }
 
 cmd_update() {
     local target=${1:-} name
     if [[ -n $target ]]; then
-        box_exists "$target" || die "$(t "A caixa não existe"): $target"
+        box_exists "$target" || die "$(t "Box does not exist"): $target"
         distrobox upgrade "$target"
         return 0
     fi
     while read -r name; do
-        [[ -n $name ]] || continue
-        [[ $name == deb || $name == rpm || $name == arch || $name == "${TAMAGI_BROWSER_BOX:-navegadores}" ]] && continue
-        info "$(t "Atualizando caixa"): $name"
+        info "$(t "Updating box"): $name"
         distrobox upgrade "$name" || true
-    done < <(podman ps -a --filter label=manager=distrobox --format '{{.Names}}' 2>/dev/null || true)
+    done < <(each_box)
 }
 
 cmd_remove() {
     local name=${1:-}
-    [[ -n $name ]] || die "$(t "uso"): tamagi-devbox remove <nome>"
-    box_exists "$name" || die "$(t "A caixa não existe"): $name"
+    [[ -n $name ]] || die "usage: tamagi devbox remove <name>"
+    box_exists "$name" || die "$(t "Box does not exist"): $name"
     if [[ -t 0 ]]; then
-        gum confirm "$(t "Apagar a caixa? Os arquivos da sua pasta pessoal ficam.") ($name)" || exit 0
+        gum confirm "$(t "Delete this box? Files in your home folder stay.") ($name)" \
+            --affirmative "$(t "Yes")" --negative "$(t "No")" || exit 0
     fi
     distrobox rm --force "$name"
-    echo "$(t "Caixa removida"): $name"
+    echo "$(t "Box removed"): $name"
 }
 
 pick_interactive() {
     if [[ ! -t 0 ]]; then cmd_distros; return 0; fi
-    local choice distro
+    local choice
     choice=$(for d in "${DISTRO_ORDER[@]}"; do printf '%-9s  %s\n' "$d" "$(t "${LABEL[$d]}")"; done \
-        | gum choose --height 12 --header "$(t "Escolha a distro da caixa de desenvolvimento (padrão: fedora)")") || exit 0
-    distro=$(awk '{print $1}' <<<"$choice")
-    cmd_create "$distro"
+        | gum choose --height 8 --header "$(t "Choose development box distro (default: fedora)")") || exit 0
+    cmd_create "$(awk '{print $1}' <<<"$choice")"
 }
 
 case "${1:-}" in
-    "")                        pick_interactive ;;
-    create|criar|new|nova)     shift; cmd_create "$@" ;;
-    enter|entrar)              shift; cmd_enter "$@" ;;
-    provision|provisionar)     shift; cmd_provision "$@" ;;
-    distros|catalogo|catalog)  cmd_distros ;;
-    list|lista|status)         cmd_list ;;
-    update|atualizar)          shift; cmd_update "$@" ;;
-    remove|remover|rm)         shift; cmd_remove "$@" ;;
-    -h|--help|help|ajuda)      usage ;;
+    "")             pick_interactive ;;
+    create)         shift; cmd_create "$@" ;;
+    enter)          shift; cmd_enter "$@" ;;
+    lang)           shift; cmd_lang "$@" ;;
+    browser)        shift; cmd_browser "$@" ;;
+    provision)      shift; cmd_provision "$@" ;;
+    distros)        cmd_distros ;;
+    list|status)    cmd_list ;;
+    update)         shift; cmd_update "$@" ;;
+    remove|rm)      shift; cmd_remove "$@" ;;
+    -h|--help|help) usage ;;
     *)
         if valid_distro "$1"; then
             cmd_create "$@"

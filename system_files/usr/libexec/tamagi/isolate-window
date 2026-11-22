@@ -1,0 +1,9 @@
+#!/usr/bin/bash
+# "Abrir isolado" do gerenciador de arquivos: roda o tamagi-isolate numa janela
+# de terminal e espera uma tecla no fim, para a saída do programa ficar à vista.
+. /usr/libexec/tamagi/i18n
+tamagi-isolate "$@"
+rc=$?
+echo
+echo "$(t "The program finished") (código $rc). $(t "The jail was deleted.")"
+read -rsn1 -p "  ($(t "press any key to close"))"

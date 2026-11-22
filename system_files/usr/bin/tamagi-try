@@ -1,0 +1,60 @@
+#!/usr/bin/bash
+# tamagi-try — try a package without installing it.
+#
+# Opens a shell in a disposable container with the packages installed. When
+# you leave, everything is gone: nothing touches the system, your home or
+# your boxes.
+#
+#   tamagi try htop                     Fedora, the package htop
+#   tamagi try --distro arch neovim     ubuntu | arch | opensuse | fedora
+#   tamagi try --here ripgrep fd-find   the current folder appears in /work
+#   tamagi try --gui gimp               graphical apps open on your desktop
+#   tamagi try cowsay -- cowsay hello   runs a command and leaves
+#
+# Liked it? Keep it in a development box (`tamagi devbox`) or, if it has to
+# be on the system itself, in a layer (`tamagi layer add`).
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+declare -A IMAGE=([fedora]="quay.io/fedora/fedora:45" [ubuntu]="docker.io/library/ubuntu:latest"
+                  [arch]="docker.io/library/archlinux:latest" [opensuse]="registry.opensuse.org/opensuse/tumbleweed:latest")
+declare -A INSTALL=([fedora]="dnf -y -q install" [ubuntu]="apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq"
+                    [arch]="pacman -Sy --noconfirm --needed" [opensuse]="zypper --non-interactive --quiet install")
+
+die() { echo "$(t "error"): $*" >&2; exit 1; }
+
+distro=fedora here=0 gui=0 pkgs=() cmd=()
+while (( $# )); do
+    case $1 in
+        --distro) distro=${2:-}; shift ;;
+        --here)   here=1 ;;
+        --gui)    gui=1 ;;
+        -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+        --)       shift; cmd=("$@"); break ;;
+        -*)       die "$(t "unknown option"): $1" ;;
+        *)        [[ $1 =~ ^[A-Za-z0-9@][A-Za-z0-9+._:@-]*$ ]] || die "$(t "invalid package"): $1"; pkgs+=("$1") ;;
+    esac
+    shift
+done
+case $distro in tumbleweed|opensuse-tumbleweed) distro=opensuse ;; esac
+[[ -n ${IMAGE[$distro]:-} ]] || die "$(t "unknown distro"): '$distro' (fedora ubuntu arch opensuse)"
+(( ${#pkgs[@]} )) || { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 2; }
+
+args=(--rm --name "tamagi-try-$$" --hostname try --security-opt label=disable -e TERM -w /root)
+[[ -t 0 && -t 1 ]] && args+=(-it)
+(( here )) && args+=(-v "$PWD:/work" -w /work)
+if (( gui )) && [[ -n ${WAYLAND_DISPLAY:-} && -S ${XDG_RUNTIME_DIR:-}/$WAYLAND_DISPLAY ]]; then
+    args+=(-e WAYLAND_DISPLAY -e XDG_RUNTIME_DIR=/tmp/run -v "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/run/$WAYLAND_DISPLAY"
+           --device /dev/dri)
+fi
+
+echo -e "\033[1m$(t "Disposable box") ($distro): ${pkgs[*]}\033[0m"
+tl "When you leave, everything is gone. Nothing is installed on the system."
+# Package names were checked above (no spaces or shell characters): they go
+# in one variable, and "$@" stays free for the command to run.
+args+=(-e "TRY_PKGS=${pkgs[*]}")
+script="${INSTALL[$distro]} \$TRY_PKGS || exit 1; echo"
+if (( ${#cmd[@]} )); then
+    exec podman run "${args[@]}" "${IMAGE[$distro]}" sh -c "$script"'; exec "$@"' try "${cmd[@]}"
+fi
+exec podman run "${args[@]}" "${IMAGE[$distro]}" sh -c "$script"'; exec "$(command -v bash || echo sh)"' try

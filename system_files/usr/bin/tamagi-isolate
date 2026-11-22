@@ -1,40 +1,41 @@
 #!/usr/bin/bash
-# tamagi-isolar — roda um programa em que você não confia numa jaula descartável.
+# tamagi-isolate — runs a program you do not trust in a disposable jail.
 #
-# Para o script baixado da internet, o AppImage de origem duvidosa, o binário
-# que um tutorial manda rodar. Dentro da jaula (bubblewrap, o mesmo dos Flatpaks):
-#   • sem rede (nada sai nem entra) — a não ser com --rede
-#   • a sua pasta pessoal some: o programa vê uma pasta vazia e temporária
-#   • o resto do sistema só para leitura; sem D-Bus, sem ver outros processos
-#   • a tela (Wayland e X11), o som e a placa de vídeo funcionam
-# O arquivo é copiado para dentro: o original não é alterado. Ao sair, a jaula
-# é apagada (com --manter, fica em ~/.cache/tamagi-isolar para você olhar).
+# For the script downloaded from the internet, the AppImage of doubtful origin,
+# the binary a tutorial tells you to run. Inside the jail (bubblewrap, the same
+# as Flatpak):
+#   • no network (nothing goes out or comes in) — unless --net
+#   • your home disappears: the program sees an empty, temporary folder
+#   • the rest of the system is read-only; no D-Bus, no view of other processes
+#   • the screen (Wayland and X11), sound and the graphics card work
+# The file is copied inside: the original is untouched. On exit the jail is
+# deleted (with --keep it stays in ~/.cache/tamagi-isolate for you to inspect).
 #
-#   tamagi-isolar <arquivo> [argumentos]    .sh, .py, AppImage ou executável
-#   tamagi-isolar -- <comando> [argumentos] um comando qualquer do sistema
-#   opções (antes do arquivo): --rede  --manter  --sem-tela
-# No COSMIC Files: botão direito → Abrir com → "Abrir isolado".
+#   tamagi isolate <file> [arguments]       .sh, .py, AppImage or executable
+#   tamagi isolate -- <command> [arguments] any command of the system
+#   options (before the file): --net  --keep  --no-gui
+# In COSMIC Files: right click → Open with → "Open isolated".
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
 net=0 keep=0 gui=1
 while [[ ${1:-} == --* && ${1:-} != -- ]]; do
     case $1 in
-        --rede|--net) net=1 ;;
-        --manter|--keep) keep=1 ;;
-        --sem-tela|--no-gui) gui=0 ;;
+        --net) net=1 ;;
+        --keep) keep=1 ;;
+        --no-gui) gui=0 ;;
         -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
-        *) echo "$(t "opção desconhecida"): $1" >&2; exit 2 ;;
+        *) echo "$(t "unknown option"): $1" >&2; exit 2 ;;
     esac
     shift
 done
 [[ ${1:-} == -- ]] && { shift; cmd_mode=1; } || cmd_mode=0
 [[ $# -gt 0 ]] || { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 2; }
 
-base="${XDG_CACHE_HOME:-$HOME/.cache}/tamagi-isolar"
+base="${XDG_CACHE_HOME:-$HOME/.cache}/tamagi-isolate"
 mkdir -p "$base"
 jail=$(mktemp -d "$base/$(date +%Y%m%d-%H%M%S)-XXXX")
-cleanup() { [[ $keep == 1 ]] && echo "$(t "Jaula mantida em"): $jail" >&2 || rm -rf --one-file-system "$jail"; }
+cleanup() { [[ $keep == 1 ]] && echo "$(t "Jail kept at"): $jail" >&2 || rm -rf --one-file-system "$jail"; }
 trap cleanup EXIT
 mkdir -p "$jail/home"
 
@@ -43,7 +44,7 @@ if [[ $cmd_mode == 1 ]]; then
     run=("$@")
 else
     src=$1; shift
-    [[ -f $src ]] || { echo "$(t "arquivo não encontrado"): $src" >&2; exit 1; }
+    [[ -f $src ]] || { echo "$(t "file not found"): $src" >&2; exit 1; }
     name=$(basename "$src")
     cp -- "$src" "$jail/home/$name"
     f="$HOME/$name"                      # caminho visto de dentro da jaula
@@ -91,8 +92,8 @@ else
     args+=(--unsetenv WAYLAND_DISPLAY --unsetenv DISPLAY)
 fi
 
-msg="$(t "Isolado"): $(t "sem rede"), $(t "pasta pessoal escondida"), $(t "sistema só leitura")"
-[[ $net == 1 ]] && msg="$(t "Isolado"): $(t "COM rede"), $(t "pasta pessoal escondida"), $(t "sistema só leitura")"
+msg="$(t "Isolated"): $(t "no network"), $(t "home folder hidden"), $(t "system read-only")"
+[[ $net == 1 ]] && msg="$(t "Isolated"): $(t "WITH network"), $(t "home folder hidden"), $(t "system read-only")"
 echo "$msg" >&2
 set +e
 bwrap "${args[@]}" -- "${run[@]}"

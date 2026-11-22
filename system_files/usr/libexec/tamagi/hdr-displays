@@ -1,0 +1,37 @@
+#!/usr/bin/python3 -I
+"""hdr-displays — connected displays that announce HDR in their EDID.
+
+Prints one connector per line (e.g. "DP-3"); exit code 1 when none does.
+Looks for the HDR Static Metadata block (CTA-861 extended tag 0x06) that
+HDR10 monitors and TVs carry. It reads /sys only: needs no compositor.
+"""
+import pathlib
+import sys
+
+
+def announces_hdr(edid):
+    for base in range(128, len(edid) - 127, 128):          # extension blocks
+        block = edid[base:base + 128]
+        if block[0] != 0x02:                                 # CTA-861 extension
+            continue
+        end = block[2] if 4 <= block[2] <= 127 else 127      # where the data blocks stop
+        i = 4
+        while i < end:
+            tag, length = block[i] >> 5, block[i] & 0x1F
+            if tag == 7 and length >= 1 and block[i + 1] == 0x06:
+                return True
+            i += length + 1
+    return False
+
+
+found = []
+for status in sorted(pathlib.Path("/sys/class/drm").glob("card*-*/status")):
+    try:
+        if status.read_text().strip() != "connected":
+            continue
+        if announces_hdr((status.parent / "edid").read_bytes()):
+            found.append(status.parent.name.split("-", 1)[1])
+    except OSError:
+        continue
+print("\n".join(found))
+sys.exit(0 if found else 1)

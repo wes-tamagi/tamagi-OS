@@ -1,9 +1,0 @@
-#!/usr/bin/bash
-# "Abrir isolado" do gerenciador de arquivos: roda o tamagi-isolar numa janela
-# de terminal e espera uma tecla no fim, para a saída do programa ficar à vista.
-. /usr/libexec/tamagi/i18n
-tamagi-isolar "$@"
-rc=$?
-echo
-echo "$(t "O programa terminou") (código $rc). $(t "A jaula foi apagada.")"
-read -rsn1 -p "  ($(t "qualquer tecla fecha"))"

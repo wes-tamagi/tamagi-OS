@@ -1,6 +1,7 @@
 # Tamagi — imagem bootc sobre o Universal Blue (base-main) com o desktop COSMIC,
-# distrobox e IA local (llama.cpp + agentes). Navegadores
-# não entram aqui: vivem numa caixa distrobox (tamagi-browser).
+# distrobox e IA local (llama.cpp). A imagem é enxuta: navegadores, agentes de
+# IA, jogos, máquinas virtuais e ferramentas de desenvolvimento são opcionais
+# e entram pela escolha do usuário (`tamagi install`).
 #
 #   podman build -t tamagi .          (ou: just build)
 
@@ -85,10 +86,7 @@ ARG TAMAGI_VERSION=1.0
 ARG TAMAGI_CODENAME="Kazunobu M"
 ARG IMAGE_VENDOR=local
 ARG IMAGE_REF=
-ARG OPENCODE_VERSION=v1.19.6
-ARG OPENCODE_SHA256=8443113b3f3dfebf8b0fa91c4377e5519a62b9231732d9344a5df001e4a852b3
 ARG STARSHIP_VERSION=v1.27.0
-ARG MISE_VERSION=v2026.11.9
 ARG KERNEL_FLAVOR=ogc
 
 COPY --from=llama /out/usr /usr
@@ -103,9 +101,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     FEDORA_VERSION=${FEDORA_VERSION} IMAGE_NAME=${IMAGE_NAME} \
     TAMAGI_VERSION="${TAMAGI_VERSION}" TAMAGI_CODENAME="${TAMAGI_CODENAME}" \
     IMAGE_VENDOR=${IMAGE_VENDOR} IMAGE_REF=${IMAGE_REF} \
-    OPENCODE_VERSION=${OPENCODE_VERSION} OPENCODE_SHA256=${OPENCODE_SHA256} \
     STARSHIP_VERSION=${STARSHIP_VERSION} \
-    MISE_VERSION=${MISE_VERSION} \
     KERNEL_FLAVOR=${KERNEL_FLAVOR} \
     /ctx/build_files/build.sh
 

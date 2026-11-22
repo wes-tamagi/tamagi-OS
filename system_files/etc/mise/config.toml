@@ -1,7 +1,0 @@
-# mise — padrões do Tamagi para todos os usuários. O seu ~/.config/mise/config.toml
-# tem prioridade. Exemplos:  mise use -g node@lts python@3.13   ·   mise ls
-[settings]
-# Respeita .nvmrc, .python-version, .ruby-version e afins que já existem nos projetos.
-idiomatic_version_file_enable_tools = ["node", "python", "ruby", "go", "java"]
-# Ao rodar um comando de uma ferramenta declarada mas ainda não instalada, instala.
-not_found_auto_install = true

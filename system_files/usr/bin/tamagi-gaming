@@ -1,10 +1,12 @@
 #!/usr/bin/bash
-# tamagi-gaming — recursos de jogos no Tamagi (estilo Bazzite: nativo ou Flatpak).
+# tamagi-gaming — games on Tamagi, native like on Bazzite, on demand.
 #
-# O Tamagi já traz na base o kernel OGC (Bazzite), gamescope, MangoHud,
-# GameMode, regras de controles (steam-devices), drivers Xbox (xone/xpadneo) e
-# scx_rusty. Este comando instala sob demanda o restante — nativamente no /usr
-# via camada reversível (tamagi-layer) ou via Flatpak.
+# The image brings only what must be in the kernel: the OGC kernel (the one
+# Bazzite uses), the Xbox controller drivers (xone/xpadneo) and scx_rusty.
+# Everything else is optional and installed natively in a reversible layer
+# over /usr (tamagi-layer), with the same packages Bazzite ships built in —
+# Steam, steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine — or by
+# Flatpak.
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 # shellcheck source=/dev/null
@@ -13,89 +15,97 @@ set -euo pipefail
 MULTI=/usr/libexec/tamagi/gum-multi
 LAYER=gaming
 
-die() { echo "$(t "erro"): $*" >&2; exit 1; }
+die() { echo "$(t "error"): $*" >&2; exit 1; }
 info() { echo -e "\033[1m$*\033[0m"; }
 
-# Pacotes nativos estilo Bazzite (camada sysext sobre /usr, 100% reversível).
-NATIVE_BASE=(
-    mesa-dri-drivers.i686 mesa-vulkan-drivers.i686 vulkan-loader.i686
-    gamemode.i686 mangohud.i686
-)
+# Native packages, as on Bazzite (sysext layer over /usr, fully reversible).
+# The base of every choice: controller rules, gamescope, MangoHud and GameMode.
+NATIVE_BASE=(steam-devices gamescope mangohud gamemode)
+NATIVE_32=(mesa-dri-drivers.i686 mesa-vulkan-drivers.i686 vulkan-loader.i686 gamemode.i686 mangohud.i686)
+ALL_KEYS=(steam lutris wine overlay protontricks)
 
 usage() {
-    echo "tamagi-gaming — $(t "jogos no Tamagi (estilo Bazzite: nativo ou Flatpak)")"
+    echo "tamagi-gaming — $(t "gaming on Tamagi (Bazzite-style: native or Flatpak)")"
     echo
-    echo "  tamagi-gaming            $(t "escolhe entre modo nativo (Bazzite), Flatpak ou ambos")"
-    echo "  tamagi-gaming native     $(t "instala Steam, drivers 32-bit, Lutris, Wine, GOverlay, vkBasalt nativamente")"
-    echo "  tamagi-gaming flatpak    $(t "instala Steam, Lutris, Heroic, ProtonUp-Qt e Bottles por Flatpak")"
-    echo "  tamagi-gaming latency    $(t "ativa o perfil de baixa latência (tuned + scx_rusty)")"
-    echo "  tamagi-gaming status     $(t "mostra o que está instalado para jogos")"
-    echo "  tamagi-gaming remove     $(t "remove a camada nativa de jogos")"
+    echo "  tamagi-gaming            $(t "choose between native mode (Bazzite-style), Flatpak, or both")"
+    echo "  tamagi-gaming native [steam lutris wine overlay protontricks | --all]"
+    echo "                           $(t "installs natively: Steam + steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine")"
+    echo "  tamagi-gaming flatpak    $(t "install Steam, Lutris, Heroic, ProtonUp-Qt, and Bottles via Flatpak")"
+    echo "  tamagi-gaming hdr [on|off|status|nits N|itm on|off|vrr on|off]"
+    echo "                           $(t "gamescope HDR (the Tamagi Gaming session of the login screen)")"
+    echo "  tamagi-gaming run -- <command>   $(t "runs a game in gamescope (Steam launch option)")"
+    echo "  tamagi-gaming latency    $(t "enable the low-latency profile (tuned + scx_rusty)")"
+    echo "  tamagi-gaming status     $(t "show installed gaming components")"
+    echo "  tamagi-gaming remove     $(t "remove the native gaming layer")"
 }
 
 cmd_native() {
     # Bibliotecas 32-bit (.i686) exigem versão exata igual à contraparte .x86_64
     # nos repositórios do Fedora; --allow-upgrade alinha pacotes pontuais na
     # camada reversível sem precisar baixar ~350 MB duas vezes.
-    local all=0 allow_upgrade=1
+    local allow_upgrade=1 keys=() key picked=""
     while (( $# )); do
         case "$1" in
-            --all)           all=1 ;;
+            --all)           keys=("${ALL_KEYS[@]}") ;;
             --allow-upgrade) allow_upgrade=1 ;;
             --strict)        allow_upgrade=0 ;;
-            *) die "$(t "opção desconhecida"): $1" ;;
+            steam|lutris|wine|overlay|protontricks|base) keys+=("$1") ;;
+            *) die "$(t "unknown option"): $1" ;;
         esac
         shift
     done
-    local pkgs=("${NATIVE_BASE[@]}")
-    local use_rpmfusion=0
-    local picked=""
-    if (( all )); then
-        pkgs+=(steam lutris wine winetricks goverlay vkBasalt protontricks)
-        use_rpmfusion=1
-    elif [[ -t 0 ]]; then
-        picked=$(printf '%s\n' \
-            "steam       $(t "Steam nativo + bibliotecas 32-bit (RPM Fusion)")" \
-            "lutris      $(t "Lutris nativo (gestor de jogos)")" \
-            "wine        $(t "Wine + Winetricks nativos (jogos Windows)")" \
-            "overlay     $(t "GOverlay + vkBasalt (interface para MangoHud e pós-processamento)")" \
-            "protontricks $(t "Protontricks (ajustes de prefixos Proton)")" \
-            | "$MULTI" --selected "steam       $(t "Steam nativo + bibliotecas 32-bit (RPM Fusion)")" \
-                --height 10 --header "$(t "Espaço/Tab marca · Enter instala nativamente (camada reversível)")") || exit 0
-        [[ -n $picked ]] || { tl "Nada escolhido."; return 0; }
-        while read -r key _; do
-            case "$key" in
-                steam)        pkgs+=(steam); use_rpmfusion=1 ;;
-                lutris)       pkgs+=(lutris) ;;
-                wine)         pkgs+=(wine winetricks) ;;
-                overlay)      pkgs+=(goverlay vkBasalt) ;;
-                protontricks) pkgs+=(protontricks) ;;
-            esac
-        done <<<"$picked"
-    else
-        pkgs+=(steam lutris wine winetricks goverlay vkBasalt protontricks)
-        use_rpmfusion=1
+    if (( ${#keys[@]} == 0 )); then
+        if [[ -t 0 ]]; then
+            picked=$(printf '%s\n' \
+                "steam       $(t "Native Steam + steam-devices + 32-bit libraries (RPM Fusion)")" \
+                "lutris      $(t "Native Lutris (game manager)")" \
+                "wine        $(t "Native Wine + Winetricks (Windows games)")" \
+                "overlay     $(t "GOverlay + vkBasalt (MangoHud UI and post-processing)")" \
+                "protontricks $(t "Protontricks (Proton prefix tweaks)")" \
+                | "$MULTI" --selected "steam       $(t "Native Steam + steam-devices + 32-bit libraries (RPM Fusion)")" \
+                    --height 10 --header "$(t "Space/Tab toggles · Enter installs natively (reversible layer)")") || exit 0
+            [[ -n $picked ]] || { tl "Nothing selected."; return 0; }
+            while read -r key _; do keys+=("$key"); done <<<"$picked"
+        else
+            keys=("${ALL_KEYS[@]}")
+        fi
     fi
+    # What an earlier run put in the layer stays: choices add up.
+    local pkgs=("${NATIVE_BASE[@]}") use_rpmfusion=0 old
+    while read -r old; do [[ -n $old ]] && pkgs+=("$old"); done < <(cat "/var/lib/tamagi/layers/$LAYER.request" 2>/dev/null || true)
+    [[ $(cat "/var/lib/tamagi/layers/$LAYER.rpmfusion" 2>/dev/null) == 1 ]] && use_rpmfusion=1
+    for key in "${keys[@]}"; do
+        case "$key" in
+            steam)        pkgs+=(steam "${NATIVE_32[@]}"); use_rpmfusion=1 ;;
+            lutris)       pkgs+=(lutris "${NATIVE_32[@]}") ;;
+            wine)         pkgs+=(wine winetricks) ;;
+            overlay)      pkgs+=(goverlay vkBasalt) ;;
+            protontricks) pkgs+=(protontricks) ;;
+            base)         ;;
+        esac
+    done
+    mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | awk '!seen[$0]++')
 
     local flags=() rc=0
     (( use_rpmfusion )) && flags+=(--rpmfusion)
     (( allow_upgrade )) && flags+=(--allow-upgrade)
-    info "$(t "Construindo camada nativa de jogos") ($LAYER)…"
+    info "$(t "Building native gaming layer") ($LAYER)…"
     tamagi-layer add "$LAYER" "${flags[@]}" "${pkgs[@]}" || rc=$?
     if (( rc == 4 && ! allow_upgrade )) && [[ -t 0 ]]; then
-        if gum confirm "$(t "Repetir com --allow-upgrade para alinhar as bibliotecas 32-bit à versão atual do Fedora?")" \
-                --affirmative "$(t "Sim")" --negative "$(t "Não")"; then
+        if gum confirm "$(t "Retry with --allow-upgrade to align 32-bit libraries with the current Fedora version?")" \
+                --affirmative "$(t "Yes")" --negative "$(t "No")"; then
             rc=0
             tamagi-layer add "$LAYER" "${flags[@]}" --allow-upgrade "${pkgs[@]}" || rc=$?
         fi
     fi
     (( rc == 0 )) || exit "$rc"
     echo
-    tl "Jogos nativos prontos (camada 'gaming' sobre /usr). Para desfazer: tamagi-gaming remove"
-    echo "$(t "Dica Steam (opções de inicialização)"): gamemoderun mangohud gamescope -f -- %command%"
+    tl "Native gaming ready ('gaming' layer over /usr). To undo: tamagi-gaming remove"
+    tl "HDR: at the login screen, choose the Tamagi Gaming session (gamescope + Steam Big Picture)."
+    echo "$(t "Steam tip (launch options)"): gamemoderun mangohud tamagi gaming run -- %command%"
     if [[ -t 0 ]]; then
-        if gum confirm "$(t "Ativar também o perfil de baixa latência (tuned + scx_rusty)?")" \
-                --affirmative "$(t "Sim")" --negative "$(t "Não")"; then
+        if gum confirm "$(t "Also enable the low-latency profile (tuned + scx_rusty)?")" \
+                --affirmative "$(t "Yes")" --negative "$(t "No")"; then
             tamagi-perf set latency || true
         fi
     fi
@@ -107,7 +117,7 @@ cmd_flatpak() {
         apps=$(printf '%s\n' \
             "Steam" "Lutris" "Heroic (Epic/GOG)" "ProtonUp-Qt" "Bottles" \
             | "$MULTI" --selected "Steam" --height 10 \
-                --header "$(t "Espaço/Tab marca · Enter instala (Flatpak)")") || exit 0
+                --header "$(t "Space/Tab toggles · Enter installs (Flatpak)")") || exit 0
     else
         apps=$'Steam\nHeroic (Epic/GOG)\nProtonUp-Qt'
     fi
@@ -120,27 +130,71 @@ cmd_flatpak() {
             Bottles)      ids+=(com.usebottles.bottles) ;;
         esac
     done <<<"$apps"
-    (( ${#ids[@]} )) || { tl "Nada escolhido."; return 0; }
+    (( ${#ids[@]} )) || { tl "Nothing selected."; return 0; }
     flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null \
         || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
     flatpak install --user -y flathub "${ids[@]}"
-    tl "Apps Flatpak de jogos instalados."
+    tl "Gaming Flatpak apps installed."
 }
 
 cmd_status() {
     echo "$(t "Kernel")               : $(uname -r) ($(cat /usr/share/tamagi/kernel-flavor 2>/dev/null || echo -))"
-    echo "$(t "Base nativa")          : gamescope · mangohud · gamemode · steam-devices · scx_rusty"
+    echo "$(t "In the image")            : $(t "OGC kernel, Xbox controllers (xone/xpadneo), scx_rusty")"
+    echo "gamescope / MangoHud  : $(command -v gamescope >/dev/null 2>&1 && t "yes" || t "no") / $(command -v mangohud >/dev/null 2>&1 && t "yes" || t "no")"
     local layer_st
     layer_st=$(tamagi-layer list 2>/dev/null | awk -v l="$LAYER" '$1 == l {print $2; exit}')
-    echo "$(t "Camada nativa gaming") : ${layer_st:-$(t "não instalada")} (tamagi-gaming native)"
-    echo "$(t "Steam nativo")         : $(command -v steam >/dev/null 2>&1 && t "sim" || t "não")"
-    echo "$(t "Lutris / Wine nativo") : $(command -v lutris >/dev/null 2>&1 && t "sim" || t "não") / $(command -v wine >/dev/null 2>&1 && t "sim" || t "não")"
+    echo "$(t "Native gaming layer") : ${layer_st:-$(t "not installed")} (tamagi-gaming native)"
+    echo "$(t "Native Steam")         : $(command -v steam >/dev/null 2>&1 && t "yes" || t "no")"
+    echo "$(t "Native Lutris / Wine") : $(command -v lutris >/dev/null 2>&1 && t "yes" || t "no") / $(command -v wine >/dev/null 2>&1 && t "yes" || t "no")"
     local fp_games=() app
     for app in com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl net.davidotek.pupgui2 com.usebottles.bottles; do
         flatpak info "$app" >/dev/null 2>&1 && fp_games+=("${app##*.}")
     done
-    echo "$(t "Jogos Flatpak")        : ${fp_games[*]:--}"
-    echo "$(t "Perfil de desempenho") : $(tamagi-perf --json 2>/dev/null | jq -r '.profile + " (sched_ext: " + .sched_ext + ")"' 2>/dev/null || echo -)"
+    echo "$(t "Gaming Flatpaks")        : ${fp_games[*]:--}"
+    echo "HDR (gamescope)       : $(gs_get HDR on) · $(t "displays"): $(/usr/libexec/tamagi/hdr-displays 2>/dev/null | tr '\n' ' ' || true)"
+    echo "$(t "Performance profile") : $(tamagi-perf --json 2>/dev/null | jq -r '.profile + " (sched_ext: " + .sched_ext + ")"' 2>/dev/null || echo -)"
+}
+
+# ── gamescope + HDR ────────────────────────────────────────────────────────
+# HDR works where gamescope drives the display itself: the "Tamagi Gaming"
+# session of the login screen. Inside COSMIC, gamescope is a window: it asks
+# for HDR too, and gets it when the desktop compositor supports HDR.
+GS_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/gamescope.conf"
+GS_SESSION=/usr/libexec/tamagi/gamescope-session
+
+gs_get() { local v; v=$(sed -n "s/^$1=//p" "$GS_CONF" 2>/dev/null | tail -1); echo "${v:-$2}"; }
+gs_set() {
+    mkdir -p "$(dirname "$GS_CONF")"; touch "$GS_CONF"
+    if grep -q "^$1=" "$GS_CONF"; then sed -i "s/^$1=.*/$1=$2/" "$GS_CONF"; else echo "$1=$2" >> "$GS_CONF"; fi
+}
+onoff() { [[ ${1:-} == on || ${1:-} == off ]] || die "usage: tamagi gaming hdr ${2:-} on|off"; }
+
+cmd_hdr() {
+    case "${1:-status}" in
+        on|off) gs_set HDR "$1" ;;
+        nits)   [[ ${2:-} =~ ^[0-9]{2,4}$ ]] || die "usage: tamagi gaming hdr nits <80-1000>"; gs_set SDR_NITS "$2" ;;
+        itm)    onoff "${2:-}" itm; gs_set ITM "$2" ;;
+        vrr)    onoff "${2:-}" vrr; gs_set VRR "$2" ;;
+        status) ;;
+        *)      die "usage: tamagi gaming hdr [on|off|status|nits N|itm on|off|vrr on|off]" ;;
+    esac
+    local displays
+    displays=$(/usr/libexec/tamagi/hdr-displays 2>/dev/null | tr '\n' ' ')
+    echo "gamescope             : $(command -v gamescope >/dev/null 2>&1 && t "installed" || echo "$(t "not installed") (tamagi gaming native)")"
+    echo "$(t "HDR displays")         : ${displays:-$(t "none (the display does not announce HDR)")}"
+    echo "HDR                   : $(gs_get HDR on) · SDR $(gs_get SDR_NITS 400) nits · ITM $(gs_get ITM off) · VRR $(gs_get VRR on)"
+    echo "$(t "Gaming session")       : $(t "at the login screen, choose Tamagi Gaming (Steam Big Picture with HDR)")"
+    echo "$(t "Inside COSMIC")      : $(t "gamescope asks for HDR; it only comes out in HDR once COSMIC supports it")"
+}
+
+cmd_run() {
+    [[ ${1:-} == -- ]] && shift
+    (( $# )) || die "usage: tamagi gaming run -- <command>   (Steam: tamagi gaming run -- %command%)"
+    command -v gamescope >/dev/null 2>&1 || die "$(t "gamescope is not installed"): tamagi gaming native"
+    local args=()
+    mapfile -t args < <("$GS_SESSION" --print-args 1)
+    export ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1
+    exec gamescope -f "${args[@]}" -- "$@"
 }
 
 cmd_remove() {
@@ -149,12 +203,12 @@ cmd_remove() {
 
 cmd_setup() {
     if [[ ! -t 0 ]]; then cmd_status; return 0; fi
-    tl "gamescope, MangoHud, GameMode, controles Xbox e kernel OGC já vêm na imagem."
+    tl "The OGC kernel and the Xbox controller drivers ship in the image; the rest is optional."
     local opt_nat opt_fp opt_lat choice
-    opt_nat=$(t "Nativo (estilo Bazzite) — Steam, 32-bit, Lutris, Wine, GOverlay, vkBasalt")
+    opt_nat=$(t "Native (like Bazzite) — Steam, steam-devices, gamescope, MangoHud, Lutris, Wine")
     opt_fp=$(t "Flatpak (sandbox) — Steam, Lutris, Heroic, ProtonUp-Qt, Bottles")
-    opt_lat=$(t "Perfil de baixa latência — tuned + escalonador BPF scx_rusty")
-    choice=$(gum choose --header "$(t "Como instalar os recursos de jogos?")" "$opt_nat" "$opt_fp" "$opt_lat") || exit 0
+    opt_lat=$(t "Low-latency profile — tuned + scx_rusty BPF scheduler")
+    choice=$(gum choose --header "$(t "How would you like to install gaming tools?")" "$opt_nat" "$opt_fp" "$opt_lat") || exit 0
     case "$choice" in
         "$opt_nat") cmd_native ;;
         "$opt_fp")  cmd_flatpak ;;
@@ -163,12 +217,14 @@ cmd_setup() {
 }
 
 case "${1:-setup}" in
-    setup|instalar)       cmd_setup ;;
-    native|nativo)        shift; cmd_native "$@" ;;
+    setup)                cmd_setup ;;
+    native)               shift; cmd_native "$@" ;;
     flatpak)              cmd_flatpak ;;
-    latency|latencia)     tamagi-perf set latency ;;
-    status|estado)        cmd_status ;;
-    remove|remover)       cmd_remove ;;
-    -h|--help|help|ajuda) usage ;;
+    hdr)                  shift; cmd_hdr "$@" ;;
+    run)                  shift; cmd_run "$@" ;;
+    latency)              tamagi-perf set latency ;;
+    status)               cmd_status ;;
+    remove)               cmd_remove ;;
+    -h|--help|help) usage ;;
     *)                    usage >&2; exit 2 ;;
 esac

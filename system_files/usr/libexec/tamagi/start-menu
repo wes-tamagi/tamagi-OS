@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+# Super+Space: opens the start menu of the bar (the Tamagi button). With the
+# "cosmic" bar style there is no such button: COSMIC's own app library opens.
+cosmic-ext-classic-menu-applet --toggle 2>/dev/null && exit 0
+exec cosmic-app-library

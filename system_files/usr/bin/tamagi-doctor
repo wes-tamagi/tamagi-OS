@@ -57,9 +57,9 @@ def check_image():
     boot_fail = pathlib.Path("/var/lib/tamagi/boot-failures")
     fails = list(boot_fail.glob("*.txt")) if boot_fail.is_dir() else []
     if q_count > 0:
-        return item("image", "WARN", f"{t('Digest em quarentena')}: {q_count}", "tamagi-update quarantine")
+        return item("image", "WARN", f"{t('Quarantined digest')}: {q_count}", "tamagi-update quarantine")
     if fails:
-        return item("image", "WARN", f"{t('Relatório de boot pendente')}: {len(fails)}", "tamagi-boot-report show")
+        return item("image", "WARN", f"{t('Pending boot report')}: {len(fails)}", "tamagi-boot-report show")
     ver = ""
     try:
         for ln in pathlib.Path("/usr/lib/os-release").read_text().splitlines():
@@ -84,7 +84,7 @@ def check_kernel():
         if cert.is_file():
             rc2, _, _ = run_out(["mokutil", "--test-key", str(cert)])
             if rc2 == 0:
-                return item("kernel", "WARN", f"{kver} ({flav}): {t('chave Secure Boot do Universal Blue ausente')}",
+                return item("kernel", "WARN", f"{kver} ({flav}): {t('Universal Blue Secure Boot key missing')}",
                             "ujust enroll-secure-boot-key")
     detail = f"{kver}" + (f" ({flav})" if flav else "") + (" · sched_ext" if has_scx else "")
     return item("kernel", "OK", detail)
@@ -96,21 +96,21 @@ def check_storage():
         free_pct = (st.free * 100.0) / st.total if st.total else 100.0
         free_gb = st.free / (1024 ** 3)
     except OSError:
-        return item("storage", "WARN", t("não foi possível medir o espaço em disco"))
+        return item("storage", "WARN", t("could not measure disk space"))
     if free_pct < 5 or free_gb < 5:
-        return item("storage", "FAIL", f"{t('espaço crítico')}: {free_gb:.1f} GiB ({free_pct:.0f}%)",
+        return item("storage", "FAIL", f"{t('critical disk space')}: {free_gb:.1f} GiB ({free_pct:.0f}%)",
                     "flatpak uninstall --unused && podman system prune")
     if free_pct < 12 or free_gb < 15:
-        return item("storage", "WARN", f"{t('espaço baixo')}: {free_gb:.1f} GiB ({free_pct:.0f}%)",
+        return item("storage", "WARN", f"{t('low disk space')}: {free_gb:.1f} GiB ({free_pct:.0f}%)",
                     "flatpak uninstall --unused")
-    # Verifica se ~/.local ou ~/.local/state pertence ao usuário atual (evita erro do mise/apps).
+    # Verifica se ~/.local ou ~/.local/state pertence ao usuário atual (senão os apps não conseguem gravar a própria configuração).
     uid = os.getuid()
     for rel in (".local", ".local/state", ".local/share"):
         d = HOME / rel
         if d.exists():
             try:
                 if d.stat().st_uid != uid:
-                    return item("storage", "FAIL", f"{d} {t('pertence a outro usuário (root?)')}",
+                    return item("storage", "FAIL", f"{d} {t('is owned by another user (root?)')}",
                                 f"sudo chown {os.environ.get('USER', '$USER')}: {HOME / '.local'} {HOME / '.local/state'}")
             except OSError:
                 pass
@@ -119,16 +119,16 @@ def check_storage():
     if vm_dir.is_dir():
         rc, out, _ = run_out(["lsattr", "-d", str(vm_dir)])
         if rc == 0 and "C" not in out.split()[0]:
-            return item("storage", "WARN", f"{free_gb:.1f} GiB · {t('pasta de VMs sem atributo NoCoW (+C)')}",
+            return item("storage", "WARN", f"{free_gb:.1f} GiB · {t('VM directory missing NoCoW (+C) attribute')}",
                         f"chattr +C {vm_dir}")
-    return item("storage", "OK", f"{free_gb:.1f} GiB {t('livres')} ({free_pct:.0f}%)")
+    return item("storage", "OK", f"{free_gb:.1f} GiB {t('free')} ({free_pct:.0f}%)")
 
 
 def check_performance():
     issues = []
     zram = pathlib.Path("/sys/block/zram0/disksize").is_file()
     if not zram:
-        issues.append(t("sem zram0"))
+        issues.append(t("no zram0"))
     rc, db, _ = run_out(["sysctl", "-n", "vm.dirty_bytes"])
     try:
         mem_kb = int([l.split()[1] for l in pathlib.Path("/proc/meminfo").read_text().splitlines() if l.startswith("MemTotal:")][0])
@@ -146,53 +146,43 @@ def check_systemd():
     rc1, sys_f, _ = run_out(["systemctl", "--failed", "--no-legend", "--plain"])
     rc2, usr_f, _ = run_out(["systemctl", "--user", "--failed", "--no-legend", "--plain"])
     if rc1 != 0 and rc2 != 0:
-        return item("systemd", "OK", t("systemd indisponível neste ambiente"))
+        return item("systemd", "OK", t("systemd unavailable in this environment"))
     failed = [l.split()[0] for l in (sys_f + "\n" + usr_f).splitlines() if l.strip()]
     if failed:
-        return item("systemd", "WARN", f"{t('unidades com falha')}: {', '.join(failed[:4])}",
+        return item("systemd", "WARN", f"{t('failed units')}: {', '.join(failed[:4])}",
                     "systemctl --failed && systemctl --user --failed")
-    return item("systemd", "OK", t("nenhuma unidade com falha"))
+    return item("systemd", "OK", t("no failed units"))
 
 
 def check_layers():
     rc, out, _ = run_out(["tamagi-layer", "stale"])
     stale = [l.strip() for l in out.splitlines() if l.strip()] if rc == 0 else []
     if stale:
-        return item("layers", "WARN", f"{t('camadas desatualizadas')}: {', '.join(stale)}", "tamagi-layer rebuild")
-    return item("layers", "OK", t("camadas em dia"))
+        return item("layers", "WARN", f"{t('stale layers')}: {', '.join(stale)}", "tamagi-layer rebuild")
+    return item("layers", "OK", t("layers up to date"))
 
 
 def check_containers():
     rc, out, _ = run_out(["podman", "ps", "-a", "--filter", "label=manager=distrobox", "--format", "{{.Names}}"])
     if rc != 0:
-        return item("containers", "OK", t("podman indisponível neste ambiente"))
+        return item("containers", "OK", t("podman unavailable in this environment"))
     boxes = [b for b in out.splitlines() if b.strip()]
-    return item("containers", "OK", f"{len(boxes)} {t('caixas distrobox')}" + (f" ({', '.join(boxes[:5])})" if boxes else ""))
+    return item("containers", "OK", f"{len(boxes)} {t('distrobox containers')}" + (f" ({', '.join(boxes[:5])})" if boxes else ""))
 
 
 def check_gpu():
     renders = sorted(pathlib.Path("/dev/dri").glob("renderD*")) if pathlib.Path("/dev/dri").is_dir() else []
     if not renders:
-        return item("gpu", "WARN", t("nenhum nó DRM render encontrado"))
+        return item("gpu", "WARN", t("no DRM render node found"))
     return item("gpu", "OK", f"{len(renders)} GPU DRM ({', '.join(r.name for r in renders)})")
 
 
 def check_kvm():
     kvm = pathlib.Path("/dev/kvm")
     if not kvm.exists():
-        return item("virtualization", "WARN", t("/dev/kvm ausente (virtualização desligada na BIOS?)"))
+        return item("virtualization", "WARN", t("/dev/kvm missing (virtualization disabled in BIOS?)"))
     if not os.access(kvm, os.R_OK | os.W_OK):
-        return item("virtualization", "WARN", t("sem permissão de leitura/escrita em /dev/kvm"))
-    # Detecta VM Pop!_OS criada com Secure Boot ligado (causa conhecida de falha de boot).
-    rc, xml, _ = run_out(["virsh", "-c", "qemu:///session", "dumpxml", "popos"])
-    if rc == 0 and re.search(
-        r"<feature\b[^>]*name=['\"]secure-boot['\"][^>]*enabled=['\"]yes['\"]"
-        r"|<feature\b[^>]*enabled=['\"]yes['\"][^>]*name=['\"]secure-boot['\"]"
-        r"|<loader\b[^>]*secure=['\"]yes['\"]",
-        xml,
-    ):
-        return item("virtualization", "WARN", t("VM popos está com Secure Boot ligado (o Pop!_OS não inicia assim)"),
-                    "tamagi-popos remover popos && tamagi-popos instalar")
+        return item("virtualization", "WARN", t("no read/write permission on /dev/kvm"))
     return item("virtualization", "OK", "/dev/kvm OK")
 
 
@@ -200,8 +190,8 @@ def check_security():
     rc, enf, _ = run_out(["getenforce"])
     if rc == 0 and enf.lower() != "enforcing":
         return item("security", "WARN", f"SELinux: {enf}", "sudo setenforce 1")
-    mode = t("estrito") if pathlib.Path("/etc/sysctl.d/90-tamagi-strict.conf").exists() else t("equilibrado")
-    return item("security", "OK", f"SELinux {enf or '-'} · {t('modo')} {mode}")
+    mode = t("strict") if pathlib.Path("/etc/sysctl.d/90-tamagi-strict.conf").exists() else t("balanced")
+    return item("security", "OK", f"SELinux {enf or '-'} · {t('mode')} {mode}")
 
 
 def check_desktop():
@@ -213,22 +203,22 @@ def check_desktop():
             if rc != 0:
                 bad.append(f.name)
     if bad:
-        return item("desktop", "WARN", f"{t('entradas .desktop inválidas')}: {', '.join(bad[:3])}",
+        return item("desktop", "WARN", f"{t('invalid .desktop entries')}: {', '.join(bad[:3])}",
                     f"desktop-file-validate {apps}/{bad[0]}")
     if shutil.which("agy") or (HOME / ".local/bin/agy").is_file():
         has_agy = pathlib.Path("/usr/share/applications/agy.desktop").is_file() or (apps / "agy.desktop").is_file()
         if not has_agy:
-            return item("desktop", "WARN", t("agy instalado mas sem entrada no menu"),
+            return item("desktop", "WARN", t("agy is installed but missing from the menu"),
                         "tamagi-doctor --fix")
-    return item("desktop", "OK", t("menu e entradas .desktop válidos"))
+    return item("desktop", "OK", t("menu and .desktop entries are valid"))
 
 
 def check_ai():
     vk = pathlib.Path("/usr/lib64/ggml/libggml-vulkan.so").is_file()
     if not vk:
-        return item("ai", "WARN", t("backend Vulkan do llama.cpp ausente"))
+        return item("ai", "WARN", t("llama.cpp Vulkan backend missing"))
     rc, state, _ = run_out(["systemctl", "--user", "is-active", "llama-server.service"])
-    return item("ai", "OK", f"Vulkan · llama-server: {state if rc == 0 else t('parado')}")
+    return item("ai", "OK", f"Vulkan · llama-server: {state if rc == 0 else t('stopped')}")
 
 
 CHECKS = [
@@ -268,7 +258,7 @@ def run_safe_fixes():
 def explain_with_ai(results):
     problems = [r for r in results if r["status"] != "OK"]
     if not problems:
-        return t("Nenhum problema encontrado para explicar.")
+        return t("No issues found to explain.")
     lang = _I18N.detect_lang()
     lang_name = {"pt": "português", "en": "English", "es": "español", "fr": "français"}[lang]
     body = json.dumps({
@@ -289,17 +279,17 @@ def explain_with_ai(results):
             data = json.loads(resp.read().decode("utf-8"))
             return data["choices"][0]["message"]["content"].strip()
     except Exception:
-        return t("IA local indisponível (inicie com: tamagi-ai start).")
+        return t("Local AI unavailable (start with: tamagi-ai start).")
 
 
 def main():
     p = argparse.ArgumentParser(
         prog="tamagi-doctor",
-        description=t("Diagnóstico autônomo de saúde, integridade e desempenho do Tamagi"),
+        description=t("Autonomous health, integrity, and performance diagnostics for Tamagi"),
     )
-    p.add_argument("--json", action="store_true", help=t("saída estruturada em JSON"))
-    p.add_argument("--fix", action="store_true", help=t("aplica correções seguras no usuário"))
-    p.add_argument("--explain", action="store_true", help=t("pede explicação à IA local (llama.cpp)"))
+    p.add_argument("--json", action="store_true", help=t("structured JSON output"))
+    p.add_argument("--fix", action="store_true", help=t("apply safe user-level fixes"))
+    p.add_argument("--explain", action="store_true", help=t("ask local AI (llama.cpp) for an explanation"))
     args = p.parse_args()
 
     fixed = run_safe_fixes() if args.fix else []
@@ -310,7 +300,7 @@ def main():
         return
 
     if fixed:
-        print(f"{t('Correções aplicadas')}: {', '.join(fixed)}\n")
+        print(f"{t('Applied fixes')}: {', '.join(fixed)}\n")
 
     ok_n = sum(1 for r in results if r["status"] == "OK")
     warn_n = sum(1 for r in results if r["status"] == "WARN")
@@ -325,9 +315,9 @@ def main():
         if r["fix"]:
             print(f"           → {r['fix']}")
 
-    print(f"\n{t('Resumo')}: {ok_n} OK · {warn_n} WARN · {fail_n} FAIL")
+    print(f"\n{t('Summary')}: {ok_n} OK · {warn_n} WARN · {fail_n} FAIL")
     if args.explain:
-        print(f"\n── {t('Análise da IA local')}")
+        print(f"\n── {t('Local AI analysis')}")
         print(explain_with_ai(results))
     sys.exit(1 if fail_n else 0)
 

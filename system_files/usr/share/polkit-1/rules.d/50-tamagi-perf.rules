@@ -1,6 +1,6 @@
 // Perfis de desempenho (tamagi-perf): quem é administrador, na sessão ativa e
 // local, alterna o perfil sem digitar a senha — só este programa.
-// O convidado (tamagi-convidado) nunca, nem com senha.
+// O convidado (tamagi-guest) nunca, nem com senha.
 polkit.addRule(function(action, subject) {
     if (action.id == "org.freedesktop.policykit.exec" &&
         action.lookup("program") == "/usr/libexec/tamagi/perf-helper" &&

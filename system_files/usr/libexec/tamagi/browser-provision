@@ -2,7 +2,7 @@
 # Roda DENTRO da caixa de navegadores (Fedora), como root. Quem chama é o
 # tamagi-browser, pelo /run/host.
 #   browser-provision base                  vídeo por hardware, fontes, pt-BR
-#   browser-provision install <navegador>   chrome | firefox | brave | edge | vivaldi
+#   browser-provision install <navegador>   chrome | firefox | vivaldi | chromium
 #   browser-provision app antigravity       IDE do Google (usa o Chrome desta caixa)
 #   browser-provision upgrade               dnf upgrade
 set -euo pipefail
@@ -73,19 +73,13 @@ pref("media.hardware-video-decoding.force-enabled", true);
 pref("gfx.webrender.all", true);
 JS
             ;;
-        brave)
-            repo brave-browser "Brave Browser" 'https://brave-browser-rpm-release.s3.brave.com/$basearch' \
-                https://brave-browser-rpm-release.s3.brave.com/brave-core.asc
-            dnf_install brave-browser ;;
-        edge)
-            repo microsoft-edge "Microsoft Edge" https://packages.microsoft.com/yumrepos/edge \
-                https://packages.microsoft.com/keys/microsoft.asc
-            dnf_install microsoft-edge-stable ;;
         vivaldi)
             repo vivaldi "Vivaldi" 'https://repo.vivaldi.com/archive/rpm/$basearch' \
                 https://repo.vivaldi.com/archive/linux_signing_key.pub
             dnf_install vivaldi-stable ;;
-        *) die "navegador desconhecido: $1 (use: chrome, firefox, brave, edge, vivaldi)" ;;
+        chromium)
+            dnf_install chromium ;;
+        *) die "unknown browser: $1 (chrome, firefox, vivaldi, chromium)" ;;
     esac
 }
 
@@ -112,5 +106,5 @@ case "${1:-}" in
     app)     [[ -n ${2:-} ]] || die "diga o app"; install_app "$2" ;;
     install) [[ -n ${2:-} ]] || die "diga o navegador"; install_browser "$2" ;;
     upgrade) dnf -y upgrade --refresh ;;
-    *) die "uso: browser-provision base | install <navegador> | app <app> | upgrade" ;;
+    *) die "usage: browser-provision base | install <browser> | app <app> | upgrade" ;;
 esac

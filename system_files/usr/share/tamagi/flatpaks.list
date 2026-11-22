@@ -2,14 +2,13 @@
 #   <remote> <ID> <tipo> <categoria> <tamanho aproximado> <descrição>
 # tipo:
 #   essencial    instalado sozinho no primeiro boot (tamagi-flatpak-setup), para
-#                todos. São pequenos.
-#   recomendado  oferecido no primeiro login (tamagi-firstrun) já marcado:
-#                "Instalar o recomendado" instala só estes.
-#   opcional     oferecido no primeiro login, desmarcado ("Escolher app por app").
-# Depois do primeiro login, tudo continua no Super+Espaço (Instalar) e no
-# `flatpak install`. Preferência por apps verificados pelo próprio fabricante.
+#                todos. São pequenos: o mínimo para o desktop ser usável.
+#   opcional     oferecido no catálogo (`tamagi install` e primeiro login),
+#                desmarcado: o usuário escolhe.
+# Navegadores, jogos nativos, máquinas virtuais, caixas de desenvolvimento e
+# agentes de IA estão em catalog.tsv (não são só Flatpak).
+# Preferência por apps verificados pelo próprio fabricante.
 # Remotes: flathub e cosmic (repositório da System76 para o COSMIC).
-# O Chrome não está aqui: vive na caixa Fedora (tamagi-browser).
 flathub com.github.tchx84.Flatseal               essencial   Sistema         2MB    Flatseal — permissões dos apps Flatpak
 flathub io.github.flattool.Warehouse             essencial   Sistema         2MB    Warehouse — gerenciar apps Flatpak
 flathub org.gnome.Loupe                          essencial   Sistema         15MB   Loupe — imagens
@@ -17,27 +16,24 @@ flathub org.gnome.Papers                         essencial   Sistema         35M
 cosmic  io.github.cosmic_utils.minimon-applet    essencial   Sistema         5MB    Monitor de CPU e memória na barra
 cosmic  io.github.cosmic_utils.weather-applet    essencial   Sistema         5MB    Clima na barra
 cosmic  io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager essencial Sistema 5MB Histórico da área de transferência
-flathub io.missioncenter.MissionCenter           recomendado Sistema         35MB   Mission Center — monitor do sistema
-flathub org.gnome.World.PikaBackup               recomendado Sistema         45MB   Pika Backup — cópias de segurança para um disco ou servidor
-flathub org.mozilla.firefox                      opcional    Navegadores     260MB  Firefox — navegador da Mozilla
-flathub com.brave.Browser                        opcional    Navegadores     480MB  Brave — navegador com bloqueio de anúncios
-flathub org.onlyoffice.desktopeditors            opcional    Escritório      1.1GB  OnlyOffice — documentos, planilhas e apresentações
-flathub org.libreoffice.LibreOffice              opcional    Escritório      800MB  LibreOffice — documentos, planilhas e apresentações
-flathub org.mozilla.Thunderbird                  opcional    Escritório      300MB  Thunderbird — e-mail e agenda
-flathub com.bitwarden.desktop                    opcional    Escritório      560MB  Bitwarden — gerenciador de senhas
-flathub org.telegram.desktop                     opcional    Comunicação     260MB  Telegram — mensagens
-flathub org.signal.Signal                        opcional    Comunicação     380MB  Signal — mensagens com criptografia
-flathub com.discordapp.Discord                   opcional    Comunicação     600MB  Discord — voz e comunidades
-flathub com.obsproject.Studio                    opcional    Criação         590MB  OBS Studio — gravar e transmitir
-flathub org.gimp.GIMP                            opcional    Criação         270MB  GIMP — editar imagens
-flathub org.inkscape.Inkscape                    opcional    Criação         310MB  Inkscape — desenho vetorial
-flathub org.videolan.VLC                         opcional    Criação         150MB  VLC — vídeos e músicas
-flathub com.spotify.Client                       opcional    Criação         300MB  Spotify — música
-flathub com.valvesoftware.Steam                  opcional    Jogos           600MB  Steam — loja e biblioteca de jogos
-flathub com.heroicgameslauncher.hgl              opcional    Jogos           620MB  Heroic — jogos da Epic, GOG e Amazon
-flathub com.usebottles.bottles                   opcional    Jogos           550MB  Bottles — programas do Windows (Wine)
-flathub io.podman_desktop.PodmanDesktop          opcional    Desenvolvimento 480MB  Podman Desktop — contêineres com janelas
-flathub com.ranfdev.DistroShelf                  opcional    Desenvolvimento 10MB   DistroShelf — caixas distrobox com janelas
-flathub dev.zed.Zed                              opcional    Desenvolvimento 250MB  Zed — editor de código
-flathub dev.edfloreshz.CosmicTweaks              opcional    Sistema         120MB  COSMIC Tweaks — ajustes extras do COSMIC
-flathub io.github.cosmic_utils.Examine           opcional    Sistema         100MB  Examine — informações do hardware
+flathub io.missioncenter.MissionCenter           opcional    System         35MB   Mission Center — system monitor
+flathub org.gnome.World.PikaBackup               opcional    System         45MB   Pika Backup — backups to a disk or server
+flathub org.onlyoffice.desktopeditors            opcional    Office      1.1GB  OnlyOffice — documents, spreadsheets and presentations
+flathub org.libreoffice.LibreOffice              opcional    Office      800MB  LibreOffice — documents, spreadsheets and presentations
+flathub org.mozilla.Thunderbird                  opcional    Office      300MB  Thunderbird — email and calendar
+flathub com.bitwarden.desktop                    opcional    Office      560MB  Bitwarden — password manager
+flathub org.telegram.desktop                     opcional    Communication     260MB  Telegram — messaging
+flathub org.signal.Signal                        opcional    Communication     380MB  Signal — encrypted messaging
+flathub com.discordapp.Discord                   opcional    Communication     600MB  Discord — voice and communities
+flathub com.obsproject.Studio                    opcional    Creative         590MB  OBS Studio — record and stream
+flathub org.gimp.GIMP                            opcional    Creative         270MB  GIMP — image editing
+flathub org.inkscape.Inkscape                    opcional    Creative         310MB  Inkscape — vector drawing
+flathub org.videolan.VLC                         opcional    Creative         150MB  VLC — videos and music
+flathub com.spotify.Client                       opcional    Creative         300MB  Spotify — music
+flathub com.heroicgameslauncher.hgl              opcional    Games           620MB  Heroic — Epic, GOG and Amazon games
+flathub com.usebottles.bottles                   opcional    Games           550MB  Bottles — Windows programs (Wine)
+flathub io.podman_desktop.PodmanDesktop          opcional    Development 480MB  Podman Desktop — containers with a GUI
+flathub com.ranfdev.DistroShelf                  opcional    Development 10MB   DistroShelf — distrobox boxes with a GUI
+flathub dev.zed.Zed                              opcional    Development 250MB  Zed — code editor
+flathub dev.edfloreshz.CosmicTweaks              opcional    System         120MB  COSMIC Tweaks — extra COSMIC settings
+flathub io.github.cosmic_utils.Examine           opcional    System         100MB  Examine — hardware information

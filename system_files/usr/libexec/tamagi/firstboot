@@ -28,7 +28,7 @@ if [[ -n $user ]]; then
             --comment "${C[FULLNAME]:-$user}" --password "${C[PASSWORD_HASH]:-!}" "$user"
         echo "usuário $user criado"
         if [[ ${#subvol[@]} -gt 0 && ${C[HOME_SNAPSHOTS]:-yes} != no ]]; then
-            /usr/libexec/tamagi/home-snapshots ativar "$user" || echo "snapshots da pasta pessoal: não deu para ligar" >&2
+            /usr/libexec/tamagi/home-snapshots enable "$user" || echo "snapshots da pasta pessoal: não deu para ligar" >&2
         fi
         # Defesa em profundidade: garante que ~/.local e subpastas XDG pertençam ao usuário.
         uhome=$(getent passwd "$user" | cut -d: -f6)

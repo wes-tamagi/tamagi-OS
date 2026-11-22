@@ -1,18 +1,22 @@
 #!/usr/bin/bash
-# tamagi-antigravity — o Antigravity (IDE agêntica do Google), sob demanda.
+# tamagi-antigravity — Antigravity (Google's agentic IDE), on demand.
 #
-# Software do Google: não vem na imagem. É instalado na caixa de navegadores
-# (Fedora, distrobox), ao lado do Chrome que o agente dele usa para navegar e
-# testar páginas, e aparece no menu do COSMIC como um app comum.
+# Google software: it does not ship in the image. It is installed in the
+# browser box (Fedora, distrobox), next to the Chrome its agent uses to browse
+# and test pages, and shows up in the COSMIC menu like any app.
 #
-#   tamagi-antigravity            abre (instala na primeira vez, ~600 MB)
-#   tamagi-antigravity instalar
-#   tamagi-antigravity remover    tira da caixa (configurações em ~/.antigravity ficam)
-#   (atualiza junto com a caixa: tamagi-browser update)
+#   tamagi antigravity            opens (installs the first time, ~600 MB)
+#   tamagi antigravity install
+#   tamagi antigravity remove     removes it from the box (~/.antigravity stays)
+#   (updates with the box: tamagi browser update)
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
-BOX="${TAMAGI_BROWSER_BOX:-navegadores}"
+BOX="${TAMAGI_BROWSER_BOX:-browsers}"
+if [[ -z ${TAMAGI_BROWSER_BOX:-} ]] && ! podman container exists browsers 2>/dev/null \
+        && podman container exists navegadores 2>/dev/null; then
+    BOX=navegadores
+fi
 LIBEXEC=/run/host/usr/libexec/tamagi
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 FALLBACK_DESKTOP="$APPS/tamagi-antigravity.desktop"
@@ -43,7 +47,7 @@ Comment[pt_BR]=IDE agêntica do Google (na caixa de navegadores)
 Comment[pt]=IDE agêntica do Google (na caixa de navegadores)
 Comment[es]=IDE agéntica de Google (en la caja de navegadores)
 Comment[fr]=IDE agentique de Google (dans la boîte des navigateurs)
-Exec=/usr/bin/tamagi-antigravity abrir %U
+Exec=/usr/bin/tamagi-antigravity open %U
 Icon=antigravity
 Terminal=false
 Categories=Development;IDE;
@@ -54,30 +58,30 @@ EOF
 }
 
 install_app() {
-    echo "$(t "O Antigravity é do Google e é baixado agora, na sua máquina (termos do Google).")"
-    # A caixa de navegadores (com o Chrome) é a casa dele.
-    tamagi-browser setup
+    echo "$(t "Antigravity is Google software and is downloaded now, on your machine (Google's terms).")"
+    # The browser box, with Chrome (which its agent drives), is its home.
+    [[ $(tamagi-browser installed) == *chrome:box* ]] || tamagi-browser install chrome --box
     in_box sudo "$LIBEXEC/browser-provision" app antigravity
     ensure_menu
-    echo "$(t "Antigravity instalado. Ele já aparece no lançador.")"
+    echo "$(t "Antigravity installed. It is already in the launcher.")"
 }
 
-case "${1:-abrir}" in
-    abrir|open)
+case "${1:-open}" in
+    open)
         if installed; then
             has_menu_entry || ensure_menu
         else
             install_app
         fi
         exec distrobox enter "$BOX" -- antigravity "${@:2}" ;;
-    instalar|install) install_app ;;
-    remover|remove)
-        installed || { echo "$(t "Antigravity não está instalado")"; exit 0; }
+    install) install_app ;;
+    remove)
+        installed || { echo "$(t "Antigravity is not installed")"; exit 0; }
         in_box distrobox-export --app antigravity --delete >/dev/null 2>&1 || true
         rm -f "$FALLBACK_DESKTOP"
         update-desktop-database "$APPS" 2>/dev/null || true
         in_box sudo dnf -y remove antigravity
-        echo "$(t "Antigravity removido")" ;;
-    -h|--help|ajuda) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-    *) echo "uso: tamagi-antigravity [abrir|instalar|remover]" >&2; exit 2 ;;
+        echo "$(t "Antigravity removed")" ;;
+    -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) echo "usage: tamagi-antigravity [open|install|remove]" >&2; exit 2 ;;
 esac
