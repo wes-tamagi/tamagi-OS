@@ -23,8 +23,7 @@ OUT=${2:?usage: rechunk.sh <source image> <output image> [work dir]}
 WORK=${3:-$(pwd)/output/rechunk}
 
 if [[ ${RECHUNK_INNER:-} != 1 ]]; then
-    mkdir -p "$WORK/storage"
-    [[ ! -e $WORK/image.oci.tar ]] || { echo "rechunk: $WORK/image.oci.tar already exists; remove it first" >&2; exit 1; }
+    mkdir -p "$WORK"
     # As root (CI) the image can be mounted directly; rootless needs podman's namespace.
     if (( EUID == 0 )); then RECHUNK_INNER=1 exec bash "$0" "$SRC" "$OUT" "$WORK"; fi
     RECHUNK_INNER=1 exec podman unshare bash "$0" "$SRC" "$OUT" "$WORK"
@@ -39,6 +38,12 @@ version=$(podman inspect "$SRC" --format '{{index .Config.Labels "org.opencontai
 labels=(--label "org.opencontainers.image.title=Tamagi"
         --label "org.opencontainers.image.description=Tamagi — atomic COSMIC desktop for AI and agents (bootc)")
 [[ -n $version && $version != "<no value>" ]] && labels+=(--label "org.opencontainers.image.version=$version")
+
+# The work dir is this script's own (a private container storage and the
+# archive that leaves it): emptied before and after.
+clean_work() { rm -rf -- "${WORK:?}/storage" "${WORK:?}/image.oci.tar"; }
+clean_work
+mkdir -p "$WORK/storage"
 
 mnt=$(podman image mount "$SRC")
 trap 'podman image umount "$SRC" >/dev/null 2>&1 || true' EXIT
@@ -57,4 +62,5 @@ podman image umount "$SRC" >/dev/null
 trap - EXIT
 echo "rechunk: importing as $OUT"
 skopeo copy --quiet "oci-archive:$WORK/image.oci.tar" "containers-storage:$OUT"
+clean_work
 podman images --format '{{.Repository}}:{{.Tag}}  {{.Size}}' "$OUT"

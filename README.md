@@ -155,13 +155,21 @@ e, havendo um modelo de IA local, o agente explica em português.
 Precisa de `podman` e `just`. Nada aqui pede root.
 
 ```bash
-just build          # imagem do sistema (~20 min na primeira vez)
-just test           # 300 verificações dentro da imagem
+just build          # imagem do sistema (~20 min na primeira vez) + rechunk (~7 min)
+just test           # ~400 verificações dentro da imagem
 just test-desktop   # sobe a sessão COSMIC sem monitor e salva output/desktop.png
 just test-browser   # cria de verdade a caixa de navegadores neste computador
 just test-agent     # baixa o preset mini (2,8 GB) e testa o agente de IA
 just lint
 ```
+
+O `just build` termina com o **rechunk** (`rechunk.sh`): a imagem é refeita só
+com o conteúdo real, em camadas divididas por conteúdo, pelo `rpm-ostree
+compose build-chunked-oci`. A base é uma imagem ostree, e o que o build troca
+ou remove dela (o kernel, os idiomas) continuaria ocupando espaço nas camadas
+de baixo: são ~9,3 GB sem o rechunk e ~6,8 GB com ele (2,9 GB comprimida), e
+uma atualização baixa só as camadas que mudaram. `TAMAGI_RECHUNK=0 just build`
+pula esse passo durante o desenvolvimento.
 
 ## Instalar
 
@@ -169,7 +177,7 @@ O instalador é o [tik](https://github.com/sysrich/tik) com um módulo do Tamagi
 que chama o `bootc install`. A ISO é gerada sem root:
 
 ```bash
-just build-iso      # output/tamagi.iso (6,9 GiB: cabe num pendrive de 8 GB)
+just build-iso      # output/tamagi.iso (5,1 GiB: cabe num pendrive de 8 GB)
 just test-iso       # instala sozinho numa VM e confere o sistema instalado
 just test-rollback  # simula uma atualização ruim e confere o rollback automático
 just test-upgrade   # atualização automática de ponta a ponta (registry local, imagem nova, reinício, rollback)

@@ -14,20 +14,21 @@ bib := "quay.io/centos-bootc/bootc-image-builder:latest"
 _default:
     @just --list
 
-# Constrói a imagem OCI do sistema (rootless, sem sudo)
+# Constrói a imagem OCI do sistema (rootless, sem sudo), em dois passos:
+#   1. o build normal, com cache de camadas, em <tag>-layers (~9,3 GB);
+#   2. o rechunk (rechunk.sh): a mesma imagem refeita só com o conteúdo real,
+#      em camadas por conteúdo (~6,8 GB; atualizações baixam só o que mudou).
+# A base é uma imagem ostree: o que o build troca ou remove dela (kernel,
+# idiomas) continuaria ocupando espaço sem o passo 2. Para pular o rechunk
+# enquanto se desenvolve: TAMAGI_RECHUNK=0 just build
 build *ARGS:
     podman build --pull=newer \
         --build-arg FEDORA_VERSION={{ fedora }} \
         --build-arg IMAGE_REF={{ image }} \
         --build-arg KERNEL_FLAVOR={{ kernel }} \
         --build-arg AKMODS_FLAVOR={{ akmods }} \
-        -t {{ image }}:{{ tag }} {{ ARGS }} .
-
-# Refaz a imagem em camadas por conteúdo (rpm-ostree build-chunked-oci): tira o
-# que sobrou da base (kernel trocado, idiomas cortados) e deixa as atualizações
-# menores. De ~9,3 GB para ~6,8 GB. Gera <tag>-chunked; não mexe na <tag>.
-rechunk:
-    bash rechunk.sh {{ image }}:{{ tag }} {{ image }}:{{ tag }}-chunked
+        -t {{ image }}:{{ tag }}-layers {{ ARGS }} .
+    if [ "${TAMAGI_RECHUNK:-1}" = 1 ]; then bash rechunk.sh {{ image }}:{{ tag }}-layers {{ image }}:{{ tag }}; else podman tag {{ image }}:{{ tag }}-layers {{ image }}:{{ tag }}; fi
 
 # Testes da imagem: arquivos, serviços, COSMIC, Rust, hardening, primeiro boot, llama.cpp
 test:
