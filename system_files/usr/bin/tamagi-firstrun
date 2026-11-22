@@ -32,6 +32,11 @@ gum style --border double --padding "0 2" --border-foreground 4 --width "$width"
     "$(t "Atomic, lean system: the host is read-only and updates itself.")" \
     "$(t "Almost nothing comes installed: you choose what you want, now or later.")"
 
+# The big part of the first Flatpak app is the shared runtime: it starts
+# downloading now, in the background, while the questions are answered. If
+# nothing ends up using it, it is removed at the end.
+(tamagi-install prefetch >/dev/null 2>&1 &)
+
 # Clock: 24 hours, except in English (US), which uses AM/PM.
 mkdir -p ~/.config/cosmic/com.system76.CosmicAppletTime/v1
 [[ $TAMAGI_LANG == en ]] && clock24=false || clock24=true
@@ -105,11 +110,12 @@ if (( ${#picked[@]} )) || [[ -n $profile ]]; then
     step "Installing what you chose"
     tl "You can keep using the computer: this window tells you when it is done."
     (( ${#picked[@]} )) && { tamagi-install --actions "${picked[@]}" || true; }
-    [[ -n $profile ]] && { tamagi apply -y "$profile" || true; }
+    [[ -n $profile ]] && { tamagi-install prefetch-wait; tamagi apply -y "$profile" || true; }
     notify-send -a Tamagi -i system-software-install "$(t "Your apps are ready")" \
         "$(t "What you chose at first login has been installed.")" 2>/dev/null || true
 fi
 
+tamagi-install prefetch-cleanup >/dev/null 2>&1 || true
 mkdir -p "$(dirname "$STAMP")"
 touch "$STAMP"
 step "Done"

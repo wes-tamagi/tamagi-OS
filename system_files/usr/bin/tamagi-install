@@ -10,6 +10,11 @@
 #
 # Each item is installed the way that suits it: Flatpak, native RPM in a
 # reversible layer (asks for the password), a distrobox, or in your user.
+#
+# To make it quick: Flatpaks go in one transaction and download in the
+# background while the items that ask for the password are installed; the
+# first-login assistant starts fetching the shared Flatpak runtime (the big
+# part of the first app) while you are still choosing (tamagi install prefetch).
 set -uo pipefail
 . /usr/libexec/tamagi/i18n
 # shellcheck source=/dev/null
@@ -72,29 +77,126 @@ cmd_installed() { # machine-readable: id <TAB> action
     return 0
 }
 
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/tamagi"
+PREFETCH_PID="${XDG_RUNTIME_DIR:-/tmp}/tamagi-prefetch.pid"
+PREFETCH_MARK="$CACHE/prefetched-runtime"       # the runtime the prefetch itself brought
+FLATPAK_LOG="$CACHE/install-flatpak.log"
+
+flathub_remote() {
+    flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null \
+        || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+    flatpak remote-add --user --if-not-exists cosmic /etc/flatpak/remotes.d/cosmic.flatpakrepo 2>/dev/null || true
+}
+
+# runtime_of <remote> <app>: "org.freedesktop.Platform/x86_64/26.08" (empty when offline).
+runtime_of() { LC_ALL=C timeout 20 flatpak remote-info --user "$1" "$2" 2>/dev/null | sed -n 's/^ *Runtime: *//p' | head -1; }
+runtime_here() { flatpak info --user "runtime/$1" >/dev/null 2>&1 || flatpak info --system "runtime/$1" >/dev/null 2>&1; }
+
+# The shared runtime of most Flathub apps, fetched ahead of time. Meant to run
+# in the background (the first-login assistant starts it): quiet, never fails
+# the caller, and skipped on a metered connection.
+cmd_prefetch() {
+    mkdir -p "$CACHE"
+    if nmcli -t -f GENERAL.METERED dev show 2>/dev/null | grep -q ':yes'; then return 0; fi
+    echo $$ > "$PREFETCH_PID"
+    # shellcheck disable=SC2064
+    trap "rm -f '$PREFETCH_PID'" EXIT
+    flathub_remote >/dev/null 2>&1 || return 0
+    local ref; ref=$(runtime_of flathub "${TAMAGI_PREFETCH_APP:-org.mozilla.firefox}")
+    [[ -n $ref ]] || return 0
+    runtime_here "$ref" && return 0
+    if flatpak install --user -y --noninteractive flathub "runtime/$ref" >"$CACHE/prefetch.log" 2>&1; then
+        echo "$ref" > "$PREFETCH_MARK"
+    fi
+    return 0
+}
+
+# Waits for a prefetch still running: two Flatpak operations at once would
+# only wait on each other's lock.
+prefetch_wait() {
+    local pid; pid=$(cat "$PREFETCH_PID" 2>/dev/null) || return 0
+    [[ -n $pid ]] && kill -0 "$pid" 2>/dev/null || return 0
+    tl "Finishing the download of the shared Flatpak runtime (started while you were choosing)…"
+    while kill -0 "$pid" 2>/dev/null; do sleep 1; done
+}
+
+# If the prefetched runtime ended up unused (no Flatpak app was installed), it goes away.
+cmd_prefetch_cleanup() {
+    prefetch_wait
+    [[ -f $PREFETCH_MARK ]] || return 0
+    if [[ -z $(flatpak list --user --app --columns=application 2>/dev/null) ]]; then
+        flatpak uninstall --user -y --noninteractive "runtime/$(cat "$PREFETCH_MARK")" >/dev/null 2>&1 || true
+    fi
+    rm -f "$PREFETCH_MARK"
+}
+
+# Says, before anything is downloaded, which shared runtimes the chosen apps
+# need and which are not on the machine yet: an app on another runtime (an
+# older version, or KDE's/GNOME's) brings a second large download.
+runtimes_note() { # runtimes_note <remote> <app>…
+    local remote=$1 app ref missing=0; shift
+    local -A apps_of=()
+    for app in "$@"; do
+        flatpak info --user "$app" >/dev/null 2>&1 && continue
+        ref=$(runtime_of "$remote" "$app"); [[ -n $ref ]] || continue
+        apps_of[$ref]+="${app##*.} "
+    done
+    (( ${#apps_of[@]} )) || return 0
+    echo "  $(t "Shared runtimes these apps use"):"
+    for ref in "${!apps_of[@]}"; do
+        if runtime_here "$ref"; then
+            printf '    %-46s %s  (%s)\n' "${ref/\/x86_64\// }" "$(t "already here")" "${apps_of[$ref]% }"
+        else
+            missing=$(( missing + 1 ))
+            printf '    %-46s %s  (%s)\n' "${ref/\/x86_64\// }" "$(t "to download")" "${apps_of[$ref]% }"
+        fi
+    done
+    if (( missing > 1 )); then tl "  More than one runtime to download: each is a large download (about 1 GB)."; fi
+    return 0
+}
+
 # Runs the chosen actions: Flatpaks in one transaction per remote, the native
 # gaming packages in one layer, the agents together, then the rest in order.
 run_actions() {
-    local a failed=() gaming=() agents=() runs=() remote app
+    local a failed=() gaming=() agents=() runs=() remote app n=0 total=0 flatpak_pid="" flatpak_apps=()
     local -A by_remote=()
     for a in "$@"; do
         case $a in
-            flatpak:*) IFS=: read -r _ remote app <<<"$a"; by_remote[$remote]+="$app " ;;
+            flatpak:*) IFS=: read -r _ remote app <<<"$a"; by_remote[$remote]+="$app "; flatpak_apps+=("$app") ;;
             gaming:*)  gaming+=("${a#gaming:}") ;;
             agent:*)   agents+=("${a#agent:}") ;;
             run:*)     runs+=("${a#run:}") ;;
         esac
     done
-    step() { echo; gum style --foreground 4 --bold "── $1"; }
+    # One line per stage, numbered: "── [2/5] …".
+    total=$(( (${#by_remote[@]} > 0) + (${#gaming[@]} > 0) + ${#runs[@]} + ${#agents[@]} ))
+    step() { n=$(( n + 1 )); echo; gum style --foreground 4 --bold "── [$n/$total] $1"; }
+    install_flatpaks() {
+        local rc=0 r
+        for r in "${!by_remote[@]}"; do
+            read -r -a apps <<<"${by_remote[$r]}"
+            flatpak install --user -y --noninteractive --or-update "$r" "${apps[@]}" || rc=1
+        done
+        return $rc
+    }
     if (( ${#by_remote[@]} )); then
-        flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null \
-            || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-        flatpak remote-add --user --if-not-exists cosmic /etc/flatpak/remotes.d/cosmic.flatpakrepo 2>/dev/null || true
+        mkdir -p "$CACHE"
+        flathub_remote
+        step "Flatpak: ${flatpak_apps[*]}"
         for remote in "${!by_remote[@]}"; do
             read -r -a apps <<<"${by_remote[$remote]}"
-            step "Flatpak: ${apps[*]}"
-            flatpak install --user -y --noninteractive --or-update "$remote" "${apps[@]}" || failed+=("${apps[@]}")
+            runtimes_note "$remote" "${apps[@]}"
         done
+        prefetch_wait
+        if (( total > 1 )); then
+            # The Flatpaks need no password and no answer: they download in the
+            # background while the rest is installed here.
+            install_flatpaks >"$FLATPAK_LOG" 2>&1 &
+            flatpak_pid=$!
+            tl "  Downloading in the background while the rest is installed."
+        else
+            install_flatpaks || failed+=("${flatpak_apps[@]}")
+        fi
     fi
     if (( ${#gaming[@]} )); then
         step "$(t "Native games"): ${gaming[*]}"
@@ -106,8 +208,23 @@ run_actions() {
         $a || failed+=("$a")
     done
     for a in "${agents[@]}"; do
+        step "$(t "AI agent"): $a"
         tamagi-agents install "$a" || failed+=("$a")
     done
+    if [[ -n $flatpak_pid ]]; then
+        if kill -0 "$flatpak_pid" 2>/dev/null; then
+            echo; tl "Waiting for the Flatpaks still downloading…"
+            while kill -0 "$flatpak_pid" 2>/dev/null; do
+                [[ -t 1 ]] && printf '\r  %-76s' "$(tr '\r' '\n' < "$FLATPAK_LOG" 2>/dev/null | tail -1 | cut -c1-76)"
+                sleep 1
+            done
+            [[ -t 1 ]] && printf '\r%-80s\r' ""
+        fi
+        if ! wait "$flatpak_pid"; then
+            failed+=("${flatpak_apps[@]}")
+            tail -5 "$FLATPAK_LOG" 2>/dev/null
+        fi
+    fi
     echo
     if (( ${#failed[@]} )); then
         echo "$(t "Could not install"): ${failed[*]}"
@@ -123,6 +240,9 @@ case "${1:-}" in
     ids)  printf '%s\n' "${ids[@]}" ;;
     installed) cmd_installed ;;
     --actions) shift; run_actions "$@" ;;      # used by the first-login assistant
+    prefetch)         cmd_prefetch ;;             # background: the shared Flatpak runtime, ahead of time
+    prefetch-wait)    prefetch_wait ;;
+    prefetch-cleanup) cmd_prefetch_cleanup ;;
     -h|--help|help) sed -n '2,/^set -uo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
     "")
         [[ -t 0 ]] || { cmd_list; exit 0; }

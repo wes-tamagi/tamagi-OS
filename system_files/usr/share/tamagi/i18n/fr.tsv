@@ -908,3 +908,11 @@ restarting into the firmware screen needs UEFI	redémarrer sur l'écran du firmw
 already exists; nothing was changed	existe déjà ; rien n'a été modifié
 LazyVim installed with the colours of the current theme. Open nvim: plugins download on first start.	LazyVim installé avec les couleurs du thème actuel. Ouvrez nvim : les plugins se téléchargent au premier lancement.
 Later: tamagi setup tpm-unlock on	Plus tard : tamagi setup tpm-unlock on
+Finishing the download of the shared Flatpak runtime (started while you were choosing)…	Fin du téléchargement du runtime partagé de Flatpak (commencé pendant votre choix)…
+Shared runtimes these apps use	Runtimes partagés utilisés par ces applications
+already here	déjà présent
+to download	à télécharger
+  More than one runtime to download: each is a large download (about 1 GB).	  Plus d'un runtime à télécharger : chacun est un gros téléchargement (environ 1 Go).
+  Downloading in the background while the rest is installed.	  Téléchargement en arrière-plan pendant l'installation du reste.
+AI agent	Agent d'IA
+Waiting for the Flatpaks still downloading…	En attente des Flatpaks encore en téléchargement…
