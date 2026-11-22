@@ -916,3 +916,56 @@ to download	a baixar
   Downloading in the background while the rest is installed.	  Baixando em segundo plano enquanto o resto é instalado.
 AI agent	Agente de IA
 Waiting for the Flatpaks still downloading…	Aguardando os Flatpaks que ainda estão baixando…
+Approximate download	Download aproximado
+asks for the password	pede a senha
+Asks for the password	Pede a senha
+Browser and items you chose	Navegador e itens que você escolheu
+Cancel	Cancelar
+Catalog	Catálogo
+Close	Fechar
+Command	Comando
+Container	Contêiner
+Continue	Continuar
+distrobox	distrobox
+Every item says how it is installed	Cada item diz como é instalado
+Finish	Concluir
+Finished, but not everything was installed	Terminou, mas nem tudo foi instalado
+Flathub app	app do Flathub
+Flatpak	Flatpak
+Good to know	Bom saber
+Hide details	Ocultar detalhes
+home folder	pasta pessoal
+inside a distrobox	dentro de uma distrobox
+Installing native items changes the system: type your password to continue.	Instalar itens nativos altera o sistema: digite a sua senha para continuar.
+Install nothing from a profile.	Não instalar nada de um perfil.
+in your home folder	na sua pasta pessoal
+In your user	No seu usuário
+its own Podman container	um contêiner Podman próprio
+Native	Nativo
+Next	Avançar
+No browser now. Later: tamagi install	Sem navegador agora. Depois: tamagi install
+Nothing here asks for the password.	Nada aqui pede a senha.
+Nothing in the catalog matches the search.	Nada no catálogo corresponde à busca.
+Nothing selected	Nada selecionado
+Nothing selected: nothing will be installed.	Nada selecionado: nada será instalado.
+Password	Senha
+Password needed	Senha necessária
+Pick a profile and a browser, then review. Nothing is installed before you confirm.	Escolha um perfil e um navegador e depois revise. Nada é instalado antes de você confirmar.
+Podman	Podman
+Review	Revisão
+runs a setup command	executa um comando de configuração
+sandboxed app from Flathub	app isolado, do Flathub
+Search the catalog	Buscar no catálogo
+selected	selecionado(s)
+setup command	comando de configuração
+Show details	Mostrar detalhes
+Skip for now	Pular por enquanto
+Start	Começar
+Step	Passo
+Suggested	Sugerido
+system layer, asks for the password	camada do sistema, pede a senha
+The password is asked for when this is set up.	A senha é pedida quando isto for configurado.
+Tick what you want, with sizes and install methods.	Marque o que quiser, com tamanhos e formas de instalação.
+Unlock the disk with the TPM chip at boot	Desbloquear o disco com o chip TPM na inicialização
+Waiting for the shared Flatpak runtime	Aguardando o runtime compartilhado do Flatpak
+Welcome	Bem-vindo

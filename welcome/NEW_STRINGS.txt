@@ -1,0 +1,53 @@
+Approximate download
+asks for the password
+Asks for the password
+Browser and items you chose
+Cancel
+Catalog
+Close
+Command
+Container
+Continue
+distrobox
+Every item says how it is installed
+Finish
+Finished, but not everything was installed
+Flathub app
+Flatpak
+Good to know
+Hide details
+home folder
+inside a distrobox
+Installing native items changes the system: type your password to continue.
+Install nothing from a profile.
+in your home folder
+In your user
+its own Podman container
+Native
+Next
+No browser now. Later: tamagi install
+Nothing here asks for the password.
+Nothing in the catalog matches the search.
+Nothing selected
+Nothing selected: nothing will be installed.
+Password
+Password needed
+Pick a profile and a browser, then review. Nothing is installed before you confirm.
+Podman
+Review
+runs a setup command
+sandboxed app from Flathub
+Search the catalog
+selected
+setup command
+Show details
+Skip for now
+Start
+Step
+Suggested
+system layer, asks for the password
+The password is asked for when this is set up.
+Tick what you want, with sizes and install methods.
+Unlock the disk with the TPM chip at boot
+Waiting for the shared Flatpak runtime
+Welcome

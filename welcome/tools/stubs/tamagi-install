@@ -1,0 +1,25 @@
+#!/usr/bin/bash
+# Stub of tamagi-install for the headless screenshots: prints what the real
+# one prints (numbered, coloured stage lines) and installs nothing.
+echo "tamagi-install $*" >> "${STUB_LOG:-/dev/null}"
+case ${1:-} in
+    prefetch|prefetch-wait|prefetch-cleanup) sleep 0.2 ;;
+    --actions)
+        shift
+        total=$# n=0
+        for action in "$@"; do
+            n=$(( n + 1 ))
+            printf '\n\033[1;34m── [%d/%d] %s\033[0m\n' "$n" "$total" "${action#*:}"
+            echo "  fetching ${action#*:}…"
+            sleep "${STUB_SLEEP:-1}"
+            echo "  ok"
+        done
+        echo
+        if [[ -n ${STUB_FAIL:-} ]]; then
+            echo "Could not install: $STUB_FAIL"
+            echo "Try again with: tamagi install"
+            exit 1
+        fi
+        echo "Everything installed."
+        ;;
+esac

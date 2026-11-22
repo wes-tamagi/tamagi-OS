@@ -6,4 +6,10 @@
 sleep 4
 # Se o assistente do COSMIC estiver aberto (alguém o religou), ele tem a vez.
 while pgrep -x cosmic-initial- >/dev/null 2>&1 || pgrep -f '(^|/)cosmic-initial-setup( |$)' >/dev/null 2>&1; do sleep 2; done
+# A janela nativa (tamagi-welcome, libcosmic). Se ela não abrir (sai com erro
+# sem ter concluído), entra o assistente em texto, numa janela de terminal.
+if command -v tamagi-welcome >/dev/null 2>&1 && [[ ${TAMAGI_FIRSTRUN_TEXT:-} != 1 ]]; then
+    tamagi-welcome && exit 0
+    [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/firstrun-done" ]] && exit 0
+fi
 exec /usr/libexec/tamagi/popup tamagi-firstrun

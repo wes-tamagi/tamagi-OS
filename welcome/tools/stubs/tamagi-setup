@@ -1,0 +1,10 @@
+#!/usr/bin/bash
+# Stub of `tamagi-setup tpm-unlock on`. With STUB_SUDO=1 it really calls sudo,
+# to exercise the password dialog (SUDO_ASKPASS).
+echo "tamagi-setup $*" >> "${STUB_LOG:-/dev/null}"
+if [[ -n ${STUB_SUDO:-} ]]; then
+    sudo -k
+    sudo sh -c 'echo "  sudo ran as $(id -un)"' || { echo "  sudo failed"; exit 1; }
+fi
+echo "  TPM unlock enabled (stub)."
+sleep "${STUB_SLEEP:-1}"

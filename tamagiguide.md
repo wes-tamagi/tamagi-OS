@@ -1,204 +1,211 @@
-# Guia do Tamagi: instalar, migrar e atualizar
+# Tamagi guide: install, migrate and update
 
-Este guia cobre três coisas: como chegar ao Tamagi (instalação nova ou
-migração do Bluefin/Aurora), o que ele oferece e como mantê-lo atualizado.
+This guide covers three things: how to get to Tamagi (fresh install, or
+migration from Bluefin/Aurora), what it offers, and how to keep it up to date.
 
-## 1. Instalação nova ou migração?
+## 1. Fresh install or migration?
 
-| Situação | Recomendação |
+| Situation | Recommendation |
 |---|---|
-| Já uso o Tamagi | **Atualize** (`tamagi update`). Nunca reinstale para atualizar. |
-| Uso Bluefin ou Aurora e quero o Tamagi como sistema principal | **Instalação nova** pela ISO, com cópia da pasta pessoal. |
-| Uso Bluefin ou Aurora e quero experimentar sem formatar | **Migração** com `bootc switch` (seção 3), sabendo dos limites. |
+| I already use Tamagi | **Update** (`tamagi update`). Never reinstall to update. |
+| I use Bluefin or Aurora and want Tamagi as my main system | **Fresh install** from the ISO, with a copy of the home folder. |
+| I use Bluefin or Aurora and want to try it without formatting | **Migration** with `bootc switch` (section 3), knowing its limits. |
 
-Por que instalação nova é a recomendação para quem vem de outro sistema:
+Why a fresh install is the recommendation for who comes from another system:
 
-- **Outro ambiente gráfico.** O Bluefin usa GNOME e o Aurora usa KDE; o Tamagi
-  usa COSMIC. A migração troca a imagem do sistema, mas a pasta `/etc` e a sua
-  pasta pessoal ficam como estavam, com configurações do ambiente antigo.
-- **O disco fica como o instalador antigo deixou.** Os snapshots da pasta
-  pessoal (`tamagi rewind`), a compressão e as opções de montagem do Tamagi
-  são preparados pelo instalador do Tamagi. Numa máquina migrada eles podem
-  não existir.
-- **A migração do Bluefin/Aurora para o Tamagi ainda não foi testada pelo
-  projeto.** A instalação pela ISO e a atualização de Tamagi para Tamagi são
-  testadas em máquina virtual a cada rodada.
+- **A different desktop.** Bluefin uses GNOME and Aurora uses KDE; Tamagi uses
+  COSMIC. Migration swaps the system image, but `/etc` and your home folder
+  stay as they were, with the old desktop's settings.
+- **The disk stays as the old installer left it.** Home-folder snapshots
+  (`tamagi rewind`), compression and mount options are prepared by Tamagi's
+  installer. A migrated machine may not have them.
+- **Migration from Bluefin/Aurora has not been tested by the project yet.**
+  Installation from the ISO and updates from Tamagi to Tamagi are tested in a
+  virtual machine on every round.
 
-## 2. Instalação nova (recomendada)
+## 2. Fresh install (recommended)
 
-1. **Copie os seus arquivos** para um disco externo ou outro computador. A
-   instalação apaga o disco escolhido por inteiro.
-2. Anote o que quer reinstalar: `flatpak list --app --columns=application`
-   lista os seus aplicativos Flatpak.
-3. Grave a ISO do Tamagi num pen-drive e inicie por ele.
-4. Com **Secure Boot** ligado, a primeira inicialização pede o registro da
-   chave do Universal Blue (a mesma do Bluefin e do Aurora): senha
-   `universalblue`. Quem já usa Bluefin/Aurora nessa máquina normalmente já a
-   tem registrada.
-5. Siga o instalador: idioma (inglês é o padrão; português do Brasil vem logo
-   depois), teclado, fuso horário, conta, criptografia do disco e o disco.
-6. No primeiro login, o assistente pergunta o perfil (IA, desenvolvimento,
-   jogos, escritório), o navegador e os opcionais. Nada disso é obrigatório;
-   tudo pode ser instalado depois com `tamagi install`.
-7. Copie os seus arquivos de volta e reinstale os Flatpaks.
+1. **Copy your files** to an external disk or another computer. Installation
+   erases the chosen disk completely.
+2. Note what you want to reinstall: `flatpak list --app --columns=application`
+   lists your Flatpak apps.
+3. Write the Tamagi ISO to a USB drive and boot from it.
+4. With **Secure Boot** on, the first start asks to enroll Universal Blue's
+   key (the same one Bluefin and Aurora use): password `universalblue`. A
+   machine that already runs Bluefin/Aurora usually has it enrolled.
+5. Follow the installer: language (English is the default; Brazilian
+   Portuguese comes next), keyboard, time zone, account, disk encryption and
+   the disk.
+6. At first login a window asks for a profile (AI, development, games,
+   office), a browser and the optional items. Each item says how it is
+   installed (native, Flatpak, box, container, in your user). Nothing is
+   mandatory; everything can be installed later with `tamagi install`.
+7. Copy your files back and reinstall your Flatpaks.
 
-## 3. Migração do Bluefin ou do Aurora, sem formatar
+## 3. Migrating from Bluefin or Aurora, without formatting
 
-O Bluefin, o Aurora e o Tamagi são da mesma família (imagens bootc do
-Universal Blue), então dá para apontar o sistema instalado para a imagem do
-Tamagi. **Este caminho não foi testado pelo projeto; faça a cópia dos arquivos
-antes.**
+Bluefin, Aurora and Tamagi belong to the same family (Universal Blue bootc
+images), so an installed system can be pointed at Tamagi's image. **This path
+has not been tested by the project; copy your files first.**
 
-1. **Cópia dos arquivos** da pasta pessoal.
-2. **Remova pacotes adicionados por cima da imagem**, se houver
-   (`rpm-ostree status` mostra em `LayeredPackages`):
+1. **Copy** the files of your home folder.
+2. **Remove packages added on top of the image**, if any (`rpm-ostree status`
+   shows them under `LayeredPackages`):
 
    ```bash
    rpm-ostree reset
    ```
 
-3. **Troque de imagem:**
+3. **Switch image:**
 
    ```bash
    sudo bootc switch ghcr.io/wes-tamagi/tamagi:latest
    ```
 
-4. **Antes de reiniciar, ative a tela de login do COSMIC.** A escolha da tela
-   de login fica em `/etc`, que a migração não troca; sem este passo o sistema
-   pode subir sem tela de login.
+   (`:ptbr` is the same system with Brazilian Portuguese as the default language.)
+
+4. **Before rebooting, enable COSMIC's login screen.** The choice of login
+   screen lives in `/etc`, which migration does not replace; without this step
+   the system may come up with no login screen.
 
    ```bash
    sudo systemctl disable gdm.service sddm.service 2>/dev/null
    sudo systemctl enable --force cosmic-greeter.service
    ```
 
-   Se o `enable` reclamar que o serviço não existe (ele só existe na imagem
-   nova), reinicie e rode o comando num terminal de texto (`Ctrl+Alt+F3`),
-   seguido de `sudo systemctl start cosmic-greeter.service`.
+   If `enable` says the service does not exist (it only exists in the new
+   image), reboot and run it from a text console (`Ctrl+Alt+F3`), followed by
+   `sudo systemctl start cosmic-greeter.service`.
 
-5. **Reinicie.** No login, escolha a sessão COSMIC.
-6. **Se algo der errado**, volte ao sistema anterior: escolha a entrada
-   anterior no menu de boot, ou rode `sudo bootc rollback` e reinicie. A
-   imagem antiga fica guardada até a próxima atualização.
+5. **Reboot.** At login, choose the COSMIC session.
+6. **If something goes wrong**, go back to the previous system: pick the
+   previous entry in the boot menu, or run `sudo bootc rollback` and reboot.
+   The old image stays on disk until the next update.
 
-O que muda e o que fica depois da migração:
+What changes and what stays after migrating:
 
-| Item | O que acontece |
+| Item | What happens |
 |---|---|
-| Pasta pessoal e arquivos | Ficam. |
-| Aplicativos Flatpak | Ficam. |
-| Caixas distrobox e contêineres | Ficam. |
-| Homebrew (`brew`) | O Tamagi não traz o Homebrew. Os arquivos em `/home/linuxbrew` ficam no disco, mas o comando sai do caminho. Use as caixas de desenvolvimento (`tamagi devbox`). |
-| GNOME ou KDE | Saem com a imagem antiga. As configurações deles ficam na pasta pessoal, sem uso. |
-| Extensões do GNOME, widgets do KDE | Não funcionam no COSMIC. |
-| Comandos `ujust` do Bluefin/Aurora | Não existem no Tamagi: tudo é `tamagi` (`ujust update` vira `tamagi update`; chave do Secure Boot, TPM, firmware e limpeza ficam em `tamagi setup`). |
-| Snapshots da pasta pessoal (`tamagi rewind`) | Dependem de como o disco foi instalado; podem não estar disponíveis. `tamagi doctor` mostra. |
-| Assistente de primeiro login | Rode `tamagi firstrun` se ele não abrir sozinho. |
+| Home folder and files | Stay. |
+| Flatpak apps | Stay. |
+| Distrobox boxes and containers | Stay. |
+| Homebrew (`brew`) | Tamagi does not ship Homebrew. The files in `/home/linuxbrew` stay on disk, but the command leaves the path. Use development boxes (`tamagi devbox`). |
+| GNOME or KDE | Leave with the old image. Their settings stay in the home folder, unused. |
+| GNOME extensions, KDE widgets | Do not work on COSMIC. |
+| `ujust` commands | Do not exist in Tamagi: everything is `tamagi` (`ujust update` becomes `tamagi update`; Secure Boot key, TPM, firmware and cleanup are in `tamagi setup`). |
+| Home-folder snapshots (`tamagi rewind`) | Depend on how the disk was installed; may not be available. `tamagi doctor` tells. |
+| First-login window | Run `tamagi-welcome --force` if it does not open by itself. |
 
-Para desistir de vez depois de alguns dias, aponte de volta:
-`sudo bootc switch ghcr.io/ublue-os/bluefin:stable` (ou
-`ghcr.io/ublue-os/aurora:stable`) e refaça o passo da tela de login com
-`gdm.service` ou `sddm.service`.
+To give up for good after a few days, point back:
+`sudo bootc switch ghcr.io/ublue-os/bluefin:stable` (or
+`ghcr.io/ublue-os/aurora:stable`) and redo the login-screen step with
+`gdm.service` or `sddm.service`.
 
-## 4. Principais recursos
+## 4. Main features
 
-- **Sistema atômico:** o sistema é uma imagem só de leitura. Cada atualização
-  troca a imagem inteira e a anterior fica guardada para voltar.
-- **Um comando:** `tamagi` reúne tudo (`tamagi` sozinho lista os comandos).
-- **Quase nada vem instalado:** navegador, jogos, máquinas virtuais, Docker,
-  VS Code, Tailscale e agentes de IA são opcionais (`tamagi install`).
-- **Perfis:** `tamagi profiles` aplica um conjunto pronto (IA,
-  desenvolvimento, jogos, escritório).
-- **O sistema num arquivo:** `tamagi init` grava o estado atual em
-  `tamagi.toml`; `tamagi apply` reproduz esse estado noutra máquina.
-- **IA local e agentes:** `tamagi ai` roda modelos na própria máquina;
-  `tamagi agents` instala agentes (Claude Code, Codex, Antigravity, CLIO e
-  outros). O agente roda preso à pasta do projeto, com um ponto de
-  salvamento do git antes de começar.
-- **Caixas de desenvolvimento:** `tamagi devbox` cria caixas Fedora, Ubuntu,
-  openSUSE ou Arch, com acesso à GPU; as linguagens ficam dentro da caixa.
-  `tamagi db` sobe bancos de dados; `tamagi try` abre uma caixa descartável.
-- **Contêineres:** Podman é o padrão. Docker e lazydocker são opcionais.
-- **Máquinas virtuais:** `tamagi vm` instala o virt-manager nativo;
-  `tamagi vm access full` libera pen-drives e discos externos para as VMs.
-  `tamagi windows` sobe um Windows 11 em contêiner.
-- **Jogos:** `tamagi gaming` instala Steam e ferramentas de forma nativa, com
-  uma sessão de jogos em gamescope e HDR nos monitores que o anunciam.
-- **Terminal:** Ptyxis (`Super+Enter`), que abre abas direto dentro das caixas.
-- **Desfazer:** `tamagi rewind` volta a imagem do sistema ou a pasta pessoal a
-  um ponto anterior.
-- **Idiomas:** inglês (padrão), português do Brasil, espanhol e francês
+- **Atomic system:** the system is a read-only image. Each update swaps the
+  whole image and keeps the previous one to go back to.
+- **One command:** `tamagi` gathers everything (`tamagi` alone lists the commands).
+- **Almost nothing preinstalled:** browser, games, virtual machines, Docker,
+  VS Code, Tailscale and AI agents are optional (`tamagi install`).
+- **Profiles:** `tamagi profiles` applies a ready-made set (AI, development,
+  games, office).
+- **The system in a file:** `tamagi init` writes the current state to
+  `tamagi.toml`; `tamagi apply` reproduces it on another machine.
+- **Local AI and agents:** `tamagi ai` runs models on the machine itself;
+  `tamagi agents` installs agents (Claude Code, Codex, Antigravity, CLIO and
+  others). An agent runs jailed to the project folder, with a git rollback
+  point taken before it starts.
+- **Development boxes:** `tamagi devbox` creates Fedora, Ubuntu, openSUSE or
+  Arch boxes with GPU access; languages live inside the box. `tamagi db`
+  starts databases; `tamagi try` opens a disposable box.
+- **Containers:** Podman is the default. Docker and lazydocker are optional.
+- **Virtual machines:** `tamagi vm` installs native virt-manager;
+  `tamagi vm access full` lets VMs use USB drives and external disks.
+  `tamagi windows` runs Windows 11 in a container.
+- **Games:** `tamagi gaming` installs Steam and tools natively, with a gaming
+  session on gamescope and HDR on displays that announce it.
+- **Terminal:** Ptyxis (`Super+Enter`), which opens tabs straight inside boxes.
+- **Undo:** `tamagi rewind` takes the system image or the home folder back to
+  an earlier point.
+- **Languages:** English (default), Brazilian Portuguese, Spanish and French
   (`tamagi lang`).
-- **Atalhos:** `Super+Espaço` abre o menu iniciar, `Super+A` a paleta de
-  comandos, `Super+K` a lista de atalhos.
+- **Wallpapers:** generated per theme, plus ten illustrated ones, in
+  Settings › Wallpaper.
+- **Shortcuts:** `Super+Space` opens the start menu, `Super+A` the command
+  palette, `Super+K` the list of shortcuts.
 
-## 5. Como atualizar corretamente
+## 5. How to update properly
 
-**O comando do dia a dia:**
+**The everyday command:**
 
 ```bash
 tamagi update
 ```
 
-Ele atualiza, nesta ordem: a imagem do sistema, as camadas nativas opcionais,
-os Flatpaks, as caixas distrobox e os agentes de IA.
+It updates, in this order: the system image, the optional native layers,
+Flatpaks, distrobox boxes and AI agents.
 
-O que saber:
+What to know:
 
-- **A imagem nova só entra no próximo boot.** O comando baixa e prepara;
-  o sistema em uso não muda até reiniciar. Não há pressa para reiniciar.
-- **Ver o que muda antes de reiniciar:** `tamagi update changes`.
-- **Só o sistema:** `tamagi update --system` (equivale a `sudo bootc upgrade`).
-- **Não use `dnf` nem `rpm-ostree install` no sistema.** Programas vão por
-  Flatpak, pelas caixas ou pelo catálogo (`tamagi install`). Pacotes por cima
-  da imagem tornam as atualizações lentas e sujeitas a falhar.
-- **Não desligue o computador durante o `tamagi update`.** Se acontecer, nada
-  quebra: a imagem em uso não é tocada; basta rodar de novo.
+- **The new image only takes effect at the next boot.** The command downloads
+  and prepares; the running system does not change until a reboot. There is no
+  hurry to reboot.
+- **See what changes before rebooting:** `tamagi update changes`.
+- **Only the system:** `tamagi update --system` (same as `sudo bootc upgrade`).
+- **Do not use `dnf` or `rpm-ostree install` on the system.** Programs go
+  through Flatpak, boxes or the catalog (`tamagi install`). Packages on top of
+  the image make updates slow and prone to fail.
+- **Do not power off during `tamagi update`.** If it happens, nothing breaks:
+  the running image is not touched; just run it again.
+- **Only signed images are accepted.** The system refuses an image from
+  `ghcr.io/wes-tamagi` that is not signed with one of the project's keys and
+  stays on the current one.
 
-**Se uma atualização der problema:**
+**If an update causes trouble:**
 
-1. No menu de boot, escolha a entrada anterior; ou rode `tamagi rewind`
-   (ou `sudo bootc rollback`) e reinicie.
-2. Se o sistema novo falhar na verificação de saúde ao iniciar, ele volta
-   sozinho para a imagem anterior e marca a imagem com defeito em quarentena,
-   para não tentar de novo.
-3. `tamagi update quarantine` mostra as imagens bloqueadas;
-   `tamagi update unquarantine` libera, quando o defeito tiver sido corrigido.
+1. In the boot menu, pick the previous entry; or run `tamagi rewind` (or
+   `sudo bootc rollback`) and reboot.
+2. If the new system fails the health check at start-up, it goes back to the
+   previous image by itself and quarantines the faulty image so it is not
+   tried again.
+3. `tamagi update quarantine` shows the blocked images;
+   `tamagi update unquarantine` releases them once the fault is fixed.
 
-## 6. Atualizações automáticas
+## 6. Automatic updates
 
 ```bash
-tamagi update status      # o que está ligado e quando roda de novo
-tamagi update auto on     # liga tudo
-tamagi update auto off    # desliga tudo
+tamagi update status      # what is on and when it runs next
+tamagi update auto on     # turn everything on
+tamagi update auto off    # turn everything off
 ```
 
-Elas já vêm **ligadas** numa instalação nova. São quatro frentes:
+They come **on** in a fresh install. There are four of them:
 
-| O quê | Como funciona |
+| What | How it works |
 |---|---|
-| Imagem do sistema | Baixada e preparada em segundo plano; **aplicada só no próximo boot**. O computador nunca reinicia sozinho. |
-| Flatpaks do sistema | Atualizados em segundo plano. |
-| Flatpaks do usuário | Atualizados em segundo plano. |
-| Caixas distrobox | Atualizadas em segundo plano. |
+| System image | Downloaded and prepared in the background; **applied only at the next boot**. The computer never reboots by itself. |
+| System Flatpaks | Updated in the background. |
+| User Flatpaks | Updated in the background. |
+| Distrobox boxes | Updated in the background. |
 
-Recomendações:
+Recommendations:
 
-- **Deixe ligado** em máquina de uso comum: como cada atualização do sistema
-  é uma imagem inteira e a anterior fica guardada, o risco é baixo.
-- **Reinicie de vez em quando** (uma vez por semana basta) para a imagem nova
-  entrar.
-- **Desligue** antes de uma apresentação, de uma viagem sem internet boa ou em
-  máquina que precisa ficar congelada numa versão; ligue de novo depois.
-- Antes de reiniciar numa hora importante, `tamagi update changes` diz o que
-  vai mudar.
+- **Leave them on** on an ordinary machine: every system update is a whole
+  image and the previous one is kept, so the risk is low.
+- **Reboot now and then** (once a week is enough) so the new image takes effect.
+- **Turn them off** before a presentation, a trip without good internet, or on
+  a machine that must stay frozen at one version; turn them back on afterwards.
+- Before rebooting at an important moment, `tamagi update changes` says what
+  is going to change.
 
-## 7. Conferir a imagem
+## 7. Checking the image
 
-As imagens publicadas são assinadas com a chave do repositório (`cosign.pub`):
+Published images are signed with the repository's keys (`cosign.pub`,
+`cosign-2.pub`):
 
 ```bash
 cosign verify --key cosign.pub ghcr.io/wes-tamagi/tamagi:latest
 ```
 
-`tamagi doctor` faz um diagnóstico geral do sistema instalado.
+`tamagi doctor` runs a general diagnosis of the installed system.

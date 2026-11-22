@@ -168,8 +168,13 @@ echo "Plymouth: tema tamagi no initramfs ($(wc -l <<<"$after") módulos do dracu
 # chave, é recusado, e o sistema continua na imagem em que está.
 # A chave pública é a cosign.pub do repositório (system_files/etc/pki/containers).
 POLICY=/etc/containers/policy.json
-jq '.transports.docker["ghcr.io/wes-tamagi"] = [{"type": "sigstoreSigned", "keyPath": "/etc/pki/containers/tamagi.pub", "signedIdentity": {"type": "matchRepository"}}]' \
+# Duas chaves aceitas (basta uma assinatura válida): tamagi.pub, a primeira, que
+# só existe como segredo do CI, e tamagi-2.pub, que tem cópia de segurança com
+# o mantenedor. Se uma se perder, a outra continua valendo e nenhuma máquina
+# fica sem atualização.
+jq '.transports.docker["ghcr.io/wes-tamagi"] = [{"type": "sigstoreSigned", "keyPaths": ["/etc/pki/containers/tamagi.pub", "/etc/pki/containers/tamagi-2.pub"], "signedIdentity": {"type": "matchRepository"}}]' \
     "$POLICY" > "$POLICY.new"
 mv "$POLICY.new" "$POLICY"
 jq -e '.transports.docker["ghcr.io/wes-tamagi"][0].type == "sigstoreSigned"' "$POLICY" >/dev/null
 grep -q "BEGIN PUBLIC KEY" /etc/pki/containers/tamagi.pub
+grep -q "BEGIN PUBLIC KEY" /etc/pki/containers/tamagi-2.pub

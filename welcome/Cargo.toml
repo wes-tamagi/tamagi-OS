@@ -1,0 +1,36 @@
+[package]
+name = "tamagi-welcome"
+version = "0.1.0"
+edition = "2021"
+license = "BSD-3-Clause"
+description = "TamagiOS first-login choices: profile, browser and catalog, in a native COSMIC window"
+publish = false
+
+[[bin]]
+name = "tamagi-welcome"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
+
+# Same revision cosmic-ext-classic-menu 1.1.0 pins in its Cargo.lock (the
+# other libcosmic program compiled into the image), so both match COSMIC 1.11.
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic.git"
+rev = "fb9189b9292080584459ca3f9bb4728472b0d4cf"
+default-features = false
+features = [
+    # Screen readers
+    "a11y",
+    # Follows theme changes (light/dark, accent) live
+    "dbus-config",
+    "multi-window",
+    "tokio",
+    "winit",
+    "wayland",
+]
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+strip = true

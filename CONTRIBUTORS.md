@@ -1,27 +1,28 @@
-# Quem faz o Tamagi
+# Who makes Tamagi
 
-**Autor e mantenedor:** wes-tamagi — direção do projeto, decisões de produto e o
-menu iniciar (`cosmic-ext-classic-menu`).
+**Author and maintainer:** wes-tamagi — project direction, product decisions
+and the start menu (`cosmic-ext-classic-menu`).
 
-## Colaboradores de IA
+## AI contributors
 
-O Tamagi é escrito com a ajuda de agentes de IA, sob a direção do autor. Eles
-são colaboradores do projeto e ficam registrados aqui e nas mensagens de
-commit.
+Tamagi is written with the help of AI coding agents, under the author's
+direction. They are contributors to the project and are recorded here and in
+the commit messages.
 
-- **Gemini (Google), pelo Antigravity** — colaborador. Implementou a caixa de
-  desenvolvimento multi-distro, os jogos nativos, a primeira tradução completa
-  e os ajustes de desempenho; revisa o código do projeto e propõe ideias. A
-  revisão do branch `english-cli-minimal` encontrou, entre outros, a falha da
-  jaula dos agentes dentro da caixa de desenvolvimento e as pastas que
-  faltavam na camada do virt-manager — corrigidas a partir dela.
-- **Claude (Anthropic), pelo Claude Code** — colaborador. Comando único
-  `tamagi`, imagem enxuta e catálogo, agentes presos ao projeto, temas que
-  seguem o COSMIC, rechunk da imagem e a suíte de testes.
+- **Gemini (Google), through Antigravity** — contributor. Implemented the
+  multi-distro development box, native gaming, the first complete translation
+  and the performance tuning; reviews the project's code and proposes ideas.
+  Its review of the `english-cli-minimal` branch found, among others, the flaw
+  in the agent jail inside the development box and the folders missing from
+  the virt-manager layer, both fixed from that review.
+- **Claude (Anthropic), through Claude Code** — contributor. The single
+  `tamagi` command, the lean image and catalog, project-jailed agents, themes
+  that follow COSMIC, image rechunking, the Rust tools, the installer fixes
+  and the test suite.
 
-## Como o trabalho é registrado
+## How the work is recorded
 
-- Commits escritos com um agente levam a linha `Co-Authored-By:` do agente.
-- Achados de revisão que viram correção levam `Reviewed-by:` no commit.
-- Toda mudança passa pela suíte (`just test`) antes de ir para o `main`; o que
-  não foi testado é dito na mensagem do commit.
+- Commits written with an agent carry the agent's `Co-Authored-By:` line.
+- Review findings that become a fix carry `Reviewed-by:` in the commit.
+- Every change goes through the suite (`just test`) before reaching `main`;
+  what was not tested is said in the commit message.

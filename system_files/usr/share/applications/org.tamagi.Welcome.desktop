@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome to Tamagi
+Name[pt]=Bem-vindo ao Tamagi
+Name[pt_BR]=Bem-vindo ao Tamagi
+Name[es]=Bienvenido a Tamagi
+Name[fr]=Bienvenue dans Tamagi
+Comment=Choose what to install: profiles, browser and the catalog
+Comment[pt]=Escolha o que instalar: perfis, navegador e o catálogo
+Comment[pt_BR]=Escolha o que instalar: perfis, navegador e o catálogo
+Comment[es]=Elige qué instalar: perfiles, navegador y el catálogo
+Comment[fr]=Choisissez quoi installer : profils, navigateur et le catalogue
+Exec=tamagi-welcome --force
+Icon=tamagi
+Terminal=false
+Categories=Settings;
+StartupWMClass=org.tamagi.Welcome

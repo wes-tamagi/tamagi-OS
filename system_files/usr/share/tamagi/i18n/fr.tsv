@@ -916,3 +916,56 @@ to download	à télécharger
   Downloading in the background while the rest is installed.	  Téléchargement en arrière-plan pendant l'installation du reste.
 AI agent	Agent d'IA
 Waiting for the Flatpaks still downloading…	En attente des Flatpaks encore en téléchargement…
+Approximate download	Téléchargement approximatif
+asks for the password	demande le mot de passe
+Asks for the password	Demande le mot de passe
+Browser and items you chose	Navigateur et éléments choisis
+Cancel	Annuler
+Catalog	Catalogue
+Close	Fermer
+Command	Commande
+Container	Conteneur
+Continue	Continuer
+distrobox	distrobox
+Every item says how it is installed	Chaque élément indique comment il est installé
+Finish	Terminer
+Finished, but not everything was installed	Terminé, mais tout n'a pas été installé
+Flathub app	application Flathub
+Flatpak	Flatpak
+Good to know	Bon à savoir
+Hide details	Masquer les détails
+home folder	dossier personnel
+inside a distrobox	dans une distrobox
+Installing native items changes the system: type your password to continue.	Installer des éléments natifs modifie le système : saisissez votre mot de passe pour continuer.
+Install nothing from a profile.	Ne rien installer d'un profil.
+in your home folder	dans votre dossier personnel
+In your user	Dans votre compte
+its own Podman container	son propre conteneur Podman
+Native	Natif
+Next	Suivant
+No browser now. Later: tamagi install	Pas de navigateur pour l'instant. Plus tard : tamagi install
+Nothing here asks for the password.	Rien ici ne demande le mot de passe.
+Nothing in the catalog matches the search.	Rien dans le catalogue ne correspond à la recherche.
+Nothing selected	Rien de sélectionné
+Nothing selected: nothing will be installed.	Rien de sélectionné : rien ne sera installé.
+Password	Mot de passe
+Password needed	Mot de passe requis
+Pick a profile and a browser, then review. Nothing is installed before you confirm.	Choisissez un profil et un navigateur, puis vérifiez. Rien n'est installé avant votre confirmation.
+Podman	Podman
+Review	Vérification
+runs a setup command	exécute une commande de configuration
+sandboxed app from Flathub	application isolée, de Flathub
+Search the catalog	Rechercher dans le catalogue
+selected	sélectionné(s)
+setup command	commande de configuration
+Show details	Afficher les détails
+Skip for now	Passer pour l'instant
+Start	Commencer
+Step	Étape
+Suggested	Suggéré
+system layer, asks for the password	couche système, demande le mot de passe
+The password is asked for when this is set up.	Le mot de passe est demandé lors de cette configuration.
+Tick what you want, with sizes and install methods.	Cochez ce que vous voulez, avec les tailles et les modes d'installation.
+Unlock the disk with the TPM chip at boot	Déverrouiller le disque avec la puce TPM au démarrage
+Waiting for the shared Flatpak runtime	En attente du runtime partagé de Flatpak
+Welcome	Bienvenue

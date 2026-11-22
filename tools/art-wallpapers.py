@@ -1,6 +1,6 @@
 #!/usr/bin/python3
-"""Illustrated wallpapers of Tamagi (the "tamagi-art-*" files in
-system_files/usr/share/backgrounds/tamagi). Run on a development machine;
+"""Illustrated wallpapers of Tamagi
+(system_files/usr/share/backgrounds/tamagi/art; COSMIC lists subfolders). Run on a development machine;
 the results are committed, the image build only copies them.
 
     tools/art-wallpapers.py split <sheet.jpeg> <name1> <name2> <name3> <name4>
@@ -19,7 +19,7 @@ import tempfile
 from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-OUT = ROOT / "system_files/usr/share/backgrounds/tamagi"
+OUT = ROOT / "system_files/usr/share/backgrounds/tamagi/art"
 SIZE = (2560, 1440)
 GUTTER = 8          # the sheets have a dark line between the pictures
 
@@ -32,7 +32,7 @@ CRESTS = {
 
 def save(im, name):
     OUT.mkdir(parents=True, exist_ok=True)
-    path = OUT / f"tamagi-art-{name}.jpg"
+    path = OUT / f"{name}.jpg"
     im.convert("RGB").save(path, "JPEG", quality=90, optimize=True, progressive=True)
     print(path.relative_to(ROOT), im.size, f"{path.stat().st_size // 1024} KiB")
 

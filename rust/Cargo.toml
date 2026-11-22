@@ -7,7 +7,7 @@ members = ["agent-jail", "tamagi", "tamagi-layer"]
 [workspace.package]
 edition = "2021"
 version = "1.0.0"
-license = "GPL-3.0-or-later"
+license = "BSD-3-Clause"
 
 [profile.release]
 opt-level = "s"

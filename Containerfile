@@ -68,6 +68,13 @@ RUN git clone --depth 1 --branch "${CLASSIC_MENU_REF}" \
     && just rootdir=/out install \
     && strip /out/usr/bin/cosmic-ext-classic-menu-* \
     && install -Dm644 LICENSE /out/usr/share/licenses/cosmic-ext-classic-menu/LICENSE
+# A janela de primeiro login (welcome/): Rust + libcosmic, na mesma revisão do
+# libcosmic que o menu iniciar usa. Os testes dela rodam aqui.
+COPY welcome /src/welcome
+RUN cd /src/welcome && CARGO_TARGET_DIR=/target-welcome cargo test --release --locked \
+    && CARGO_TARGET_DIR=/target-welcome cargo build --release --locked \
+    && install -Dm755 /target-welcome/release/tamagi-welcome /out/usr/bin/tamagi-welcome \
+    && strip /out/usr/bin/tamagi-welcome
 
 # ── Estágio 1c: as ferramentas do Tamagi escritas em Rust (rust/) ───────────
 # tamagi (a entrada única), tamagi-layer (camadas nativas) e agent-jail (o

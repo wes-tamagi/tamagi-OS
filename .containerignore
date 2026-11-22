@@ -9,3 +9,5 @@ disk_config
 *.run
 *.tar.zst
 rust/target
+welcome/target
+welcome/tools

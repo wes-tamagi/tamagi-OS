@@ -1,0 +1,11 @@
+#!/usr/bin/bash
+# Stub of `tamagi apply -y <profile>`: unnumbered stage lines, like the real one.
+echo "tamagi $*" >> "${STUB_LOG:-/dev/null}"
+[[ ${1:-} == apply ]] || exit 0
+for stage in "agent: claude" "agent: codex" "agent: opencode" "agent: clio" "box: dev (fedora)"; do
+    printf '\n── %s\n' "$stage"
+    echo "  installing…"
+    sleep "${STUB_SLEEP:-1}"
+done
+echo
+echo "Done: the machine now matches the file."

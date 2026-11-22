@@ -1,54 +1,58 @@
-Tamagi — avisos de marcas e licenças
-=====================================
+Tamagi — trademark and license notices
+======================================
 
-O Tamagi é um projeto independente. É construído sobre o Fedora e sobre as
-imagens do Universal Blue (ublue-os), e não é afiliado, patrocinado nem
-endossado pelo Projeto Fedora, Red Hat, Universal Blue, System76, Canonical,
-Microsoft, Basecamp, Tailscale, Google ou Anthropic.
+Tamagi is an independent project. It is built on Fedora and on the Universal
+Blue (ublue-os) images, and is not affiliated with, sponsored by or endorsed
+by the Fedora Project, Red Hat, Universal Blue, System76, Canonical,
+Microsoft, Basecamp, Tailscale, Google or Anthropic.
 
-Marcas
-------
+Trademarks
+----------
 Fedora, Pop!_OS, COSMIC, Ubuntu, Windows, Omarchy, Tailscale, Chrome,
-Antigravity e Claude são marcas de seus respectivos donos. Aparecem no Tamagi só para descrever
-compatibilidade, a origem de um componente ou a inspiração de uma ideia.
+Antigravity and Claude are trademarks of their respective owners. They appear
+in Tamagi only to describe compatibility, the origin of a component or the
+inspiration of an idea.
 
-- A imagem não traz os logos do Fedora: o pacote fedora-logos é trocado pelo
-  generic-logos, e o os-release usa o nome, o logo e os endereços do Tamagi.
-  ID=fedora e VERSION_ID continuam os do Fedora por compatibilidade técnica
-  (instaladores, distrobox e repositórios decidem por eles).
-- O brasão do Tamagi (o anel com as três joias), os papéis de parede e o tema
-  da tela de boot são desenhados por código neste repositório
-  (build_files/make-wallpapers.py, build_files/make-plymouth.py).
+- The image does not carry Fedora's logos: the fedora-logos package is
+  replaced by generic-logos, and os-release uses Tamagi's name, logo and
+  addresses. ID=fedora and VERSION_ID remain Fedora's for technical
+  compatibility (installers, distrobox and repositories decide by them).
+- Tamagi's crest (the ring with the three jewels), the per-theme wallpapers
+  and the boot splash are drawn by code in this repository
+  (build_files/make-wallpapers.py, build_files/make-plymouth.py). The
+  illustrated wallpapers (usr/share/backgrounds/tamagi/art) are the author's.
 
-Software que o Tamagi não redistribui
+Software Tamagi does not redistribute
 -------------------------------------
-- Windows: `tamagi-windows` usa o dockur/windows (MIT), que baixa o Windows
-  dos servidores da Microsoft na máquina do usuário, depois de um aviso de
-  licença. O uso do Windows exige licença válida da Microsoft.
-- Navegadores (Google Chrome, Vivaldi, Firefox, Chromium) e Antigravity:
-  baixados na máquina do usuário, por escolha dele (tamagi-browser,
-  tamagi-antigravity), do Flathub ou do fabricante, sob os termos de cada
-  um.
-- Agentes de IA (Codex CLI, CLIO, Qwen Code, opencode, Gemini CLI, OpenClaw):
-  baixados na máquina do usuário por `tamagi-agents`, do GitHub (digest
-  conferido) ou do npm, cada um com a sua licença e os seus termos.
-- Claude Code: o comando `claude` da imagem é só um atalho que, no primeiro
-  uso, baixa o Claude Code da Anthropic na máquina do usuário (checksum do
-  manifesto conferido), sob os termos da Anthropic.
-- Apps Flatpak (Bottles, OnlyOffice, FreeRDP, GPU Screen Recorder, Smile e
-  outros): instalados do Flathub na máquina do usuário, cada um com a sua
-  licença.
+- Windows: `tamagi-windows` uses dockur/windows (MIT), which downloads Windows
+  from Microsoft's servers on the user's machine, after a license notice.
+  Using Windows requires a valid Microsoft license.
+- Browsers (Google Chrome, Vivaldi, Firefox, Chromium) and Antigravity:
+  downloaded on the user's machine, by the user's choice (tamagi-browser,
+  tamagi-antigravity), from Flathub or from the vendor, under each one's terms.
+- AI agents (Codex CLI, CLIO, Qwen Code, opencode, Gemini CLI, OpenClaw):
+  downloaded on the user's machine by `tamagi-agents`, from GitHub (digest
+  checked) or from npm, each with its own license and terms.
+- Claude Code: the `claude` command in the image is only a shortcut that, on
+  first use, downloads Claude Code from Anthropic on the user's machine
+  (manifest checksum checked), under Anthropic's terms.
+- Docker CE, VS Code and Tailscale: installed on the user's machine, by the
+  user's choice, from their vendors' repositories.
+- Flatpak apps (Bottles, OnlyOffice, FreeRDP, GPU Screen Recorder, Smile and
+  others): installed from Flathub on the user's machine, each with its own
+  license.
 
-Software incluído na imagem
----------------------------
-Os pacotes do Fedora e do Universal Blue mantêm as suas licenças (veja
-/usr/share/licenses). Componentes compilados ou baixados pelo build do Tamagi:
+Software included in the image
+------------------------------
+Fedora's and Universal Blue's packages keep their licenses (see
+/usr/share/licenses). Components compiled or downloaded by Tamagi's build:
 
 - llama.cpp — MIT
 - cosmic-ext-classic-menu — GPL-3.0
+- libcosmic (linked into tamagi-welcome) — MPL-2.0
 - starship — ISC
 
-Código do Tamagi
-----------------
-Os scripts, configurações e artes deste repositório estão sob a licença do
-arquivo LICENSE.
+Tamagi's code
+-------------
+The scripts, programs, settings and artwork of this repository are under the
+license in the LICENSE file.

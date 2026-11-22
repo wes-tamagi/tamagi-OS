@@ -114,6 +114,7 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: false
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PRIVATE_KEY_2: ${{ secrets.SIGNING_SECRET_2 }}
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           if [ -z "${COSIGN_PRIVATE_KEY}" ]; then
@@ -126,3 +127,12 @@ jobs:
           # Formato antigo de bundle, como no image-template (compatível com rpm-ostree).
           cosign sign -y --new-bundle-format=false --use-signing-config=false \
             --key env://COSIGN_PRIVATE_KEY ${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}
+          # Segunda chave (cosign-2.pub), a que tem cópia de segurança com o
+          # mantenedor: os sistemas aceitam qualquer uma das duas. Enquanto o
+          # segredo SIGNING_SECRET_2 não existir, a imagem sai só com a primeira.
+          if [ -n "${COSIGN_PRIVATE_KEY_2}" ]; then
+            cosign sign -y --new-bundle-format=false --use-signing-config=false \
+              --key env://COSIGN_PRIVATE_KEY_2 ${IMAGE_REGISTRY}/${IMAGE_NAME}@${DIGEST}
+          else
+            echo "::warning::SIGNING_SECRET_2 não configurado: imagem assinada só com a primeira chave."
+          fi
