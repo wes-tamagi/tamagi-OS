@@ -11,7 +11,7 @@ nossos ajustes e mandar contribuições de volta. Os demais são só
 | Fork | Origem | Licença | Para que serve no Tamagi |
 |---|---|---|---|
 | [cosmic-term](https://github.com/wes-tamagi/cosmic-term) | pop-os/cosmic-term | GPL-3.0 | O terminal que queremos ter: partir do cosmic-term e trazer o que o Ptyxis faz com contêineres e a leveza do foot (veja "Terminal" abaixo) |
-| [cosmic-edit](https://github.com/wes-tamagi/cosmic-edit) | pop-os/cosmic-edit | GPL-3.0 | Base de um editor do Tamagi em Tauri + Rust (veja "Editor" abaixo) |
+| [cosmic-edit](https://github.com/wes-tamagi/cosmic-edit) | pop-os/cosmic-edit | GPL-3.0 | Fork de contribuição: correções e melhorias enviadas ao projeto original (veja "Editor" abaixo) |
 | [cosmic-ext-classic-menu](https://github.com/wes-tamagi/cosmic-ext-classic-menu) | championpeak87/cosmic-ext-classic-menu | GPL-3.0 | O menu iniciar, compilado na imagem |
 | [tik](https://github.com/wes-tamagi/tik) | sysrich/tik | MIT | O instalador (com o módulo do Tamagi em `live/tik`) |
 | [llama.cpp](https://github.com/wes-tamagi/llama.cpp) | ggml-org/llama.cpp | MIT | A IA local, compilada na imagem com Vulkan |
@@ -62,10 +62,12 @@ a fonte quando tiver um ajuste nosso.
 
 ## Editor: o plano
 
-O cosmic-edit já é escrito em Rust; a interface dele é feita com o libcosmic
-(iced). Um editor em **Tauri** troca essa interface por uma em HTML/CSS/JS
-dentro de uma webview (WebKitGTK), com o núcleo em Rust. Do fork aproveita-se
-o que não é interface: abertura e gravação de arquivos, projetos, busca,
-integração com git, configuração e temas de sintaxe. A interface é escrita de
-novo. Nenhum código foi escrito no fork ainda; o cosmic-edit do Fedora
-continua sendo o editor da imagem.
+O cosmic-edit do Fedora continua sendo o editor da imagem. O fork serve para
+**contribuir**: correções e melhorias pequenas, feitas num branch do fork e
+enviadas como pull request ao pop-os/cosmic-edit. Não haverá um editor
+paralelo — a ideia de reescrevê-lo em Tauri foi avaliada e descartada (a
+interface seria toda refeita, pouco do fork se aproveitaria e o espaço já é
+ocupado pelo próprio cosmic-edit, pelo VS Code e pelo Zed).
+
+A integração com os agentes de IA (ver o que o agente mudou, o ponto de
+salvamento, desfazer) fica para uma extensão do VS Code, ainda por fazer.
