@@ -14,7 +14,7 @@ a change we need that upstream has not merged.
 | Fork | Upstream | License | Role in Tamagi |
 |---|---|---|---|
 | [cosmic-epoch](https://github.com/wes-tamagi/cosmic-epoch) | pop-os/cosmic-epoch | GPL-3.0 | The COSMIC desktop meta-repository; entry point for our COSMIC contributions |
-| [cosmic-comp](https://github.com/wes-tamagi/cosmic-comp) | pop-os/cosmic-comp | GPL-3.0 | Compositor; HDR testing (see "HDR") |
+| [cosmic-comp](https://github.com/wes-tamagi/cosmic-comp) | pop-os/cosmic-comp | GPL-3.0 | Compositor; reference for following the HDR work (see "HDR") |
 | [cosmic-panel](https://github.com/wes-tamagi/cosmic-panel) | pop-os/cosmic-panel | GPL-3.0 | Panel and dock; improvements to send upstream |
 | [cosmic-edit](https://github.com/wes-tamagi/cosmic-edit) | pop-os/cosmic-edit | GPL-3.0 | Text editor; improvements to send upstream |
 | [cosmic-term](https://github.com/wes-tamagi/cosmic-term) | pop-os/cosmic-term | GPL-3.0 | Terminal; bring over what Ptyxis does with containers (see "Terminal") |
@@ -49,7 +49,8 @@ a change we need that upstream has not merged.
 
 ## Contribution plan for COSMIC
 
-Nothing below has been written yet; this is the order of work.
+Apart from the theme submission, nothing below has been
+written yet; this is the order of work.
 
 ### Terminal: cosmic-term with what Ptyxis does
 
@@ -85,7 +86,8 @@ Improvements come from what Tamagi already works around:
 [cosmic-themes.org](https://cosmic-themes.org/) takes themes through a web
 form (`/create/`): name, author, link and the `.ron` file exported from COSMIC
 Settings. No pull request is involved. The image already generates the file
-(`/usr/share/cosmic-themes/tamagi-ipe.ron`). Not submitted yet.
+(`/usr/share/cosmic-themes/tamagi-ipe.ron`). Submitted on 2026-11-22 as
+"Tamagi Ipê" by wes-tamagi; the site reviews submissions before listing them.
 
 ### HDR
 
@@ -106,14 +108,10 @@ What exists, according to the issue thread (not verified by us):
 - An earlier implementation by jibsta210 stalled on colour tuning and failed
   on an AMD two-display setup.
 
-Plan for Tamagi:
-
-1. Build the `hdr` branch in a container and ship it as an **optional,
-   experimental layer** with its own "COSMIC (HDR)" login session. The default
-   session keeps Fedora's cosmic-comp.
-2. Test on the hardware we have and report results on the issue, in English.
-3. Contribute review, testing and fixes to whichever implementation the
-   COSMIC team picks; no long-lived compositor fork.
+In Tamagi: **desktop HDR is not shipped and not offered as an option.** An
+opt-in experimental session was evaluated and dropped (2026-11-22). The
+desktop waits for HDR in the official cosmic-comp; when the COSMIC team picks
+an implementation we can help with testing and review.
 
 HDR in games does not depend on this: the gaming layer runs gamescope with HDR
 on displays that announce it.

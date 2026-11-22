@@ -35,5 +35,8 @@ flathub com.usebottles.bottles                   opcional    Games           550
 flathub io.podman_desktop.PodmanDesktop          opcional    Development 480MB  Podman Desktop — containers with a GUI
 flathub com.ranfdev.DistroShelf                  opcional    Development 10MB   DistroShelf — distrobox boxes with a GUI
 flathub dev.zed.Zed                              opcional    Development 250MB  Zed — code editor
-flathub dev.edfloreshz.CosmicTweaks              opcional    System         120MB  COSMIC Tweaks — extra COSMIC settings
-flathub io.github.cosmic_utils.Examine           opcional    System         100MB  Examine — hardware information
+flathub dev.edfloreshz.CosmicTweaks              opcional    COSMIC         120MB  COSMIC Tweaks — extra COSMIC settings
+flathub io.github.cosmic_utils.Examine           opcional    COSMIC         100MB  Examine — hardware information
+flathub dev.edfloreshz.Tasks                     opcional    COSMIC         40MB   Tasks — to-do lists
+flathub com.jwestall.Forecast                    opcional    COSMIC         20MB   Forecast — weather
+flathub dev.edfloreshz.Calculator                opcional    COSMIC         40MB   Calculator — made for COSMIC
