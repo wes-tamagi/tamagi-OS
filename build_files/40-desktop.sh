@@ -103,7 +103,7 @@ import sys
 path = sys.argv[1]
 text = open(path, encoding="utf-8").read().rstrip()
 assert text.endswith("]"), "tiling_exception_defaults mudou de formato"
-text = text[:-1].rstrip() + '\n\t// Tamagi\n\t(appid: "tamagi-popup", titles: [".*"]),\n\t(appid: "org.tamagi.Menu", titles: [".*"]),\n\t(appid: "zenity", titles: [".*"]),\n]\n'
+text = text[:-1].rstrip() + '\n\t// Tamagi\n\t(appid: "tamagi-popup", titles: [".*"]),\n\t(appid: "org.tamagi.Menu", titles: [".*"]),\n\t(appid: "org.tamagi.Welcome", titles: [".*"]),\n\t(appid: "zenity", titles: [".*"]),\n]\n'
 open(path, "w", encoding="utf-8").write(text)
 PY
 
