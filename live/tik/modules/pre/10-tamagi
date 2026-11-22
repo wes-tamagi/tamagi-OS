@@ -29,7 +29,7 @@ tamagi_done=0
 # ── Idiomas do instalador: pt (padrão), en, es e fr ────────────────────────────────
 # T <chave> devolve o texto no idioma escolhido. As variáveis tamagi_t_* são
 # lidas pelo núcleo do tik (build-live.sh troca os textos fixos dele por elas).
-declare -A TXT_pt=(
+declare -gA TXT_pt=(
     [welcome_body]="Este assistente instala o Tamagi neste computador.\nSão poucas perguntas: teclado, fuso horário, a sua conta e o disco.\n\nA instalação é atômica: o disco só passa a iniciar o Tamagi no último passo.\nSe algo parar no meio, ele não fica com um sistema pela metade." [try_only]="Só experimentar"
     [quit]="Sair do instalador?" [quit_yes]="Sair" [quit_no]="Continuar instalando"
     [install_now]="Instalar agora"
@@ -61,7 +61,7 @@ declare -A TXT_pt=(
     [disk_title]="Escolha o disco" [disk_text]="Escolha o disco onde o Tamagi será instalado. <b>Tudo o que está nele será apagado: confira se os seus arquivos têm cópia.</b>"
     [no_disk]="Nenhum disco encontrado para a instalação."
 )
-declare -A TXT_en=(
+declare -gA TXT_en=(
     [welcome_body]="This assistant installs Tamagi on this computer.\nJust a few questions: keyboard, time zone, your account and the disk.\n\nThe installation is atomic: the disk only starts Tamagi at the very last step.\nIf anything stops halfway, it is not left with a half-installed system." [try_only]="Just try it"
     [quit]="Quit the installer?" [quit_yes]="Quit" [quit_no]="Keep installing"
     [install_now]="Install now"
@@ -93,7 +93,7 @@ declare -A TXT_en=(
     [disk_title]="Choose the disk" [disk_text]="Choose the disk where Tamagi will be installed. <b>Everything on it will be erased: make sure your files are backed up.</b>"
     [no_disk]="No disk found for the installation."
 )
-declare -A TXT_es=(
+declare -gA TXT_es=(
     [welcome_body]="Este asistente instala Tamagi en este equipo.\nSon pocas preguntas: teclado, zona horaria, tu cuenta y el disco.\n\nLa instalación es atómica: el disco solo arranca Tamagi en el último paso.\nSi algo se detiene a la mitad, no queda con un sistema a medias." [try_only]="Solo probar"
     [quit]="¿Salir del instalador?" [quit_yes]="Salir" [quit_no]="Seguir instalando"
     [install_now]="Instalar ahora"
@@ -125,7 +125,7 @@ declare -A TXT_es=(
     [disk_title]="Elija el disco" [disk_text]="Elija el disco donde se instalará Tamagi. <b>Todo lo que hay en él será borrado: compruebe que tiene copia de sus archivos.</b>"
     [no_disk]="No se encontró ningún disco para la instalación."
 )
-declare -A TXT_fr=(
+declare -gA TXT_fr=(
     [welcome_body]="Cet assistant installe Tamagi sur cet ordinateur.\nQuelques questions seulement : clavier, fuseau horaire, votre compte et le disque.\n\nL'installation est atomique : le disque ne démarre Tamagi qu'à la toute dernière étape.\nSi quelque chose s'arrête en cours de route, il ne reste pas avec un système à moitié installé." [try_only]="Seulement essayer"
     [quit]="Quitter l'installateur ?" [quit_yes]="Quitter" [quit_no]="Continuer l'installation"
     [install_now]="Installer maintenant"
@@ -200,7 +200,7 @@ tamagi_cancel() { # o usuário fechou uma janela: sair ou continuar?
 }
 
 tamagi_ask_language() {
-    d --list --radiolist --title="Tamagi" --width=460 --height=320 \
+    d --list --radiolist --title="Tamagi" --width=460 --height=370 \
         --text="Language  ·  Idioma  ·  Idioma  ·  Langue" \
         --column="" --column="id" --column="Language / Idioma / Langue" --hide-column=2 --print-column=2 \
         TRUE  "en" "English (United States)" \
