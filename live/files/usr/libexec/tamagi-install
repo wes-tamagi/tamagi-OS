@@ -263,8 +263,8 @@ done
 [[ -n $DEPLOY ]] || die "não achei o sistema instalado em $MNT/ostree/deploy"
 systemd-firstboot --root="$DEPLOY" --force \
     --locale="${A[LOCALE]:-en_US.UTF-8}" \
-    --keymap="${A[KEYMAP]:-br-abnt2}" \
-    --timezone="${A[TIMEZONE]:-America/Sao_Paulo}" \
+    --keymap="${A[KEYMAP]:-us}" \
+    --timezone="${A[TIMEZONE]:-UTC}" \
     --hostname="${A[HOSTNAME]:-tamagi}" >&2
 
 # O usuário é criado no primeiro boot (tamagi-firstboot.service), com o

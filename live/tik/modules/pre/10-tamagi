@@ -174,7 +174,7 @@ tamagi_set_lang() { # tamagi_set_lang pt|en|es|fr
     tamagi_t_col_parts="$(T col_parts)"; tamagi_t_col_fs="$(T col_fs)"
     tamagi_t_disk_title="$(T disk_title)"; tamagi_t_disk_text="$(T disk_text)"; tamagi_t_no_disk="$(T no_disk)"
 }
-tamagi_set_lang pt
+tamagi_set_lang en
 # As janelas do instalador (zenity, GTK 4) desenham por software: o renderizador
 # por GPU do GTK deixa botões sem texto em algumas placas e VMs, e a instalação
 # não pode depender disso.
