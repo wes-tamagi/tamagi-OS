@@ -663,7 +663,7 @@ eles sempre pedem confirmação.
 - **Kernel:** Open Gaming Collective (7.3), assinado pelo
   Universal Blue; `CONFIG_RUST=y`, Binder, sched_ext.
 - **Terminal:** ripgrep, fd, bat, eza, zoxide, dust, delta,
-  hyperfine, difftastic, uv e starship. O `sudo` e os utilitários básicos
+  hyperfine, uv e starship. O `sudo` e os utilitários básicos
   (`ls`, `cp`…) são os de sempre: a troca por sudo-rs e uutils foi retirada.
 
 As ferramentas `tamagi-*` são bash e Python.
@@ -686,6 +686,15 @@ tamagi agents install claude antigravity codex clio qwen opencode gemini opencla
 | Antigravity | IDE do Google, na caixa de navegadores, com o Chrome que o agente dela usa |
 | Qwen Code (`qwen`), Gemini CLI (`gemini`), OpenClaw (`openclaw`) | pacotes npm: vivem na caixa de desenvolvimento (Node, git e compiladores estão lá); um lançador em `~/.local/bin` os abre de qualquer lugar |
 | IA local | o agente do Tamagi com um modelo no seu computador (`tamagi ai setup`) |
+
+**llm-scripts** (`tamagi install llm-scripts`): o
+[llm-scripts](https://github.com/fewtarius/llm-scripts) (GPL-3.0, do mesmo
+autor do CLIO) lê os metadados do modelo e a memória da placa de vídeo e
+calcula o perfil de execução — contexto, cache KV, sessões. O Tamagi o aponta
+para o llama.cpp que já vem na imagem e para os modelos do `tamagi ai`, sem
+compilar nada: `llm doctor`, `llm models`, `llm profile --model <modelo>`,
+`llm serve`. O motor `gufo` (APUs AMD) e a versão ROCm precisam de compilador:
+ficam para a caixa de desenvolvimento.
 
 - **llama.cpp v1.0.0** compilado na imagem com Vulkan e variantes de CPU
   escolhidas em tempo de execução; serve em `127.0.0.1:9931` (API OpenAI e

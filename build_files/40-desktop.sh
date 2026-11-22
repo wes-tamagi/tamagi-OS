@@ -167,7 +167,7 @@ fc-cache -f >/dev/null
 # comando: tamagi-panel.
 tamagi-panel defaults "$C"
 # O Dock do COSMIC tem de continuar como veio do pacote (o estilo "cosmic" volta a ele).
-dock_changed=$(rpm -V cosmic-panel 2>/dev/null | grep -c 'CosmicPanel\.Dock/' || true)
+dock_changed=$(rpm -V cosmic-panel 2>/dev/null | grep 'CosmicPanel\.Dock/' | grep -c '^..5' || true)
 [[ $dock_changed -eq 0 ]] || { echo "tamagi-panel alterou os padrões do Dock (hardlink)" >&2; exit 1; }
 
 # ── Menu iniciar ancorado ao botão (cosmic-ext-classic-menu) ──

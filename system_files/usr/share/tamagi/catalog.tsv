@@ -34,4 +34,5 @@ opencode	AI agents	120MB	agent:opencode	opencode — open-source coding agent
 gemini	AI agents	150MB	agent:gemini	Gemini CLI — Google's agent (in the dev box)
 openclaw	AI agents	300MB	agent:openclaw	OpenClaw — open-source personal assistant (in the dev box)
 local-ai	AI agents	2-9GB	agent:local	Local AI — the Tamagi agent with a model on your computer (llama.cpp)
+llm-scripts	AI agents	1MB	run:/usr/libexec/tamagi/llm-scripts-setup	llm-scripts — works out the best launch profile of a local model for your GPU
 tailscale	Networks	60MB	run:/usr/libexec/tamagi/tailscale-setup	Tailscale — mesh VPN between your devices, native (asks for the password)

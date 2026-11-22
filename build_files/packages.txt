@@ -52,7 +52,6 @@ zoxide
 du-dust
 git-delta
 hyperfine
-difftastic
 uv
 
 # ── Terminal e desenvolvimento (estilo Omarchy) ──

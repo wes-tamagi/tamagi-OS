@@ -6,6 +6,11 @@
 # shellcheck source=/dev/null
 [ -r /usr/share/tamagi/gum.env ] && . /usr/share/tamagi/gum.env
 
+# ~/.local/bin in the PATH of every login shell (agents and tools installed
+# in the user: claude, codex, opencode, launchers of the development box).
+# Graphical sessions get it from /usr/lib/environment.d/50-tamagi-path.conf.
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; export PATH ;; esac
+
 [ -n "${BASH_VERSION:-}" ] || return 0
 case $- in *i*) ;; *) return 0 ;; esac
 [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/no-shell-setup" ] && return 0

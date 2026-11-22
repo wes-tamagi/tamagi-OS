@@ -57,6 +57,12 @@ done
 find /usr/share/locale -mindepth 1 -maxdepth 1 -type d \
     ! -name 'en*' ! -name 'pt*' ! -name 'es*' ! -name 'fr*' ! -name C -exec rm -rf {} +
 
+# Peso morto herdado da base: o cliente da AWS em Python (nada na imagem o
+# usa) e a fonte CJK estática (as variáveis, que ficam, cobrem os mesmos
+# idiomas). ~250 MB.
+dnf5 -y remove --no-autoremove python3-botocore python3-boto3 python3-s3transfer google-noto-sans-cjk-fonts || true
+fc-cache -f >/dev/null 2>&1 || true
+
 dnf5 clean all
 
 # /var não viaja na imagem (veja abaixo), mas os pacotes instalados aqui

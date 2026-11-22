@@ -23,6 +23,12 @@ build *ARGS:
         --build-arg AKMODS_FLAVOR={{ akmods }} \
         -t {{ image }}:{{ tag }} {{ ARGS }} .
 
+# Refaz a imagem em camadas por conteúdo (rpm-ostree build-chunked-oci): tira o
+# que sobrou da base (kernel trocado, idiomas cortados) e deixa as atualizações
+# menores. De ~9,3 GB para ~6,8 GB. Gera <tag>-chunked; não mexe na <tag>.
+rechunk:
+    bash rechunk.sh {{ image }}:{{ tag }} {{ image }}:{{ tag }}-chunked
+
 # Testes da imagem: arquivos, serviços, COSMIC, Rust, hardening, primeiro boot, llama.cpp
 test:
     podman run --rm -v ./tests:/tests:ro,Z {{ image }}:{{ tag }} bash /tests/image.sh

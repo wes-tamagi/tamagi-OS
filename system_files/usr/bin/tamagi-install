@@ -56,6 +56,7 @@ is_installed() {
         run:tamagi-devbox\ create\ *) key=${action##* }
                     podman container exists "$([[ $key == fedora ]] && echo dev || echo "dev-$key")" 2>/dev/null ;;
         run:*tailscale-setup)  command -v tailscale >/dev/null 2>&1 ;;
+        run:*llm-scripts-setup) [[ -x $HOME/.local/bin/llm ]] ;;
         *)          return 1 ;;
     esac
 }

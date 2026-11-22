@@ -877,3 +877,5 @@ Connecting this computer to your Tailscale network…	Conectando este ordenador 
 CLIO — coding agent in pure Perl, works with the local model (in the dev box)	CLIO — agente de programación en Perl puro, funciona con el modelo local (en la caja dev)
 needs Perl, which is missing here	necesita Perl, que falta aquí
 the box has no complete Perl; run	la caja no tiene el Perl completo; ejecuta
+llm-scripts — works out the best launch profile of a local model for your GPU	llm-scripts — calcula el mejor perfil de ejecución de un modelo local para tu tarjeta gráfica
+stays	se conserva
