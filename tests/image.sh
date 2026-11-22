@@ -238,7 +238,7 @@ check "sessão COSMIC registrada"       test -f /usr/share/wayland-sessions/cosm
 check "tela de login (cosmic-greeter) habilitada" systemctl is-enabled cosmic-greeter.service
 check "boot gráfico por padrão"        bash -c '[[ $(systemctl get-default) == graphical.target ]]'
 check "tiling automático por padrão"   grep -qx true $S/com.system76.CosmicComp/v1/autotile
-check "teclado ABNT2 por padrão"       grep -q 'layout: "br"' $S/com.system76.CosmicComp/v1/xkb_config
+check "teclado US por padrão (inglês é o idioma padrão)" grep -q 'layout: "us"' $S/com.system76.CosmicComp/v1/xkb_config
 check "papel de parede padrão: brasão (mon)" bash -c 'grep -q tamagi/tokyo-night-mon.png /usr/share/cosmic/com.system76.CosmicBackground/v1/all && test -s /usr/share/backgrounds/tamagi/tokyo-night-mon.png'
 check "8 estilos de papel de parede por tema (88 PNG)" bash -c '[[ $(ls /usr/share/backgrounds/tamagi/*.png | wc -l) -eq 88 ]]'
 check "cada tema tem o seu tema do COSMIC (.ron) e a miniatura, junto dos do COSMIC" bash -c 'for t in $(tamagi-theme list); do f=/usr/share/cosmic-themes/tamagi-$t.ron; grep -q "^    accent: Some" "$f" && grep -q "^    palette: " "$f" && file "/usr/share/cosmic-themes/tamagi-$t.png" | grep -q "768 x 432" || { echo "$t"; exit 1; }; done; tamagi-theme list | grep -qx ipe'

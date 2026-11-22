@@ -81,7 +81,7 @@ def main():
     ap.add_argument("--password", required=True)
     ap.add_argument("--luks")
     ap.add_argument("--tpm", action="store_true", help="disco criptografado que abre sozinho pelo TPM")
-    ap.add_argument("--lang", default="pt")
+    ap.add_argument("--lang", default="en")
     ap.add_argument("--screenshot")
     args = ap.parse_args()
 

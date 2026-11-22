@@ -730,7 +730,7 @@ ficam para a caixa de desenvolvimento.
 ## O que vem instalado
 
 - **Desktop:** COSMIC, com terminal, arquivos, editor, loja e player próprios;
-  tiling ligado, teclado ABNT2. O COSMIC Files abre em grade, pastas primeiro.
+  tiling ligado, teclado US (o instalador grava o do idioma escolhido; ABNT2 para português do Brasil). O COSMIC Files abre em grade, pastas primeiro.
 - **Terminal:** o [Ptyxis](https://gitlab.gnome.org/chergert/ptyxis) é o
   terminal do sistema (`Super+Enter`, dock): conhece as caixas distrobox e os
   contêineres do podman e abre uma aba já dentro deles; recebe a paleta do
@@ -887,6 +887,10 @@ O projeto agradece a todos os que tornaram esta distro possível.
 O Tamagi é escrito com a ajuda de agentes de IA, sob a direção do autor: o
 **Gemini** (Google, pelo Antigravity) e o **Claude** (Anthropic) são
 colaboradores do projeto. Veja [CONTRIBUTORS.md](CONTRIBUTORS.md).
+
+**Idiomas:** inglês é o idioma padrão do Tamagi (instalador, sessão live,
+teclado e comandos); português do Brasil é o segundo, seguido de espanhol e
+francês. O instalador pergunta o idioma na primeira tela.
 
 Os projetos em que o Tamagi se apoia, os forks que mantemos e o que é só
 referenciado estão em [UPSTREAMS.md](UPSTREAMS.md).

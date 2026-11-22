@@ -4,7 +4,8 @@
 #   tests/iso.sh <iso>                 instala sozinho no disco output/vm-test.qcow2,
 #                                      reinicia pelo disco e confere o sistema instalado
 #   tests/iso.sh <iso> --luks          o mesmo, com o disco criptografado
-#   tests/iso.sh <iso> --en            o mesmo, instalando em inglês (en_US); também --es e --fr
+#   tests/iso.sh <iso> --pt            o mesmo, instalando em português (pt_BR); também --es e --fr
+#                                      (sem opção, instala em inglês, o idioma padrão)
 #   tests/iso.sh <iso> --tpm           disco criptografado com a chave no TPM (um TPM virtual,
 #                                      swtpm): o sistema tem de iniciar sem pedir a senha
 #   tests/iso.sh <iso> --upgrade       atualização automática de ponta a ponta: instala apontando
@@ -80,7 +81,7 @@ case "$MODE" in
         [[ -f $DISK ]] || { echo "sem disco instalado: rode antes just test-iso" >&2; exit 1; }
         qemu "${disk_args[@]}" "${window[@]}"
         exit ;;
-    auto|--luks|--tpm|--upgrade|--en|--es|--fr|--verify|--verify-luks|--verify-tpm|--rollback) ;;
+    auto|--luks|--tpm|--upgrade|--pt|--en|--es|--fr|--verify|--verify-luks|--verify-tpm|--rollback) ;;
     *) echo "modo desconhecido: $MODE" >&2; exit 2 ;;
 esac
 
@@ -116,7 +117,7 @@ if [[ $MODE == --upgrade ]]; then
     echo "   v2 publicada: $(cat "$OUT/vm-upgrade.digest")"
     append+=" tamagi.autoinstall.imgref=10.0.2.2:5000/tamagi:latest"
 fi
-[[ $MODE == --en || $MODE == --es || $MODE == --fr ]] && append+=" tamagi.autoinstall.lang=${MODE#--}"
+[[ $MODE == --pt || $MODE == --es || $MODE == --fr ]] && append+=" tamagi.autoinstall.lang=${MODE#--}"
 start=$SECONDS
 timeout 3600 qemu-system-x86_64 -enable-kvm -machine q35 -cpu host -smp "$CPUS" -m "$RAM" \
     -drive if=pflash,format=raw,readonly=on,file="$CODE" \
@@ -158,6 +159,6 @@ fi
 luks=()
 [[ $MODE == *luks ]] && luks=(--luks "$LUKS_PASS")
 [[ $MODE == *tpm ]] && luks=(--tpm)
-[[ $MODE == --en || $MODE == --es || $MODE == --fr ]] && luks+=(--lang "${MODE#--}")
+[[ $MODE == --pt || $MODE == --es || $MODE == --fr ]] && luks+=(--lang "${MODE#--}")
 python3 "$HERE/vm_check.py" --serial "$OUT/vm-serial.sock" --qmp "$OUT/vm-qmp.sock" \
     --user tamagi --password tamagi --screenshot "$OUT/vm-greeter.png" "${luks[@]}"

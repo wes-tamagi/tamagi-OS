@@ -83,10 +83,11 @@ cat >> /etc/greetd/cosmic-greeter.toml <<'TOML'
 command = "start-cosmic"
 user = "live"
 TOML
-# A sessão live (painel, janelas do tik) em português e com teclado ABNT2;
-# o sistema instalado recebe o que for escolhido no instalador.
-echo 'LANG=pt_BR.UTF-8' > /etc/locale.conf
-echo 'KEYMAP=br-abnt2' > /etc/vconsole.conf
+# A sessão live (painel, janelas do tik) em inglês e com teclado US, o idioma
+# padrão do Tamagi; o instalador pergunta o idioma logo no começo e o sistema
+# instalado recebe o que for escolhido.
+echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+echo 'KEYMAP=us' > /etc/vconsole.conf
 # Na mídia o assistente de primeiro login do Tamagi não aparece.
 install -d -o live -g live /var/home/live/.config /var/home/live/.config/tamagi
 touch /var/home/live/.config/tamagi/firstrun-done

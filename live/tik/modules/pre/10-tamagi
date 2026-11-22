@@ -15,7 +15,7 @@
 # Variáveis e funções do tik usadas aqui: gui, tik_log, d, log, error.
 #
 # Instalação sem perguntas (testes e automação), pela linha do kernel:
-#   tamagi.autoinstall=/dev/vda [tamagi.autoinstall.lang=en|es|fr] [tamagi.autoinstall.user=nome]
+#   tamagi.autoinstall=/dev/vda [tamagi.autoinstall.lang=pt|es|fr] [tamagi.autoinstall.user=nome]
 #   [tamagi.autoinstall.password=senha] [tamagi.autoinstall.luks=senha-do-disco] [tamagi.autoinstall.tpm=1]
 #   [tamagi.autoinstall.kargs=arg1,arg2]
 
@@ -157,15 +157,16 @@ declare -A TXT_fr=(
     [disk_title]="Choisissez le disque" [disk_text]="Choisissez le disque où Tamagi sera installé. <b>Tout ce qu'il contient sera effacé : vérifiez que vos fichiers sont sauvegardés.</b>"
     [no_disk]="Aucun disque trouvé pour l'installation."
 )
-tamagi_lang="pt"
-tamagi_locale="pt_BR.UTF-8"
+# English is the default language; Portuguese (Brazil) is the second.
+tamagi_lang="en"
+tamagi_locale="en_US.UTF-8"
 T() { local -n _txt="TXT_${tamagi_lang}"; printf '%s' "${_txt[$1]:-${TXT_en[$1]}}"; }
 tamagi_set_lang() { # tamagi_set_lang pt|en|es|fr
     case "$1" in
-        en) tamagi_lang=en; tamagi_locale="en_US.UTF-8" ;;
+        pt) tamagi_lang=pt; tamagi_locale="pt_BR.UTF-8" ;;
         es) tamagi_lang=es; tamagi_locale="es_ES.UTF-8" ;;
         fr) tamagi_lang=fr; tamagi_locale="fr_FR.UTF-8" ;;
-        *)  tamagi_lang=pt; tamagi_locale="pt_BR.UTF-8" ;;
+        *)  tamagi_lang=en; tamagi_locale="en_US.UTF-8" ;;
     esac
     # Botões padrão do zenity (OK, Cancelar) no mesmo idioma.
     export LANG="${tamagi_locale}" LANGUAGE="${tamagi_locale%%.*}"
@@ -200,13 +201,13 @@ tamagi_cancel() { # o usuário fechou uma janela: sair ou continuar?
 
 tamagi_ask_language() {
     d --list --radiolist --title="Tamagi" --width=460 --height=320 \
-        --text="Idioma  ·  Language  ·  Idioma  ·  Langue" \
-        --column="" --column="id" --column="Idioma / Language / Langue" --hide-column=2 --print-column=2 \
-        TRUE  "pt" "Português (Brasil)" \
-        FALSE "en" "English (United States)" \
+        --text="Language  ·  Idioma  ·  Idioma  ·  Langue" \
+        --column="" --column="id" --column="Language / Idioma / Langue" --hide-column=2 --print-column=2 \
+        TRUE  "en" "English (United States)" \
+        FALSE "pt" "Português (Brasil)" \
         FALSE "es" "Español" \
         FALSE "fr" "Français"
-    tamagi_set_lang "${result:-pt}"
+    tamagi_set_lang "${result:-en}"
 }
 
 tamagi_welcome() {
@@ -231,9 +232,9 @@ tamagi_welcome() {
 tamagi_ask_keyboard() {
     # Coluna 2: layout|variante do xkb|mapa do console. O primeiro marcado
     # acompanha o idioma escolhido.
-    local fallback="br:-:br-abnt2"
+    local fallback="us:-:us"
     case "${tamagi_lang}" in
-        en) fallback="us:-:us" ;;
+        pt) fallback="br:-:br-abnt2" ;;
         es) fallback="es:-:es" ;;
         fr) fallback="fr:-:fr" ;;
     esac
@@ -241,9 +242,9 @@ tamagi_ask_keyboard() {
     while IFS='|' read -r id label; do
         rows+=("$([ "${id}" = "${fallback}" ] && echo TRUE || echo FALSE)" "${id}" "${label}")
     done <<'KEYBOARDS'
-br:-:br-abnt2|Português (Brasil, ABNT2)
 us:-:us|English (US)
 us:intl:us-acentos|English (US, international, with accents)
+br:-:br-abnt2|Português (Brasil, ABNT2)
 es:-:es|Español (España)
 latam:-:la-latin1|Español (Latinoamérica)
 fr:-:fr|Français (AZERTY)
@@ -472,10 +473,10 @@ if [ -n "${tamagi_auto}" ]; then
     d() { log "[auto] janela ignorada: $*"; result=""; return 0; }
     d_opt() { log "[auto] janela ignorada: $*"; result=""; return 0; }
     TIK_INSTALL_DEVICE="${tamagi_auto}"
-    tamagi_keymap="br-abnt2"; tamagi_xkb_layout="br"; tamagi_xkb_variant=""
-    tamagi_timezone="America/Sao_Paulo"
+    tamagi_keymap="us"; tamagi_xkb_layout="us"; tamagi_xkb_variant=""
+    tamagi_timezone="UTC"
     case "$(tamagi_karg tamagi.autoinstall.lang)" in
-        en) tamagi_set_lang en; tamagi_keymap="us"; tamagi_xkb_layout="us"; tamagi_timezone="UTC" ;;
+        pt) tamagi_set_lang pt; tamagi_keymap="br-abnt2"; tamagi_xkb_layout="br"; tamagi_timezone="America/Sao_Paulo" ;;
         es) tamagi_set_lang es; tamagi_keymap="es"; tamagi_xkb_layout="es"; tamagi_timezone="Europe/Madrid" ;;
         fr) tamagi_set_lang fr; tamagi_keymap="fr"; tamagi_xkb_layout="fr"; tamagi_timezone="Europe/Paris" ;;
     esac

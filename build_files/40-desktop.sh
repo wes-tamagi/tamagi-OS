@@ -73,12 +73,13 @@ fi
 # Tiling automático ligado em todos os workspaces (Super+Y alterna).
 echo true > "$C/com.system76.CosmicComp/v1/autotile"
 echo Global > "$C/com.system76.CosmicComp/v1/autotile_behavior"
-# Teclado ABNT2 por padrão (o instalador grava outro, se você escolher).
+# Teclado US por padrão, como o idioma (inglês); o instalador grava o que for
+# escolhido (ABNT2 para português do Brasil).
 cat > "$C/com.system76.CosmicComp/v1/xkb_config" <<'RON'
 (
     rules: "",
     model: "",
-    layout: "br",
+    layout: "us",
     variant: "",
     options: None,
     repeat_delay: 600,

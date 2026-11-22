@@ -36,7 +36,7 @@ declare -A MSG_es=([verify]="Comprobando el medio de instalación" [disk]="Prepa
 declare -A MSG_fr=([verify]="Vérification du support d'installation" [disk]="Préparation du disque" [format]="Formatage" [luks]="Chiffrement du disque (LUKS2)"
     [tpm]="Enregistrement de la clé du disque dans la puce TPM" [copy]="Copie du système"
     [config]="Configuration du nouveau système" [finish]="Finalisation" [end]="Installation terminée")
-MSG_LANG=pt
+MSG_LANG=en
 progress() { local -n _m="MSG_${MSG_LANG}"; echo "PROGRESS $1 ${_m[$2]:-$2}"; }
 die() { echo "ERRO: $*" >&2; exit 1; }
 
@@ -52,7 +52,7 @@ while IFS='=' read -r key value; do
 done < "$ANSWERS"
 # shellcheck disable=SC1090
 source "$LIVE_CONF"
-case "${A[LOCALE]:-pt_BR.UTF-8}" in en_*) MSG_LANG=en ;; es_*) MSG_LANG=es ;; fr_*) MSG_LANG=fr ;; esac
+case "${A[LOCALE]:-en_US.UTF-8}" in pt_*) MSG_LANG=pt ;; es_*) MSG_LANG=es ;; fr_*) MSG_LANG=fr ;; esac
 
 DISK=$(realpath "$DISK")
 live_src=$(findmnt -no SOURCE /run/initramfs/live 2>/dev/null || true)
@@ -262,7 +262,7 @@ for candidate in "$MNT"/ostree/deploy/*/deploy/*.0; do
 done
 [[ -n $DEPLOY ]] || die "não achei o sistema instalado em $MNT/ostree/deploy"
 systemd-firstboot --root="$DEPLOY" --force \
-    --locale="${A[LOCALE]:-pt_BR.UTF-8}" \
+    --locale="${A[LOCALE]:-en_US.UTF-8}" \
     --keymap="${A[KEYMAP]:-br-abnt2}" \
     --timezone="${A[TIMEZONE]:-America/Sao_Paulo}" \
     --hostname="${A[HOSTNAME]:-tamagi}" >&2
