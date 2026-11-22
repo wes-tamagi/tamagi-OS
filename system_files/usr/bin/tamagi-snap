@@ -31,8 +31,17 @@ SNAPS = HOME / ".snapshots"
 CONFIG = f"home-{USER}"
 HELPER = "/usr/libexec/tamagi/home-snapshots"
 
-LANG = (os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
-        or os.environ.get("LANG") or "pt")[:2].lower()
+def _lang():
+    raw = os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+    if not raw:
+        try:
+            raw = (pathlib.Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "tamagi/lang").read_text(encoding="utf-8").strip().splitlines()[0]
+        except (OSError, IndexError):
+            raw = ""
+    return (raw or os.environ.get("LANG") or "pt")[:2].lower()
+
+
+LANG = _lang()
 MSG = {
     "off": ("Snapshots da pasta pessoal: desligados. Ligue com: tamagi-snap ativar",
             "Home folder snapshots: off. Turn them on with: tamagi-snap activate"),

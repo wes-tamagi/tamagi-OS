@@ -37,47 +37,25 @@ browser *ARGS:
 harden *ARGS:
     @tamagi-harden {{ ARGS }}
 
-# Jogos sob demanda: Steam, Lutris, Heroic, ProtonUp-Qt e MangoHud por Flatpak
-setup-gaming:
-    #!/usr/bin/bash
-    set -euo pipefail
-    echo "gamescope, MangoHud, GameMode e as regras de controles já vêm na imagem."
-    apps=$(gum choose --no-limit --header "O que instalar? (espaço marca, Enter confirma)" \
-        --selected "Steam" "Steam" "Lutris" "Heroic (Epic/GOG)" "ProtonUp-Qt" "Bottles")
-    ids=()
-    while read -r app; do
-        case "$app" in
-            Steam)        ids+=(com.valvesoftware.Steam) ;;
-            Lutris)       ids+=(net.lutris.Lutris) ;;
-            Heroic*)      ids+=(com.heroicgameslauncher.hgl) ;;
-            ProtonUp-Qt)  ids+=(net.davidotek.pupgui2) ;;
-            Bottles)      ids+=(com.usebottles.bottles) ;;
-        esac
-    done <<<"$apps"
-    (( ${#ids[@]} )) || { echo "Nada escolhido."; exit 0; }
-    flatpak install -y flathub "${ids[@]}"
-    echo "Pronto. MangoHud dentro do Steam Flatpak: flatpak install flathub org.freedesktop.Platform.VulkanLayer.MangoHud"
+# Jogos sob demanda (estilo Bazzite: nativo via camada ou Flatpak, + perfil de baixa latência)
+setup-gaming *ARGS:
+    @tamagi-gaming {{ ARGS }}
 
-# Criar uma caixa de desenvolvimento distrobox (fedora, arch, ubuntu, opensuse)
-devbox DISTRO="":
-    #!/usr/bin/bash
-    set -euo pipefail
-    declare -A IMAGES=(
-        [fedora]=ghcr.io/ublue-os/fedora-toolbox:latest
-        [arch]=ghcr.io/ublue-os/arch-toolbox:latest
-        [ubuntu]=ghcr.io/ublue-os/ubuntu-toolbox:latest
-        [opensuse]=quay.io/toolbx-images/opensuse-toolbox:tumbleweed
-    )
-    distro="{{ DISTRO }}"
-    [[ -n $distro ]] || distro=$(gum choose --header "Distro da caixa" "${!IMAGES[@]}")
-    [[ -n ${IMAGES[$distro]:-} ]] || { echo "distro desconhecida: $distro (use: ${!IMAGES[*]})" >&2; exit 1; }
-    # A primeira caixa se chama 'dev'; as seguintes levam o nome da distro.
-    name=dev
-    if distrobox list --no-color 2>/dev/null | awk -F'|' 'NR>1 {gsub(/ /, "", $2); print $2}' | grep -qx dev; then
-        name=$distro
-    fi
-    distrobox create --yes --name "$name" --image "${IMAGES[$distro]}"
-    echo "Caixa '$name' criada. Entre com: distrobox enter $name"
+# Criar caixa de desenvolvimento distrobox (Fedora padrão + arch, popos, ubuntu, alma, rocky, opensuse, debian, alpine)
+devbox *ARGS:
+    @tamagi-devbox {{ ARGS }}
+
+# Perfis de desempenho (eco, balanced, performance, latency), sched_ext e benchmark
+perf *ARGS:
+    @tamagi-perf {{ ARGS }}
+
+# Ambientes declarativos por projeto (tamagi-workspace.toml)
+workspace *ARGS:
+    @tamagi-workspace {{ ARGS }}
+
+# Diagnóstico autônomo de saúde, integridade e desempenho do sistema
+doctor *ARGS:
+    @tamagi-doctor {{ ARGS }}
 
 # Instalar outros agentes de IA no seu usuário (codex, gemini); Claude Code e opencode já vêm na imagem
 install-agent AGENT="":

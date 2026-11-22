@@ -4,4 +4,5 @@
 # kernel): quem instala é o tamagi-autoinstall.service, não esta janela.
 grep -qE '(^| )tamagi\.autoinstall=' /proc/cmdline && exit 0
 [[ ${1:-} == --autostart ]] && sleep 3
+export GSK_RENDERER=cairo
 exec flock -n "${XDG_RUNTIME_DIR:-/tmp}/tamagi-installer.lock" /usr/bin/tik

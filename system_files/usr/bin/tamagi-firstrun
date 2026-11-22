@@ -3,6 +3,9 @@
 # Textos em pt/en/es/fr (veja /usr/libexec/tamagi/i18n).
 set -uo pipefail
 . /usr/libexec/tamagi/i18n
+# shellcheck source=/dev/null
+[[ -r /usr/share/tamagi/gum.env ]] && . /usr/share/tamagi/gum.env
+MULTI=/usr/libexec/tamagi/gum-multi
 
 STAMP="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/firstrun-done"
 [[ ${1:-} == --force ]] && rm -f "$STAMP"
@@ -66,8 +69,8 @@ mode=$(gum choose --header "$(t "Apps")" "$rec — Chrome, Mission Center, Pika 
 chosen=""
 case $mode in
     "$rec"*) chosen=$(printf '%s\n' "${preset[@]}") ;;
-    "$pick") selected=$(IFS=,; echo "${preset[*]}")
-             chosen=$(printf '%s\n' "${labels[@]}" | gum choose --no-limit --height 18 --selected "$selected" \
+    "$pick") selected=$(printf '%s\n' "${preset[@]}" | sed 's/,/\\,/g' | paste -sd, -)
+             chosen=$(printf '%s\n' "${labels[@]}" | "$MULTI" --height 18 --selected "$selected" \
                  --header "$(t "Espaço marca/desmarca · Enter instala · nada marcado: instala nada")") || chosen="" ;;
 esac
 if [[ -n $chosen ]]; then
@@ -90,18 +93,18 @@ else
 fi
 
 step "Caixa de desenvolvimento (distrobox)"
-tl "O host não recebe pacotes: ferramentas de linha de comando vivem numa caixa."
+tl "A caixa padrão é Fedora (com sqlite, rust/cargo, node/npm, python e compiladores)."
 none=$(t "agora não")
-box=$(gum choose --height 10 --header "$(t "Criar a caixa 'dev' com qual distro?")" \
-    "fedora" "arch" "ubuntu" "opensuse" "$none")
+box=$(gum choose --height 12 --selected "fedora" --header "$(t "Criar caixa de desenvolvimento com qual distro?")" \
+    "fedora" "arch" "popos" "ubuntu" "alma" "rocky" "opensuse" "debian" "alpine" "$none")
 if [[ -n $box && $box != "$none" ]]; then
-    ujust devbox "$box" || tl "Não deu para criar agora (sem rede?). Depois: ujust devbox"
+    tamagi-devbox create "$box" || tl "Não deu para criar agora (sem rede?). Depois: tamagi-devbox"
 fi
 
 step "Linguagens e ferramentas (mise)"
 tl "O mise é o gerenciador padrão de linguagens e ferramentas de desenvolvimento:"
 tl "instala no seu usuário, troca de versão por pasta de projeto e se atualiza sozinho."
-langs=$(gum choose --no-limit --height 12 --header "$(t "Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)")" \
+langs=$("$MULTI" --height 12 --header "$(t "Instalar agora? (espaço marca, Enter confirma; pode ficar vazio)")" \
     "rust@latest" "node@lts" "python@latest" "go@latest" "java@lts" "bun@latest" "deno@latest") || langs=""
 if [[ -n $langs ]]; then
     # shellcheck disable=SC2086

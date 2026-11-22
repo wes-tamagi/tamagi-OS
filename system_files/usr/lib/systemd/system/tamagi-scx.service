@@ -1,0 +1,17 @@
+[Unit]
+Description=Tamagi sched_ext CPU scheduler (scx_rusty)
+Documentation=https://github.com/sched-ext/scx
+ConditionPathExists=/sys/kernel/sched_ext
+ConditionFileIsExecutable=/usr/bin/scx_rusty
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/scx_rusty
+Restart=on-failure
+RestartSec=5
+OOMScoreAdjust=-500
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target

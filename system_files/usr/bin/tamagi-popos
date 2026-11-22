@@ -97,22 +97,39 @@ download_iso() { # imprime o caminho da ISO conferida
 }
 
 create_vm() { # create_vm <nome> <disco> [iso]
-    local name=$1 disk=$2 iso=${3:-} src=() base=()
-    if [[ -n $iso ]]; then src=(--cdrom "$iso"); else src=(--import); fi
+    local name=$1 disk=$2 iso=${3:-} cdrom=() base=()
+    # Pop!_OS não suporta Secure Boot (kernel e systemd-boot não são assinados
+    # pelas chaves padrão do OVMF): desliga explicitamente, já que --osinfo
+    # ubuntu24.04 liga Secure Boot por padrão no UEFI.
+    # A ISO vai como disco cdrom persistente (boot.order=2) em vez de --cdrom:
+    # com --cdrom o virt-install ejeta a ISO após o primeiro desligamento, e se
+    # o usuário reiniciar antes de instalar a VM fica presa no disco vazio.
+    # Com boot.order=1 no disco e 2 na ISO, a UEFI inicia a ISO enquanto o disco
+    # está vazio e passa direto para o Pop!_OS assim que a instalação termina.
+    if [[ -n $iso ]]; then
+        # shellcheck disable=SC2054  # as vírgulas são das opções do virt-install
+        cdrom=(--disk path="$iso",device=cdrom,readonly=on,boot.order=2)
+    fi
     # shellcheck disable=SC2054  # as vírgulas são das opções do virt-install
     base=(--connect "$CONN" --name "$name" --osinfo "$OSINFO" --memory "$(vm_ram_mb)" --vcpus "$(vm_cpus)"
-          --cpu host-passthrough --boot uefi
-          --disk path="$disk",format=qcow2,bus=virtio,discard=unmap
+          --cpu host-passthrough
+          --boot uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=no
+          --disk path="$disk",format=qcow2,bus=virtio,discard=unmap,boot.order=1
+          "${cdrom[@]}"
           --network type=user,backend.type=passt,model=virtio
           --channel unix,target.type=virtio,target.name=org.qemu.guest_agent.0
-          --noautoconsole "${src[@]}")
-    # Vídeo com aceleração 3D (o COSMIC fica fluido); sem suporte, cai no virtio simples.
-    if ! virt-install "${base[@]}" --video virtio,accel3d=yes --graphics spice,gl.enable=yes,listen=none \
+          --noautoconsole --import)
+    # Vídeo com aceleração 3D (o COSMIC fica fluido); sem suporte (ou TAMAGI_POPOS_3D=0), cai no virtio simples.
+    if [[ ${TAMAGI_POPOS_3D:-1} == 1 ]] && virt-install "${base[@]}" \
+            --memorybacking source.type=memfd,access.mode=shared \
+            --video virtio,accel3d=yes --graphics spice,gl.enable=yes,listen=none \
             >/dev/null 2>"$ISO_DIR/virt-install.log"; then
-        virsh undefine "$name" --nvram >/dev/null 2>&1 || true
-        echo "$(t "Sem aceleração 3D; usando vídeo virtio simples")" >&2
-        virt-install "${base[@]}" --video virtio --graphics spice >/dev/null
+        return 0
     fi
+    virsh destroy "$name" >/dev/null 2>&1 || true
+    virsh undefine "$name" --nvram >/dev/null 2>&1 || true
+    echo "$(t "Sem aceleração 3D; usando vídeo virtio simples")" >&2
+    virt-install "${base[@]}" --video virtio --graphics spice >/dev/null
 }
 
 open_vm() {

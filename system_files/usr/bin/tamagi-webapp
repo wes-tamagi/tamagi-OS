@@ -2,26 +2,26 @@
 # tamagi-webapp — transforma um site em aplicativo com janela própria
 # (o Chrome da caixa de navegadores em modo --app), como os web apps do Omarchy.
 set -euo pipefail
+. /usr/libexec/tamagi/i18n
 
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/tamagi-webapps"
 
-die() { echo "erro: $*" >&2; exit 1; }
+die() { echo "$(t "erro"): $*" >&2; exit 1; }
 slug() { tr '[:upper:]' '[:lower:]' <<<"$1" | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g'; }
 
 install_app() {
     local name=${1:-} url=${2:-} icon_url=${3:-} id icon origin candidate
     if [[ -z $name || -z $url ]]; then
-        [[ -t 0 ]] || die "uso: tamagi-webapp install <nome> <url> [url-do-ícone]"
-        name=$(gum input --placeholder "Nome do app (ex.: WhatsApp)")
-        url=$(gum input --placeholder "Endereço (ex.: https://web.whatsapp.com)")
+        [[ -t 0 ]] || die "$(t "uso"): tamagi-webapp install <nome> <url> [url-do-ícone]"
+        name=$(gum input --placeholder "$(t "Nome do app (ex.: WhatsApp)")")
+        url=$(gum input --placeholder "$(t "Endereço (ex.: https://web.whatsapp.com)")")
     fi
-    [[ $url =~ ^https?:// ]] || die "o endereço precisa começar com http:// ou https://"
+    [[ $url =~ ^https?:// ]] || die "$(t "o endereço precisa começar com http:// ou https://")"
     id="webapp-$(slug "$name")"
-    [[ $id != webapp- ]] || die "nome inválido"
+    [[ $id != webapp- ]] || die "$(t "nome inválido")"
     mkdir -p "$APPS" "$ICONS"
 
-    # Ícone: o que você indicar, senão o que o próprio site publica.
     icon=web-browser
     origin=$(grep -oE '^https?://[^/]+' <<<"$url")
     for candidate in "$icon_url" "$origin/apple-touch-icon.png" "$origin/favicon.ico"; do
@@ -48,7 +48,7 @@ StartupWMClass=$id
 X-Tamagi-WebApp=true
 DESKTOP
     update-desktop-database "$APPS" 2>/dev/null || true
-    echo "Web app '$name' criado. Ele já aparece no lançador (Super+Espaço)."
+    echo "$(t "Web app criado"): '$name'."
 }
 
 list_apps() {
@@ -63,19 +63,20 @@ list_apps() {
 remove_app() {
     local name=${1:-} id
     if [[ -z $name ]]; then
-        [[ -t 0 ]] || die "uso: tamagi-webapp remove <nome>"
-        name=$(list_apps | gum choose --header "Remover qual?" | sed -E 's/ {2,}.*//') || exit 0
+        [[ -t 0 ]] || die "$(t "uso"): tamagi-webapp remove <nome>"
+        name=$(list_apps | gum choose --header "$(t "Remover qual?")" | sed -E 's/ {2,}.*//') || exit 0
     fi
     id="webapp-$(slug "$name")"
-    [[ -f $APPS/$id.desktop ]] || die "não achei o web app '$name'"
+    [[ -f $APPS/$id.desktop ]] || die "$(t "não achei o web app") '$name'"
     rm -f "${APPS:?}/${id:?}.desktop" "${ICONS:?}/${id:?}.png"
     update-desktop-database "$APPS" 2>/dev/null || true
-    echo "Web app '$name' removido."
+    echo "$(t "Web app removido"): '$name'."
 }
 
 case "${1:-}" in
-    install) shift; install_app "$@" ;;
-    remove)  shift; remove_app "$@" ;;
-    list)    list_apps ;;
-    *) echo "uso: tamagi-webapp install <nome> <url> [url-do-ícone] | remove <nome> | list" >&2; exit 2 ;;
+    install|instalar) shift; install_app "$@" ;;
+    remove|remover)   shift; remove_app "$@" ;;
+    list|lista)       list_apps ;;
+    -h|--help|help|ajuda) echo "tamagi-webapp [install <nome> <url> [url-do-ícone] | remove <nome> | list]" ;;
+    *) echo "$(t "uso"): tamagi-webapp install <nome> <url> [url-do-ícone] | remove <nome> | list" >&2; exit 2 ;;
 esac

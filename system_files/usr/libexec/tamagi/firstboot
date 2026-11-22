@@ -30,6 +30,14 @@ if [[ -n $user ]]; then
         if [[ ${#subvol[@]} -gt 0 && ${C[HOME_SNAPSHOTS]:-yes} != no ]]; then
             /usr/libexec/tamagi/home-snapshots ativar "$user" || echo "snapshots da pasta pessoal: não deu para ligar" >&2
         fi
+        # Defesa em profundidade: garante que ~/.local e subpastas XDG pertençam ao usuário.
+        uhome=$(getent passwd "$user" | cut -d: -f6)
+        ugroup=$(id -gn "$user")
+        for d in .local .local/share .local/state .local/bin .config; do
+            install -d -o "$user" -g "$ugroup" "$uhome/$d"
+            chown "$user:$ugroup" "$uhome/$d"
+        done
+        command -v restorecon >/dev/null && restorecon -R "$uhome/.local" "$uhome/.config" 2>/dev/null || true
     fi
 fi
 

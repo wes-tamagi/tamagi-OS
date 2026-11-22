@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Name=Antigravity (agy)
+GenericName=AI coding agent
+GenericName[pt_BR]=Agente de IA para programar
+GenericName[pt]=Agente de IA para programar
+GenericName[es]=Agente de IA para programar
+GenericName[fr]=Agent d'IA pour programmer
+Comment=Google's agentic CLI (Antigravity), in the terminal
+Comment[pt_BR]=CLI agêntica do Google (Antigravity), no terminal
+Comment[pt]=CLI agêntica do Google (Antigravity), no terminal
+Comment[es]=CLI agéntica de Google (Antigravity), en la terminal
+Comment[fr]=CLI agentique de Google (Antigravity), dans le terminal
+TryExec=agy
+Exec=/usr/libexec/tamagi/popup --class agy --title "Antigravity (agy)" agy
+StartupWMClass=agy
+Icon=antigravity
+Terminal=false
+Categories=Development;
+Keywords=agy;antigravity;google;gemini;ia;ai;agente;agent;code;

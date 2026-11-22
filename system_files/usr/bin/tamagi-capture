@@ -25,8 +25,17 @@ import urllib.parse
 
 RECORDER = "com.dec05eba.gpu_screen_recorder"
 STATE = pathlib.Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "tamagi-capture.pid"
-LANG = (os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
-        or os.environ.get("LANG") or "pt")[:2].lower()
+def _lang():
+    raw = os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+    if not raw:
+        try:
+            raw = (pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")) / "tamagi/lang").read_text(encoding="utf-8").strip().splitlines()[0]
+        except (OSError, IndexError):
+            raw = ""
+    return (raw or os.environ.get("LANG") or "pt")[:2].lower()
+
+
+LANG = _lang()
 MSG = {
     "copied": ("Texto copiado", "Text copied"),
     "no_text": ("Nenhum texto encontrado na área", "No text found in the area"),

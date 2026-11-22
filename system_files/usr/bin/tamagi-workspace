@@ -1,0 +1,374 @@
+#!/usr/bin/python3
+"""tamagi-workspace — ambientes declarativos por projeto (tamagi-workspace.toml).
+
+Detecta automaticamente o stack do projeto (Rust, Node/JS, Python, SQLite, Go,
+Ruby, .NET, Zig, C/C++ e bancos locais) e integra tamagi-devbox (Fedora padrão
+ou outra distro) + tamagi-db num único arquivo versionável no repositório.
+"""
+import argparse
+import importlib.util
+import json
+import os
+import pathlib
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tomllib
+
+# Carrega tamagi_i18n.py (funciona tanto no host quanto nos testes no repositório).
+def _load_i18n():
+    for candidate in (
+        pathlib.Path("/usr/libexec/tamagi/tamagi_i18n.py"),
+        pathlib.Path(__file__).resolve().parents[1] / "libexec/tamagi/tamagi_i18n.py",
+    ):
+        if candidate.is_file():
+            spec = importlib.util.spec_from_file_location("tamagi_i18n", candidate)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+    raise RuntimeError("tamagi_i18n.py not found")
+
+
+_I18N = _load_i18n()
+t = _I18N.t
+
+WS_FILENAME = "tamagi-workspace.toml"
+VALID_DISTROS = ("fedora", "arch", "popos", "ubuntu", "alma", "rocky", "opensuse", "debian", "alpine")
+VALID_DBS = ("postgres", "mysql", "mariadb", "redis", "valkey", "mongo")
+
+
+def find_workspace_file(start=None):
+    cur = pathlib.Path(start or os.getcwd()).resolve()
+    for d in (cur, *cur.parents):
+        cand = d / WS_FILENAME
+        if cand.is_file():
+            return cand
+    return None
+
+
+def detect_project(root):
+    """Detecta linguagens, bibliotecas nativas e bancos a partir dos arquivos do projeto."""
+    root = pathlib.Path(root).resolve()
+    stack = []
+    packages = []
+    dbs = []
+    tasks = {}
+
+    def add(lst, *items):
+        for item in items:
+            if item not in lst:
+                lst.append(item)
+
+    if (root / "Cargo.toml").is_file():
+        add(stack, "rust")
+        tasks.setdefault("build", "cargo build")
+        tasks.setdefault("test", "cargo test")
+        cargo_txt = (root / "Cargo.toml").read_text(encoding="utf-8", errors="replace").lower()
+        if "sqlite" in cargo_txt or "rusqlite" in cargo_txt or "libsqlite" in cargo_txt:
+            add(stack, "sqlite")
+        if "postgres" in cargo_txt or "sqlx" in cargo_txt or "diesel" in cargo_txt:
+            add(dbs, "postgres")
+        if "redis" in cargo_txt:
+            add(dbs, "redis")
+
+    if (root / "package.json").is_file():
+        add(stack, "node")
+        try:
+            pkg = json.loads((root / "package.json").read_text(encoding="utf-8", errors="replace"))
+            deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+            scripts = pkg.get("scripts", {})
+            for k in ("dev", "build", "test", "lint"):
+                if k in scripts and k not in tasks:
+                    tasks[k] = f"npm run {k}"
+            dep_str = " ".join(deps.keys()).lower()
+            if "sqlite" in dep_str or "better-sqlite3" in dep_str:
+                add(stack, "sqlite")
+            if "pg" in deps or "postgres" in dep_str or "prisma" in dep_str:
+                add(dbs, "postgres")
+            if "redis" in dep_str or "ioredis" in dep_str:
+                add(dbs, "redis")
+        except (OSError, ValueError):
+            pass
+
+    if (root / "pyproject.toml").is_file() or (root / "requirements.txt").is_file():
+        add(stack, "python")
+        tasks.setdefault("test", "pytest")
+
+    if (root / "go.mod").is_file():
+        add(stack, "go")
+        tasks.setdefault("build", "go build ./...")
+        tasks.setdefault("test", "go test ./...")
+
+    if (root / "build.zig").is_file():
+        add(stack, "zig")
+        tasks.setdefault("build", "zig build")
+
+    if (root / "CMakeLists.txt").is_file() or (root / "Makefile").is_file():
+        add(stack, "c")
+
+    if any(root.glob("*.db")) or any(root.glob("*.sqlite")) or any(root.glob("*.sqlite3")):
+        add(stack, "sqlite")
+
+    for compose in ("docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"):
+        p = root / compose
+        if p.is_file():
+            txt = p.read_text(encoding="utf-8", errors="replace").lower()
+            for db in VALID_DBS:
+                if db in txt:
+                    add(dbs, db)
+
+    return {
+        "name": re.sub(r"[^a-zA-Z0-9._-]+", "-", root.name).strip("-") or "workspace",
+        "stack": stack or ["fedora-base"],
+        "packages": packages,
+        "databases": dbs,
+        "tasks": tasks,
+    }
+
+
+def render_toml(info, distro="fedora", box_name=None):
+    box = box_name or ("dev" if distro == "fedora" else f"dev-{distro}")
+    lines = [
+        f"# {WS_FILENAME} — {t('ambiente declarativo do projeto (tamagi-workspace)')}",
+        "",
+        "[workspace]",
+        f'name = {json.dumps(info["name"])}',
+        f'box = {json.dumps(box)}',
+        f'distro = {json.dumps(distro)}',
+        "",
+        "[toolchain]",
+        f'stack = {json.dumps(info["stack"])}',
+        f'packages = {json.dumps(info["packages"])}',
+        "",
+        "[services]",
+        f'databases = {json.dumps(info["databases"])}',
+        "",
+        "[env]",
+        "",
+        "[tasks]",
+    ]
+    for k, v in info["tasks"].items():
+        lines.append(f"{k} = {json.dumps(v)}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def load_workspace(path):
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        sys.exit(f"{t('erro')}: {path}: {e}")
+    ws = data.get("workspace", {})
+    distro = ws.get("distro", "fedora")
+    if distro not in VALID_DISTROS:
+        sys.exit(f"{t('erro')}: {t('distro desconhecida')}: {distro}")
+    box = ws.get("box") or ("dev" if distro == "fedora" else f"dev-{distro}")
+    if not re.fullmatch(r"[a-z][a-z0-9_-]{0,40}", box):
+        sys.exit(f"{t('erro')}: {t('nome inválido')}: {box}")
+    dbs = data.get("services", {}).get("databases", [])
+    for db in dbs:
+        if db not in VALID_DBS:
+            sys.exit(f"{t('erro')}: {t('banco desconhecido')}: {db}")
+    return {
+        "root": path.parent,
+        "file": path,
+        "name": ws.get("name", path.parent.name),
+        "box": box,
+        "distro": distro,
+        "stack": data.get("toolchain", {}).get("stack", []),
+        "packages": data.get("toolchain", {}).get("packages", []),
+        "databases": dbs,
+        "env": data.get("env", {}),
+        "tasks": data.get("tasks", {}),
+    }
+
+
+def podman_exists(name):
+    try:
+        return subprocess.run(["podman", "container", "exists", name], capture_output=True, timeout=15).returncode == 0
+    except OSError:
+        return False
+
+
+def ensure_up(ws):
+    box, distro = ws["box"], ws["distro"]
+    extras = [s for s in ws["stack"] if s in ("go", "zig", "clang", "postgres")]
+    if not podman_exists(box):
+        cmd = ["tamagi-devbox", "create", distro, "--name", box]
+        if extras:
+            cmd += ["--extra", ",".join(extras)]
+        r = subprocess.run(cmd)
+        if r.returncode != 0:
+            sys.exit(r.returncode)
+    if ws["packages"]:
+        pkgs = ws["packages"]
+        if distro in ("fedora", "alma", "rocky"):
+            inst = ["sudo", "dnf", "-y", "install", *pkgs]
+        elif distro == "arch":
+            inst = ["sudo", "pacman", "-Sy", "--noconfirm", "--needed", *pkgs]
+        elif distro == "opensuse":
+            inst = ["sudo", "zypper", "--non-interactive", "install", *pkgs]
+        elif distro == "alpine":
+            inst = ["sudo", "apk", "add", "--no-cache", *pkgs]
+        else:
+            inst = ["sudo", "sh", "-c", "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y " + " ".join(shlex.quote(p) for p in pkgs)]
+        subprocess.run(["distrobox", "enter", box, "--", *inst], check=False)
+    for db in ws["databases"]:
+        if shutil.which("tamagi-db"):
+            subprocess.run(["tamagi-db", "add", db], check=False)
+
+
+def env_args(ws):
+    pairs = [f"{k}={v}" for k, v in ws["env"].items() if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(k))]
+    return (["env", *pairs] if pairs else [])
+
+
+def cmd_init(args):
+    root = pathlib.Path(args.dir or os.getcwd()).resolve()
+    target = root / WS_FILENAME
+    if target.exists() and not args.force:
+        sys.exit(f"{t('Arquivo já existe')}: {target} (--force)")
+    distro = args.distro or "fedora"
+    if distro not in VALID_DISTROS:
+        sys.exit(f"{t('erro')}: {t('distro desconhecida')}: {distro}")
+    info = detect_project(root)
+    target.write_text(render_toml(info, distro=distro, box_name=args.box), encoding="utf-8")
+    print(f"{t('Workspace criado')}: {target}")
+    print(f"  {t('Caixa')}: {args.box or ('dev' if distro == 'fedora' else f'dev-{distro}')} ({distro})")
+    print(f"  {t('Stack detectado')}: {', '.join(info['stack'])}")
+    if info["databases"]:
+        print(f"  {t('Bancos detectados')}: {', '.join(info['databases'])}")
+    print(f"  {t('Entrar')}: tamagi-workspace enter")
+
+
+def cmd_status(args):
+    wf = find_workspace_file(args.dir)
+    if wf:
+        ws = load_workspace(wf)
+        exists = podman_exists(ws["box"])
+        payload = {
+            "configured": True,
+            "file": str(wf),
+            "name": ws["name"],
+            "box": ws["box"],
+            "distro": ws["distro"],
+            "box_ready": exists,
+            "stack": ws["stack"],
+            "packages": ws["packages"],
+            "databases": ws["databases"],
+            "tasks": list(ws["tasks"].keys()),
+        }
+    else:
+        root = pathlib.Path(args.dir or os.getcwd()).resolve()
+        det = detect_project(root)
+        payload = {
+            "configured": False,
+            "file": None,
+            "name": det["name"],
+            "box": "dev",
+            "distro": "fedora",
+            "box_ready": podman_exists("dev"),
+            "stack": det["stack"],
+            "packages": det["packages"],
+            "databases": det["databases"],
+            "tasks": list(det["tasks"].keys()),
+        }
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+    print(f"{t('Workspace')}     : {payload['name']} ({payload['file'] or t('não inicializado — rode: tamagi-workspace init')})")
+    print(f"{t('Caixa')}         : {payload['box']} ({payload['distro']}) — {t('pronta') if payload['box_ready'] else t('ainda não criada')}")
+    print(f"{t('Stack')}         : {', '.join(payload['stack']) or '-'}")
+    if payload["databases"]:
+        print(f"{t('Bancos')}        : {', '.join(payload['databases'])}")
+    if payload["tasks"]:
+        print(f"{t('Tarefas')}       : {', '.join(payload['tasks'])}")
+
+
+def cmd_up_or_enter(args, enter=False):
+    wf = find_workspace_file(args.dir)
+    if not wf:
+        root = pathlib.Path(args.dir or os.getcwd()).resolve()
+        det = detect_project(root)
+        ws = {"root": root, "name": det["name"], "box": "dev", "distro": "fedora",
+              "stack": det["stack"], "packages": [], "databases": det["databases"], "env": {}, "tasks": det["tasks"]}
+    else:
+        ws = load_workspace(wf)
+    ensure_up(ws)
+    if not enter:
+        print(f"{t('Workspace pronto')}: {ws['name']} ({ws['box']})")
+        return
+    os.chdir(ws["root"])
+    cmd = ["distrobox", "enter", ws["box"]]
+    if ws["env"]:
+        cmd += ["--", *env_args(ws), os.environ.get("SHELL", "/bin/bash")]
+    os.execvp(cmd[0], cmd)
+
+
+def cmd_run(args):
+    wf = find_workspace_file(args.dir)
+    if not wf:
+        sys.exit(f"{t('erro')}: {WS_FILENAME} {t('não encontrado')} (tamagi-workspace init)")
+    ws = load_workspace(wf)
+    task_cmd = ws["tasks"].get(args.task)
+    if not task_cmd:
+        avail = ", ".join(ws["tasks"].keys()) or "-"
+        sys.exit(f"{t('erro')}: {t('tarefa desconhecida')}: {args.task} ({avail})")
+    ensure_up(ws)
+    os.chdir(ws["root"])
+    extra = " ".join(shlex.quote(a) for a in args.extra)
+    full = f"{task_cmd} {extra}".strip()
+    cmd = ["distrobox", "enter", ws["box"], "--", *env_args(ws), "bash", "-lc", full]
+    sys.exit(subprocess.run(cmd).returncode)
+
+
+def main():
+    p = argparse.ArgumentParser(
+        prog="tamagi-workspace",
+        description=t("Ambientes declarativos por projeto (tamagi-workspace.toml)"),
+    )
+    p.add_argument("-C", "--dir", default=None, help=t("diretório do projeto"))
+    sub = p.add_subparsers(dest="cmd")
+
+    pi = sub.add_parser("init", aliases=["iniciar", "criar"], help=t("detecta o stack e gera tamagi-workspace.toml"))
+    pi.add_argument("--distro", default="fedora", help=f"{t('distro')} ({', '.join(VALID_DISTROS)})")
+    pi.add_argument("--box", default=None, help=t("nome da caixa distrobox"))
+    pi.add_argument("--force", action="store_true", help=t("sobrescreve se já existir"))
+
+    ps = sub.add_parser("status", aliases=["estado", "info"], help=t("mostra o estado do workspace"))
+    ps.add_argument("--json", action="store_true")
+
+    sub.add_parser("up", aliases=["subir", "preparar"], help=t("prepara caixa, pacotes e bancos do projeto"))
+    sub.add_parser("enter", aliases=["entrar", "shell"], help=t("prepara e entra no shell do projeto"))
+
+    pr = sub.add_parser("run", aliases=["executar", "rodar"], help=t("executa uma tarefa declarada na caixa do projeto"))
+    pr.add_argument("task")
+    pr.add_argument("extra", nargs=argparse.REMAINDER)
+
+    sub.add_parser("tasks", aliases=["tarefas"], help=t("lista as tarefas declaradas"))
+
+    args = p.parse_args()
+    if args.cmd in (None, "status", "estado", "info"):
+        args.json = getattr(args, "json", False)
+        cmd_status(args)
+    elif args.cmd in ("init", "iniciar", "criar"):
+        cmd_init(args)
+    elif args.cmd in ("up", "subir", "preparar"):
+        cmd_up_or_enter(args, enter=False)
+    elif args.cmd in ("enter", "entrar", "shell"):
+        cmd_up_or_enter(args, enter=True)
+    elif args.cmd in ("run", "executar", "rodar"):
+        cmd_run(args)
+    elif args.cmd in ("tasks", "tarefas"):
+        wf = find_workspace_file(args.dir)
+        if not wf:
+            sys.exit(f"{t('erro')}: {WS_FILENAME} {t('não encontrado')}")
+        ws = load_workspace(wf)
+        for k, v in ws["tasks"].items():
+            print(f"  {k:16} {v}")
+
+
+if __name__ == "__main__":
+    main()

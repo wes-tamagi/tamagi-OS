@@ -64,6 +64,11 @@ READ_ONLY_SUB = {
     "mise": {"ls", "list", "current", "doctor", "settings", "version", "--version"},
     "tamagi-browser": {"status", "fido"},
     "tamagi-harden": {None, "status"},
+    "tamagi-perf": {None, "status", "--json"},
+    "tamagi-doctor": {None, "--json"},
+    "tamagi-devbox": {"list", "status", "distros"},
+    "tamagi-workspace": {None, "status", "tasks"},
+    "tamagi-gaming": {"status"},
     "dnf": {"list", "info", "search", "repoquery", "provides"},
     "gsettings": {"get", "list-keys", "list-schemas"},
     "dconf": {"read", "list", "dump"},
@@ -93,6 +98,7 @@ WRITE_ARGS = {
     "ip": ("add", "del", "delete", "set", "flush", "change", "replace", "append"),
     "nmcli": ("add", "delete", "modify", "edit", "up", "down", "connect", "disconnect",
               "on", "off", "import", "reload", "reapply", "set", "wifi", "clone", "load"),
+    "tamagi-doctor": ("--fix",),
 }
 
 C = {"dim": "\033[2m", "bold": "\033[1m", "cyan": "\033[36m", "yellow": "\033[33m",
@@ -159,9 +165,14 @@ MESSAGES = {
 
 
 def lang_code():
-    raw = os.environ.get("TAMAGI_LANG") or (
-        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG") or "en"
-    )
+    raw = os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+    if not raw:
+        try:
+            raw = (pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")) / "tamagi" / "lang").read_text(encoding="utf-8").strip().splitlines()[0]
+        except (OSError, IndexError):
+            raw = ""
+    if not raw:
+        raw = os.environ.get("LANG") or "en"
     code = raw.split("_")[0].split(".")[0].lower()
     return code if code in REPLY_LANG else "en"
 

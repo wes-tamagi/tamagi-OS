@@ -5,16 +5,14 @@
     tamagi export [arquivo]  imprime (ou grava) o estado atual no formato do arquivo
     tamagi diff [arquivo]    mostra o que falta para a máquina ficar como o arquivo
     tamagi apply [arquivo]   faz o que falta (-y não pergunta)
-    tamagi voltar            volta no tempo: sistema, arquivos e apps (tamagi-voltar)
-
-O arquivo descreve aparência, navegadores, Flatpaks, ferramentas do mise,
-pacotes dos subsistemas, caixas, camadas, web apps e serviços. Copie-o para outro
-computador com Tamagi e rode `tamagi apply`: ele fica igual.
-
-`apply` só acrescenta: nunca remove app, pacote ou caixa que não esteja no
-arquivo. O que precisa de senha de administrador é avisado antes.
+    tamagi voltar|back       volta no tempo: sistema, arquivos e apps (tamagi-voltar)
+    tamagi devbox            caixas de desenvolvimento (Fedora padrão + multi-distro)
+    tamagi workspace         ambientes declarativos por projeto (tamagi-workspace)
+    tamagi perf              perfis de desempenho e sched_ext (tamagi-perf)
+    tamagi doctor            diagnóstico autônomo do sistema (tamagi-doctor)
 """
 import argparse
+import importlib.util
 import json
 import os
 import pathlib
@@ -24,6 +22,23 @@ import subprocess
 import sys
 import tomllib
 
+
+def _load_i18n():
+    for candidate in (
+        pathlib.Path("/usr/libexec/tamagi/tamagi_i18n.py"),
+        pathlib.Path(__file__).resolve().parents[1] / "libexec/tamagi/tamagi_i18n.py",
+    ):
+        if candidate.is_file():
+            spec = importlib.util.spec_from_file_location("tamagi_i18n", candidate)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+    raise RuntimeError("tamagi_i18n.py not found")
+
+
+_I18N = _load_i18n()
+t = _I18N.t
+
 HOME = pathlib.Path.home()
 CONFIG = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config"))
 DATA = pathlib.Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))
@@ -31,7 +46,8 @@ DEFAULT_FILE = CONFIG / "tamagi" / "tamagi.toml"
 BROWSERS = ("chrome", "firefox", "brave", "edge", "vivaldi")
 BROWSER_BIN = {"chrome": "google-chrome-stable", "firefox": "firefox", "brave": "brave-browser",
                "edge": "microsoft-edge-stable", "vivaldi": "vivaldi-stable"}
-BOX_DISTROS = ("fedora", "arch", "ubuntu", "opensuse")
+BOX_DISTROS = ("fedora", "arch", "popos", "ubuntu", "alma", "rocky", "opensuse", "debian", "alpine")
+PERF_PROFILES = ("eco", "balanced", "performance", "latency")
 BROWSER_BOX = os.environ.get("TAMAGI_BROWSER_BOX", "navegadores")
 KNOWN = {
     "aparencia": {"tema", "papel", "tiling"},
@@ -42,7 +58,7 @@ KNOWN = {
     "caixas": None,       # nome = distro
     "camadas": None,      # nome = [pacotes do Fedora]
     "webapps": None,      # nome = endereço
-    "servicos": {"atualizacao_automatica", "android", "seguranca"},
+    "servicos": {"atualizacao_automatica", "android", "seguranca", "desempenho"},
 }
 
 
@@ -102,7 +118,10 @@ def user_boxes():
         name, _, image = line.partition("\t")
         if name in ("deb", "rpm", "arch", BROWSER_BOX):
             continue
-        distro = next((d for d in BOX_DISTROS if d in image or (d == "opensuse" and "tumbleweed" in image)), None)
+        if "popos" in name:
+            distro = "popos"
+        else:
+            distro = next((d for d in BOX_DISTROS if d in image or (d == "opensuse" and "tumbleweed" in image)), None)
         if distro:
             boxes[name] = distro
     return boxes
@@ -139,6 +158,17 @@ def tiling():
     return True
 
 
+def perf_profile():
+    p = pathlib.Path("/var/lib/tamagi/perf-profile")
+    try:
+        v = p.read_text().strip()
+        if v in PERF_PROFILES:
+            return v
+    except OSError:
+        pass
+    return "balanced"
+
+
 def current_state(with_browsers=True):
     state = {
         "aparencia": {
@@ -159,6 +189,7 @@ def current_state(with_browsers=True):
         "servicos": {
             "atualizacao_automatica": ok(["systemctl", "--user", "is-enabled", "tamagi-autoupdate.timer"]),
             "seguranca": "estrito" if pathlib.Path("/etc/sysctl.d/90-tamagi-strict.conf").exists() else "equilibrado",
+            "desempenho": perf_profile(),
         },
     }
     state["pacotes"]["omarchy"] = []
@@ -177,18 +208,21 @@ def toml_value(v):
 
 def to_toml(state):
     notes = {
-        "aparencia": "tema: tamagi-theme list · papel: mon, seigaiha, asanoha, byobu, shippo, hinode, uroko, ondas",
-        "navegadores": "na caixa Fedora: chrome, firefox, brave, edge, vivaldi",
-        "flatpak": "IDs do Flathub ou do repositório COSMIC",
-        "mise": "linguagens e ferramentas globais, como em `mise use -g`",
-        "pacotes": "subsistemas do tamagi-pkg (omarchy usa a caixa Arch)",
-        "caixas": "nome = distro (fedora, arch, ubuntu, opensuse)",
-        "camadas": "pacotes do Fedora por cima da imagem (tamagi-layer): nome = [pacotes]",
-        "webapps": "nome = endereço",
-        "servicos": "seguranca: equilibrado ou estrito (estrito pede senha e reinício)",
+        "aparencia": t("tema: tamagi-theme list · papel: mon, seigaiha, asanoha, byobu, shippo, hinode, uroko, ondas"),
+        "navegadores": t("na caixa Fedora: chrome, firefox, brave, edge, vivaldi"),
+        "flatpak": t("IDs do Flathub ou do repositório COSMIC"),
+        "mise": t("linguagens e ferramentas globais, como em `mise use -g`"),
+        "pacotes": t("subsistemas do tamagi-pkg (omarchy usa a caixa Arch)"),
+        "caixas": t("nome = distro (fedora, arch, popos, ubuntu, alma, rocky, opensuse, debian, alpine)"),
+        "camadas": t("pacotes do Fedora por cima da imagem (tamagi-layer): nome = [pacotes]"),
+        "webapps": t("nome = endereço"),
+        "servicos": t("seguranca: equilibrado ou estrito · desempenho: eco, balanced, performance ou latency"),
     }
-    lines = ["# Tamagi — o seu sistema num arquivo. `tamagi apply` deixa a máquina assim;",
-             "# `tamagi diff` mostra o que falta. Nada que não esteja aqui é removido.", ""]
+    lines = [
+        f"# {t('Tamagi — o seu sistema num arquivo. `tamagi apply` deixa a máquina assim;')}",
+        f"# {t('`tamagi diff` mostra o que falta. Nada que não esteja aqui é removido.')}",
+        "",
+    ]
     for section, values in state.items():
         lines += [f"# {notes[section]}", f"[{section}]"]
         for key, value in values.items():
@@ -204,37 +238,39 @@ def load(path):
     try:
         wanted = tomllib.loads(pathlib.Path(path).read_text())
     except OSError as e:
-        sys.exit(f"erro: não consegui ler {path}: {e.strerror}. Crie um com: tamagi init")
+        sys.exit(f"{t('erro')}: {t('não consegui ler')} {path}: {e.strerror}. {t('Crie um com')}: tamagi init")
     except tomllib.TOMLDecodeError as e:
-        sys.exit(f"erro: {path} não é TOML válido: {e}")
+        sys.exit(f"{t('erro')}: {path} {t('não é TOML válido')}: {e}")
     problems = []
     for section, values in wanted.items():
         if section not in KNOWN:
-            problems.append(f"seção desconhecida [{section}]")
+            problems.append(f"{t('seção desconhecida')} [{section}]")
         elif not isinstance(values, dict):
-            problems.append(f"[{section}] precisa ser uma seção")
+            problems.append(f"[{section}] {t('precisa ser uma seção')}")
         elif KNOWN[section] is not None:
-            problems += [f"chave desconhecida {section}.{k}" for k in values if k not in KNOWN[section]]
+            problems += [f"{t('chave desconhecida')} {section}.{k}" for k in values if k not in KNOWN[section]]
     for name in wanted.get("navegadores", {}).get("instalar", []):
         if name not in BROWSERS:
-            problems.append(f"navegador desconhecido: {name}")
+            problems.append(f"{t('navegador desconhecido')}: {name}")
     for name, distro in wanted.get("caixas", {}).items():
         if distro not in BOX_DISTROS:
-            problems.append(f"caixa {name}: distro desconhecida '{distro}'")
+            problems.append(f"{t('caixa')} {name}: {t('distro desconhecida')} '{distro}'")
         if not re.fullmatch(r"[a-z][a-z0-9_-]*", name):
-            problems.append(f"nome de caixa inválido: {name}")
+            problems.append(f"{t('nome de caixa inválido')}: {name}")
     for name, pkgs in wanted.get("camadas", {}).items():
         if not re.fullmatch(r"[a-z][a-z0-9-]{0,39}", name):
-            problems.append(f"nome de camada inválido: {name}")
+            problems.append(f"{t('nome de camada inválido')}: {name}")
         if not (isinstance(pkgs, list) and pkgs and all(isinstance(p, str) and p for p in pkgs)):
-            problems.append(f"camada {name}: precisa ser uma lista de pacotes")
+            problems.append(f"{t('camada')} {name}: {t('precisa ser uma lista de pacotes')}")
     for name, url in wanted.get("webapps", {}).items():
         if not re.match(r"https?://", str(url)):
-            problems.append(f"web app {name}: o endereço precisa começar com http:// ou https://")
+            problems.append(f"{t('web app')} {name}: {t('o endereço precisa começar com http:// ou https://')}")
     if wanted.get("servicos", {}).get("seguranca", "equilibrado") not in ("equilibrado", "estrito"):
-        problems.append("servicos.seguranca precisa ser equilibrado ou estrito")
+        problems.append(t("servicos.seguranca precisa ser equilibrado ou estrito"))
+    if wanted.get("servicos", {}).get("desempenho", "balanced") not in PERF_PROFILES:
+        problems.append(t("servicos.desempenho precisa ser eco, balanced, performance ou latency"))
     if problems:
-        sys.exit("erro no arquivo:\n  " + "\n  ".join(problems))
+        sys.exit(f"{t('erro no arquivo')}:\n  " + "\n  ".join(problems))
     return wanted
 
 
@@ -245,18 +281,18 @@ def plan(wanted):
     steps = []
     ap = wanted.get("aparencia", {})
     if "papel" in ap and ap["papel"] != now["aparencia"]["papel"]:
-        steps.append((f"papel de parede: {ap['papel']}", ["tamagi-theme", "wallpaper", str(ap["papel"])], False))
+        steps.append((f"{t('papel de parede')}: {ap['papel']}", ["tamagi-theme", "wallpaper", str(ap["papel"])], False))
     if "tema" in ap and ap["tema"] != now["aparencia"]["tema"]:
-        steps.append((f"tema: {ap['tema']}", ["tamagi-theme", "set", str(ap["tema"])], False))
+        steps.append((f"{t('tema')}: {ap['tema']}", ["tamagi-theme", "set", str(ap["tema"])], False))
     if "tiling" in ap and bool(ap["tiling"]) != now["aparencia"]["tiling"]:
-        steps.append((f"tiling: {'ligado' if ap['tiling'] else 'desligado'}",
+        steps.append((f"tiling: {t('ligado') if ap['tiling'] else t('desligado')}",
                       ["ujust", "tiling", "on" if ap["tiling"] else "off"], False))
     for name in want_browsers:
         if name not in now["navegadores"]["instalar"]:
-            steps.append((f"navegador: {name}", ["tamagi-browser", "install", name], False))
+            steps.append((f"{t('navegador')}: {name}", ["tamagi-browser", "install", name], False))
     default = wanted.get("navegadores", {}).get("padrao")
     if default and default != now["navegadores"]["padrao"]:
-        steps.append((f"navegador padrão: {default}", ["tamagi-browser", "default", default], False))
+        steps.append((f"{t('navegador padrão')}: {default}", ["tamagi-browser", "default", default], False))
     for app in wanted.get("flatpak", {}).get("apps", []):
         if app not in now["flatpak"]["apps"]:
             steps.append((f"Flatpak: {app}", ["flatpak", "install", "-y", "--noninteractive", app], False))
@@ -269,27 +305,27 @@ def plan(wanted):
         installed = now["pacotes"]["arch" if sub == "omarchy" else sub]
         for pkg in wanted.get("pacotes", {}).get(sub, []):
             if pkg not in installed:
-                steps.append((f"pacote {sub}: {pkg}", ["tamagi-pkg", "install", flag, pkg], False))
-    images = {"fedora": "ghcr.io/ublue-os/fedora-toolbox:latest", "arch": "ghcr.io/ublue-os/arch-toolbox:latest",
-              "ubuntu": "ghcr.io/ublue-os/ubuntu-toolbox:latest",
-              "opensuse": "quay.io/toolbx-images/opensuse-toolbox:tumbleweed"}
+                steps.append((f"{t('pacote')} {sub}: {pkg}", ["tamagi-pkg", "install", flag, pkg], False))
     for name, distro in wanted.get("caixas", {}).items():
         if not box_exists(name):
-            steps.append((f"caixa {name} ({distro})",
-                          ["distrobox", "create", "--yes", "--name", name, "--image", images[distro]], False))
+            steps.append((f"{t('caixa')} {name} ({distro})",
+                          ["tamagi-devbox", "create", distro, "--name", name], False))
     for name, pkgs in wanted.get("camadas", {}).items():
         if sorted(now["camadas"].get(name, [])) != sorted(pkgs):
-            steps.append((f"camada {name}: {' '.join(pkgs)}", ["tamagi-layer", "add", name, *pkgs], True))
+            steps.append((f"{t('camada')} {name}: {' '.join(pkgs)}", ["tamagi-layer", "add", name, *pkgs], True))
     for name, url in wanted.get("webapps", {}).items():
         if not (DATA / "applications" / f"webapp-{slug(name)}.desktop").exists():
-            steps.append((f"web app: {name}", ["tamagi-webapp", "install", name, str(url)], False))
+            steps.append((f"{t('web app')}: {name}", ["tamagi-webapp", "install", name, str(url)], False))
     sv = wanted.get("servicos", {})
     if "atualizacao_automatica" in sv and bool(sv["atualizacao_automatica"]) != now["servicos"]["atualizacao_automatica"]:
-        steps.append((f"atualização automática: {'ligada' if sv['atualizacao_automatica'] else 'desligada'}",
+        steps.append((f"{t('atualização automática')}: {t('ligada') if sv['atualizacao_automatica'] else t('desligada')}",
                       ["tamagi-update", "auto", "on" if sv["atualizacao_automatica"] else "off"], True))
     if "seguranca" in sv and sv["seguranca"] != now["servicos"]["seguranca"]:
-        steps.append((f"segurança: {sv['seguranca']}",
+        steps.append((f"{t('segurança')}: {sv['seguranca']}",
                       ["tamagi-harden", "strict" if sv["seguranca"] == "estrito" else "balanced"], True))
+    if "desempenho" in sv and sv["desempenho"] != now["servicos"]["desempenho"]:
+        steps.append((f"{t('desempenho')}: {sv['desempenho']}",
+                      ["tamagi-perf", "set", sv["desempenho"]], True))
     return steps, now
 
 
@@ -298,28 +334,39 @@ def extras(wanted, now):
     found = []
     listed = set(wanted.get("flatpak", {}).get("apps", []))
     found += [f"Flatpak {a}" for a in now["flatpak"]["apps"] if a not in listed]
-    listed = {t.partition("@")[0] for t in wanted.get("mise", {}).get("ferramentas", [])}
-    found += [f"mise {t}" for t in now["mise"]["ferramentas"] if t.partition("@")[0] not in listed]
-    found += [f"caixa {n}" for n in now["caixas"] if n not in wanted.get("caixas", {})]
-    found += [f"camada {n}" for n in now["camadas"] if n not in wanted.get("camadas", {})]
-    found += [f"web app {n}" for n in now["webapps"] if n not in wanted.get("webapps", {})]
+    listed = {t_item.partition("@")[0] for t_item in wanted.get("mise", {}).get("ferramentas", [])}
+    found += [f"mise {t_item}" for t_item in now["mise"]["ferramentas"] if t_item.partition("@")[0] not in listed]
+    found += [f"{t('caixa')} {n}" for n in now["caixas"] if n not in wanted.get("caixas", {})]
+    found += [f"{t('camada')} {n}" for n in now["camadas"] if n not in wanted.get("camadas", {})]
+    found += [f"{t('web app')} {n}" for n in now["webapps"] if n not in wanted.get("webapps", {})]
     return found
 
 
 def main():
-    # `tamagi voltar …` é a linha do tempo (sistema, arquivos e apps): tamagi-voltar.
-    if sys.argv[1:2] == ["voltar"]:
-        os.execvp("tamagi-voltar", ["tamagi-voltar"] + sys.argv[2:])
-    parser = argparse.ArgumentParser(prog="tamagi", description="O seu sistema descrito num arquivo só.")
+    # Subcomandos delegados (aceita português, inglês, espanhol e francês).
+    delegates = {
+        "voltar": "tamagi-voltar", "back": "tamagi-voltar", "rollback": "tamagi-voltar",
+        "volver": "tamagi-voltar", "retour": "tamagi-voltar",
+        "devbox": "tamagi-devbox",
+        "workspace": "tamagi-workspace",
+        "perf": "tamagi-perf", "desempenho": "tamagi-perf", "performance": "tamagi-perf",
+        "doctor": "tamagi-doctor", "diagnostico": "tamagi-doctor",
+        "gaming": "tamagi-gaming", "jogos": "tamagi-gaming",
+    }
+    if len(sys.argv) >= 2 and sys.argv[1] in delegates:
+        prog = delegates[sys.argv[1]]
+        os.execvp(prog, [prog] + sys.argv[2:])
+
+    parser = argparse.ArgumentParser(prog="tamagi", description=t("O seu sistema descrito num arquivo só."))
     sub = parser.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("init", help="cria o arquivo a partir do estado atual")
-    p = sub.add_parser("export", help="imprime ou grava o estado atual")
+    sub.add_parser("init", help=t("cria o arquivo a partir do estado atual"))
+    p = sub.add_parser("export", help=t("imprime ou grava o estado atual"))
     p.add_argument("arquivo", nargs="?")
-    for name, text in (("diff", "mostra o que falta"), ("apply", "faz o que falta")):
+    for name, text in (("diff", t("mostra o que falta")), ("apply", t("faz o que falta"))):
         p = sub.add_parser(name, help=text)
         p.add_argument("arquivo", nargs="?", default=str(DEFAULT_FILE))
         if name == "apply":
-            p.add_argument("-y", "--yes", action="store_true", help="não pergunta antes de começar")
+            p.add_argument("-y", "--yes", action="store_true", help=t("não pergunta antes de começar"))
     args = parser.parse_args()
 
     if args.cmd in ("init", "export"):
@@ -329,32 +376,32 @@ def main():
             print(text)
             return
         if args.cmd == "init" and target.exists():
-            sys.exit(f"{target} já existe. Para ver a diferença: tamagi diff")
+            sys.exit(f"{target} {t('já existe. Para ver a diferença')}: tamagi diff")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)
-        print(f"Gravado em {target}. Edite e rode: tamagi apply")
+        print(f"{t('Gravado em')} {target}. {t('Edite e rode')}: tamagi apply")
         return
 
     wanted = load(args.arquivo)
     steps, now = plan(wanted)
     if not steps:
-        print("Nada a fazer: a máquina já está como o arquivo descreve.")
+        print(t("Nada a fazer: a máquina já está como o arquivo descreve."))
     else:
-        print(f"{'Falta' if args.cmd == 'diff' else 'Vou fazer'} ({len(steps)}):")
+        print(f"{t('Falta') if args.cmd == 'diff' else t('Vou fazer')} ({len(steps)}):")
         for desc, _, root in steps:
-            print(f"  + {desc}" + ("   [pede senha]" if root else ""))
+            print(f"  + {desc}" + (f"   [{t('pede senha')}]" if root else ""))
     more = extras(wanted, now)
     if more and args.cmd == "diff":
-        print(f"Na máquina e fora do arquivo ({len(more)}; nada é removido):")
+        print(f"{t('Na máquina e fora do arquivo')} ({len(more)}; {t('nada é removido')}):")
         for item in more:
             print(f"  · {item}")
     if args.cmd == "diff" or not steps:
         return
     if not args.yes:
         if not sys.stdin.isatty():
-            sys.exit("Rode num terminal, ou use -y para aplicar sem perguntar.")
-        if input("Aplicar? [s/N] ").strip().lower() not in ("s", "sim"):
-            sys.exit("Nada foi alterado.")
+            sys.exit(t("Rode num terminal, ou use -y para aplicar sem perguntar."))
+        if input(f"{t('Aplicar?')} [s/y/N] ").strip().lower() not in ("s", "sim", "y", "yes", "o", "oui"):
+            sys.exit(t("Nada foi alterado."))
     failed = []
     for desc, cmd, _ in steps:
         print(f"\n── {desc}")
@@ -362,8 +409,8 @@ def main():
             failed.append(desc)
     print()
     if failed:
-        sys.exit("Terminou com falhas em: " + "; ".join(failed) + "\nRode `tamagi diff` para ver o que ainda falta.")
-    print("Pronto: a máquina está como o arquivo descreve.")
+        sys.exit(f"{t('Terminou com falhas em')}: " + "; ".join(failed) + f"\n{t('Rode `tamagi diff` para ver o que ainda falta.')}")
+    print(t("Pronto: a máquina está como o arquivo descreve."))
 
 
 if __name__ == "__main__":

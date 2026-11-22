@@ -224,7 +224,7 @@ ours = [
     ("[Alt]", "Print", 'Spawn("tamagi-capture gravar")'),
     ("[Super, Shift]", "g", f'Spawn("{popup} --tile lazygit")'),
     ("[Super, Shift]", "d", f'Spawn("{popup} tamagi-db")'),
-    ("[Super, Shift]", "o", 'Spawn("flatpak run org.onlyoffice.desktopeditors")'),
+    ("[Super, Shift]", "o", f'Spawn("sh -c \'if flatpak info org.onlyoffice.desktopeditors >/dev/null 2>&1; then exec flatpak run org.onlyoffice.desktopeditors; else exec {popup} bash -c \\\"(flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo) && flatpak install --user -y flathub org.onlyoffice.desktopeditors && setsid -f flatpak run org.onlyoffice.desktopeditors >/dev/null 2>&1\\\"; fi\'")'),
     ("[Super, Shift]", "m", 'Spawn("flatpak run io.missioncenter.MissionCenter")'),
     ("[Super, Shift]", "w", 'Spawn("tamagi-windows abrir")'),
     ("[Super, Ctrl]", "e", 'Spawn("/usr/libexec/tamagi/emoji")'),
@@ -268,7 +268,7 @@ done
 gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 
 for f in /usr/share/applications/tamagi-*.desktop /usr/share/applications/google-chrome.desktop \
-         /usr/share/applications/claude-code.desktop \
+         /usr/share/applications/claude-code.desktop /usr/share/applications/agy.desktop \
          /etc/xdg/autostart/tamagi-*.desktop; do
     desktop-file-validate "$f"
 done

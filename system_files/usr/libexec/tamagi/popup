@@ -26,4 +26,11 @@ if [[ $bg =~ ^[0-9a-fA-F]{6}$ ]] && (( (0x${bg:0:2} * 299 + 0x${bg:2:2} * 587 + 
     export GUM_CONFIRM_SELECTED_FOREGROUND="#ffffff" GUM_CONFIRM_SELECTED_BACKGROUND="#1e66f5"
     export GUM_CONFIRM_UNSELECTED_FOREGROUND="#4c4f69" GUM_CONFIRM_UNSELECTED_BACKGROUND="#ccd0da"
 fi
+# Garante ~/.local/bin e mise shims no PATH (ferramentas do usuário como agy/claude abertas pelo menu).
+for _d in "$HOME/.local/share/mise/shims" "$HOME/.local/bin"; do
+    if [[ -d $_d ]]; then
+        case ":$PATH:" in *":$_d:"*) ;; *) export PATH="$_d:$PATH" ;; esac
+    fi
+done
+unset _d
 exec alacritty --config-file "$cfg" --class "$class" --title "$title" -e "$@"

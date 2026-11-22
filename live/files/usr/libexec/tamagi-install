@@ -162,7 +162,7 @@ progress 6 format
 mkfs.vfat -F 32 -n EFI-SYSTEM "$ESP" >/dev/null
 mkfs.ext4 -q -F -L boot "$BOOT"
 
-KARGS=(--karg rootflags=compress=zstd:1)
+KARGS=(--karg "rootflags=compress=zstd:1,noatime")
 ROOTDEV=$ROOT
 if [[ -n ${A[LUKS_KEYFILE]:-} ]]; then
     [[ -s ${A[LUKS_KEYFILE]} ]] || die "senha do disco vazia"

@@ -30,8 +30,17 @@ import sys
 HOME = pathlib.Path(os.path.realpath(pathlib.Path.home()))
 SNAPS = HOME / ".snapshots"
 TOML_REL = pathlib.Path(".config/tamagi/tamagi.toml")
-LANG = (os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
-        or os.environ.get("LANG") or "pt")[:2].lower()
+def _lang():
+    raw = os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+    if not raw:
+        try:
+            raw = (pathlib.Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "tamagi/lang").read_text(encoding="utf-8").strip().splitlines()[0]
+        except (OSError, IndexError):
+            raw = ""
+    return (raw or os.environ.get("LANG") or "pt")[:2].lower()
+
+
+LANG = _lang()
 T = {
     "booted": ("sistema em uso", "system in use"),
     "rollback": ("sistema anterior (no menu de boot)", "previous system (in the boot menu)"),

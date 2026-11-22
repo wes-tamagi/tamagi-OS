@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# devbox-provision — roda DENTRO de uma caixa de desenvolvimento (como root),
+# chamado por tamagi-devbox via /run/host/usr/libexec/tamagi/devbox-provision.
+#
+# Instala o conjunto padrão de desenvolvimento da distro escolhida:
+#   compiladores (gcc/g++/make/cmake/ninja/pkg-config), SQLite + headers,
+#   Rust + Cargo, Node.js + npm, Python + pip/headers, git, jq, ripgrep, tmux.
+#
+# Uso:
+#   devbox-provision <distro> [extras_csv]
+#   distros: fedora | arch | popos | ubuntu | alma | rocky | opensuse | debian | alpine
+#   extras:  go,zig,clang,postgres,omarchy
+set -euo pipefail
+
+DISTRO=${1:-fedora}
+EXTRAS=${2:-}
+STAMP=/var/lib/tamagi-devbox-provisioned
+
+has_extra() { [[ ,$EXTRAS, == *,"$1",* ]]; }
+
+provision_fedora() {
+    dnf -y install --setopt=install_weak_deps=False \
+        gcc gcc-c++ make cmake ninja-build pkgconf-pkg-config autoconf automake \
+        git curl wget unzip tar jq ripgrep fd-find htop tmux \
+        sqlite sqlite-devel openssl-devel zlib-devel libffi-devel libpq-devel \
+        rust cargo clippy rustfmt rust-analyzer \
+        nodejs npm \
+        python3 python3-pip python3-devel python3-virtualenv
+    local extra_pkgs=()
+    has_extra go       && extra_pkgs+=(golang)
+    has_extra zig      && extra_pkgs+=(zig)
+    has_extra clang    && extra_pkgs+=(clang lld lldb)
+    has_extra postgres && extra_pkgs+=(postgresql)
+    (( ${#extra_pkgs[@]} )) && dnf -y install --setopt=install_weak_deps=False "${extra_pkgs[@]}"
+    return 0
+}
+
+provision_arch() {
+    pacman -Syu --noconfirm --needed \
+        base-devel cmake ninja pkgconf git curl wget unzip jq ripgrep fd htop tmux \
+        sqlite openssl rust nodejs npm python python-pip
+    local extra_pkgs=()
+    has_extra go       && extra_pkgs+=(go)
+    has_extra zig      && extra_pkgs+=(zig)
+    has_extra clang    && extra_pkgs+=(clang lld lldb)
+    has_extra postgres && extra_pkgs+=(postgresql-libs)
+    (( ${#extra_pkgs[@]} )) && pacman -S --noconfirm --needed "${extra_pkgs[@]}"
+    if has_extra omarchy && [[ -x /run/host/usr/libexec/tamagi/omarchy-repo ]]; then
+        /run/host/usr/libexec/tamagi/omarchy-repo stable || true
+    fi
+    return 0
+}
+
+provision_apt() {
+    local is_popos=${1:-0}
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg
+    if [[ $is_popos == 1 ]]; then
+        # Configura os repositórios do Pop!_OS 24.04 (noble) sobre Ubuntu 24.04.
+        # Se a chave/repositório estiver inacessível, segue com os pacotes base do Ubuntu 24.04.
+        mkdir -p /etc/apt/keyrings
+        if curl -fsSL https://raw.githubusercontent.com/pop-os/iso/master_noble/scripts/pop-os.asc \
+                -o /etc/apt/keyrings/pop-os.asc 2>/dev/null \
+                || curl -fsSL 'https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x63c46df0140d738961429f4e204dd8aec33a7aff' \
+                -o /etc/apt/keyrings/pop-os.asc 2>/dev/null; then
+            cat > /etc/apt/sources.list.d/pop-os.sources <<'SOURCES'
+Types: deb
+URIs: http://apt.pop-os.org/release
+Suites: noble
+Components: main
+Signed-By: /etc/apt/keyrings/pop-os.asc
+
+Types: deb
+URIs: http://apt.pop-os.org/proprietary
+Suites: noble
+Components: main
+Signed-By: /etc/apt/keyrings/pop-os.asc
+SOURCES
+            apt-get update -qq || rm -f /etc/apt/sources.list.d/pop-os.sources
+        fi
+    fi
+    apt-get install -y --no-install-recommends \
+        build-essential cmake ninja-build pkg-config autoconf automake \
+        git wget unzip jq ripgrep fd-find htop tmux \
+        sqlite3 libsqlite3-dev libssl-dev zlib1g-dev libffi-dev libpq-dev \
+        rustc cargo nodejs npm \
+        python3 python3-pip python3-dev python3-venv
+    local extra_pkgs=()
+    has_extra go       && extra_pkgs+=(golang-go)
+    has_extra clang    && extra_pkgs+=(clang lld lldb)
+    has_extra postgres && extra_pkgs+=(postgresql-client)
+    (( ${#extra_pkgs[@]} )) && apt-get install -y --no-install-recommends "${extra_pkgs[@]}"
+    return 0
+}
+
+provision_rhel() {
+    dnf -y install epel-release || true
+    dnf -y install dnf-plugins-core || true
+    dnf config-manager --set-enabled crb 2>/dev/null || dnf config-manager --set-enabled powertools 2>/dev/null || true
+    dnf -y install --setopt=install_weak_deps=False \
+        gcc gcc-c++ make cmake pkgconf-pkg-config autoconf automake \
+        git curl wget unzip tar jq tmux \
+        sqlite sqlite-devel openssl-devel zlib-devel libffi-devel \
+        rust cargo nodejs npm \
+        python3 python3-pip python3-devel
+    local extra_pkgs=()
+    has_extra go       && extra_pkgs+=(golang)
+    has_extra clang    && extra_pkgs+=(clang lld)
+    has_extra postgres && extra_pkgs+=(postgresql)
+    (( ${#extra_pkgs[@]} )) && dnf -y install --setopt=install_weak_deps=False "${extra_pkgs[@]}"
+    return 0
+}
+
+provision_opensuse() {
+    zypper --non-interactive refresh
+    zypper --non-interactive install --no-recommends \
+        gcc gcc-c++ make cmake ninja pkg-config autoconf automake \
+        git curl wget unzip tar jq ripgrep fd tmux \
+        sqlite3 sqlite3-devel libopenssl-devel zlib-devel libffi-devel \
+        rust cargo nodejs-default npm-default \
+        python3-devel python3-pip
+    local extra_pkgs=()
+    has_extra go       && extra_pkgs+=(go)
+    has_extra zig      && extra_pkgs+=(zig)
+    has_extra clang    && extra_pkgs+=(clang lld)
+    has_extra postgres && extra_pkgs+=(postgresql)
+    (( ${#extra_pkgs[@]} )) && zypper --non-interactive install --no-recommends "${extra_pkgs[@]}"
+    return 0
+}
+
+provision_alpine() {
+    apk update
+    apk add --no-cache \
+        build-base cmake samurai pkgconf autoconf automake \
+        git curl wget unzip tar jq ripgrep fd tmux bash \
+        sqlite sqlite-dev openssl-dev zlib-dev libffi-dev \
+        rust cargo nodejs npm \
+        python3 py3-pip python3-dev
+    local extra_pkgs=()
+    has_extra go       && extra_pkgs+=(go)
+    has_extra zig      && extra_pkgs+=(zig)
+    has_extra clang    && extra_pkgs+=(clang lld)
+    has_extra postgres && extra_pkgs+=(postgresql-client)
+    (( ${#extra_pkgs[@]} )) && apk add --no-cache "${extra_pkgs[@]}"
+    return 0
+}
+
+case "$DISTRO" in
+    fedora)        provision_fedora ;;
+    arch)          provision_arch ;;
+    popos)         provision_apt 1 ;;
+    ubuntu|debian) provision_apt 0 ;;
+    alma|rocky)    provision_rhel ;;
+    opensuse)      provision_opensuse ;;
+    alpine)        provision_alpine ;;
+    *) echo "erro: distro desconhecida: $DISTRO" >&2; exit 2 ;;
+esac
+
+mkdir -p "$(dirname "$STAMP")"
+printf '%s\n' "$DISTRO" > "$STAMP"

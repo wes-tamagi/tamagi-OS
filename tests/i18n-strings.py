@@ -12,14 +12,18 @@ import sys
 import tomllib
 
 SCRIPTS = [
-    "tamagi-firstrun", "tamagi-keys", "tamagi-assist", "tamagi-lang",
+    "tamagi", "tamagi-firstrun", "tamagi-keys", "tamagi-assist", "tamagi-lang",
     "tamagi-panel", "tamagi-theme", "tamagi-ai", "tamagi-update",
     "tamagi-boot-report", "tamagi-windows", "tamagi-db", "tamagi-lembrete",
-    "tamagi-dev", "tamagi-font", "tamagi-popos", "tamagi-antigravity", "tamagi-isolar",
-    "tamagi-privacidade", "tamagi-convidado",
+    "tamagi-dev", "tamagi-devbox", "tamagi-font", "tamagi-popos", "tamagi-antigravity",
+    "tamagi-isolar", "tamagi-privacidade", "tamagi-convidado",
+    "tamagi-browser", "tamagi-harden", "tamagi-layer", "tamagi-pkg", "tamagi-webapp",
+    "tamagi-perf", "tamagi-workspace", "tamagi-doctor", "tamagi-gaming",
 ]
 STR = r'"((?:[^"\\$]|\\.)*)"'
 CALLS = re.compile(r'(?:\$\(|\b)(?:tl?|step|confirm|input|timer_line)\s+' + STR)
+PY_CALLS_DQ = re.compile(r'\bt\(\s*"((?:[^"\\]|\\.)*)"\s*(?:,|\))')
+PY_CALLS_SQ = re.compile(r"\bt\(\s*'((?:[^'\\]|\\.)*)'\s*(?:,|\))")
 ASK = re.compile(r'\bask\s+(?:--no\s+)?' + STR)
 PICK = re.compile(r'"[a-z]+=([^"]+)"')
 HEADER = re.compile(r'\bpick\s+' + STR)
@@ -32,8 +36,12 @@ def strings(root):
         if not p.is_file():
             continue
         text = p.read_text(encoding="utf-8")
-        for rx in (CALLS, ASK, PICK, HEADER):
-            found += rx.findall(text)
+        if text.startswith("#!/usr/bin/python"):
+            for rx in (PY_CALLS_DQ, PY_CALLS_SQ):
+                found += rx.findall(text)
+        else:
+            for rx in (CALLS, ASK, PICK, HEADER):
+                found += rx.findall(text)
     seen = []
     for s in found:
         if s and s not in seen:

@@ -184,8 +184,7 @@ EOF
 }
 
 wait_rdp() { # espera o Windows aceitar conexões RDP (até ~5 min)
-    local i
-    for i in $(seq 150); do
+    for _ in $(seq 150); do
         (exec 3<>/dev/tcp/127.0.0.1/3389) 2>/dev/null && return 0
         running || die "$(t "o contêiner do Windows parou; veja"): journalctl --user -u $NAME"
         sleep 2

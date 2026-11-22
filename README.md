@@ -397,6 +397,41 @@ atividade, sem USB nem GPU no Podman) e o **WinPodX** (beta, ainda sem Fedora
 45, e embute um patch de sessões RDP simultâneas que conflita com a licença
 do Windows).
 
+## Caixa de desenvolvimento (Fedora padrão + multi-distro) e Workspaces
+
+A caixa de desenvolvimento padrão (`dev`) é **Fedora 45**, já provisionada com
+`sqlite`/`sqlite-devel`, `rust`/`cargo`/`clippy`/`rustfmt`, `nodejs`/`npm`,
+`python3`, `gcc`/`g++`/`cmake`/`ninja`/`pkg-config` e headers nativos. Quem
+precisar testar ou desenvolver em outra distro pode criar caixas extras prontas
+com um comando:
+
+```bash
+tamagi-devbox                           # menu interativo (padrão: fedora)
+tamagi-devbox create                    # cria 'dev' (Fedora 45 com stack completo)
+tamagi-devbox create popos              # também: arch, ubuntu, alma, rocky, opensuse, debian, alpine
+tamagi-devbox create fedora --extra go,zig,clang,postgres
+tamagi-devbox distros | list | enter | update | remove <nome>
+```
+
+### Três inovações arquiteturais
+
+1. **`tamagi-perf` — Motor adaptativo de desempenho (`tuned` + `sched_ext`):**
+   coordena perfis de CPU/EPP (`eco`, `balanced`, `performance`, `latency`) com o
+   escalonador de CPU em espaço de usuário via BPF (`scx_rusty` no kernel OGC),
+   telemetria unificada (`tamagi-perf status` / `--json`) e micro-benchmark
+   rápido (`tamagi-perf bench`).
+2. **`tamagi-workspace` — Ambientes declarativos por projeto (`tamagi-workspace.toml`):**
+   detecta automaticamente o stack do repositório (`Cargo.toml`, `package.json`,
+   `pyproject.toml`, `go.mod`, SQLite, `docker-compose.yml`), gera o manifesto do
+   projeto e orquestra `tamagi-devbox` + pacotes nativos + bancos locais
+   (`tamagi-db`) + tarefas (`tamagi-workspace init | status | up | enter | run <tarefa>`).
+3. **`tamagi-doctor` — Diagnóstico autônomo de saúde, deriva e integridade:**
+   executa 12 verificações arquiteturais (imagem `bootc`, kernel/Secure Boot,
+   Btrfs/NoCoW em VMs, `zram`/writeback, `systemd`, camadas `sysext`, contêineres,
+   GPU, KVM/Pop!_OS, SELinux, menu/`.desktop` e IA local), com `--json` (para o
+   agente local), `--fix` (auto-remediação segura no usuário) e `--explain`
+   (diagnóstico resumido pela IA local no idioma do usuário).
+
 ## Do Omarchy: desenvolvimento, captura e atalhos
 
 ```bash
@@ -426,13 +461,20 @@ compilar ficam na caixa Arch (`tamagi-pkg install --arch …`). Ficaram de fora
 o conta-gotas de cor (o portal do COSMIC ainda não tem) e o que depende do
 Hyprland (clipboard universal, gaps, scratchpad).
 
-## Jogos
+## Jogos (estilo Bazzite: nativo ou Flatpak)
 
-`gamescope`, MangoHud, GameMode e as regras de controles (`steam-devices`) já
-vêm na imagem. O resto é sob demanda:
+O kernel OGC (Bazzite), `gamescope`, MangoHud, GameMode, controles Xbox (`xone`/`xpadneo`),
+`steam-devices` e `scx_rusty` já vêm na imagem. O restante entra sob demanda —
+**nativamente no `/usr`** (via camada `tamagi-layer` reversível, com Steam RPM
+Fusion, drivers 32-bit Mesa/Vulkan, Lutris, Wine, Winetricks, GOverlay, vkBasalt
+e Protontricks) ou via **Flatpak**:
 
 ```bash
-ujust setup-gaming       # Steam, Lutris, Heroic, ProtonUp-Qt, Bottles (Flatpak)
+tamagi-gaming              # menu interativo: nativo (Bazzite), Flatpak ou baixa latência
+tamagi-gaming native       # Steam nativo + 32-bit, Lutris, Wine, GOverlay, vkBasalt (camada reversível)
+tamagi-gaming flatpak      # Steam, Lutris, Heroic, ProtonUp-Qt, Bottles (Flatpak)
+tamagi-gaming latency      # ativa perfil de baixa latência (tuned + scx_rusty)
+tamagi-gaming status | remove
 ```
 
 ## Segurança

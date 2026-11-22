@@ -1,0 +1,213 @@
+#!/usr/bin/python3
+"""gum-multi — wrapper PTY para `gum choose --no-limit` que corrige a tecla Espaço.
+
+No gum v2 (Bubble Tea v2, Fedora 45), `gum choose --no-limit` ignora a barra de
+espaço (0x20) e só alterna a seleção com Tab (0x09) ou 'x'. Este wrapper repassa
+todos os argumentos para `gum choose --no-limit` num PTY e traduz Espaço -> Tab,
+mantendo 100% da interface, cores, --selected, --height, --header e resize.
+"""
+import errno
+import fcntl
+import os
+import pty
+import re
+import select
+import signal
+import struct
+import sys
+import termios
+import tty
+
+_KITTY_SPACE = re.compile(rb"\x1b\[32(?::[0-9]*)?(?:;1(?::([123]))?)?(?:;32)?u")
+
+
+def translate_space(data: bytes) -> bytes:
+    """Traduz Espaço -> Tab preservando todas as outras sequências de escape.
+
+    Cobre 0x20 puro (mesmo colado a setas no mesmo read), Kitty keyboard
+    protocol (CSI 32 u; ignora key-release :3u) e modifyOtherKeys (CSI 27;1;32~).
+    """
+    out = bytearray()
+    i = 0
+    n = len(data)
+    while i < n:
+        b = data[i]
+        if b == 0x20:
+            out.append(0x09)
+            i += 1
+        elif b == 0x1B:
+            if i + 1 < n and data[i + 1] == 0x5B:  # CSI: ESC [
+                j = i + 2
+                while j < n and not (0x40 <= data[j] <= 0x7E):
+                    j += 1
+                if j < n:
+                    seq = data[i : j + 1]
+                    m = _KITTY_SPACE.fullmatch(seq)
+                    if m:
+                        if m.group(1) != b"3":
+                            out.append(0x09)
+                    elif seq == b"\x1b[27;1;32~":
+                        out.append(0x09)
+                    else:
+                        out.extend(seq)
+                    i = j + 1
+                else:
+                    out.extend(data[i:])
+                    i = n
+            elif i + 2 < n and data[i + 1] == 0x4F:  # SS3: ESC O <key>
+                out.extend(data[i : i + 3])
+                i += 3
+            elif i + 1 < n and data[i + 1] == 0x5D:  # OSC: ESC ] ... BEL|ST
+                j = i + 2
+                while j < n:
+                    if data[j] == 0x07:
+                        j += 1
+                        break
+                    if data[j] == 0x1B and j + 1 < n and data[j + 1] == 0x5C:
+                        j += 2
+                        break
+                    j += 1
+                out.extend(data[i:j])
+                i = j
+            else:
+                out.append(b)
+                i += 1
+        else:
+            out.append(b)
+            i += 1
+    return bytes(out)
+
+
+def copy_winsize(src_fd, dst_fd):
+    try:
+        ws = fcntl.ioctl(src_fd, termios.TIOCGWINSZ, b"\x00" * 8)
+        fcntl.ioctl(dst_fd, termios.TIOCSWINSZ, ws)
+    except OSError:
+        pass
+
+
+def main():
+    args = ["gum", "choose", "--no-limit", *sys.argv[1:]]
+    if not sys.stdin.isatty():
+        # Quando recebe opções por stdin (pipe), abre /dev/tty para ler teclado.
+        try:
+            tty_fd = os.open("/dev/tty", os.O_RDWR)
+        except OSError:
+            os.execvp("gum", args)
+        in_data = sys.stdin.buffer.read()
+    else:
+        tty_fd = sys.stdin.fileno()
+        in_data = None
+
+    # Canal para stdout real (as opções escolhidas que o chamador captura).
+    out_r, out_w = os.pipe()
+    # Canal para stdin pipeado (se houver opções via stdin).
+    if in_data is not None:
+        in_r, in_w = os.pipe()
+    else:
+        in_r = in_w = None
+
+    master_fd, slave_fd = pty.openpty()
+    copy_winsize(tty_fd, slave_fd)
+
+    pid = os.fork()
+    if pid == 0:
+        os.close(master_fd)
+        os.close(out_r)
+        if in_w is not None:
+            os.close(in_w)
+        os.setsid()
+        try:
+            fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
+        except OSError:
+            pass
+        if in_r is not None:
+            os.dup2(in_r, 0)
+            os.close(in_r)
+        else:
+            os.dup2(slave_fd, 0)
+        os.dup2(out_w, 1)
+        os.dup2(slave_fd, 2)
+        os.close(out_w)
+        if slave_fd > 2:
+            os.close(slave_fd)
+        os.execvp("gum", args)
+
+    os.close(slave_fd)
+    os.close(out_w)
+    if in_r is not None:
+        os.close(in_r)
+        # Escreve a lista de opções para o stdin do gum e fecha.
+        try:
+            view = memoryview(in_data)
+            while view:
+                n = os.write(in_w, view)
+                view = view[n:]
+        finally:
+            os.close(in_w)
+
+    old_attrs = termios.tcgetattr(tty_fd)
+
+    def on_winch(_sig, _frame):
+        copy_winsize(tty_fd, master_fd)
+
+    signal.signal(signal.SIGWINCH, on_winch)
+    result = bytearray()
+    try:
+        tty.setraw(tty_fd)
+        open_fds = [master_fd, out_r, tty_fd]
+        while master_fd in open_fds or out_r in open_fds:
+            try:
+                rlist, _, _ = select.select(open_fds, [], [], 0.1)
+            except InterruptedError:
+                continue
+            if tty_fd in rlist:
+                try:
+                    data = os.read(tty_fd, 1024)
+                except OSError:
+                    data = b""
+                if not data:
+                    open_fds.remove(tty_fd)
+                else:
+                    data = translate_space(data)
+                    if data:
+                        try:
+                            os.write(master_fd, data)
+                        except OSError:
+                            pass
+            if master_fd in rlist:
+                try:
+                    chunk = os.read(master_fd, 4096)
+                except OSError as e:
+                    if e.errno == errno.EIO:
+                        chunk = b""
+                    else:
+                        raise
+                if not chunk:
+                    open_fds.remove(master_fd)
+                else:
+                    os.write(tty_fd, chunk)
+            if out_r in rlist:
+                chunk = os.read(out_r, 4096)
+                if not chunk:
+                    open_fds.remove(out_r)
+                else:
+                    result.extend(chunk)
+    finally:
+        termios.tcsetattr(tty_fd, termios.TCSADRAIN, old_attrs)
+        os.close(master_fd)
+        os.close(out_r)
+        if tty_fd != sys.stdin.fileno():
+            os.close(tty_fd)
+
+    _, status = os.waitpid(pid, 0)
+    if result:
+        sys.stdout.buffer.write(result)
+        sys.stdout.buffer.flush()
+    if os.WIFEXITED(status):
+        return os.WEXITSTATUS(status)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

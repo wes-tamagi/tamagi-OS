@@ -73,16 +73,44 @@ to_subvol() {
     fi
 }
 
+# Cria cada pasta intermediária dentro de $home com dono $user:$group
+# (evita que `install -d -o user a/b` deixe o pai `a` pertencendo a root:root,
+# o que quebrava ~/.local/state para mise, cosmic e apps no primeiro login).
+ensure_user_dir() {
+    local home=$1 user=$2 group=$3 rel=$4 cur="$1" part
+    IFS='/' read -r -a parts <<<"$rel"
+    for part in "${parts[@]}"; do
+        [[ -n $part ]] || continue
+        cur="$cur/$part"
+        if [[ ! -d $cur ]]; then
+            mkdir -p "$cur"
+            chown "$user:$group" "$cur"
+            chmod 755 "$cur"
+            command -v restorecon >/dev/null && restorecon "$cur" 2>/dev/null || true
+        elif [[ $user != root && $(stat -c '%u' "$cur" 2>/dev/null) == 0 ]]; then
+            chown "$user:$group" "$cur"
+            command -v restorecon >/dev/null && restorecon "$cur" 2>/dev/null || true
+        fi
+    done
+}
+
 convert_home() {
-    local user=$1 home="$HOMES/$1" sub
+    local user=$1 group home="$HOMES/$1" sub
+    group=$(id -gn "$user")
     # A pasta pessoal guarda a cópia de segurança; as de cache, não.
     to_subvol "$home" keep
+    # Garante a árvore XDG padrão pertencente ao usuário (nunca root:root).
+    for d in .local .local/share .local/state .local/bin; do
+        ensure_user_dir "$home" "$user" "$group" "$d"
+    done
     for sub in "${EXCLUDE[@]}"; do
         local p="$home/$sub"
         if [[ ! -e $p ]]; then
-            install -d -o "$user" -g "$(id -gn "$user")" "$(dirname "$p")"
+            local parent_rel
+            parent_rel=$(dirname "$sub")
+            [[ $parent_rel != . ]] && ensure_user_dir "$home" "$user" "$group" "$parent_rel"
             btrfs subvolume create "$p" >/dev/null
-            chown "$user:$(id -gn "$user")" "$p"; chmod 700 "$p"
+            chown "$user:$group" "$p"; chmod 700 "$p"
             command -v restorecon >/dev/null && restorecon "$p" 2>/dev/null || true
         else
             to_subvol "$p"

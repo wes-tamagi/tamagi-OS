@@ -215,8 +215,8 @@ tamagi_welcome() {
     # código = a janela não abriu, e cai na janela simples do zenity.
     local rc=3
     if $gui && [ -x /usr/libexec/tamagi-installer-splash ]; then
-        /usr/libexec/tamagi-installer-splash "$(T welcome_body)" "$(T install_now)" "$(T try_only)"
-        rc=$?
+        rc=0
+        /usr/libexec/tamagi-installer-splash "$(T welcome_body)" "$(T install_now)" "$(T try_only)" || rc=$?
         log "[tamagi] tela de abertura: código ${rc}"
     fi
     case "${rc}" in
@@ -438,13 +438,29 @@ cleanup() { # no tik: reinicia ou DESLIGA. Aqui: cancelar volta ao desktop live.
         sync
         systemctl poweroff --no-block
     elif [ "${tamagi_done}" = "1" ]; then
-        if zenity --question --no-wrap --title="$(T done_title)" --width=440 \
-                --ok-label="$(T reboot)" --cancel-label="$(T stay)" --text="$(T done_text)"; then
-            tamagi_priv systemctl reboot
+        local rc=3
+        if [ -x /usr/libexec/tamagi-installer-splash ]; then
+            rc=0
+            /usr/libexec/tamagi-installer-splash --title "$(T done_title)" --heading "$(T done_title)" \
+                "$(T done_text)" "$(T reboot)" "$(T stay)" || rc=$?
         fi
+        if [ "${rc}" = "3" ]; then
+            rc=0
+            zenity --question --no-wrap --title="$(T done_title)" --width=440 \
+                --ok-label="$(T reboot)" --cancel-label="$(T stay)" --text="$(T done_text)" || rc=$?
+        fi
+        [ "${rc}" = "0" ] && tamagi_priv systemctl reboot
     elif [ "${tamagi_started}" = "1" ]; then
-        zenity --error --no-wrap --title="$(T fail_title)" --width=480 \
-            --text="$(T fail_text) <tt>${tik_log}</tt>"
+        local rc=3
+        if [ -x /usr/libexec/tamagi-installer-splash ]; then
+            rc=0
+            /usr/libexec/tamagi-installer-splash --title "$(T fail_title)" --heading "$(T fail_title)" \
+                "$(T fail_text) <tt>${tik_log}</tt>" "OK" || rc=$?
+        fi
+        if [ "${rc}" = "3" ]; then
+            zenity --error --no-wrap --title="$(T fail_title)" --width=480 \
+                --text="$(T fail_text) <tt>${tik_log}</tt>" || true
+        fi
     fi
 }
 

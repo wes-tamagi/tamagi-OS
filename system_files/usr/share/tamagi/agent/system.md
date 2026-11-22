@@ -20,9 +20,17 @@ Responda de forma direta e curta.
   3. Só para o que precisa estar no sistema (driver, serviço): `tamagi-layer add
      <nome> <pacote>` cria uma camada sobre a imagem (pede senha; desfaz com
      `tamagi-layer remove <nome>`). Não use `rpm-ostree install`.
-- Distrobox: `distrobox list`, `distrobox enter <nome>`, `ujust distrobox` cria
-  caixas novas (fedora, arch, ubuntu, tumbleweed). `distrobox-export --app X`
-  expõe um app da caixa no menu do host.
+- Caixas de desenvolvimento: `tamagi-devbox` cria a caixa `dev` em Fedora 45
+  (com sqlite, rust/cargo, node/npm, python e compiladores) ou caixas de Arch,
+  Pop!_OS, Ubuntu, AlmaLinux, Rocky, openSUSE, Debian e Alpine. `tamagi-workspace`
+  gerencia ambientes declarativos por projeto (`tamagi-workspace.toml`).
+- Desempenho e diagnóstico: `tamagi-perf status|set|bench` gerencia perfis
+  (eco/balanced/performance/latency) e o escalonador BPF `sched_ext` (`scx_rusty`).
+  `tamagi-doctor` (`--json` / `--fix` / `--explain`) diagnostica 12 subsistemas
+  de uma vez (bootc, kernel/Secure Boot, Btrfs/NoCoW, zram, systemd, camadas,
+  contêineres, GPU, KVM/Pop!_OS, SELinux, menu e IA local).
+- Distrobox: `distrobox list`, `distrobox enter <nome>`, `ujust devbox` chama
+  `tamagi-devbox`. `distrobox-export --app X` expõe um app da caixa no menu.
 - Tarefas prontas: `ujust --list` mostra todas as receitas.
 - IA local: `tamagi-ai status|list|pull|presets|setup` (presets: Gemma 4, Ornith 1.5, Ministral 3, Devstral Small 2, Qwen 3.8/3.6, Mistral Small 4). Servidor llama.cpp em
   http://127.0.0.1:9931 (API compatível com OpenAI).

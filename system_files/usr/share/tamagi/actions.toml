@@ -137,6 +137,28 @@ es = "Agente de programación de Anthropic; se descarga de Anthropic en el prime
 fr = "Agent de programmation d'Anthropic ; téléchargé chez Anthropic à la première utilisation"
 
 [[action]]
+id = "ai.agy"
+category = "ai"
+icon = "utilities-terminal-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+try_exec = "agy"
+command = "agy"
+keywords = "agy antigravity google gemini cli ai ia agent agente code"
+[action.title]
+pt = "Antigravity (agy)"
+en = "Antigravity (agy)"
+es = "Antigravity (agy)"
+fr = "Antigravity (agy)"
+[action.subtitle]
+pt = "CLI agêntica do Google (Antigravity), no terminal"
+en = "Google's agentic CLI (Antigravity), in the terminal"
+es = "CLI agéntica de Google (Antigravity), en la terminal"
+fr = "CLI agentique de Google (Antigravity), dans le terminal"
+
+[[action]]
 id = "ai.setup"
 category = "ai"
 icon = "folder-download-symbolic"
@@ -314,18 +336,39 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "ujust devbox"
-keywords = "devbox distrobox container caixa fedora arch ubuntu opensuse"
+command = "tamagi-devbox"
+keywords = "devbox distrobox container caixa fedora arch popos ubuntu alma rocky opensuse debian alpine sqlite rust cargo node npm"
 [action.title]
-pt = "Criar caixa de desenvolvimento (distrobox)"
-en = "Create development box (distrobox)"
-es = "Crear caja de desarrollo (distrobox)"
-fr = "Créer une boîte de développement (distrobox)"
+pt = "Criar caixa de desenvolvimento (Fedora / multi-distro)"
+en = "Create development box (Fedora / multi-distro)"
+es = "Crear caja de desarrollo (Fedora / multi-distro)"
+fr = "Créer une boîte de développement (Fedora / multi-distro)"
 [action.subtitle]
-pt = "Ambiente isolado Fedora, Arch, Ubuntu ou openSUSE"
-en = "Isolated Fedora, Arch, Ubuntu, or openSUSE environment"
-es = "Entorno aislado Fedora, Arch, Ubuntu u openSUSE"
-fr = "Environnement isolé Fedora, Arch, Ubuntu ou openSUSE"
+pt = "Fedora padrão (sqlite, rust/cargo, node/npm, python) ou Arch, Pop!_OS, Ubuntu, Alma, openSUSE…"
+en = "Fedora default (sqlite, rust/cargo, node/npm, python) or Arch, Pop!_OS, Ubuntu, Alma, openSUSE…"
+es = "Fedora predeterminado (sqlite, rust/cargo, node/npm, python) o Arch, Pop!_OS, Ubuntu, Alma, openSUSE…"
+fr = "Fedora par défaut (sqlite, rust/cargo, node/npm, python) ou Arch, Pop!_OS, Ubuntu, Alma, openSUSE…"
+
+[[action]]
+id = "dev.workspace"
+category = "install"
+icon = "folder-code-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-workspace status"
+keywords = "workspace projeto project toml devbox stack rust node sqlite python db"
+[action.title]
+pt = "Workspace declarativo de projeto"
+en = "Declarative project workspace"
+es = "Espacio de trabajo declarativo de proyecto"
+fr = "Espace de travail déclaratif de projet"
+[action.subtitle]
+pt = "Detecta stack, caixa devbox e bancos em tamagi-workspace.toml"
+en = "Detects stack, devbox, and databases in tamagi-workspace.toml"
+es = "Detecta stack, devbox y bases de datos en tamagi-workspace.toml"
+fr = "Détecte la pile, la boîte devbox et les bases dans tamagi-workspace.toml"
 
 [[action]]
 id = "install.webapp"
@@ -356,18 +399,39 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "ujust setup-gaming"
-keywords = "games jogos steam lutris heroic proton bottles gaming"
+command = "tamagi-gaming"
+keywords = "games jogos bazzite nativo native steam lutris heroic proton wine bottles gamescope mangohud gaming"
 [action.title]
-pt = "Configurar jogos (Steam, Lutris, Heroic)"
-en = "Set up gaming (Steam, Lutris, Heroic)"
-es = "Configurar juegos (Steam, Lutris, Heroic)"
-fr = "Configurer les jeux (Steam, Lutris, Heroic)"
+pt = "Configurar jogos (nativo estilo Bazzite ou Flatpak)"
+en = "Set up gaming (Bazzite-style native or Flatpak)"
+es = "Configurar juegos (nativo estilo Bazzite o Flatpak)"
+fr = "Configurer les jeux (natif façon Bazzite ou Flatpak)"
 [action.subtitle]
-pt = "Instala launchers via Flatpak; gamescope e gamemode já estão prontos"
-en = "Installs Flatpak launchers; gamescope and gamemode are already ready"
-es = "Instala lanzadores vía Flatpak; gamescope y gamemode ya están listos"
-fr = "Installe les lanceurs via Flatpak ; gamescope et gamemode sont prêts"
+pt = "Steam nativo + 32-bit, Lutris, Wine, GOverlay, vkBasalt ou apps Flatpak + baixa latência"
+en = "Native Steam + 32-bit, Lutris, Wine, GOverlay, vkBasalt or Flatpak apps + low latency"
+es = "Steam nativo + 32-bit, Lutris, Wine, GOverlay, vkBasalt o apps Flatpak + baja latencia"
+fr = "Steam natif + 32-bit, Lutris, Wine, GOverlay, vkBasalt ou apps Flatpak + faible latence"
+
+[[action]]
+id = "install.onlyoffice"
+category = "install"
+icon = "x-office-document-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "bash -c 'if flatpak info org.onlyoffice.desktopeditors >/dev/null 2>&1; then setsid -f flatpak run org.onlyoffice.desktopeditors >/dev/null 2>&1; else flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo; flatpak install --user -y flathub org.onlyoffice.desktopeditors; fi'"
+keywords = "onlyoffice office escritorio documentos word excel powerpoint planilhas apresentacoes"
+[action.title]
+pt = "OnlyOffice (Escritório — opcional)"
+en = "OnlyOffice (Office — optional)"
+es = "OnlyOffice (Oficina — opcional)"
+fr = "OnlyOffice (Bureautique — optionnel)"
+[action.subtitle]
+pt = "Documentos, planilhas e apresentações (abre se já instalado; instala por Flatpak sob demanda)"
+en = "Documents, spreadsheets, and presentations (opens if installed; installs via Flatpak on demand)"
+es = "Documentos, hojas de cálculo y presentaciones (abre si está instalado; instala vía Flatpak)"
+fr = "Documents, tableurs et présentations (ouvre si installé ; installe via Flatpak à la demande)"
 
 [[action]]
 id = "install.lazyvim"
@@ -591,8 +655,8 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "tamagi-antigravity instalar"
-keywords = "antigravity google ide agente ia gemini editor vscode"
+command = "tamagi-antigravity"
+keywords = "antigravity agy google ide agente ia gemini editor vscode"
 [action.title]
 pt = "Antigravity (IDE do Google)"
 en = "Antigravity (Google's IDE)"
@@ -1256,6 +1320,69 @@ pt = "Reinicia e ativa qualquer imagem atômica pendente"
 en = "Reboots and activates any staged atomic image"
 es = "Reinicia y activa cualquier imagen atómica preparada"
 fr = "Redémarre et active toute image atomique préparée"
+
+[[action]]
+id = "system.perf"
+category = "system"
+icon = "speedometer-symbolic"
+risk = "system"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-perf pick"
+keywords = "perf desempenho performance latencia latency eco balanced scx sched_ext tuned cpu"
+[action.title]
+pt = "Perfil de desempenho (tuned + sched_ext)"
+en = "Performance profile (tuned + sched_ext)"
+es = "Perfil de rendimiento (tuned + sched_ext)"
+fr = "Profil de performance (tuned + sched_ext)"
+[action.subtitle]
+pt = "Alterna entre eco, equilibrado, desempenho máximo e baixa latência (scx_rusty)"
+en = "Switch between eco, balanced, max performance, and low latency (scx_rusty)"
+es = "Alterna entre eco, equilibrado, rendimiento máximo y baja latencia (scx_rusty)"
+fr = "Bascule entre éco, équilibré, performance maximale et faible latence (scx_rusty)"
+
+[[action]]
+id = "system.perf_status"
+category = "system"
+icon = "utilities-system-monitor-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-perf status"
+keywords = "perf desempenho status telemetria sched_ext zram nvme bbr cpu"
+[action.title]
+pt = "Telemetria de desempenho do sistema"
+en = "System performance telemetry"
+es = "Telemetría de rendimiento del sistema"
+fr = "Télémétrie de performance du système"
+[action.subtitle]
+pt = "CPU/EPP, sched_ext, zram, escalonador de discos, writeback e TCP BBR"
+en = "CPU/EPP, sched_ext, zram, disk schedulers, writeback, and TCP BBR"
+es = "CPU/EPP, sched_ext, zram, planificadores de disco, writeback y TCP BBR"
+fr = "CPU/EPP, sched_ext, zram, ordonnanceurs disque, writeback et TCP BBR"
+
+[[action]]
+id = "system.doctor"
+category = "system"
+icon = "dialog-information-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-doctor"
+keywords = "doctor diagnostico saude health check integridade bootc btrfs kvm selinux"
+[action.title]
+pt = "Diagnóstico completo do sistema (tamagi-doctor)"
+en = "Full system diagnostics (tamagi-doctor)"
+es = "Diagnóstico completo del sistema (tamagi-doctor)"
+fr = "Diagnostic complet du système (tamagi-doctor)"
+[action.subtitle]
+pt = "Verifica 12 subsistemas (bootc, kernel, Btrfs, zram, KVM, segurança, menu e IA)"
+en = "Checks 12 subsystems (bootc, kernel, Btrfs, zram, KVM, security, menu, and AI)"
+es = "Verifica 12 subsistemas (bootc, kernel, Btrfs, zram, KVM, seguridad, menú e IA)"
+fr = "Vérifie 12 sous-systèmes (bootc, noyau, Btrfs, zram, KVM, sécurité, menu et IA)"
 
 [[action]]
 id = "power.poweroff"

@@ -1,90 +1,147 @@
 #!/usr/bin/python3
-"""Tela de abertura do instalador do Tamagi.
+"""Janelas nativas GTK4+libadwaita do instalador do Tamagi (abertura, fim e erro).
 
-    tamagi-installer-splash <texto com marcação Pango> <rótulo do botão> [<rótulo de fechar>]
+    tamagi-installer-splash [--title T] [--heading H] <texto Pango> <botão principal> [<botão secundário>]
 
-Mostra o brasão do Tamagi, o nome e a versão do sistema e o texto de boas-vindas.
-Sai com 0 se a pessoa escolheu instalar, 1 se fechou a janela (só experimentar)
-e 3 se a janela não pôde ser aberta (quem chama cai na janela simples)."""
+Usa renderização por software (GSK_RENDERER=cairo) e CSS explícito de alto
+contraste nos botões: evita o bug do GTK4/Zenity em algumas GPUs e VMs onde
+os botões aparecem como dois retângulos vazios sem texto.
+Sai com 0 (botão principal), 1 (secundário ou fechar janela) ou 3 (GTK indisponível).
+"""
+import argparse
+import os
 import pathlib
 import sys
+
+# Software rendering antes de carregar GTK/GDK: garante texto legível em qualquer GPU/VM.
+os.environ["GSK_RENDERER"] = "cairo"
 
 try:
     import gi
     gi.require_version("Gtk", "4.0")
     gi.require_version("Adw", "1")
-    from gi.repository import Adw, Gtk
+    from gi.repository import Adw, Gdk, GLib, Gtk
 except (ImportError, ValueError):
     sys.exit(3)
 
-TEXT = sys.argv[1] if len(sys.argv) > 1 else ""
-INSTALL = sys.argv[2] if len(sys.argv) > 2 else "Instalar"
-CLOSE = sys.argv[3] if len(sys.argv) > 3 else ""
 BANNERS = [pathlib.Path("/usr/share/backgrounds/tamagi/ipe-mon.png"),
            pathlib.Path("/usr/share/backgrounds/tamagi/tokyo-night-mon.png")]
 
 
 def os_release():
     info = {}
-    for line in pathlib.Path("/usr/lib/os-release").read_text(encoding="utf-8").splitlines():
-        key, _, value = line.partition("=")
-        info[key] = value.strip('"')
+    try:
+        for line in pathlib.Path("/usr/lib/os-release").read_text(encoding="utf-8").splitlines():
+            key, _, value = line.partition("=")
+            info[key] = value.strip('"')
+    except OSError:
+        pass
     return info
 
 
 class Splash(Adw.ApplicationWindow):
-    def __init__(self, app):
-        super().__init__(application=app, title="Tamagi", default_width=720, default_height=600, resizable=False)
+    def __init__(self, app, title, heading, text, primary_label, secondary_label):
+        super().__init__(application=app, title=title, default_width=700, default_height=560, resizable=False)
         self.result = 1
+        self._apply_css()
         info = os_release()
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 
-        # Faixa de cima: o papel de parede com o brasão (anel e três joias).
         banner = next((b for b in BANNERS if b.is_file()), None)
         if banner:
             picture = Gtk.Picture.new_for_filename(str(banner))
             picture.set_content_fit(Gtk.ContentFit.COVER)
-            picture.set_size_request(720, 280)
+            picture.set_size_request(700, 260)
             picture.set_can_shrink(True)
             box.append(picture)
 
-        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12,
                        margin_top=22, margin_bottom=22, margin_start=32, margin_end=32)
         name = Gtk.Label(xalign=0)
-        name.set_markup(f'<span size="xx-large" weight="bold">{info.get("NAME", "Tamagi")}</span>'
-                        f'  <span size="large" alpha="70%">{info.get("VERSION", "")}</span>')
+        if heading:
+            name.set_markup(f'<span size="xx-large" weight="bold">{GLib.markup_escape_text(heading)}</span>')
+        else:
+            name.set_markup(f'<span size="xx-large" weight="bold">{GLib.markup_escape_text(info.get("NAME", "Tamagi"))}</span>'
+                            f'  <span size="large" alpha="70%">{GLib.markup_escape_text(info.get("VERSION", ""))}</span>')
         body.append(name)
-        text = Gtk.Label(xalign=0, wrap=True, use_markup=True)
-        try:
-            text.set_markup(TEXT.replace("\\n", "\n"))
-        except Exception:  # marcação inválida: mostra o texto cru
-            text.set_text(TEXT)
-        body.append(text)
 
-        buttons = Gtk.Box(spacing=12, halign=Gtk.Align.END, margin_top=10)
-        if CLOSE:
-            close = Gtk.Button(label=CLOSE)
-            close.connect("clicked", lambda _b: self.close())
-            buttons.append(close)
-        install = Gtk.Button(label=INSTALL, css_classes=["suggested-action", "pill"])
-        install.connect("clicked", self.on_install)
-        buttons.append(install)
+        lbl = Gtk.Label(xalign=0, wrap=True, use_markup=True)
+        lbl.set_max_width_chars(64)
+        try:
+            lbl.set_markup(text.replace("\\n", "\n"))
+        except Exception:
+            lbl.set_text(text.replace("\\n", "\n"))
+        body.append(lbl)
+
+        buttons = Gtk.Box(spacing=12, halign=Gtk.Align.END, margin_top=14)
+        if secondary_label:
+            sec = Gtk.Button(label=secondary_label)
+            sec.add_css_class("tamagi-secondary")
+            sec.connect("clicked", lambda _b: self.close())
+            buttons.append(sec)
+        prim = Gtk.Button(label=primary_label)
+        prim.add_css_class("tamagi-primary")
+        prim.connect("clicked", self.on_primary)
+        buttons.append(prim)
         body.append(buttons)
         box.append(body)
         self.set_content(box)
-        self.set_default_widget(install)
+        self.set_default_widget(prim)
 
-    def on_install(self, _button):
+    def _apply_css(self):
+        Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        css = """
+        window { background-color: #1a1b26; color: #c0caf5; }
+        label { color: #c0caf5; }
+        button.tamagi-primary {
+            background-image: none;
+            background-color: #7aa2f7;
+            color: #11111b;
+            font-weight: 700;
+            min-height: 40px;
+            padding: 10px 22px;
+            border-radius: 999px;
+            border: 1px solid #7aa2f7;
+        }
+        button.tamagi-primary label { color: #11111b; }
+        button.tamagi-secondary {
+            background-image: none;
+            background-color: #292e42;
+            color: #e6e9ef;
+            font-weight: 600;
+            min-height: 40px;
+            padding: 10px 20px;
+            border-radius: 999px;
+            border: 1px solid #565f89;
+        }
+        button.tamagi-secondary label { color: #e6e9ef; }
+        """
+        provider = Gtk.CssProvider()
+        provider.load_from_string(css)
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+    def on_primary(self, _button):
         self.result = 0
         self.close()
 
 
 def main():
-    app = Adw.Application(application_id="br.tamagi.Instalador.Abertura")
-    state = {"rc": 1}
+    p = argparse.ArgumentParser()
+    p.add_argument("--title", default="Tamagi")
+    p.add_argument("--heading", default="")
+    p.add_argument("text", nargs="?", default="")
+    p.add_argument("primary", nargs="?", default="OK")
+    p.add_argument("secondary", nargs="?", default="")
+    args = p.parse_args()
+
+    app = Adw.Application(application_id="br.tamagi.Instalador.Dialogo")
+    state = {"rc": 1, "win": None}
 
     def activate(a):
-        win = Splash(a)
+        win = Splash(a, args.title, args.heading, args.text, args.primary, args.secondary)
+        state["win"] = win
         win.connect("close-request", lambda w: state.update(rc=w.result) or False)
         win.present()
 
@@ -93,6 +150,8 @@ def main():
         app.run([])
     except Exception:
         return 3
+    if state["win"] is not None:
+        return state["win"].result
     return state["rc"]
 
 

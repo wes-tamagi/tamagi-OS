@@ -1,33 +1,7 @@
 #!/usr/bin/bash
 # tamagi-layer — pacotes do Fedora por cima da imagem, sem refazer a imagem.
-#
-# O sistema continua imutável: cada camada é um arquivo somente-leitura
-# (erofs) em /var/lib/extensions que o systemd-sysext sobrepõe ao /usr. A
-# imagem não é alterada; tirar a camada devolve o sistema exatamente como era.
-#
-#   tamagi-layer add <nome> <pacote>…    cria a camada e a liga (pede senha)
-#   tamagi-layer remove <nome>           desliga e apaga a camada
-#   tamagi-layer list                    camadas, pacotes e estado
-#   tamagi-layer rebuild [nome]          refaz as camadas contra a imagem atual
-#   tamagi-layer off | on                desliga / religa todas (sem apagar)
-#   tamagi-layer temp                    /usr gravável até o próximo reinício
-#   tamagi-layer build <nome> <pacote>…  só gera o arquivo (-o <arquivo>), sem instalar
-#
-# Opções de add/build:  --copr dono/projeto   usa também esse COPR
-#                       --allow-upgrade       aceita atualizar pacotes da imagem
-#
-# Use para o que precisa estar no sistema de verdade (driver, serviço, ferramenta
-# de baixo nível). App gráfico: Flatpak. Pacote de outra distro: tamagi-pkg/apx.
-# Ferramenta de desenvolvimento: mise.
-#
-# Limites, de propósito:
-#   - os scripts de instalação dos pacotes NÃO rodam (nada executa como root
-#     fora da imagem); pacote que cria usuário ou mexe no boot pede imagem nova;
-#   - a camada é feita para uma versão da imagem. Depois de uma atualização do
-#     sistema ela aparece como "desatualizada": tamagi-layer rebuild;
-#   - se um boot falhar na verificação de saúde, as camadas são desligadas
-#     antes de qualquer rollback (veja greenboot/red.d/40-tamagi-camadas.sh).
 set -euo pipefail
+. /usr/libexec/tamagi/i18n
 
 EXT=${TAMAGI_LAYER_DIR:-/var/lib/extensions}
 META=${TAMAGI_LAYER_META:-/var/lib/tamagi/layers}
@@ -35,34 +9,47 @@ OFF=${TAMAGI_LAYER_OFF:-/var/lib/tamagi/layers-off}
 SUDO=sudo; (( EUID == 0 )) && SUDO=
 
 die() { echo "tamagi-layer: $*" >&2; exit 1; }
-usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() {
+    echo "tamagi-layer — $(t "pacotes do Fedora por cima da imagem (systemd-sysext)")"
+    echo
+    echo "  tamagi-layer add <nome> <pacote>…    $(t "cria a camada e a liga (pede senha)")"
+    echo "  tamagi-layer remove <nome>           $(t "desliga e apaga a camada")"
+    echo "  tamagi-layer list                    $(t "camadas, pacotes e estado")"
+    echo "  tamagi-layer rebuild [nome]          $(t "refaz as camadas contra a imagem atual")"
+    echo "  tamagi-layer off | on                $(t "desliga / religa todas (sem apagar)")"
+    echo "  tamagi-layer temp                    $(t "/usr gravável até o próximo reinício")"
+    echo "  tamagi-layer build <nome> <pacote>…  $(t "só gera o arquivo (-o <arquivo>), sem instalar")"
+    echo "  --copr dono/projeto   --rpmfusion   --allow-upgrade"
+    exit "${1:-0}"
+}
 
 # shellcheck disable=SC1091
 os() { ( . /usr/lib/os-release; echo "${!1:-}" ); }
 image_version() { local v; v=$(os IMAGE_VERSION); echo "${v:-$(os OSTREE_VERSION)}"; }
-valid_name() { [[ $1 =~ ^[a-z][a-z0-9-]{0,39}$ ]] || die "nome inválido: '$1' (letras minúsculas, números e hífen)"; }
+valid_name() { [[ $1 =~ ^[a-z][a-z0-9-]{0,39}$ ]] || die "$(t "nome inválido"): '$1'"; }
 names() { local f; for f in "$EXT"/*.raw "$OFF"/*.raw; do [[ -e $f ]] && basename "$f" .raw; done | sort -u; }
-meta() { cat "$META/$1.$2" 2>/dev/null || true; }   # meta <nome> packages|request|coprs|image
+meta() { cat "$META/$1.$2" 2>/dev/null || true; }
 
-# ── Construção ──────────────────────────────────────────────────────────────
-# build_layer <nome> <saída.raw> — usa PKGS, COPRS e ALLOW_UPGRADE.
-# Roda sem senha: como root de um namespace de usuário (podman unshare), numa
-# pasta de trabalho. O dnf instala numa raiz vazia que só tem uma cópia do
-# banco de pacotes da imagem; assim ele resolve as dependências contra a
-# imagem e grava apenas os arquivos dos pacotes que ainda não existem nela.
 build_layer() {
     local name=$1 out=$2 work
-    command -v mkfs.erofs >/dev/null || die "falta o mkfs.erofs (pacote erofs-utils)"
+    command -v mkfs.erofs >/dev/null || die "$(t "falta o mkfs.erofs (pacote erofs-utils)")"
     mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/tamagi"
     work=$(mktemp -d "${XDG_CACHE_HOME:-$HOME/.cache}/tamagi/layer.XXXXXX")
     # shellcheck disable=SC2064
     trap "$( (( EUID == 0 )) && echo "rm -rf '$work'" || echo "podman unshare rm -rf '$work'")" EXIT
     printf '%s\n' "${PKGS[@]}" > "$work/request"
     printf '%s\n' "${COPRS[@]}" > "$work/coprs"
+    printf '%s\n' "$RPMFUSION" > "$work/rpmfusion"
+
+    local msg_already msg_upgraded msg_upgrade_hint msg_nousr
+    msg_already=$(t "nada a fazer: tudo isso já está na imagem")
+    msg_upgraded=$(t "estes pacotes da imagem seriam atualizados pela camada:")
+    msg_upgrade_hint=$(t "atualize o sistema primeiro (tamagi-update) ou repita com --allow-upgrade")
+    msg_nousr=$(t "os pacotes não instalam nada em /usr")
 
     cat > "$work/inner.sh" <<'INNER'
 set -euo pipefail
-export LC_ALL=C   # sort, comm e join na mesma ordem
+export LC_ALL=C
 work=$1 name=$2 allow_upgrade=$3
 R=$work/root
 dbpath=$(rpm --eval '%_dbpath')
@@ -71,7 +58,7 @@ arch=$(uname -m)
 
 mkdir -p "$R$dbpath"
 cp -a "$(realpath "$dbpath")/." "$R$dbpath/"
-rpm -qa --qf '%{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > "$work/before"
+rpm -qa --qf '%{NAME}.%{ARCH} %{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > "$work/before"
 
 repo=()
 while read -r copr; do
@@ -81,6 +68,18 @@ while read -r copr; do
     repo+=("--repofrompath=$id,$base/fedora-$ver-$arch/"
            "--setopt=$id.gpgcheck=1" "--setopt=$id.gpgkey=$base/pubkey.gpg")
 done < "$work/coprs"
+if [[ $(cat "$work/rpmfusion" 2>/dev/null || echo 0) == 1 ]]; then
+    repo+=(
+        "--repofrompath=rpmfusion-free,https://download1.rpmfusion.org/free/fedora/releases/$ver/Everything/$arch/os/"
+        "--setopt=rpmfusion-free.gpgcheck=0"
+        "--repofrompath=rpmfusion-free-updates,https://download1.rpmfusion.org/free/fedora/updates/$ver/$arch/"
+        "--setopt=rpmfusion-free-updates.gpgcheck=0"
+        "--repofrompath=rpmfusion-nonfree,https://download1.rpmfusion.org/nonfree/fedora/releases/$ver/Everything/$arch/os/"
+        "--setopt=rpmfusion-nonfree.gpgcheck=0"
+        "--repofrompath=rpmfusion-nonfree-updates,https://download1.rpmfusion.org/nonfree/fedora/updates/$ver/$arch/"
+        "--setopt=rpmfusion-nonfree-updates.gpgcheck=0"
+    )
+fi
 
 mapfile -t pkgs < "$work/request"
 dnf5 -y --installroot="$R" --use-host-config --releasever="$ver" \
@@ -89,39 +88,33 @@ dnf5 -y --installroot="$R" --use-host-config --releasever="$ver" \
     --setopt=persistdir="$work/persist" --setopt=logdir="$work/log" \
     "${repo[@]}" install "${pkgs[@]}"
 
-rpm --root "$R" -qa --qf '%{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > "$work/after"
-# O que entrou de novo (nome que a imagem não tinha).
+rpm --root "$R" -qa --qf '%{NAME}.%{ARCH} %{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > "$work/after"
 join -v 2 -j 1 <(cut -d' ' -f1 "$work/before" | sort -u) <(cut -d' ' -f1 "$work/after" | sort -u) \
-    | grep -v '^gpg-pubkey$' > "$work/new-names" || true
-awk 'NR == FNR { new[$1]; next } $1 in new' "$work/new-names" "$work/after" > "$work/packages"
-[[ -s $work/packages ]] || { echo "nada a fazer: tudo isso já está na imagem" >&2; exit 3; }
-# Pacote da imagem trocado de versão: a camada passaria por cima de arquivos
-# do sistema. Só com --allow-upgrade.
+    | grep -v '^gpg-pubkey\.' > "$work/new-names" || true
+awk 'NR == FNR { new[$1]; next } $1 in new { print $2, $3 }' "$work/new-names" "$work/after" > "$work/packages"
+[[ -s $work/packages ]] || { echo "$MSG_ALREADY" >&2; exit 3; }
 comm -13 "$work/before" "$work/after" | cut -d' ' -f1 | grep -v -x -F -f "$work/new-names" \
-    | grep -v '^gpg-pubkey$' > "$work/upgraded" || true
+    | grep -v '^gpg-pubkey\.' > "$work/upgraded" || true
 if [[ -s $work/upgraded && $allow_upgrade != 1 ]]; then
-    echo "estes pacotes da imagem seriam atualizados pela camada:" >&2
+    echo "$MSG_UPGRADED" >&2
     sed 's/^/  /' "$work/upgraded" >&2
-    echo "atualize o sistema primeiro (tamagi-update) ou repita com --allow-upgrade" >&2
+    echo "$MSG_UPGRADE_HINT" >&2
     exit 4
 fi
 
-# Uma extensão de sistema só leva /usr (e /opt). O banco de pacotes fica o da
-# imagem; o que os pacotes puseram em /etc é guardado à parte para o add copiar.
 if [[ -d $R/etc ]]; then
     ( cd "$R" && find etc -type f -o -type l | sort ) > "$work/etc.list"
     tar -C "$R" -cf "$work/etc.tar" etc
 fi
 rm -rf "$R$dbpath" "$R/usr/lib/sysimage" "$R/var" "$R/etc" "$R/run" "$R/tmp" "$R/dev" "$R/proc" "$R/sys"
 find "$R" -mindepth 1 -maxdepth 1 ! -name usr ! -name opt -exec rm -rf {} +
-[[ -d $R/usr ]] || { echo "os pacotes não instalam nada em /usr" >&2; exit 5; }
+[[ -d $R/usr ]] || { echo "$MSG_NOUSR" >&2; exit 5; }
 
 mkdir -p "$R/usr/lib/extension-release.d" "$R/usr/share/tamagi/layers"
 printf 'ID=%s\nVERSION_ID=%s\n' "$(. /usr/lib/os-release; echo "$ID")" "$ver" \
     > "$R/usr/lib/extension-release.d/extension-release.$name"
 cp "$work/packages" "$R/usr/share/tamagi/layers/$name.packages"
 
-# erofs somente-leitura, já com os rótulos SELinux que cada arquivo teria em /usr.
 ctx=/etc/selinux/targeted/contexts/files/file_contexts
 args=(-zlz4hc -T0 --quiet)
 [[ -r $ctx ]] && args+=(--file-contexts="$ctx")
@@ -131,9 +124,11 @@ INNER
 
     local rc=0
     if (( EUID == 0 )); then
-        bash "$work/inner.sh" "$work" "$name" "$ALLOW_UPGRADE" || rc=$?
+        MSG_ALREADY=$msg_already MSG_UPGRADED=$msg_upgraded MSG_UPGRADE_HINT=$msg_upgrade_hint MSG_NOUSR=$msg_nousr \
+            bash "$work/inner.sh" "$work" "$name" "$ALLOW_UPGRADE" || rc=$?
     else
-        podman unshare bash "$work/inner.sh" "$work" "$name" "$ALLOW_UPGRADE" || rc=$?
+        MSG_ALREADY=$msg_already MSG_UPGRADED=$msg_upgraded MSG_UPGRADE_HINT=$msg_upgrade_hint MSG_NOUSR=$msg_nousr \
+            podman unshare bash "$work/inner.sh" "$work" "$name" "$ALLOW_UPGRADE" || rc=$?
     fi
     (( rc == 0 )) || exit "$rc"
     cp "$work/layer.raw" "$out"
@@ -145,37 +140,38 @@ INNER
     fi
 }
 
-parse_build_args() { # preenche NAME, PKGS, COPRS, ALLOW_UPGRADE, OUT
-    NAME="" PKGS=() COPRS=() ALLOW_UPGRADE=0 OUT=""
+parse_build_args() {
+    NAME="" PKGS=() COPRS=() ALLOW_UPGRADE=0 RPMFUSION=0 OUT=""
     while (( $# )); do
         case "$1" in
             --copr)          [[ ${2:-} =~ ^[A-Za-z0-9@_.-]+/[A-Za-z0-9_.-]+$ ]] || die "--copr dono/projeto"
                              COPRS+=("$2"); shift ;;
+            --rpmfusion)     RPMFUSION=1 ;;
             --allow-upgrade) ALLOW_UPGRADE=1 ;;
             -o)              OUT=${2:?-o <arquivo>}; shift ;;
-            -*)              die "opção desconhecida: $1" ;;
+            -*)              die "$(t "opção desconhecida"): $1" ;;
             *)               if [[ -z $NAME ]]; then NAME=$1; else PKGS+=("$1"); fi ;;
         esac
         shift
     done
     [[ -n $NAME ]] || usage 2
     valid_name "$NAME"
-    (( ${#PKGS[@]} )) || die "diga pelo menos um pacote"
-    local p; for p in "${PKGS[@]}"; do [[ $p =~ ^[A-Za-z0-9@][A-Za-z0-9+._:@/-]*$ ]] || die "pacote inválido: $p"; done
+    (( ${#PKGS[@]} )) || die "$(t "diga pelo menos um pacote")"
+    local p; for p in "${PKGS[@]}"; do [[ $p =~ ^[A-Za-z0-9@][A-Za-z0-9+._:@/-]*$ ]] || die "$(t "pacote inválido"): $p"; done
 }
 
-install_layer() { # install_layer <nome> <arquivo.raw>
+install_layer() {
     local name=$1 raw=$2
-    echo "Ligando a camada '$name' (pede senha de administrador)…"
+    echo "$(t "Ligando a camada") '$name' ($(t "pede senha"))…"
     $SUDO install -d -m 755 "$EXT" "$META"
     $SUDO install -m 644 "$raw" "$EXT/$name.raw"
     $SUDO rm -f "$OFF/$name.raw"
     printf '%s\n' "${PKGS[@]}"  | $SUDO install -m 644 /dev/stdin "$META/$name.request"
     printf '%s\n' "${COPRS[@]}" | $SUDO install -m 644 /dev/stdin "$META/$name.coprs"
+    printf '%s\n' "$RPMFUSION"  | $SUDO install -m 644 /dev/stdin "$META/$name.rpmfusion"
     echo "$BUILT_PACKAGES"      | $SUDO install -m 644 /dev/stdin "$META/$name.packages"
     image_version               | $SUDO install -m 644 /dev/stdin "$META/$name.image"
     if [[ -n $BUILT_ETC ]]; then
-        # Só o que ainda não existe em /etc: nunca passa por cima de ajuste seu.
         $SUDO tar -C / --skip-old-files --no-same-owner -xf "$BUILT_ETC"
         $SUDO restorecon -R /etc 2>/dev/null || true
         rm -f "$BUILT_ETC"
@@ -186,6 +182,7 @@ install_layer() { # install_layer <nome> <arquivo.raw>
 refresh() {
     command -v restorecon >/dev/null && $SUDO restorecon -R "$EXT" 2>/dev/null || true
     $SUDO systemd-sysext refresh
+    command -v ldconfig >/dev/null && $SUDO ldconfig 2>/dev/null || true
     $SUDO systemctl daemon-reload 2>/dev/null || true
 }
 
@@ -195,40 +192,41 @@ cmd_add() {
     build_layer "$NAME" "$tmp/$NAME.raw"
     install_layer "$NAME" "$tmp/$NAME.raw"
     rm -rf "$tmp"
-    echo "Camada '$NAME' ligada: $(wc -l <<<"$BUILT_PACKAGES") pacote(s) por cima da imagem $(image_version)."
-    echo "Para desfazer: tamagi-layer remove $NAME"
+    echo "$(t "Camada ligada"): '$NAME' ($(wc -l <<<"$BUILT_PACKAGES") $(t "pacote(s)"), $(image_version))."
+    echo "$(t "Para desfazer"): tamagi-layer remove $NAME"
 }
 
 cmd_build() {
     parse_build_args "$@"
     OUT=${OUT:-$PWD/$NAME.raw}
     build_layer "$NAME" "$OUT"
-    echo "Gerado: $OUT ($(wc -l <<<"$BUILT_PACKAGES") pacote(s))"
-    [[ -z $BUILT_ETC ]] || echo "Arquivos de /etc dos pacotes: $BUILT_ETC"
+    echo "$(t "Gerado"): $OUT ($(wc -l <<<"$BUILT_PACKAGES") $(t "pacote(s)"))"
+    [[ -z $BUILT_ETC ]] || echo "$(t "Arquivos de /etc dos pacotes"): $BUILT_ETC"
 }
 
 cmd_remove() {
-    local name=${1:?uso: tamagi-layer remove <nome>}
+    local name=${1:?$(t "uso"): tamagi-layer remove <nome>}
     valid_name "$name"
-    [[ -e $EXT/$name.raw || -e $OFF/$name.raw ]] || die "não existe a camada '$name'"
-    $SUDO rm -f "$EXT/$name.raw" "$OFF/$name.raw" "$META/$name".{request,coprs,packages,image}
+    [[ -e $EXT/$name.raw || -e $OFF/$name.raw ]] || die "$(t "não existe a camada") '$name'"
+    $SUDO rm -f "$EXT/$name.raw" "$OFF/$name.raw" "$META/$name".{request,coprs,rpmfusion,packages,image}
     refresh
-    echo "Camada '$name' removida. (Arquivos que os pacotes dela puseram em /etc continuam lá.)"
+    echo "$(t "Camada removida"): '$name'."
 }
 
-state_of() { # ligada | desligada | desatualizada
+state_of() {
     local name=$1
     [[ -e $EXT/$name.raw ]] || { echo desligada; return; }
     [[ $(meta "$name" image) == "$(image_version)" ]] && echo ligada || echo desatualizada
 }
 
 cmd_list() {
-    local name found=0
+    local name found=0 st
     for name in $(names); do
         found=1
-        printf '%-20s %-14s %s\n' "$name" "$(state_of "$name")" "$(meta "$name" request | tr '\n' ' ')"
+        st=$(state_of "$name")
+        printf '%-20s %-14s %s\n' "$name" "$(t "$st")" "$(meta "$name" request | tr '\n' ' ')"
     done
-    (( found )) || echo "Nenhuma camada. Exemplo: tamagi-layer add ferramentas strace ltrace"
+    (( found )) || echo "$(t "Nenhuma camada. Exemplo"): tamagi-layer add ferramentas strace ltrace"
 }
 
 cmd_rebuild() {
@@ -237,56 +235,56 @@ cmd_rebuild() {
         [[ -z $only || $only == "$name" ]] || continue
         [[ -e $EXT/$name.raw ]] || continue
         mapfile -t PKGS < <(meta "$name" request); mapfile -t COPRS < <(meta "$name" coprs | grep . || true)
-        (( ${#PKGS[@]} )) || { echo "camada '$name': sem a lista de pacotes, não dá para refazer" >&2; rc=1; continue; }
+        RPMFUSION=$(meta "$name" rpmfusion); RPMFUSION=${RPMFUSION:-0}
+        (( ${#PKGS[@]} )) || { echo "$(t "camada") '$name': $(t "sem a lista de pacotes, não dá para refazer")" >&2; rc=1; continue; }
         ALLOW_UPGRADE=0
-        echo "── Refazendo a camada '$name' para a imagem $(image_version)"
+        echo "── $(t "Refazendo a camada") '$name' ($(image_version))"
         tmp=$(mktemp -d)
         if ( build_layer "$name" "$tmp/$name.raw"; install_layer "$name" "$tmp/$name.raw" ); then :; else
-            echo "camada '$name': não consegui refazer; ela continua como estava" >&2; rc=1
+            echo "$(t "camada") '$name': $(t "não consegui refazer; ela continua como estava")" >&2; rc=1
         fi
         rm -rf "$tmp"
     done
     return $rc
 }
 
-cmd_stale() { # nomes das camadas ligadas feitas para outra versão da imagem
+cmd_stale() {
     local name
     for name in $(names); do [[ $(state_of "$name") == desatualizada ]] && echo "$name"; done
     return 0
 }
 
 cmd_off() {
-    compgen -G "$EXT/*.raw" >/dev/null || { echo "Nenhuma camada ligada."; return 0; }
+    compgen -G "$EXT/*.raw" >/dev/null || { tl "Nenhuma camada ligada."; return 0; }
     $SUDO install -d -m 755 "$OFF"
     $SUDO sh -c "mv '$EXT'/*.raw '$OFF'/"
     refresh
-    echo "Camadas desligadas (o sistema está como a imagem). Para religar: tamagi-layer on"
+    echo "$(t "Camadas desligadas. Para religar"): tamagi-layer on"
 }
 
 cmd_on() {
-    compgen -G "$OFF/*.raw" >/dev/null || { echo "Nenhuma camada desligada."; return 0; }
+    compgen -G "$OFF/*.raw" >/dev/null || { tl "Nenhuma camada desligada."; return 0; }
     $SUDO install -d -m 755 "$EXT"
     $SUDO sh -c "mv '$OFF'/*.raw '$EXT'/"
     refresh
-    echo "Camadas religadas."
+    tl "Camadas religadas."
 }
 
 cmd_temp() {
-    echo "O /usr fica gravável até o próximo reinício; tudo o que mudar some ao reiniciar."
-    echo "(Ex.: sudo dnf5 install <pacote> para experimentar.)"
+    tl "O /usr fica gravável até o próximo reinício; tudo o que mudar some ao reiniciar."
     exec $SUDO bootc usr-overlay
 }
 
 case "${1:-}" in
-    add)       shift; cmd_add "$@" ;;
-    build)     shift; cmd_build "$@" ;;
-    remove|rm) shift; cmd_remove "$@" ;;
-    list|ls)   cmd_list ;;
-    rebuild)   shift; cmd_rebuild "$@" ;;
-    stale)     cmd_stale ;;
-    off)       cmd_off ;;
-    on)        cmd_on ;;
-    temp)      cmd_temp ;;
-    -h|--help|help) usage 0 ;;
-    *)         usage 2 ;;
+    add|adicionar)   shift; cmd_add "$@" ;;
+    build|construir) shift; cmd_build "$@" ;;
+    remove|rm|remover) shift; cmd_remove "$@" ;;
+    list|ls|lista)   cmd_list ;;
+    rebuild|refazer) shift; cmd_rebuild "$@" ;;
+    stale)           cmd_stale ;;
+    off|desligar)    cmd_off ;;
+    on|ligar)        cmd_on ;;
+    temp)            cmd_temp ;;
+    -h|--help|help|ajuda) usage 0 ;;
+    *)               usage 2 ;;
 esac

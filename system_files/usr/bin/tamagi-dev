@@ -7,8 +7,8 @@
 #   tamagi-dev list            presets e o que cada um instala
 #
 # Só entram linguagens com binário pronto: no Tamagi o sistema é imutável e
-# não há compilador no host. Para Elixir/Erlang, PHP e afins, use a caixa Arch
-# (tamagi-pkg install --arch elixir) ou uma caixa distrobox.
+# não há compilador no host. Para headers C, SQLite, compiladores ou outras
+# distros, use a caixa Fedora padrão (`tamagi-devbox`) ou `tamagi-workspace`.
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
@@ -60,7 +60,7 @@ case "${1:-}" in
     "")
         if [[ ! -t 0 ]]; then list; exit 0; fi
         mapfile -t picked < <(for p in "${ORDER[@]}"; do printf '%-7s %s\n' "$p" "${HINT[$p]}"; done \
-            | gum choose --no-limit --header "$(t "Ambientes de desenvolvimento (espaço marca, Enter instala)")" \
+            | /usr/libexec/tamagi/gum-multi --header "$(t "Ambientes de desenvolvimento (espaço marca, Enter instala)")" \
             | awk '{print $1}')
         add "${picked[@]}" ;;
     add|instalar) shift; [[ $# -gt 0 ]] || die "uso: tamagi-dev add <${ORDER[*]// /|}>"; add "$@" ;;

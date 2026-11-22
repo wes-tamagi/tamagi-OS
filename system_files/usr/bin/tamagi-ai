@@ -294,7 +294,8 @@ cmd_serve() { # usado pelo serviço systemd do usuário
         --sleep-idle-seconds "${TAMAGI_AI_IDLE:-900}"
     )
     [[ -n ${TAMAGI_AI_REASONING_BUDGET:-} ]] && args+=(--reasoning-budget "$TAMAGI_AI_REASONING_BUDGET")
-    [[ -n ${TAMAGI_AI_CACHE_TYPE:-} ]] && args+=(--cache-type-k "$TAMAGI_AI_CACHE_TYPE" --cache-type-v "$TAMAGI_AI_CACHE_TYPE")
+    local kv_cache="${TAMAGI_AI_CACHE_TYPE:-q8_0}"
+    [[ -n $kv_cache && $kv_cache != none ]] && args+=(--cache-type-k "$kv_cache" --cache-type-v "$kv_cache")
     [[ -r $PRESET_INI ]] && args+=(--models-preset "$PRESET_INI")
     # shellcheck disable=SC2086
     exec /usr/bin/llama-server "${args[@]}" ${TAMAGI_AI_EXTRA_ARGS:-}

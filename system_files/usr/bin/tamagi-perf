@@ -1,0 +1,197 @@
+#!/usr/bin/bash
+# tamagi-perf — motor adaptativo de desempenho (tuned + sched_ext + telemetria).
+#
+#   tamagi-perf [status]                      telemetria de CPU, sched_ext, E/S, zram e rede
+#   tamagi-perf set <eco|balanced|performance|latency>
+#   tamagi-perf pick                          escolhe o perfil no menu
+#   tamagi-perf auto                          eco na bateria, balanced na tomada
+#   tamagi-perf bench                         micro-benchmark rápido (~3 s) de CPU, zstd e shell
+#   tamagi-perf --json                        telemetria em JSON (para agentes e diagnóstico)
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+HELPER="${TAMAGI_PERF_HELPER:-/usr/libexec/tamagi/perf-helper}"
+STATE_FILE="${TAMAGI_PERF_STATE:-/var/lib/tamagi/perf-profile}"
+
+die() { echo "$(t "erro"): $*" >&2; exit 1; }
+read_first() { [[ -r $1 ]] && head -n 1 "$1" 2>/dev/null || echo "-"; }
+
+current_profile() {
+    if [[ -r $STATE_FILE ]]; then
+        head -n 1 "$STATE_FILE" 2>/dev/null || echo "balanced"
+    else
+        echo "balanced"
+    fi
+}
+
+scx_status() {
+    if [[ ! -d /sys/kernel/sched_ext ]]; then
+        echo "unavailable"
+        return
+    fi
+    local state ops
+    state=$(read_first /sys/kernel/sched_ext/state)
+    ops=$(read_first /sys/kernel/sched_ext/root/ops)
+    if [[ $state == enabled && $ops != - ]]; then
+        echo "enabled ($ops)"
+    elif [[ $state == enabled ]]; then
+        echo "enabled"
+    else
+        echo "disabled"
+    fi
+}
+
+on_battery() {
+    local f
+    for f in /sys/class/power_supply/AC*/online /sys/class/power_supply/ADP*/online; do
+        [[ -r $f ]] || continue
+        [[ $(cat "$f") == 0 ]] && return 0 || return 1
+    done
+    return 1
+}
+
+cmd_status_json() {
+    local prof kver kflav drv gov epp scx dirty_bg dirty_b vfs nmi bbr
+    prof=$(current_profile)
+    kver=$(uname -r)
+    kflav=$(read_first /usr/share/tamagi/kernel-flavor)
+    drv=$(read_first /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver)
+    gov=$(read_first /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)
+    epp=$(read_first /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference)
+    scx=$(scx_status)
+    dirty_bg=$(sysctl -n vm.dirty_background_bytes 2>/dev/null || echo 0)
+    dirty_b=$(sysctl -n vm.dirty_bytes 2>/dev/null || echo 0)
+    vfs=$(sysctl -n vm.vfs_cache_pressure 2>/dev/null || echo 100)
+    nmi=$(sysctl -n kernel.nmi_watchdog 2>/dev/null || echo 1)
+    bbr=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "-")
+    jq -n \
+        --arg profile "$prof" \
+        --arg kernel "$kver" \
+        --arg flavor "$kflav" \
+        --arg cpu_driver "$drv" \
+        --arg governor "$gov" \
+        --arg epp "$epp" \
+        --arg sched_ext "$scx" \
+        --argjson dirty_background_bytes "${dirty_bg:-0}" \
+        --argjson dirty_bytes "${dirty_b:-0}" \
+        --argjson vfs_cache_pressure "${vfs:-100}" \
+        --argjson nmi_watchdog "${nmi:-1}" \
+        --arg tcp_cc "$bbr" \
+        '{profile:$profile, kernel:$kernel, flavor:$flavor, cpu:{driver:$cpu_driver, governor:$governor, epp:$epp}, sched_ext:$sched_ext, vm:{dirty_background_bytes:$dirty_background_bytes, dirty_bytes:$dirty_bytes, vfs_cache_pressure:$vfs_cache_pressure}, nmi_watchdog:$nmi_watchdog, tcp_cc:$tcp_cc}'
+}
+
+cmd_status() {
+    local prof kflav drv gov epp scx dirty_bg dirty_b vfs nmi bbr qdisc
+    prof=$(current_profile)
+    kflav=$(read_first /usr/share/tamagi/kernel-flavor)
+    drv=$(read_first /sys/devices/system/cpu/cpu0/cpufreq/scaling_driver)
+    gov=$(read_first /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor)
+    epp=$(read_first /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference)
+    scx=$(scx_status)
+    dirty_bg=$(sysctl -n vm.dirty_background_bytes 2>/dev/null || echo 0)
+    dirty_b=$(sysctl -n vm.dirty_bytes 2>/dev/null || echo 0)
+    vfs=$(sysctl -n vm.vfs_cache_pressure 2>/dev/null || echo 100)
+    nmi=$(sysctl -n kernel.nmi_watchdog 2>/dev/null || echo 1)
+    bbr=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "-")
+    qdisc=$(sysctl -n net.core.default_qdisc 2>/dev/null || echo "-")
+
+    echo "$(t "Perfil de desempenho")  : $prof"
+    echo "$(t "Kernel")                : $(uname -r) ($kflav)"
+    echo "$(t "CPU (driver/gov/EPP)")  : $drv · $gov · $epp"
+    echo "$(t "Escalonador sched_ext") : $scx"
+    echo "$(t "Writeback (dirty)")     : $(( dirty_bg / 1048576 )) MB / $(( dirty_b / 1048576 )) MB · vfs_cache_pressure=$vfs"
+    echo "$(t "NMI watchdog")          : $([[ $nmi == 0 ]] && t "desligado" || t "ligado")"
+    echo "$(t "Rede (TCP)")            : $bbr ($qdisc)"
+    if [[ -r /sys/block/zram0/disksize ]]; then
+        local zsz algo
+        zsz=$(( $(cat /sys/block/zram0/disksize) / 1073741824 ))
+        algo=$(sed -n 's/.*\[\([^]]*\)\].*/\1/p' /sys/block/zram0/comp_algorithm 2>/dev/null || echo "-")
+        echo "$(t "zram")                  : ${zsz} GiB ($algo, swappiness=$(sysctl -n vm.swappiness 2>/dev/null || echo -))"
+    fi
+    echo "$(t "Discos (escalonador)")  :"
+    local dev name sched rota
+    for dev in /sys/block/nvme* /sys/block/sd*; do
+        [[ -d $dev ]] || continue
+        name=$(basename "$dev")
+        sched=$(sed -n 's/.*\[\([^]]*\)\].*/\1/p' "$dev/queue/scheduler" 2>/dev/null || echo "-")
+        rota=$(cat "$dev/queue/rotational" 2>/dev/null || echo "?")
+        printf '    %-10s %-8s (%s)\n' "$name" "$sched" "$([[ $rota == 0 ]] && echo SSD/NVMe || echo HDD)"
+    done
+}
+
+cmd_set() {
+    local prof=${1:-}
+    case "$prof" in
+        eco|economia)           prof=eco ;;
+        balanced|equilibrado)   prof=balanced ;;
+        performance|desempenho) prof=performance ;;
+        latency|latencia|jogos) prof=latency ;;
+        *) die "$(t "perfil desconhecido"): '$prof' (eco, balanced, performance, latency)" ;;
+    esac
+    if [[ $(id -u) == 0 ]]; then
+        "$HELPER" "$prof"
+    else
+        pkexec "$HELPER" "$prof"
+    fi
+    echo "$(t "Perfil de desempenho ativado"): $prof"
+}
+
+cmd_pick() {
+    [[ -t 0 ]] || { cmd_status; return 0; }
+    local choice prof
+    choice=$(printf '%s\n' \
+        "eco         $(t "Economia de bateria (powersave, EEVDF padrão)")" \
+        "balanced    $(t "Equilibrado para uso diário (padrão)")" \
+        "performance $(t "Desempenho máximo (throughput-performance + scx_rusty)")" \
+        "latency     $(t "Baixa latência para jogos e áudio (latency-performance + scx_rusty)")" \
+        | gum choose --header "$(t "Perfil de desempenho") ($(t "atual"): $(current_profile))") || exit 0
+    prof=$(awk '{print $1}' <<<"$choice")
+    cmd_set "$prof"
+}
+
+cmd_bench() {
+    echo "$(t "Executando micro-benchmark rápido…")"
+    local t0 t1 ms
+    # 1) CPU/crypto: SHA-256 de 256 MiB de zeros
+    t0=$(date +%s%3N)
+    dd if=/dev/zero bs=1M count=256 status=none | sha256sum >/dev/null
+    t1=$(date +%s%3N)
+    ms=$(( t1 - t0 ))
+    printf '  %-28s %d ms (%d MB/s)\n' "$(t "SHA-256 (256 MiB)")" "$ms" "$(( ms > 0 ? 256000 / ms : 0 ))"
+    # 2) Compressão zstd (64 MiB)
+    if command -v zstd >/dev/null 2>&1; then
+        t0=$(date +%s%3N)
+        dd if=/dev/zero bs=1M count=64 status=none | zstd -q -T0 -1 -c >/dev/null
+        t1=$(date +%s%3N)
+        ms=$(( t1 - t0 ))
+        printf '  %-28s %d ms\n' "$(t "zstd -1 multi-core (64 MiB)")" "$ms"
+    fi
+    # 3) Abertura de shell interativo (média de 5 execuções)
+    t0=$(date +%s%3N)
+    for _ in 1 2 3 4 5; do bash -ic 'exit' >/dev/null 2>&1 || true; done
+    t1=$(date +%s%3N)
+    ms=$(( (t1 - t0) / 5 ))
+    printf '  %-28s %d ms\n' "$(t "Abertura do shell (média)")" "$ms"
+}
+
+usage() {
+    echo "tamagi-perf — $(t "perfis de desempenho, sched_ext e telemetria")"
+    echo
+    echo "  tamagi-perf [status]                      $(t "mostra telemetria de desempenho")"
+    echo "  tamagi-perf set <eco|balanced|performance|latency>"
+    echo "  tamagi-perf pick                          $(t "escolhe o perfil numa lista")"
+    echo "  tamagi-perf auto                          $(t "ajusta conforme tomada ou bateria")"
+    echo "  tamagi-perf bench                         $(t "micro-benchmark rápido")"
+    echo "  tamagi-perf --json                        $(t "telemetria em JSON")"
+}
+
+case "${1:-status}" in
+    status|estado)       cmd_status ;;
+    --json)              cmd_status_json ;;
+    set|definir)         cmd_set "${2:-}" ;;
+    pick|escolher)       cmd_pick ;;
+    auto)                if on_battery; then cmd_set eco; else cmd_set balanced; fi ;;
+    bench|benchmark)     cmd_bench ;;
+    -h|--help|help|ajuda) usage ;;
+    *)                   usage >&2; exit 2 ;;
+esac

@@ -7,17 +7,29 @@
 #
 # A chave é o próprio texto em português; as traduções ficam em
 # /usr/share/tamagi/i18n/<idioma>.tsv (português<TAB>tradução, uma por linha).
-# Sem tradução, sai o português. O idioma vem do sistema (LANG); outros
-# idiomas caem no inglês. TAMAGI_LANG=pt|en|es|fr força um.
+# Sem tradução, sai o português. Prioridade do idioma:
+#   TAMAGI_LANG > LC_ALL > LC_MESSAGES > ~/.config/tamagi/lang > LANG
+# Idiomas fora de pt/es/fr caem no inglês.
 declare -gA TAMAGI_TR=()
-if [[ -z ${TAMAGI_LANG:-} ]]; then
-    case "${LC_ALL:-${LC_MESSAGES:-${LANG:-pt_BR}}}" in
-        pt*) TAMAGI_LANG=pt ;;
-        es*) TAMAGI_LANG=es ;;
-        fr*) TAMAGI_LANG=fr ;;
-        *)   TAMAGI_LANG=en ;;
-    esac
+_tamagi_cfg_lang="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/lang"
+if [[ -n ${TAMAGI_LANG:-} ]]; then
+    _tamagi_raw=$TAMAGI_LANG
+elif [[ -n ${LC_ALL:-} ]]; then
+    _tamagi_raw=$LC_ALL
+elif [[ -n ${LC_MESSAGES:-} ]]; then
+    _tamagi_raw=$LC_MESSAGES
+elif [[ -r $_tamagi_cfg_lang ]]; then
+    _tamagi_raw=$(head -n 1 "$_tamagi_cfg_lang" 2>/dev/null || true)
+else
+    _tamagi_raw="${LANG:-pt_BR}"
 fi
+case "${_tamagi_raw,,}" in
+    pt*) TAMAGI_LANG=pt ;;
+    es*) TAMAGI_LANG=es ;;
+    fr*) TAMAGI_LANG=fr ;;
+    *)   TAMAGI_LANG=en ;;
+esac
+unset _tamagi_cfg_lang _tamagi_raw
 if [[ $TAMAGI_LANG != pt && -r ${TAMAGI_I18N_DIR:-/usr/share/tamagi/i18n}/$TAMAGI_LANG.tsv ]]; then
     while IFS=$'\t' read -r _k _v; do
         [[ -n $_k && $_k != \#* && -n $_v ]] && TAMAGI_TR[$_k]=$_v

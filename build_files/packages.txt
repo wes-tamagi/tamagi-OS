@@ -81,6 +81,8 @@ gamescope
 mangohud
 gamemode
 steam-devices
+# Escalonador de CPU em espaço de usuário via BPF (sched_ext), gerido por tamagi-perf.
+scx_rusty
 
 # ── Camadas sobre a imagem (tamagi-layer: systemd-sysext em erofs) ──
 erofs-utils

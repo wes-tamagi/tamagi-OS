@@ -341,3 +341,353 @@ Tudo voltou como estava.	Todo volvió a como estaba.
 Sessão de convidado ligada: escolha Convidado na tela de login (sem senha).	Sesión de invitado activada: elige Convidado (Invitado) en la pantalla de inicio (sin contraseña).
 Sessão de convidado desligada	Sesión de invitado desactivada
 Sessão de convidado ligada	Sesión de invitado activada
+# tamagi, tamagi-browser, tamagi-harden, tamagi-layer, tamagi-pkg, tamagi-webapp, tamagi-devbox, tamagi-perf, tamagi-workspace, tamagi-doctor
+tema: tamagi-theme list · papel: mon, seigaiha, asanoha, byobu, shippo, hinode, uroko, ondas	tema: tamagi-theme list · fondo: mon, seigaiha, asanoha, byobu, shippo, hinode, uroko, ondas
+na caixa Fedora: chrome, firefox, brave, edge, vivaldi	en la caja Fedora: chrome, firefox, brave, edge, vivaldi
+IDs do Flathub ou do repositório COSMIC	IDs de Flathub o del repositorio COSMIC
+linguagens e ferramentas globais, como em `mise use -g`	lenguajes y herramientas globales, como en `mise use -g`
+subsistemas do tamagi-pkg (omarchy usa a caixa Arch)	subsistemas de tamagi-pkg (omarchy usa la caja Arch)
+nome = distro (fedora, arch, popos, ubuntu, alma, rocky, opensuse, debian, alpine)	nombre = distro (fedora, arch, popos, ubuntu, alma, rocky, opensuse, debian, alpine)
+pacotes do Fedora por cima da imagem (tamagi-layer): nome = [pacotes]	paquetes de Fedora sobre la imagen (tamagi-layer): nombre = [paquetes]
+nome = endereço	nombre = URL
+seguranca: equilibrado ou estrito · desempenho: eco, balanced, performance ou latency	seguranca: equilibrado o estrito · desempenho: eco, balanced, performance o latency
+servicos.seguranca precisa ser equilibrado ou estrito	servicos.seguranca debe ser equilibrado o estrito
+servicos.desempenho precisa ser eco, balanced, performance ou latency	servicos.desempenho debe ser eco, balanced, performance o latency
+O seu sistema descrito num arquivo só.	Tu sistema descrito en un solo archivo.
+cria o arquivo a partir do estado atual	crea el archivo a partir del estado actual
+imprime ou grava o estado atual	imprime o guarda el estado actual
+mostra o que falta	muestra lo que falta
+faz o que falta	aplica lo que falta
+não pergunta antes de começar	no pregunta antes de empezar
+Nada a fazer: a máquina já está como o arquivo descreve.	Nada que hacer: el equipo ya coincide con el archivo.
+Rode num terminal, ou use -y para aplicar sem perguntar.	Ejecútalo en una terminal o usa -y para aplicar sin preguntar.
+Nada foi alterado.	No se modificó nada.
+Pronto: a máquina está como o arquivo descreve.	Listo: el equipo ya coincide con el archivo.
+Tamagi — o seu sistema num arquivo. `tamagi apply` deixa a máquina assim;	Tamagi — tu sistema en un archivo. `tamagi apply` deja el equipo así;
+`tamagi diff` mostra o que falta. Nada que não esteja aqui é removido.	`tamagi diff` muestra lo que falta. Nada fuera de aquí se elimina.
+não consegui ler	no pude leer
+Crie um com	Crea uno con
+não é TOML válido	no es un TOML válido
+seção desconhecida	sección desconocida
+precisa ser uma seção	debe ser una sección
+chave desconhecida	clave desconocida
+navegador desconhecido	navegador desconocido
+caixa	caja
+distro desconhecida	distro desconocida
+nome de caixa inválido	nombre de caja no válido
+nome de camada inválido	nombre de capa no válido
+camada	capa
+precisa ser uma lista de pacotes	debe ser una lista de paquetes
+web app	aplicación web
+o endereço precisa começar com http:// ou https://	la URL debe empezar por http:// o https://
+erro no arquivo	error en el archivo
+papel de parede	fondo de pantalla
+tema	tema
+navegador	navegador
+pacote	paquete
+atualização automática	actualización automática
+ligada	activada
+desligada	desactivada
+desatualizada	desactualizada
+segurança	seguridad
+desempenho	rendimiento
+já existe. Para ver a diferença	ya existe. Para ver la diferencia
+Gravado em	Guardado en
+Edite e rode	Edita y ejecuta
+Falta	Falta
+Vou fazer	Se aplicará
+pede senha	pide contraseña
+Na máquina e fora do arquivo	En el equipo y fuera del archivo
+nada é removido	no se elimina nada
+Aplicar?	¿Aplicar?
+Terminou com falhas em	Terminó con fallos en
+Rode `tamagi diff` para ver o que ainda falta.	Ejecuta `tamagi diff` para ver lo que aún falta.
+A caixa padrão é Fedora (com sqlite, rust/cargo, node/npm, python e compiladores).	La caja predeterminada es Fedora (con sqlite, rust/cargo, node/npm, python y compiladores).
+Criar caixa de desenvolvimento com qual distro?	¿Crear caja de desarrollo con qué distro?
+Não deu para criar agora (sem rede?). Depois: tamagi-devbox	No se pudo crear ahora (¿sin red?). Después: tamagi-devbox
+ferramentas do Tamagi atualizadas agora; desktop completo no próximo login.	herramientas de Tamagi actualizadas ahora; escritorio completo en el próximo inicio de sesión.
+uso	uso
+caixas de desenvolvimento (Fedora padrão + multi-distro)	cajas de desarrollo (Fedora predeterminado + multi-distro)
+escolhe a distro e cria a caixa	elige la distro y crea la caja
+entra na caixa (padrão: dev)	entra en la caja (predeterminado: dev)
+instala sqlite, rust/cargo, node/npm, python, gcc	instala sqlite, rust/cargo, node/npm, python, gcc
+lista as distros suportadas	lista las distros compatibles
+lista as caixas criadas	lista las cajas creadas
+atualiza os pacotes da(s) caixa(s)	actualiza los paquetes de la(s) caja(s)
+apaga a caixa (arquivos da pasta pessoal ficam)	elimina la caja (los archivos personales se mantienen)
+Distros	Distros
+argumento inesperado	argumento inesperado
+A caixa já existe	La caja ya existe
+Criando caixa de desenvolvimento	Creando caja de desarrollo
+Instalando ferramentas de desenvolvimento (sqlite, rust/cargo, node/npm, python, compiladores)…	Instalando herramientas de desarrollo (sqlite, rust/cargo, node/npm, python, compiladores)…
+Caixa pronta	Caja lista
+Entrar	Entrar
+A caixa não existe	La caja no existe
+Provisionando caixa	Aprovisionando caja
+Nenhuma caixa de desenvolvimento criada. Crie com	No hay cajas de desarrollo creadas. Crea una con
+Atualizando caixa	Actualizando caja
+Apagar a caixa? Os arquivos da sua pasta pessoal ficam.	¿Eliminar esta caja? Los archivos de tu carpeta personal se mantienen.
+Caixa removida	Caja eliminada
+Escolha a distro da caixa de desenvolvimento (padrão: fedora)	Elige la distro de la caja de desarrollo (predeterminado: fedora)
+Fedora 45 (padrão — sqlite, rust/cargo, node/npm, python, gcc/cmake)	Fedora 45 (predeterminado — sqlite, rust/cargo, node/npm, python, gcc/cmake)
+Arch Linux (rolling — pacman, base-devel, rust, node/npm, sqlite)	Arch Linux (rolling — pacman, base-devel, rust, node/npm, sqlite)
+Pop!_OS 24.04 (apt.pop-os.org + Ubuntu 24.04 — rust, node/npm, sqlite)	Pop!_OS 24.04 (apt.pop-os.org + Ubuntu 24.04 — rust, node/npm, sqlite)
+Ubuntu 26.04 LTS (apt — build-essential, rust, node/npm, sqlite)	Ubuntu 26.04 LTS (apt — build-essential, rust, node/npm, sqlite)
+AlmaLinux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)	AlmaLinux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)
+Rocky Linux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)	Rocky Linux 9 (RHEL/Enterprise — dnf/EPEL, rust, node/npm, sqlite)
+openSUSE Tumbleweed (zypper — rust, node/npm, sqlite)	openSUSE Tumbleweed (zypper — rust, node/npm, sqlite)
+Debian 13 Trixie (apt — estável, rust, node/npm, sqlite)	Debian 13 Trixie (apt — estable, rust, node/npm, sqlite)
+Alpine Linux (musl, ultraleve — apk, rust, node/npm, sqlite)	Alpine Linux (musl, ultraligero — apk, rust, node/npm, sqlite)
+navegadores na caixa Fedora (distrobox)	navegadores en la caja Fedora (distrobox)
+abre o navegador padrão	abre el navegador predeterminado
+abre um navegador específico (chrome, firefox, brave, edge, vivaldi)	abre un navegador específico (chrome, firefox, brave, edge, vivaldi)
+abre num perfil isolado (cria se não existir)	abre en un perfil aislado (lo crea si no existe)
+cria o perfil e um atalho no menu	crea el perfil y un acceso en el menú
+diagnóstico da chave de segurança USB (FIDO2)	diagnóstico de llave de seguridad USB (FIDO2)
+cria a caixa e instala o Chrome	crea la caja e instala Chrome
+define o navegador padrão do sistema	define el navegador predeterminado del sistema
+caixa, navegadores e aceleração de vídeo	caja, navegadores y aceleración de vídeo
+atualiza a caixa e os navegadores	actualiza la caja y los navegadores
+abre um shell na caixa	abre un shell en la caja
+apaga a caixa (perfis e downloads ficam)	elimina la caja (perfiles y descargas se mantienen)
+No menu	En el menú
+Instalando	Instalando
+Criando a caixa de navegadores	Creando la caja de navegadores
+Preparando vídeo por hardware, fontes e idioma	Preparando vídeo por hardware, fuentes e idioma
+Navegador pronto. Estado da aceleração	Navegador listo. Estado de la aceleración
+não está instalado	no está instalado
+nome de perfil inválido	nombre de perfil no válido
+Nenhum perfil. Crie com	Sin perfiles aún. Crea uno con
+Perfil criado	Perfil creado
+não existe o perfil	el perfil no existe
+Apagar o perfil, com logins, histórico e extensões?	¿Eliminar el perfil con sesiones, historial y extensiones?
+rode num terminal para confirmar a remoção do perfil	ejecuta en una terminal para confirmar la eliminación del perfil
+Perfil apagado.	Perfil eliminado.
+Chaves de segurança vistas pelo sistema	Llaves de seguridad detectadas por el sistema
+não	no
+sim	sí
+liberada para você no sistema	accesible para tu usuario en el host
+abre de dentro da caixa	se abre desde dentro de la caja
+NÃO	NO
+nenhuma. Conecte a chave e rode de novo.	ninguna. Conecta la llave y vuelve a ejecutar.
+A caixa ainda não existe	La caja aún no existe
+Conecte a chave ANTES de abrir o navegador.	Conecta la llave ANTES de abrir el navegador.
+Navegador padrão	Navegador predeterminado
+ainda não criada	aún no creada
+Padrão	Predeterminado
+Opções	Opciones
+padrão (aceleração de vídeo ligada)	predeterminado (aceleración de vídeo activada)
+Perfis	Perfiles
+Apagar a caixa e os navegadores dela? Perfis e downloads ficam.	¿Eliminar la caja y sus navegadores? Perfiles y descargas se mantienen.
+Caixa apagada. Para recriar	Caja eliminada. Para recrear
+Não consegui preparar o navegador (sem rede?). Qualquer tecla fecha.	No se pudo preparar el navegador (¿sin red?). Cualquier tecla cierra.
+endurecimento do sistema	endurecimiento del sistema
+o que está ativo agora	qué está activo ahora
+liga o modo estrito (pede a senha; vale após reiniciar)	activa el modo estricto (pide contraseña; aplica tras reiniciar)
+volta ao padrão equilibrado	vuelve al modo equilibrado predeterminado
+USBGuard: só os aparelhos USB já conhecidos funcionam	USBGuard: solo funcionan los dispositivos USB ya conocidos
+hardened_malloc em todos os programas (pode quebrar apps)	hardened_malloc en todos los programas (puede romper apps)
+sem suporte nesta máquina	sin soporte en este equipo
+Modo	Modo
+estrito	estricto
+equilibrado	equilibrado
+Disco criptografado (LUKS)	Disco cifrado (LUKS)
+MAC do Wi-Fi	MAC de Wi-Fi
+aleatório a cada conexão	aleatoria en cada conexión
+um por rede salva	estable por red guardada
+BPF sem privilégio	BPF sin privilegios
+bloqueado	bloqueado
+liberado	permitido
+argumento(s) do modo estrito entram no próximo boot	parámetro(s) de modo estricto aplican al reiniciar
+O modo estrito reduz desempenho/compatibilidade (desliga SMT, restringe ptrace, MAC aleatório, lockdown).	El modo estricto sacrifica rendimiento/compatibilidad por seguridad (desactiva SMT, restringe ptrace, MAC aleatoria, lockdown).
+Não mexe em distrobox, Flatpak nem nos navegadores.	No afecta a distrobox, Flatpak ni navegadores.
+Ligar o modo estrito?	¿Activar el modo estricto?
+Modo estrito ligado. Os argumentos do kernel valem depois de reiniciar.	Modo estricto activado. Los argumentos del kernel aplican tras reiniciar.
+Modo equilibrado. Reinicie para o kernel voltar aos argumentos padrão.	Modo equilibrado restaurado. Reinicia para restaurar los argumentos del kernel.
+Os aparelhos USB conectados AGORA ficam liberados; os novos serão bloqueados.	Los dispositivos USB conectados AHORA quedan permitidos; los nuevos serán bloqueados.
+hardened_malloc não está nesta imagem	hardened_malloc no está en esta imagen
+Todo programa novo passa a usar o hardened_malloc. Para desfazer: tamagi-harden malloc off	Todo programa nuevo usará hardened_malloc. Para deshacer: tamagi-harden malloc off
+pacotes do Fedora por cima da imagem (systemd-sysext)	paquetes de Fedora sobre la imagen (systemd-sysext)
+cria a camada e a liga (pede senha)	crea y activa la capa (pide contraseña)
+desliga e apaga a camada	desactiva y elimina la capa
+camadas, pacotes e estado	capas, paquetes y estado
+refaz as camadas contra a imagem atual	reconstruye las capas para la imagen actual
+desliga / religa todas (sem apagar)	desactiva / reactiva todas las capas (sin eliminar)
+/usr gravável até o próximo reinício	/usr escribible hasta el próximo reinicio
+só gera o arquivo (-o <arquivo>), sem instalar	solo genera el archivo (-o <archivo>), sin instalar
+falta o mkfs.erofs (pacote erofs-utils)	falta mkfs.erofs (paquete erofs-utils)
+nada a fazer: tudo isso já está na imagem	nada que hacer: todo ya está en la imagen
+estes pacotes da imagem seriam atualizados pela camada:	estos paquetes de la imagen serían actualizados por la capa:
+atualize o sistema primeiro (tamagi-update) ou repita com --allow-upgrade	actualiza primero el sistema (tamagi-update) o repite con --allow-upgrade
+os pacotes não instalam nada em /usr	los paquetes no instalan nada en /usr
+diga pelo menos um pacote	indica al menos un paquete
+pacote inválido	paquete no válido
+Ligando a camada	Activando la capa
+Camada ligada	Capa activada
+pacote(s)	paquete(s)
+Para desfazer	Para deshacer
+Gerado	Generado
+Arquivos de /etc dos pacotes	Archivos de /etc de los paquetes
+não existe a camada	la capa no existe
+Camada removida	Capa eliminada
+Nenhuma camada. Exemplo	Sin capas aún. Ejemplo
+sem a lista de pacotes, não dá para refazer	sin lista de paquetes, no se puede reconstruir
+Refazendo a camada	Reconstruyendo la capa
+não consegui refazer; ela continua como estava	no se pudo reconstruir; sigue igual
+Nenhuma camada ligada.	Ninguna capa activa.
+Camadas desligadas. Para religar	Capas desactivadas. Para reactivar
+Nenhuma camada desligada.	Ninguna capa desactivada.
+Camadas religadas.	Capas reactivadas.
+O /usr fica gravável até o próximo reinício; tudo o que mudar some ao reiniciar.	/usr queda escribible hasta el próximo reinicio; los cambios desaparecen al reiniciar.
+pacotes deb, rpm, Arch e Omarchy em subsistemas (distrobox)	paquetes deb, rpm, Arch y Omarchy en subsistemas (distrobox)
+instala e põe os apps no menu	instala y añade las apps al menú
+remove	elimina
+procura	busca
+pacotes que você instalou	paquetes que instalaste
+atualiza o(s) subsistema(s)	actualiza los subsistemas
+roda um comando do subsistema	ejecuta un comando del subsistema
+cria o comando no host (~/.local/bin)	exporta el comando al host (~/.local/bin)
+abre um shell no subsistema	abre un shell en el subsistema
+subsistemas existentes	subsistemas existentes
+(re)configura o repositório do Omarchy	(re)configura el repositorio de Omarchy
+Criando o subsistema	Creando el subsistema
+aviso: não configurei o repositório do Omarchy (sem rede?). Depois: tamagi-pkg omarchy	aviso: no pude configurar el repositorio de Omarchy (¿sin red?). Después: tamagi-pkg omarchy
+app no menu	app en el menú
+não sei instalar o arquivo	no sé instalar el archivo
+diga o que instalar	indica qué instalar
+Instalado em	Instalado en
+Comandos de terminal	Comandos de terminal
+diga o que remover	indica qué eliminar
+o subsistema não existe	el subsistema no existe
+diga o que procurar	indica qué buscar
+Atualizando o subsistema	Actualizando el subsistema
+criado	creado
+(criado no primeiro uso)	(creado en el primer uso)
+diga o comando	indica el comando
+Nome do app (ex.: WhatsApp)	Nombre de la app (ej.: WhatsApp)
+Endereço (ex.: https://web.whatsapp.com)	URL (ej.: https://web.whatsapp.com)
+Web app criado	Aplicación web creada
+Remover qual?	¿Cuál eliminar?
+não achei o web app	aplicación web no encontrada
+Web app removido	Aplicación web eliminada
+Perfil de desempenho	Perfil de rendimiento
+Kernel	Kernel
+CPU (driver/gov/EPP)	CPU (driver/gov/EPP)
+Escalonador sched_ext	Planificador sched_ext
+Writeback (dirty)	Writeback (dirty)
+NMI watchdog	NMI watchdog
+Rede (TCP)	Red (TCP)
+zram	zram
+Discos (escalonador)	Discos (planificador)
+perfil desconhecido	perfil desconocido
+Perfil de desempenho ativado	Perfil de rendimiento activado
+Economia de bateria (powersave, EEVDF padrão)	Ahorro de batería (powersave, EEVDF estándar)
+Equilibrado para uso diário (padrão)	Equilibrado para uso diario (predeterminado)
+Desempenho máximo (throughput-performance + scx_rusty)	Rendimiento máximo (throughput-performance + scx_rusty)
+Baixa latência para jogos e áudio (latency-performance + scx_rusty)	Baja latencia para juegos y audio (latency-performance + scx_rusty)
+atual	actual
+Executando micro-benchmark rápido…	Ejecutando micro-benchmark rápido…
+SHA-256 (256 MiB)	SHA-256 (256 MiB)
+zstd -1 multi-core (64 MiB)	zstd -1 multi-core (64 MiB)
+Abertura do shell (média)	Apertura del shell (promedio)
+perfis de desempenho, sched_ext e telemetria	perfiles de rendimiento, sched_ext y telemetría
+mostra telemetria de desempenho	muestra telemetría de rendimiento
+escolhe o perfil numa lista	elige un perfil de la lista
+ajusta conforme tomada ou bateria	ajusta según corriente o batería
+micro-benchmark rápido	micro-benchmark rápido
+telemetria em JSON	telemetría en JSON
+Ambientes declarativos por projeto (tamagi-workspace.toml)	Entornos declarativos por proyecto (tamagi-workspace.toml)
+diretório do projeto	directorio del proyecto
+detecta o stack e gera tamagi-workspace.toml	detecta el stack y genera tamagi-workspace.toml
+nome da caixa distrobox	nombre de la caja distrobox
+sobrescreve se já existir	sobrescribe si ya existe
+mostra o estado do workspace	muestra el estado del workspace
+prepara caixa, pacotes e bancos do projeto	prepara caja, paquetes y bases de datos del proyecto
+prepara e entra no shell do projeto	prepara y entra al shell del proyecto
+executa uma tarefa declarada na caixa do projeto	ejecuta una tarea declarada en la caja del proyecto
+lista as tarefas declaradas	lista las tareas declaradas
+ambiente declarativo do projeto (tamagi-workspace)	entorno declarativo del proyecto (tamagi-workspace)
+Arquivo já existe	El archivo ya existe
+Workspace criado	Workspace creado
+Stack detectado	Stack detectado
+Bancos detectados	Bases de datos detectadas
+Workspace	Workspace
+não inicializado — rode: tamagi-workspace init	no inicializado — ejecuta: tamagi-workspace init
+pronta	lista
+Stack	Stack
+Bancos	Bases de datos
+Tarefas	Tareas
+Workspace pronto	Workspace listo
+não encontrado	no encontrado
+tarefa desconhecida	tarea desconocida
+distro	distro
+banco desconhecido	base de datos desconocida
+não foi possível medir o espaço em disco	no se pudo medir el espacio en disco
+systemd indisponível neste ambiente	systemd no disponible en este entorno
+nenhuma unidade com falha	ninguna unidad con fallos
+camadas em dia	capas al día
+podman indisponível neste ambiente	podman no disponible en este entorno
+nenhum nó DRM render encontrado	no se encontró ningún nodo DRM render
+/dev/kvm ausente (virtualização desligada na BIOS?)	falta /dev/kvm (¿virtualización desactivada en BIOS?)
+sem permissão de leitura/escrita em /dev/kvm	sin permisos de lectura/escritura en /dev/kvm
+VM popos está com Secure Boot ligado (o Pop!_OS não inicia assim)	la VM popos tiene Secure Boot activado (Pop!_OS no arranca así)
+agy instalado mas sem entrada no menu	agy está instalado pero falta en el menú
+menu e entradas .desktop válidos	menú y entradas .desktop válidos
+backend Vulkan do llama.cpp ausente	falta el backend Vulkan de llama.cpp
+Nenhum problema encontrado para explicar.	No se encontraron problemas para explicar.
+IA local indisponível (inicie com: tamagi-ai start).	IA local no disponible (inicia con: tamagi-ai start).
+Diagnóstico autônomo de saúde, integridade e desempenho do Tamagi	Diagnóstico autónomo de salud, integridad y rendimiento de Tamagi
+saída estruturada em JSON	salida estructurada en JSON
+aplica correções seguras no usuário	aplica correcciones seguras en el usuario
+pede explicação à IA local (llama.cpp)	pide explicación a la IA local (llama.cpp)
+Digest em quarentena	Digest en cuarentena
+Relatório de boot pendente	Informe de arranque pendiente
+chave Secure Boot do Universal Blue ausente	falta la clave Secure Boot de Universal Blue
+espaço crítico	espacio crítico
+espaço baixo	espacio bajo
+pasta de VMs sem atributo NoCoW (+C)	carpeta de VMs sin atributo NoCoW (+C)
+livres	libres
+unidades com falha	unidades con fallos
+camadas desatualizadas	capas desactualizadas
+caixas distrobox	cajas distrobox
+modo	modo
+entradas .desktop inválidas	entradas .desktop no válidas
+parado	detenido
+Correções aplicadas	Correcciones aplicadas
+Resumo	Resumen
+Análise da IA local	Análisis de la IA local
+# tamagi-gaming & doctor .local check
+pertence a outro usuário (root?)	pertenece a otro usuario (¿root?)
+jogos no Tamagi (estilo Bazzite: nativo ou Flatpak)	juegos en Tamagi (estilo Bazzite: nativo o Flatpak)
+escolhe entre modo nativo (Bazzite), Flatpak ou ambos	elige entre modo nativo (Bazzite), Flatpak o ambos
+instala Steam, drivers 32-bit, Lutris, Wine, GOverlay, vkBasalt nativamente	instala Steam, drivers 32-bit, Lutris, Wine, GOverlay y vkBasalt de forma nativa
+instala Steam, Lutris, Heroic, ProtonUp-Qt e Bottles por Flatpak	instala Steam, Lutris, Heroic, ProtonUp-Qt y Bottles vía Flatpak
+ativa o perfil de baixa latência (tuned + scx_rusty)	activa el perfil de baja latencia (tuned + scx_rusty)
+mostra o que está instalado para jogos	muestra qué está instalado para juegos
+remove a camada nativa de jogos	elimina la capa nativa de juegos
+Steam nativo + bibliotecas 32-bit (RPM Fusion)	Steam nativo + bibliotecas 32-bit (RPM Fusion)
+Lutris nativo (gestor de jogos)	Lutris nativo (gestor de juegos)
+Wine + Winetricks nativos (jogos Windows)	Wine + Winetricks nativos (juegos de Windows)
+GOverlay + vkBasalt (interface para MangoHud e pós-processamento)	GOverlay + vkBasalt (interfaz de MangoHud y posprocesado)
+Protontricks (ajustes de prefixos Proton)	Protontricks (ajustes de prefijos Proton)
+Espaço/Tab marca · Enter instala nativamente (camada reversível)	Espacio/Tab marca · Enter instala nativamente (capa reversible)
+Nada escolhido.	Nada seleccionado.
+Construindo camada nativa de jogos	Construyendo capa nativa de juegos
+Jogos nativos prontos (camada 'gaming' sobre /usr). Para desfazer: tamagi-gaming remove	Juegos nativos listos (capa 'gaming' sobre /usr). Para deshacer: tamagi-gaming remove
+Dica Steam (opções de inicialização)	Consejo Steam (opciones de lanzamiento)
+Ativar também o perfil de baixa latência (tuned + scx_rusty)?	¿Activar también el perfil de baja latencia (tuned + scx_rusty)?
+Espaço/Tab marca · Enter instala (Flatpak)	Espacio/Tab marca · Enter instala (Flatpak)
+Apps Flatpak de jogos instalados.	Apps Flatpak de juegos instaladas.
+Base nativa	Base nativa
+Camada nativa gaming	Capa nativa gaming
+não instalada	no instalada
+Steam nativo	Steam nativo
+Lutris / Wine nativo	Lutris / Wine nativo
+Jogos Flatpak	Juegos Flatpak
+gamescope, MangoHud, GameMode, controles Xbox e kernel OGC já vêm na imagem.	gamescope, MangoHud, GameMode, mandos Xbox y kernel OGC ya vienen en la imagen.
+Nativo (estilo Bazzite) — Steam, 32-bit, Lutris, Wine, GOverlay, vkBasalt	Nativo (estilo Bazzite) — Steam, 32-bit, Lutris, Wine, GOverlay, vkBasalt
+Flatpak (sandbox) — Steam, Lutris, Heroic, ProtonUp-Qt, Bottles	Flatpak (sandbox) — Steam, Lutris, Heroic, ProtonUp-Qt, Bottles
+Perfil de baixa latência — tuned + escalonador BPF scx_rusty	Perfil de baja latencia — tuned + planificador BPF scx_rusty
+Como instalar os recursos de jogos?	¿Cómo instalar las herramientas de juegos?
+Repetir com --allow-upgrade para alinhar as bibliotecas 32-bit à versão atual do Fedora?	¿Reintentar con --allow-upgrade para alinear las bibliotecas de 32 bits con la versión actual de Fedora?
+sem zram0	sin zram0

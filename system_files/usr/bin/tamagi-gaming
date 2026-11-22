@@ -1,0 +1,174 @@
+#!/usr/bin/bash
+# tamagi-gaming — recursos de jogos no Tamagi (estilo Bazzite: nativo ou Flatpak).
+#
+# O Tamagi já traz na base o kernel OGC (Bazzite), gamescope, MangoHud,
+# GameMode, regras de controles (steam-devices), drivers Xbox (xone/xpadneo) e
+# scx_rusty. Este comando instala sob demanda o restante — nativamente no /usr
+# via camada reversível (tamagi-layer) ou via Flatpak.
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+# shellcheck source=/dev/null
+[[ -r /usr/share/tamagi/gum.env ]] && . /usr/share/tamagi/gum.env
+
+MULTI=/usr/libexec/tamagi/gum-multi
+LAYER=gaming
+
+die() { echo "$(t "erro"): $*" >&2; exit 1; }
+info() { echo -e "\033[1m$*\033[0m"; }
+
+# Pacotes nativos estilo Bazzite (camada sysext sobre /usr, 100% reversível).
+NATIVE_BASE=(
+    mesa-dri-drivers.i686 mesa-vulkan-drivers.i686 vulkan-loader.i686
+    gamemode.i686 mangohud.i686
+)
+
+usage() {
+    echo "tamagi-gaming — $(t "jogos no Tamagi (estilo Bazzite: nativo ou Flatpak)")"
+    echo
+    echo "  tamagi-gaming            $(t "escolhe entre modo nativo (Bazzite), Flatpak ou ambos")"
+    echo "  tamagi-gaming native     $(t "instala Steam, drivers 32-bit, Lutris, Wine, GOverlay, vkBasalt nativamente")"
+    echo "  tamagi-gaming flatpak    $(t "instala Steam, Lutris, Heroic, ProtonUp-Qt e Bottles por Flatpak")"
+    echo "  tamagi-gaming latency    $(t "ativa o perfil de baixa latência (tuned + scx_rusty)")"
+    echo "  tamagi-gaming status     $(t "mostra o que está instalado para jogos")"
+    echo "  tamagi-gaming remove     $(t "remove a camada nativa de jogos")"
+}
+
+cmd_native() {
+    # Bibliotecas 32-bit (.i686) exigem versão exata igual à contraparte .x86_64
+    # nos repositórios do Fedora; --allow-upgrade alinha pacotes pontuais na
+    # camada reversível sem precisar baixar ~350 MB duas vezes.
+    local all=0 allow_upgrade=1
+    while (( $# )); do
+        case "$1" in
+            --all)           all=1 ;;
+            --allow-upgrade) allow_upgrade=1 ;;
+            --strict)        allow_upgrade=0 ;;
+            *) die "$(t "opção desconhecida"): $1" ;;
+        esac
+        shift
+    done
+    local pkgs=("${NATIVE_BASE[@]}")
+    local use_rpmfusion=0
+    local picked=""
+    if (( all )); then
+        pkgs+=(steam lutris wine winetricks goverlay vkBasalt protontricks)
+        use_rpmfusion=1
+    elif [[ -t 0 ]]; then
+        picked=$(printf '%s\n' \
+            "steam       $(t "Steam nativo + bibliotecas 32-bit (RPM Fusion)")" \
+            "lutris      $(t "Lutris nativo (gestor de jogos)")" \
+            "wine        $(t "Wine + Winetricks nativos (jogos Windows)")" \
+            "overlay     $(t "GOverlay + vkBasalt (interface para MangoHud e pós-processamento)")" \
+            "protontricks $(t "Protontricks (ajustes de prefixos Proton)")" \
+            | "$MULTI" --selected "steam       $(t "Steam nativo + bibliotecas 32-bit (RPM Fusion)")" \
+                --height 10 --header "$(t "Espaço/Tab marca · Enter instala nativamente (camada reversível)")") || exit 0
+        [[ -n $picked ]] || { tl "Nada escolhido."; return 0; }
+        while read -r key _; do
+            case "$key" in
+                steam)        pkgs+=(steam); use_rpmfusion=1 ;;
+                lutris)       pkgs+=(lutris) ;;
+                wine)         pkgs+=(wine winetricks) ;;
+                overlay)      pkgs+=(goverlay vkBasalt) ;;
+                protontricks) pkgs+=(protontricks) ;;
+            esac
+        done <<<"$picked"
+    else
+        pkgs+=(steam lutris wine winetricks goverlay vkBasalt protontricks)
+        use_rpmfusion=1
+    fi
+
+    local flags=() rc=0
+    (( use_rpmfusion )) && flags+=(--rpmfusion)
+    (( allow_upgrade )) && flags+=(--allow-upgrade)
+    info "$(t "Construindo camada nativa de jogos") ($LAYER)…"
+    tamagi-layer add "$LAYER" "${flags[@]}" "${pkgs[@]}" || rc=$?
+    if (( rc == 4 && ! allow_upgrade )) && [[ -t 0 ]]; then
+        if gum confirm "$(t "Repetir com --allow-upgrade para alinhar as bibliotecas 32-bit à versão atual do Fedora?")" \
+                --affirmative "$(t "Sim")" --negative "$(t "Não")"; then
+            rc=0
+            tamagi-layer add "$LAYER" "${flags[@]}" --allow-upgrade "${pkgs[@]}" || rc=$?
+        fi
+    fi
+    (( rc == 0 )) || exit "$rc"
+    echo
+    tl "Jogos nativos prontos (camada 'gaming' sobre /usr). Para desfazer: tamagi-gaming remove"
+    echo "$(t "Dica Steam (opções de inicialização)"): gamemoderun mangohud gamescope -f -- %command%"
+    if [[ -t 0 ]]; then
+        if gum confirm "$(t "Ativar também o perfil de baixa latência (tuned + scx_rusty)?")" \
+                --affirmative "$(t "Sim")" --negative "$(t "Não")"; then
+            tamagi-perf set latency || true
+        fi
+    fi
+}
+
+cmd_flatpak() {
+    local apps ids=()
+    if [[ -t 0 ]]; then
+        apps=$(printf '%s\n' \
+            "Steam" "Lutris" "Heroic (Epic/GOG)" "ProtonUp-Qt" "Bottles" \
+            | "$MULTI" --selected "Steam" --height 10 \
+                --header "$(t "Espaço/Tab marca · Enter instala (Flatpak)")") || exit 0
+    else
+        apps=$'Steam\nHeroic (Epic/GOG)\nProtonUp-Qt'
+    fi
+    while read -r app; do
+        case "$app" in
+            Steam)        ids+=(com.valvesoftware.Steam org.freedesktop.Platform.VulkanLayer.MangoHud) ;;
+            Lutris)       ids+=(net.lutris.Lutris) ;;
+            Heroic*)      ids+=(com.heroicgameslauncher.hgl) ;;
+            ProtonUp-Qt)  ids+=(net.davidotek.pupgui2) ;;
+            Bottles)      ids+=(com.usebottles.bottles) ;;
+        esac
+    done <<<"$apps"
+    (( ${#ids[@]} )) || { tl "Nada escolhido."; return 0; }
+    flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null \
+        || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+    flatpak install --user -y flathub "${ids[@]}"
+    tl "Apps Flatpak de jogos instalados."
+}
+
+cmd_status() {
+    echo "$(t "Kernel")               : $(uname -r) ($(cat /usr/share/tamagi/kernel-flavor 2>/dev/null || echo -))"
+    echo "$(t "Base nativa")          : gamescope · mangohud · gamemode · steam-devices · scx_rusty"
+    local layer_st
+    layer_st=$(tamagi-layer list 2>/dev/null | awk -v l="$LAYER" '$1 == l {print $2; exit}')
+    echo "$(t "Camada nativa gaming") : ${layer_st:-$(t "não instalada")} (tamagi-gaming native)"
+    echo "$(t "Steam nativo")         : $(command -v steam >/dev/null 2>&1 && t "sim" || t "não")"
+    echo "$(t "Lutris / Wine nativo") : $(command -v lutris >/dev/null 2>&1 && t "sim" || t "não") / $(command -v wine >/dev/null 2>&1 && t "sim" || t "não")"
+    local fp_games=() app
+    for app in com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl net.davidotek.pupgui2 com.usebottles.bottles; do
+        flatpak info "$app" >/dev/null 2>&1 && fp_games+=("${app##*.}")
+    done
+    echo "$(t "Jogos Flatpak")        : ${fp_games[*]:--}"
+    echo "$(t "Perfil de desempenho") : $(tamagi-perf --json 2>/dev/null | jq -r '.profile + " (sched_ext: " + .sched_ext + ")"' 2>/dev/null || echo -)"
+}
+
+cmd_remove() {
+    tamagi-layer remove "$LAYER"
+}
+
+cmd_setup() {
+    if [[ ! -t 0 ]]; then cmd_status; return 0; fi
+    tl "gamescope, MangoHud, GameMode, controles Xbox e kernel OGC já vêm na imagem."
+    local opt_nat opt_fp opt_lat choice
+    opt_nat=$(t "Nativo (estilo Bazzite) — Steam, 32-bit, Lutris, Wine, GOverlay, vkBasalt")
+    opt_fp=$(t "Flatpak (sandbox) — Steam, Lutris, Heroic, ProtonUp-Qt, Bottles")
+    opt_lat=$(t "Perfil de baixa latência — tuned + escalonador BPF scx_rusty")
+    choice=$(gum choose --header "$(t "Como instalar os recursos de jogos?")" "$opt_nat" "$opt_fp" "$opt_lat") || exit 0
+    case "$choice" in
+        "$opt_nat") cmd_native ;;
+        "$opt_fp")  cmd_flatpak ;;
+        "$opt_lat") tamagi-perf set latency ;;
+    esac
+}
+
+case "${1:-setup}" in
+    setup|instalar)       cmd_setup ;;
+    native|nativo)        shift; cmd_native "$@" ;;
+    flatpak)              cmd_flatpak ;;
+    latency|latencia)     tamagi-perf set latency ;;
+    status|estado)        cmd_status ;;
+    remove|remover)       cmd_remove ;;
+    -h|--help|help|ajuda) usage ;;
+    *)                    usage >&2; exit 2 ;;
+esac

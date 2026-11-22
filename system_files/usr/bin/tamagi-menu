@@ -107,15 +107,35 @@ UI = {
 }
 
 INTERACTIVE_NO_PAUSE = {
-    "tamagi-agent", "claude", "tamagi-ai code", "tamagi-firstrun --force",
+    "tamagi-agent", "claude", "agy", "tamagi-ai code", "tamagi-firstrun --force",
     "tamagi-keys", "tamagi-theme pick", "tamagi-panel pick", "tamagi-lang pick",
+    "tamagi-devbox", "tamagi-perf pick", "tamagi-gaming",
 }
 
 
-def detect_lang():
-    raw = os.environ.get("TAMAGI_LANG") or (
-        os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG") or "en"
+def is_available(action):
+    """Retorna False se a ação exige um binário (try_exec) não instalado."""
+    req = action.get("try_exec")
+    if not req:
+        return True
+    if shutil.which(req):
+        return True
+    home = pathlib.Path.home()
+    return (
+        os.access(home / ".local/bin" / req, os.X_OK)
+        or os.access(home / ".local/share/mise/shims" / req, os.X_OK)
     )
+
+
+def detect_lang():
+    raw = os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+    if not raw:
+        try:
+            raw = (CONFIG_DIR / "lang").read_text(encoding="utf-8").strip().splitlines()[0]
+        except (OSError, IndexError):
+            raw = ""
+    if not raw:
+        raw = os.environ.get("LANG") or "en"
     code = raw.split("_")[0].split(".")[0].lower()
     return code if code in ("pt", "en", "es", "fr") else "en"
 
@@ -314,7 +334,10 @@ def spawn_action(action, lang):
 
 
 def run_cli_fallback(cats, actions, lang, initial_cat, list_only=False):
-    filtered = [a for a in actions if initial_cat == "all" or a.get("category") == initial_cat]
+    filtered = [
+        a for a in actions
+        if is_available(a) and (initial_cat == "all" or a.get("category") == initial_cat)
+    ]
     if not list_only and shutil.which("gum") and sys.stdin.isatty():
         labels = [f"{loc(a['title'], lang)}  —  {loc(a['subtitle'], lang)}" for a in filtered]
         r = subprocess.run(["gum", "filter", "--placeholder", UI[lang]["placeholder"]],
@@ -693,6 +716,8 @@ def run_gui(cats, actions, lang, initial_cat, service=False):
             query = self.search.get_text().strip()
             scored = []
             for a in actions:
+                if not is_available(a):
+                    continue
                 if not query and self.active_cat != "all" and a.get("category") != self.active_cat:
                     continue
                 if query and self.active_cat != "all" and a.get("category") != self.active_cat:
@@ -887,7 +912,7 @@ def main():
                 "command": a["command"],
             }
             for a in actions
-            if initial_cat == "all" or a.get("category") == initial_cat
+            if is_available(a) and (initial_cat == "all" or a.get("category") == initial_cat)
         ]
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0

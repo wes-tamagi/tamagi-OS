@@ -22,8 +22,14 @@ systemctl enable tamagi-secureboot-guard.path
 systemctl enable systemd-sysext.service
 
 # Virtualização: os daemons do libvirt sobem por socket, só quando usados.
+systemctl disable virtqemud.service 2>/dev/null || true
 systemctl enable virtqemud.socket virtnetworkd.socket virtstoraged.socket \
     virtnodedevd.socket virtsecretd.socket virtinterfaced.socket virtlogd.socket
+
+# Boot mais rápido e menos ruído em background:
+#   - NetworkManager-wait-online atrasa o boot esperando DHCP/Wi-Fi sem necessidade;
+#   - dnf-makecache.timer não serve num host imutável (bootc não usa dnf no host).
+systemctl disable NetworkManager-wait-online.service dnf-makecache.timer 2>/dev/null || true
 
 # Atualização automática dos subsistemas e do mise, para todo usuário (a da
 # imagem e a dos Flatpaks já vêm ligadas pela base).

@@ -5,31 +5,54 @@
 #   tamagi-lang pick       escolhe numa lista
 #   tamagi-lang set <pt|en|es|fr>
 #
-# Troca o idioma do sistema inteiro (desktop COSMIC, apps e as ferramentas do
-# Tamagi); vale no próximo login. O teclado não muda: Configurações > Teclado.
+# Troca o idioma das ferramentas do Tamagi na hora (~/.config/tamagi/lang) e
+# do sistema inteiro (desktop COSMIC e apps) no próximo login.
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
 declare -A LOCALE=([pt]=pt_BR.UTF-8 [en]=en_US.UTF-8 [es]=es_ES.UTF-8 [fr]=fr_FR.UTF-8)
 declare -A NAME=([pt]="Português (Brasil)" [en]="English (United States)" [es]="Español" [fr]="Français")
+LANG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/lang"
 
-current() { local l; l=$(localectl status 2>/dev/null | sed -n 's/.*LANG=\([a-zA-Z_]*\).*/\1/p' | head -1); echo "${l:-${LANG:-pt_BR}}"; }
+current() {
+    local l
+    if [[ -r $LANG_FILE ]]; then
+        l=$(head -n 1 "$LANG_FILE" 2>/dev/null || true)
+        if [[ -n ${LOCALE[$l]:-} ]]; then echo "${LOCALE[$l]} ($l)"; return 0; fi
+    fi
+    l=$(localectl status 2>/dev/null | sed -n 's/.*LANG=\([a-zA-Z_]*\).*/\1/p' | head -1)
+    echo "${l:-${LANG:-pt_BR}}"
+}
 
 set_lang() {
     local code=$1
     [[ -n $code && -n ${LOCALE[$code]:-} ]] || { echo "$(t "idioma desconhecido"): $code (pt, en, es, fr)" >&2; exit 2; }
-    if [[ $(id -u) == 0 ]]; then localectl set-locale "LANG=${LOCALE[$code]}"
+    mkdir -p "$(dirname "$LANG_FILE")"
+    printf '%s\n' "$code" > "$LANG_FILE"
+    systemctl --user set-environment "LANG=${LOCALE[$code]}" 2>/dev/null || true
+    if [[ $(id -u) == 0 ]]; then localectl set-locale "LANG=${LOCALE[$code]}" 2>/dev/null || true
     else sudo localectl set-locale "LANG=${LOCALE[$code]}"; fi
-    echo "${NAME[$code]} — $(t "vale no próximo login (saia da sessão e entre de novo).")"
+    # Recarrega o daemon do tamagi-menu (Super+Espaço) no idioma recém-escolhido.
+    if [[ -n ${USER:-} ]] && pgrep -u "$USER" -f 'tamagi-menu --service' >/dev/null 2>&1; then
+        pkill -u "$USER" -f 'tamagi-menu --service' 2>/dev/null || true
+        setsid -f tamagi-menu --service >/dev/null 2>&1 || true
+    fi
+    TAMAGI_LANG=$code
+    # Recarrega traduções no idioma recém-escolhido para a mensagem de confirmação.
+    # shellcheck source=/dev/null
+    . /usr/libexec/tamagi/i18n
+    echo "${NAME[$code]} — $(t "ferramentas do Tamagi atualizadas agora; desktop completo no próximo login.")"
 }
 
 case "${1:-}" in
-    "")   echo "$(t "Idioma do sistema"): $(current)" ;;
-    list) for c in pt en es fr; do printf '%s  %s\n' "$c" "${NAME[$c]}"; done ;;
-    pick) choice=$(for c in pt en es fr; do echo "${NAME[$c]}"; done | gum choose --header "$(t "Idioma do sistema")") || exit 0
-          for c in pt en es fr; do
-              if [[ ${NAME[$c]} == "$choice" ]]; then set_lang "$c"; break; fi
-          done ;;
-    set)  set_lang "${2:-}" ;;
-    *)    echo "uso: tamagi-lang [list|pick|set <pt|en|es|fr>]" >&2; exit 2 ;;
+    "")            echo "$(t "Idioma do sistema"): $(current)" ;;
+    list|lista)    for c in pt en es fr; do printf '%s  %s\n' "$c" "${NAME[$c]}"; done ;;
+    pick|escolher) choice=$(for c in pt en es fr; do echo "${NAME[$c]}"; done | gum choose --header "$(t "Idioma do sistema")") || exit 0
+                   for c in pt en es fr; do
+                       if [[ ${NAME[$c]} == "$choice" ]]; then set_lang "$c"; break; fi
+                   done ;;
+    set|definir)   set_lang "${2:-}" ;;
+    -h|--help|help|ajuda)
+                   echo "tamagi-lang [list|pick|set <pt|en|es|fr>]" ;;
+    *)             echo "$(t "uso"): tamagi-lang [list|pick|set <pt|en|es|fr>]" >&2; exit 2 ;;
 esac

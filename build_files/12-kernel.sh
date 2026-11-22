@@ -74,7 +74,7 @@ if [[ $kver != "$base_kver" ]]; then
     done
     "${install_new[@]}"
     for h in "${hooks[@]}"; do [[ -f $h.tamagi-bak ]] && mv -f "$h.tamagi-bak" "$h"; done
-    rm -rf /boot/* 2>/dev/null || true
+    find /boot -mindepth 1 -delete 2>/dev/null || true
     [[ $(ls /usr/lib/modules) == "$kver" ]] || { echo "depois da troca esperava só $kver, achei: $(ls /usr/lib/modules | tr '\n' ' ')" >&2; exit 1; }
     [[ -f /usr/lib/modules/$kver/vmlinuz ]] || { echo "sem vmlinuz em /usr/lib/modules/$kver" >&2; exit 1; }
     depmod -a "$kver"
