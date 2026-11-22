@@ -54,6 +54,7 @@ BROWSER_METHODS = ("flatpak", "native", "box")
 BOX_DISTROS = ("fedora", "ubuntu", "opensuse", "arch")
 AGENTS = ("claude", "antigravity", "codex", "clio", "qwen", "opencode", "gemini", "openclaw")
 PERF_PROFILES = ("eco", "balanced", "performance", "latency")
+MANAGED_LAYERS = {"virt", "gaming", "tailscale", "vscode"}
 BROWSER_BOX = os.environ.get("TAMAGI_BROWSER_BOX", "browsers")
 KNOWN = {
     "appearance": {"theme", "tiling"},
@@ -212,6 +213,11 @@ def layers():
     """Layers of tamagi-layer: name -> requested packages."""
     found = {}
     for f in sorted(pathlib.Path("/var/lib/tamagi/layers").glob("*.request")):
+        # Layers made by other commands (tamagi vm, gaming, browser --native,
+        # Tailscale, VS Code) carry options a plain `tamagi layer add` has not:
+        # they are described by [catalog] and [browsers], not here.
+        if f.stem in MANAGED_LAYERS or f.stem.startswith("browser-"):
+            continue
         try:
             found[f.stem] = f.read_text().split()
         except OSError:

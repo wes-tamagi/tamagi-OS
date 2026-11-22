@@ -114,7 +114,8 @@ install_github() {
             || echo "$name: $(t "the box has no complete Perl; run"): tamagi devbox provision $BOX" >&2
         write_launcher clio "$CLIO_DIR/clio"
     else
-        bin=$(find "$tmp/x" -type f -perm -u+x | head -1)
+        # The executable named after the agent (codex ships it as codex-<target>).
+        bin=$(find "$tmp/x" -type f -perm -u+x \( -name "$name" -o -name "$name-*" \) | head -1)
         [[ -n $bin ]] || die "$name: $(t "the package has no executable")"
         install -Dm755 "$bin" "$BIN_DIR/$name"
     fi
@@ -128,7 +129,9 @@ install_npm() {
     local name=$1
     ensure_box
     info "npm install -g ${NPM[$name]}   ($(t "box") $BOX)"
-    distrobox enter "$BOX" -- npm install -g --prefix "$PREFIX" "${NPM[$name]}"
+    # Jailed: an install script of the package (postinstall) sees the prefix, not your home.
+    mkdir -p "$PREFIX"
+    distrobox enter "$BOX" -- "$JAIL_BOX" --root "$PREFIX" --cwd "$PREFIX" -- npm install -g --prefix "$PREFIX" "${NPM[$name]}"
     [[ -e $PREFIX/bin/$name ]] || die "$name: $(t "npm did not create the executable")"
     write_launcher "$name" "$PREFIX/bin/$name"
 }
@@ -203,43 +206,11 @@ save_point() { # save_point <project> <label> <db?>: what `rewind` and git can b
     fi
 }
 
-# jail_args <project> <offline> <agent|"">: the bubblewrap options, one per line
-jail_args() {
-    local root=$1 offline=$2 agent=$3 home rel d
-    home=$(realpath "$HOME")
-    printf '%s\n' --die-with-parent --unshare-pid --unshare-ipc --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp
-    # Nothing of the home, of the session (D-Bus, sockets) or of the host seen
-    # from inside a box; then the project and what the agent itself needs.
-    # (every place where personal files live is emptied: all the homes,
-    # removable and mounted disks)
-    for d in /var/home /home /root /var/roothome /run/media /media /mnt; do
-        [[ -d $d && ! -L $d ]] && printf '%s\n' --tmpfs "$d"
-    done
-    case $home in
-        /var/home/*|/home/*) printf '%s\n' --dir "$home" ;;
-        *)                   printf '%s\n' --tmpfs "$home" ;;
-    esac
-    printf '%s\n' --tmpfs "/run/user/$(id -u)"
-    [[ -d /run/host && ! -L /run/host ]] && printf '%s\n' --tmpfs /run/host
-    printf '%s\n' --bind "$root" "$root"
-    for rel in .local/bin .local/share/claude .local/share/tamagi/agents .local/share/tamagi/clio .config/mise .gitconfig; do
-        [[ -e $home/$rel ]] && printf '%s\n' --ro-bind "$home/$rel" "$home/$rel"
-    done
-    for d in "$home"/.local/share/mise-*; do
-        [[ -d $d ]] && printf '%s\n' --ro-bind "$d" "$d"
-    done
-    if [[ -n $agent ]]; then
-        for rel in ${STATE[$agent]}; do
-            mkdir -p "$home/$rel"
-            printf '%s\n' --bind "$home/$rel" "$home/$rel"
-        done
-    fi
-    (( offline )) && printf '%s\n' --unshare-net
-    printf '%s\n' --setenv HOME "$home" --setenv TAMAGI_AGENT_JAIL 1 --chdir "$PWD"
-    # Claude Code keeps its settings file next to the folder; inside the jail it goes in the folder.
-    [[ $agent == claude ]] && printf '%s\n' --setenv CLAUDE_CONFIG_DIR "$home/.claude"
-    return 0
-}
+# The jail is built by /usr/libexec/tamagi/agent-jail, run where the agent
+# will run: here, or inside the development box (through /run/host). What has
+# to be hidden differs between the two, so it is decided on the spot.
+JAIL_HOST="${TAMAGI_LIBEXEC:-/usr/libexec/tamagi}/agent-jail"
+JAIL_BOX="${TAMAGI_BOX_LIBEXEC:-/run/host/usr/libexec/tamagi}/agent-jail"
 
 cmd_run() { # cmd_run <shell?> args…
     local shell=$1 offline=0 db=0 snapshot=1 use_box=1 print=0 agent="" root; shift
@@ -256,42 +227,44 @@ cmd_run() { # cmd_run <shell?> args…
         esac
         shift
     done
-    local -a cmd
+    local home; home=$(realpath "$HOME")
+    local -a cmd opts=()
     if (( shell )); then
         cmd=("$@"); (( ${#cmd[@]} )) || cmd=(bash)
     else
         agent=$(canon "${1:-}"); shift || true
         known "$agent" && [[ -n ${STATE[$agent]} ]] || die "usage: tamagi agents run <claude|codex|clio|qwen|opencode|gemini|openclaw> [args]"
         is_installed "$agent" || die "$agent $(t "is not installed"): tamagi agents install $agent"
-        cmd=("$BIN_DIR/$agent" "$@")
+        cmd=("$home/.local/bin/$agent" "$@")
         [[ -n ${NPM[$agent]:-} ]] && cmd=("$PREFIX/bin/$agent" "$@")
         [[ $agent == clio ]] && cmd=("$CLIO_DIR/clio" "$@")
-        if [[ $agent == claude && -f $HOME/.claude.json && ! -e $HOME/.claude/.claude.json ]]; then
-            mkdir -p "$HOME/.claude"; cp "$HOME/.claude.json" "$HOME/.claude/.claude.json"
+        opts+=(--state "${STATE[$agent]}")
+        if [[ $agent == claude ]]; then
+            # Claude Code keeps its settings file next to its folder; inside the jail it goes in the folder.
+            if [[ -f $home/.claude.json && ( ! -e $home/.claude/.claude.json || $home/.claude.json -nt $home/.claude/.claude.json ) ]]; then
+                mkdir -p "$home/.claude"; cp "$home/.claude.json" "$home/.claude/.claude.json"
+            fi
+            opts+=(--setenv "CLAUDE_CONFIG_DIR=$home/.claude")
         fi
     fi
     root=$(project_root)
-    # In the development box the agent has compilers, Node and git; npm agents live there.
+    (( offline )) && opts+=(--offline)
+    (( print )) && opts+=(--print)
+    opts+=(--root "$root" --cwd "$(realpath "$PWD")")
+    # In the development box the agent has compilers, Node and git; npm agents and CLIO live there.
     local in_box=0
     if (( use_box )) && podman container exists "$BOX" 2>/dev/null; then in_box=1; fi
     if [[ -n $agent ]] && needs_box "$agent" && (( ! in_box )); then
         die "$agent $(t "runs in the development box"): tamagi devbox create"
     fi
-    local -a jail
-    mapfile -t jail < <(jail_args "$root" "$offline" "$agent")
-    if (( print )); then
-        (( in_box )) && echo "distrobox enter $BOX --"
-        printf 'bwrap %s -- %s\n' "${jail[*]}" "${cmd[*]}"
-        return 0
+    if (( ! print )); then
+        info "$(t "Jail"): $root   ($( (( in_box )) && echo "$(t "box") $BOX" || t "on the host, without compilers")$( (( offline )) && echo ", offline"))"
+        (( snapshot )) && save_point "$root" "${agent:-jail}" "$db"
     fi
-    info "$(t "Jail"): $root   ($( (( in_box )) && echo "$(t "box") $BOX" || t "on the host, without compilers")$( (( offline )) && echo ", offline"))"
-    (( snapshot )) && save_point "$root" "${agent:-jail}" "$db"
     if (( in_box )); then
-        distrobox enter "$BOX" -- sh -c 'command -v bwrap >/dev/null' 2>/dev/null \
-            || die "$(t "bubblewrap is missing in the box; run"): tamagi devbox provision $BOX"
-        exec distrobox enter "$BOX" -- bwrap "${jail[@]}" -- "${cmd[@]}"
+        exec distrobox enter "$BOX" -- "$JAIL_BOX" "${opts[@]}" -- "${cmd[@]}"
     fi
-    exec bwrap "${jail[@]}" -- "${cmd[@]}"
+    exec "$JAIL_HOST" "${opts[@]}" -- "${cmd[@]}"
 }
 
 cmd_list() {
@@ -309,7 +282,7 @@ cmd_update() {
             claude)         "$BIN_DIR/claude" update </dev/null || rc=1 ;;
             codex|opencode|clio) install_github "$name" || rc=1 ;;
             qwen|gemini|openclaw)
-                distrobox enter "$BOX" -- npm install -g --prefix "$PREFIX" "${NPM[$name]}@latest" </dev/null || rc=1 ;;
+                distrobox enter "$BOX" -- "$JAIL_BOX" --root "$PREFIX" --cwd "$PREFIX" -- npm install -g --prefix "$PREFIX" "${NPM[$name]}@latest" </dev/null || rc=1 ;;
             *) ;;   # antigravity updates with its box; local models do not change
         esac
     done

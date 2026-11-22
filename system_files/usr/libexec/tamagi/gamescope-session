@@ -31,8 +31,8 @@ fi
 # gamescope_args: the options of this machine, one per line (also used by
 # `tamagi gaming run` and `tamagi gaming hdr status`).
 gamescope_args() {
-    local nested=${1:-0}
-    if [[ $HDR == on ]] && { (( nested )) || /usr/libexec/tamagi/hdr-displays >/dev/null 2>&1; }; then
+    # HDR only where a connected display announces it (TAMAGI_ASSUME_HDR=1: tests).
+    if [[ $HDR == on ]] && { [[ ${TAMAGI_ASSUME_HDR:-} == 1 ]] || /usr/libexec/tamagi/hdr-displays >/dev/null 2>&1; }; then
         printf '%s\n' --hdr-enabled --hdr-sdr-content-nits "$SDR_NITS"
         [[ $ITM == on ]] && printf '%s\n' --hdr-itm-enabled
     fi

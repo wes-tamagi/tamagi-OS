@@ -1,0 +1,23 @@
+#!/usr/bin/bash
+# gpu-args — the podman options that give a container all the GPUs of this
+# machine, one per line. For any container that should compute or render:
+#
+#   podman run $(/usr/libexec/tamagi/gpu-args) …
+#
+# AMD and Intel: the DRM devices (Vulkan, VA-API, OpenCL) and, for ROCm,
+# /dev/kfd. NVIDIA: the CDI devices of the proprietary driver, when the
+# driver is there. distrobox boxes get the same through `--nvidia` and the
+# devices distrobox already shares; this is for plain podman containers.
+set -euo pipefail
+[[ -e /dev/dri ]] && echo "--device=/dev/dri"
+[[ -e /dev/kfd ]] && echo "--device=/dev/kfd"
+if [[ -e /proc/driver/nvidia/version ]]; then
+    if [[ -e /etc/cdi/nvidia.yaml || -e /var/run/cdi/nvidia.yaml ]]; then
+        echo "--device=nvidia.com/gpu=all"
+    else
+        for d in /dev/nvidia*; do [[ -e $d ]] && echo "--device=$d"; done
+    fi
+fi
+# The container's user keeps the groups that own the devices (video, render).
+echo "--group-add=keep-groups"
+echo "--security-opt=label=disable"

@@ -90,6 +90,9 @@ cmd_native() {
     (( use_rpmfusion )) && flags+=(--rpmfusion)
     (( allow_upgrade )) && flags+=(--allow-upgrade)
     info "$(t "Building native gaming layer") ($LAYER)…"
+    # The "Tamagi Gaming" login session goes in with the layer (the login
+    # screen would list it even without gamescope if it were in the image).
+    flags+=(--overlay gaming)
     tamagi-layer add "$LAYER" "${flags[@]}" "${pkgs[@]}" || rc=$?
     if (( rc == 4 && ! allow_upgrade )) && [[ -t 0 ]]; then
         if gum confirm "$(t "Retry with --allow-upgrade to align 32-bit libraries with the current Fedora version?")" \

@@ -20,7 +20,7 @@ DROPIN=/etc/systemd/system/user-runtime-dir@$UID_GUEST.service.d/tamagi-guest.co
 as_root() { [[ $(id -u) == 0 ]] || exec pkexec "$0" "$@"; }
 
 enable() {
-    as_root ligar
+    as_root on
     if ! id "$USER_NAME" >/dev/null 2>&1; then
         getent passwd "$UID_GUEST" >/dev/null && { echo "uid $UID_GUEST ocupado" >&2; exit 1; }
         groupadd -g "$UID_GUEST" "$USER_NAME" 2>/dev/null || true
@@ -55,7 +55,7 @@ UNIT
 }
 
 disable() {
-    as_root desligar
+    as_root off
     loginctl terminate-user "$USER_NAME" 2>/dev/null || true
     systemctl disable --now var-home-convidado.mount 2>/dev/null || true
     rm -f "$MOUNT_UNIT" "$DROPIN"

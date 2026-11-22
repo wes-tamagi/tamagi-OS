@@ -57,6 +57,7 @@ is_installed() {
                     podman container exists "$([[ $key == fedora ]] && echo dev || echo "dev-$key")" 2>/dev/null ;;
         run:*tailscale-setup)  command -v tailscale >/dev/null 2>&1 ;;
         run:*llm-scripts-setup) [[ -x $HOME/.local/bin/llm ]] ;;
+        run:*vscode-setup)     command -v code >/dev/null 2>&1 ;;
         *)          return 1 ;;
     esac
 }

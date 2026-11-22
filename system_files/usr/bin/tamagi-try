@@ -9,6 +9,7 @@
 #   tamagi try --distro arch neovim     ubuntu | arch | opensuse | fedora
 #   tamagi try --here ripgrep fd-find   the current folder appears in /work
 #   tamagi try --gui gimp               graphical apps open on your desktop
+#   tamagi try --gpu vulkan-tools       the container gets the GPUs (Vulkan, video, ROCm)
 #   tamagi try cowsay -- cowsay hello   runs a command and leaves
 #
 # Liked it? Keep it in a development box (`tamagi devbox`) or, if it has to
@@ -23,12 +24,13 @@ declare -A INSTALL=([fedora]="dnf -y -q install" [ubuntu]="apt-get update -qq &&
 
 die() { echo "$(t "error"): $*" >&2; exit 1; }
 
-distro=fedora here=0 gui=0 pkgs=() cmd=()
+distro=fedora here=0 gui=0 gpu=0 pkgs=() cmd=()
 while (( $# )); do
     case $1 in
         --distro) distro=${2:-}; shift ;;
         --here)   here=1 ;;
         --gui)    gui=1 ;;
+        --gpu)    gpu=1 ;;
         -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
         --)       shift; cmd=("$@"); break ;;
         -*)       die "$(t "unknown option"): $1" ;;
@@ -40,7 +42,10 @@ case $distro in tumbleweed|opensuse-tumbleweed) distro=opensuse ;; esac
 [[ -n ${IMAGE[$distro]:-} ]] || die "$(t "unknown distro"): '$distro' (fedora ubuntu arch opensuse)"
 (( ${#pkgs[@]} )) || { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 2; }
 
-args=(--rm --name "tamagi-try-$$" --hostname try --security-opt label=disable -e TERM -w /root)
+args=(--rm --name "tamagi-try-$$" --hostname try -e TERM -w /root)
+# SELinux confinement stays on unless the container needs your files, screen or GPUs.
+(( here || gui || gpu )) && args+=(--security-opt label=disable)
+if (( gpu )); then mapfile -t -O "${#args[@]}" args < <(/usr/libexec/tamagi/gpu-args | grep -v '^--security-opt'); fi
 [[ -t 0 && -t 1 ]] && args+=(-it)
 (( here )) && args+=(-v "$PWD:/work" -w /work)
 if (( gui )) && [[ -n ${WAYLAND_DISPLAY:-} && -S ${XDG_RUNTIME_DIR:-}/$WAYLAND_DISPLAY ]]; then

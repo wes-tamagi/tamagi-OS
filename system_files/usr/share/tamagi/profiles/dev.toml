@@ -1,12 +1,16 @@
 # Tamagi profile: development.
-# The Fedora development box with Node and Python (mise), an editor and an
-# open-source agent. Apply with: tamagi apply dev
+# The Fedora development box with Node and Python (mise), VS Code with Dev
+# Containers (native layer: asks for the password), Zed and an open-source
+# agent. Apply with: tamagi apply dev
 
 [boxes]
 dev = "fedora"
 
 [mise]
 tools = ["node@lts", "python@3.13"]
+
+[catalog]
+install = ["vscode"]
 
 [flatpak]
 apps = ["dev.zed.Zed"]

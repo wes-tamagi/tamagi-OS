@@ -105,4 +105,8 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     KERNEL_FLAVOR=${KERNEL_FLAVOR} \
     /ctx/build_files/build.sh
 
+# The version label is what bootc records at install time (rechunk.sh carries it over).
+LABEL org.opencontainers.image.title="Tamagi" \
+      org.opencontainers.image.version="${TAMAGI_VERSION}"
+
 RUN bootc container lint

@@ -25,6 +25,7 @@ devbox-fedora	Development	1.5GB	run:tamagi-devbox create fedora	Fedora developme
 devbox-ubuntu	Development	1.5GB	run:tamagi-devbox create ubuntu	Ubuntu development box (distrobox)
 devbox-opensuse	Development	1.5GB	run:tamagi-devbox create opensuse	openSUSE Tumbleweed development box (distrobox)
 devbox-arch	Development	1.5GB	run:tamagi-devbox create arch	Arch development box (distrobox)
+vscode	Development	450MB	run:/usr/libexec/tamagi/vscode-setup	VS Code with Dev Containers (Podman), native (asks for the password)
 claude	AI agents	220MB	agent:claude	Claude Code — Anthropic's coding agent
 antigravity	AI agents	700MB	agent:antigravity	Antigravity — Google's agentic IDE, with Chrome
 codex	AI agents	320MB	agent:codex	Codex CLI — OpenAI's coding agent

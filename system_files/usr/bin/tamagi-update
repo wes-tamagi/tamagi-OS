@@ -8,7 +8,7 @@
 #   tamagi-update auto on|off  liga ou desliga a atualização automática
 #   tamagi-update quarantine   mostra digests bloqueados após falha de boot
 #   tamagi-update unquarantine limpa a quarentena de digests
-#   tamagi-update novidades    o que muda na atualização pronta (com resumo da IA local)
+#   tamagi-update changes      o que muda na atualização pronta (com resumo da IA local)
 set -uo pipefail
 # shellcheck source=/dev/null
 . /usr/libexec/tamagi/i18n
@@ -134,11 +134,11 @@ update_auto() { # chamado pelo tamagi-autoupdate.timer: sem perguntas e sem senh
     # A imagem nova é baixada pelo sistema em segundo plano; aqui só o aviso.
     if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
         # O que muda, numa linha (kernel, desktop, drivers…); detalhes e resumo
-        # da IA local: tamagi-update novidades.
+        # da IA local: tamagi-update changes.
         changes=$(/usr/libexec/tamagi/update-changes --curto 2>/dev/null || true)
         notify-send -a Tamagi -i system-software-update "$(t "System update ready")" \
             "${changes:+$changes
-}$(t "It will take effect the next time you reboot.") (tamagi-update novidades)" 2>/dev/null || true
+}$(t "It will take effect the next time you reboot.") (tamagi update changes)" 2>/dev/null || true
     fi
 }
 
@@ -229,7 +229,7 @@ case "${1:-all}" in
             tamagi-agents update || failed+=(agents)
         fi
         ;;
-    *) echo "usage: tamagi-update [--arch|--system|status|quarantine|unquarantine|auto on|off]" >&2; exit 2 ;;
+    *) echo "usage: tamagi-update [--arch|--system|status|changes|quarantine|unquarantine|auto on|off]" >&2; exit 2 ;;
 esac
 
 echo

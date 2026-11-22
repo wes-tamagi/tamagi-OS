@@ -37,7 +37,8 @@ fi
 version=$(podman inspect "$SRC" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')
 labels=(--label "org.opencontainers.image.title=Tamagi"
         --label "org.opencontainers.image.description=Tamagi — atomic COSMIC desktop for AI and agents (bootc)")
-[[ -n $version && $version != "<no value>" ]] && labels+=(--label "org.opencontainers.image.version=$version")
+[[ -n $version && $version != "<no value>" ]] || version=$(date -u +%Y%m%d)
+labels+=(--label "org.opencontainers.image.version=$version")
 
 # The work dir is this script's own (a private container storage and the
 # archive that leaves it): emptied before and after.

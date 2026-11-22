@@ -879,3 +879,13 @@ needs Perl, which is missing here	nécessite Perl, absent ici
 the box has no complete Perl; run	la boîte n'a pas le Perl complet ; lancez
 llm-scripts — works out the best launch profile of a local model for your GPU	llm-scripts — calcule le meilleur profil de lancement d'un modèle local pour votre carte graphique
 stays	est conservé
+VS Code with Dev Containers (Podman), native (asks for the password)	VS Code avec Dev Containers (Podman), natif (demande le mot de passe)
+Full access on: VMs run as root, unconfined, and reach USB sticks and external disks.	Accès total activé : les VM s'exécutent en root, sans confinement, et atteignent les clés USB et les disques externes.
+Log out and back in for the new groups to count.	Déconnectez-vous puis reconnectez-vous pour que les nouveaux groupes comptent.
+Standard access: VMs run confined again.	Accès standard : les VM s'exécutent de nouveau confinées.
+VM access	Accès des VM
+what the box sees of the GPUs (Vulkan, video, OpenCL)	ce que la boîte voit des GPU (Vulkan, vidéo, OpenCL)
+Your settings.json already exists; to use Podman add	Votre settings.json existe déjà ; pour utiliser Podman ajoutez
+Could not install the Dev Containers extension now; in VS Code: Extensions, search Dev Containers.	Impossible d'installer l'extension Dev Containers maintenant ; dans VS Code : Extensions, cherchez Dev Containers.
+VS Code installed. Open a folder with a .devcontainer and choose Reopen in Container.	VS Code installé. Ouvrez un dossier avec .devcontainer et choisissez Reopen in Container.
+extra files of the image that go in with the layer	fichiers supplémentaires de l'image ajoutés avec la couche

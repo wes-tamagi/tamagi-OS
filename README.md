@@ -883,6 +883,10 @@ descende foi feita para esse caso. Alguém precisava juntar as peças.
 
 O projeto agradece a todos os que tornaram esta distro possível.
 
+O Tamagi é escrito com a ajuda de agentes de IA, sob a direção do autor: o
+**Gemini** (Google, pelo Antigravity) e o **Claude** (Anthropic) são
+colaboradores do projeto. Veja [CONTRIBUTORS.md](CONTRIBUTORS.md).
+
 - **Base: [Universal Blue](https://universal-blue.org/).** A imagem de partida
   é a `base-main`: sistema atômico com codecs, firmware, distrobox e `ujust` já
   incluídos, a mesma fundação do Bluefin, do Aurora e do Bazzite. Os pacotes

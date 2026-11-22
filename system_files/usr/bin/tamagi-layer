@@ -6,6 +6,7 @@ set -euo pipefail
 EXT=${TAMAGI_LAYER_DIR:-/var/lib/extensions}
 META=${TAMAGI_LAYER_META:-/var/lib/tamagi/layers}
 OFF=${TAMAGI_LAYER_OFF:-/var/lib/tamagi/layers-off}
+OVERLAY_DIR=${TAMAGI_LAYER_OVERLAYS:-/usr/share/tamagi/layer-overlays}
 SUDO=sudo; (( EUID == 0 )) && SUDO=
 
 die() { echo "tamagi-layer: $*" >&2; exit 1; }
@@ -22,6 +23,7 @@ usage() {
     echo "  --copr owner/project   --rpmfusion   --allow-upgrade"
     echo "  --repo id=baseurl[=gpgkey-url]       $(t "extra RPM repository (e.g. Google Chrome's)")"
     echo "  --unit name.socket                   $(t "systemd unit the layer starts at every boot")"
+    echo "  --overlay name                       $(t "extra files of the image that go in with the layer")"
     exit "${1:-0}"
 }
 
@@ -43,6 +45,8 @@ build_layer() {
     printf '%s\n' "${COPRS[@]}" > "$work/coprs"
     printf '%s\n' "$RPMFUSION" > "$work/rpmfusion"
     printf '%s\n' "${REPOS[@]}" > "$work/repos"
+    : > "$work/overlay"
+    [[ -n $OVERLAY ]] && echo "$OVERLAY_DIR/$OVERLAY" > "$work/overlay"
 
     local msg_already msg_upgraded msg_upgrade_hint msg_nousr
     msg_already=$(t "nothing to do: all requested packages are already in the image")
@@ -111,6 +115,18 @@ if [[ -s $work/upgraded && $allow_upgrade != 1 ]]; then
     exit 4
 fi
 
+# Folders the packages own under /var (libvirt's images and nvram, swtpm's
+# state...): /var is the machine's, not the layer's, so they become tmpfiles
+# lines and are created with the right owner and mode when the layer is on.
+mapfile -t newpkgs < <(cut -d" " -f1 "$work/packages")
+if (( ${#newpkgs[@]} )); then
+    mkdir -p "$R/usr/lib/tmpfiles.d"
+    rpm --root "$R" -q --qf '[%{FILEMODES:perms} %{FILEMODES:octal} %{FILEUSERNAME} %{FILEGROUPNAME} %{FILENAMES}\n]' "${newpkgs[@]}" 2>/dev/null \
+        | awk '$1 ~ /^d/ && $5 ~ /^\/var\/(lib|log|cache|spool)\// { printf "d %s %s %s %s -\n", $5, substr($2, length($2) - 3), $3, $4 }' \
+        | sort -u > "$R/usr/lib/tmpfiles.d/tamagi-layer-$name-var.conf"
+    [[ -s $R/usr/lib/tmpfiles.d/tamagi-layer-$name-var.conf ]] || rm -f "$R/usr/lib/tmpfiles.d/tamagi-layer-$name-var.conf"
+fi
+
 if [[ -d $R/etc ]]; then
     ( cd "$R" && find etc -type f -o -type l | sort ) > "$work/etc.list"
     tar -C "$R" -cf "$work/etc.tar" etc
@@ -134,6 +150,10 @@ mkdir -p "$R/usr/lib/extension-release.d" "$R/usr/share/tamagi/layers"
 printf 'ID=%s\nVERSION_ID=%s\n' "$(. /usr/lib/os-release; echo "$ID")" "$ver" \
     > "$R/usr/lib/extension-release.d/extension-release.$name"
 cp "$work/packages" "$R/usr/share/tamagi/layers/$name.packages"
+# Files of the image that only make sense with this layer on (e.g. the login
+# session of the gaming layer).
+overlay=$(cat "$work/overlay" 2>/dev/null || true)
+if [[ -n $overlay && -d $overlay/usr ]]; then cp -a "$overlay/usr/." "$R/usr/"; fi
 
 ctx=/etc/selinux/targeted/contexts/files/file_contexts
 args=(-zlz4hc -T0 --quiet)
@@ -161,16 +181,18 @@ INNER
 }
 
 parse_build_args() {
-    NAME="" PKGS=() COPRS=() REPOS=() UNITS=() ALLOW_UPGRADE=0 RPMFUSION=0 OUT=""
+    NAME="" PKGS=() COPRS=() REPOS=() UNITS=() ALLOW_UPGRADE=0 RPMFUSION=0 OUT="" OVERLAY=""
     while (( $# )); do
         case "$1" in
             --copr)          [[ ${2:-} =~ ^[A-Za-z0-9@_.-]+/[A-Za-z0-9_.-]+$ ]] || die "--copr dono/projeto"
                              COPRS+=("$2"); shift ;;
             --rpmfusion)     RPMFUSION=1 ;;
-            --repo)          [[ ${2:-} =~ ^[a-z][a-z0-9-]*=https://[^=[:space:]]+(=https://[^=[:space:]]+)?$ ]] || die "--repo id=https://baseurl[=https://gpgkey]"
+            --repo)          [[ ${2:-} =~ ^[a-z][a-z0-9-]*=https://[^=[:space:],]+(=https://[^=[:space:],]+)?$ ]] || die "--repo id=https://baseurl[=https://gpgkey]"
                              REPOS+=("$2"); shift ;;
             --unit)          [[ ${2:-} =~ ^[A-Za-z0-9@_.-]+\.(service|socket|timer|path)$ ]] || die "--unit name.service|socket|timer|path"
                              UNITS+=("$2"); shift ;;
+            --overlay)       [[ ${2:-} =~ ^[a-z][a-z0-9-]*$ && -d $OVERLAY_DIR/$2 ]] || die "--overlay <name in $OVERLAY_DIR>"
+                             OVERLAY=$2; shift ;;
             --allow-upgrade) ALLOW_UPGRADE=1 ;;
             -o)              OUT=${2:?-o <arquivo>}; shift ;;
             -*)              die "$(t "unknown option"): $1" ;;
@@ -195,6 +217,7 @@ install_layer() {
     printf '%s\n' "$RPMFUSION"  | $SUDO install -m 644 /dev/stdin "$META/$name.rpmfusion"
     printf '%s\n' "${REPOS[@]}" | $SUDO install -m 644 /dev/stdin "$META/$name.repos"
     printf '%s\n' "${UNITS[@]}" | $SUDO install -m 644 /dev/stdin "$META/$name.units"
+    printf '%s\n' "$OVERLAY"    | $SUDO install -m 644 /dev/stdin "$META/$name.overlay"
     echo "$BUILT_PACKAGES"      | $SUDO install -m 644 /dev/stdin "$META/$name.packages"
     image_version               | $SUDO install -m 644 /dev/stdin "$META/$name.image"
     if [[ -n $BUILT_ETC ]]; then
@@ -255,7 +278,7 @@ cmd_remove() {
     while read -r unit; do
         [[ -n $unit ]] && { $SUDO systemctl stop "$unit" 2>/dev/null || true; }
     done < <(meta "$name" units)
-    $SUDO rm -f "$EXT/$name.raw" "$OFF/$name.raw" "$META/$name".{request,coprs,rpmfusion,repos,units,packages,image}
+    $SUDO rm -f "$EXT/$name.raw" "$OFF/$name.raw" "$META/$name".{request,coprs,rpmfusion,repos,units,overlay,packages,image}
     refresh
     echo "$(t "Layer removed"): '$name'."
 }
@@ -284,6 +307,7 @@ cmd_rebuild() {
         mapfile -t PKGS < <(meta "$name" request); mapfile -t COPRS < <(meta "$name" coprs | grep . || true)
         mapfile -t REPOS < <(meta "$name" repos | grep . || true); mapfile -t UNITS < <(meta "$name" units | grep . || true)
         RPMFUSION=$(meta "$name" rpmfusion); RPMFUSION=${RPMFUSION:-0}
+        OVERLAY=$(meta "$name" overlay)
         (( ${#PKGS[@]} )) || { echo "$(t "layer") '$name': $(t "missing package list, cannot rebuild")" >&2; rc=1; continue; }
         ALLOW_UPGRADE=0
         echo "── $(t "Rebuilding layer") '$name' ($(image_version))"

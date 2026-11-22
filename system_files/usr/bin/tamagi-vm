@@ -12,6 +12,16 @@
 #   tamagi vm             opens virt-manager (installs the first time)
 #   tamagi vm install     installs the virtualization layer (asks for the password)
 #   tamagi vm status
+#   tamagi vm access [standard|full]
+#                         standard: VMs run confined (libvirt's default). They
+#                           use USB devices you pass through and disk images
+#                           in libvirt's folders.
+#                         full: VMs run as root and without SELinux
+#                           confinement, so they reach anything on this
+#                           computer: USB sticks, whole external disks
+#                           (/dev/sdX), and images stored on external drives
+#                           (/run/media/…). Convenient and less safe: a VM
+#                           that is broken out of has the whole machine.
 #   tamagi vm remove      removes the layer (your VMs and disks stay)
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
@@ -32,9 +42,52 @@ PKGS=(
     guestfs-tools                                             # virt-customize, virt-sysprep, virt-sparsify
 )
 UNITS=(virtqemud.socket virtnetworkd.socket virtstoraged.socket virtnodedevd.socket
-       virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket virtlogd.socket)
+       virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket virtlogd.socket virtlockd.socket)
 
 installed() { command -v virt-manager >/dev/null 2>&1; }
+die() { echo "$(t "error"): $*" >&2; exit 1; }
+
+# What the packages' scriptlets would have done (the layer installs without them).
+post_install() {
+    # The default NAT network: defined and started with the host.
+    if [[ -f /usr/share/libvirt/networks/default.xml && ! -e /etc/libvirt/qemu/networks/default.xml ]]; then
+        sudo install -Dm600 /usr/share/libvirt/networks/default.xml /etc/libvirt/qemu/networks/default.xml
+        sudo install -d /etc/libvirt/qemu/networks/autostart
+        sudo ln -sfn ../default.xml /etc/libvirt/qemu/networks/autostart/default.xml
+    fi
+    # VM names resolve on the host (ssh my-vm): libvirt-nss in the hosts line.
+    sudo authselect enable-feature with-libvirt >/dev/null 2>&1 || true
+    sudo systemctl restart virtnetworkd.socket 2>/dev/null || true
+}
+
+# ── Access of the VMs to the machine ────────────────────────────────────────
+QEMU_CONF=/etc/libvirt/qemu.conf
+MARK_BEGIN="# >>> tamagi vm access (managed; change with: tamagi vm access standard|full)"
+MARK_END="# <<< tamagi vm access"
+
+access_now() { sudo grep -qF "$MARK_BEGIN" "$QEMU_CONF" 2>/dev/null && echo full || echo standard; }
+
+set_access() {
+    local mode=$1
+    installed || die "virt-manager $(t "is not installed"): tamagi vm install"
+    sudo touch "$QEMU_CONF"
+    # Always start from a file without the managed block.
+    sudo sed -i "/^# >>> tamagi vm access/,/^# <<< tamagi vm access/d" "$QEMU_CONF"
+    if [[ $mode == full ]]; then
+        printf '%s\n' "$MARK_BEGIN" 'user = "root"' 'group = "root"' 'dynamic_ownership = 0' \
+            'security_driver = "none"' "$MARK_END" | sudo tee -a "$QEMU_CONF" >/dev/null
+        # You manage the VMs of the system and reach KVM and disks without asking each time.
+        local g
+        for g in libvirt kvm disk; do
+            getent group "$g" >/dev/null && sudo usermod -aG "$g" "$USER"
+        done
+        echo "$(t "Full access on: VMs run as root, unconfined, and reach USB sticks and external disks.")"
+        echo "$(t "Log out and back in for the new groups to count.")"
+    else
+        echo "$(t "Standard access: VMs run confined again.")"
+    fi
+    sudo systemctl try-restart virtqemud.service 2>/dev/null || true
+}
 
 install_vm() {
     if installed; then echo "$(t "virt-manager is already installed.")"; return 0; fi
@@ -43,6 +96,7 @@ install_vm() {
     local args=() u
     for u in "${UNITS[@]}"; do args+=(--unit "$u"); done
     tamagi-layer add "$LAYER" "${args[@]}" "${PKGS[@]}"
+    post_install
     echo "$(t "Done. Open it with"): tamagi vm"
 }
 
@@ -56,12 +110,19 @@ case "${1:-open}" in
     install) install_vm ;;
     status)
         if installed; then
-            echo "virt-manager: $(t "installed") ($(rpm -q --qf '%{VERSION}' virt-manager 2>/dev/null || echo "$LAYER"))"
+            echo "virt-manager: $(t "installed") ($(awk '$1 == "virt-manager" {print $2}' /usr/share/tamagi/layers/$LAYER.packages 2>/dev/null))"
             echo "KVM: $([[ -e /dev/kvm ]] && t "yes" || t "no")"
+            echo "$(t "VM access"): $(access_now)   (tamagi vm access standard|full)"
         else
             echo "virt-manager: $(t "not installed") (tamagi vm install)"
         fi ;;
+    access)
+        case "${2:-status}" in
+            status)        echo "$(t "VM access"): $(access_now)" ;;
+            standard|full) set_access "$2" ;;
+            *) echo "usage: tamagi vm access [standard|full]" >&2; exit 2 ;;
+        esac ;;
     remove) tamagi-layer remove "$LAYER" ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-    *) echo "usage: tamagi vm [open|install|status|remove]" >&2; exit 2 ;;
+    *) echo "usage: tamagi vm [open|install|status|access|remove]" >&2; exit 2 ;;
 esac

@@ -67,6 +67,8 @@ gum
 glow
 lazygit
 direnv
+# Dev Containers com compose (o VS Code é opcional: tamagi install vscode).
+podman-compose
 yq
 ShellCheck
 

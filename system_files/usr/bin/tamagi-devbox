@@ -51,6 +51,7 @@ usage() {
     echo "  tamagi devbox enter [name|distro]               $(t "enter the box (default: dev)")"
     echo "  tamagi devbox lang [box] <preset|tool@version>… $(t "languages via mise, inside the box")"
     echo "  tamagi devbox browser [box]                     $(t "Chromium in the box for tests (Playwright, Puppeteer)")"
+    echo "  tamagi devbox gpu [box]                         $(t "what the box sees of the GPUs (Vulkan, video, OpenCL)")"
     echo "  tamagi devbox provision <name> [--extra …]      $(t "reinstalls the tools")"
     echo "  tamagi devbox distros | list                    $(t "supported distros / boxes created")"
     echo "  tamagi devbox update [name]                     $(t "update packages in box(es)")"
@@ -184,6 +185,22 @@ cmd_browser() {
     echo "$(t "Chromium installed in the box. Playwright and Puppeteer find it through CHROME_BIN.")"
 }
 
+cmd_gpu() {
+    local box=${1:-dev}
+    box_exists "$box" || die "$(t "Box does not exist"): $box"
+    # shellcheck disable=SC2016
+    distrobox enter "$box" -- sh -c '
+        echo "DRM devices : $(ls /dev/dri 2>/dev/null | tr "\n" " ")$([ -e /dev/kfd ] && echo "+ /dev/kfd")"
+        vk=$(vulkaninfo --summary 2>/dev/null | sed -n "s/^[[:space:]]*deviceName[[:space:]]*= //p" | grep -vi llvmpipe | paste -sd, -)
+        echo "Vulkan      : ${vk:--}"
+        va=$(vainfo 2>/dev/null | sed -n "s/.*Driver version: //p" | head -1)
+        echo "VA-API      : ${va:--}"
+        cl=$(clinfo -l 2>/dev/null | sed -n "s/.*Device #[0-9]*: //p" | paste -sd, -)
+        echo "OpenCL      : ${cl:--}"
+        command -v nvidia-smi >/dev/null 2>&1 && echo "NVIDIA      : $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | paste -sd, -)"
+        true'
+}
+
 each_box() { # names of the development boxes
     local name
     while read -r name; do
@@ -240,6 +257,7 @@ case "${1:-}" in
     enter)          shift; cmd_enter "$@" ;;
     lang)           shift; cmd_lang "$@" ;;
     browser)        shift; cmd_browser "$@" ;;
+    gpu)            shift; cmd_gpu "$@" ;;
     provision)      shift; cmd_provision "$@" ;;
     distros)        cmd_distros ;;
     list|status)    cmd_list ;;

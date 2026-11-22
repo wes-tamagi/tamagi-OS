@@ -1,0 +1,42 @@
+#!/usr/bin/bash
+# vscode-setup — Visual Studio Code with Dev Containers, native and optional.
+#
+# Installs the official `code` package (Microsoft's repository, signed) in a
+# reversible layer, the Dev Containers extension, and points it at Podman —
+# the simple setup Bluefin uses for development: open a folder with a
+# `.devcontainer`, "Reopen in Container", and the project's tools live in the
+# container, not on the host.
+#
+#   vscode-setup            install            (catalog: tamagi install vscode)
+#   vscode-setup remove     removes the layer (settings and extensions stay)
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+LAYER=vscode
+REPO="vscode=https://packages.microsoft.com/yumrepos/vscode=https://packages.microsoft.com/keys/microsoft.asc"
+SETTINGS="${XDG_CONFIG_HOME:-$HOME/.config}/Code/User/settings.json"
+
+case "${1:-install}" in
+    install)
+        command -v code >/dev/null 2>&1 || tamagi-layer add "$LAYER" --repo "$REPO" code
+        # Dev Containers talks to Podman (rootless), with GPU access for the containers.
+        if [[ ! -e $SETTINGS ]]; then
+            mkdir -p "$(dirname "$SETTINGS")"
+            cat > "$SETTINGS" <<'JSON'
+{
+    "dev.containers.dockerPath": "podman",
+    "dev.containers.dockerComposePath": "podman-compose",
+    "dev.containers.defaultExtensions": [],
+    "telemetry.telemetryLevel": "off",
+    "update.mode": "none"
+}
+JSON
+        else
+            echo "$(t "Your settings.json already exists; to use Podman add"): \"dev.containers.dockerPath\": \"podman\""
+        fi
+        code --install-extension ms-vscode-remote.remote-containers --force >/dev/null 2>&1 \
+            || echo "$(t "Could not install the Dev Containers extension now; in VS Code: Extensions, search Dev Containers.")"
+        echo "$(t "VS Code installed. Open a folder with a .devcontainer and choose Reopen in Container.")" ;;
+    remove) tamagi-layer remove "$LAYER" ;;
+    *) echo "usage: vscode-setup [install|remove]" >&2; exit 2 ;;
+esac
