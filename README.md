@@ -888,6 +888,9 @@ O Tamagi é escrito com a ajuda de agentes de IA, sob a direção do autor: o
 **Gemini** (Google, pelo Antigravity) e o **Claude** (Anthropic) são
 colaboradores do projeto. Veja [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
+**Guia de uso:** instalar, migrar do Bluefin/Aurora, atualizar e as
+atualizações automáticas estão em [tamagiguide.md](tamagiguide.md).
+
 **Idiomas:** inglês é o idioma padrão do Tamagi (instalador, sessão live,
 teclado e comandos); português do Brasil é o segundo, seguido de espanhol e
 francês. O instalador pergunta o idioma na primeira tela.
