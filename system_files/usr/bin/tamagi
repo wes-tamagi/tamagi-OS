@@ -54,7 +54,7 @@ BROWSER_METHODS = ("flatpak", "native", "box")
 BOX_DISTROS = ("fedora", "ubuntu", "opensuse", "arch")
 AGENTS = ("claude", "antigravity", "codex", "clio", "qwen", "opencode", "gemini", "openclaw")
 PERF_PROFILES = ("eco", "balanced", "performance", "latency")
-MANAGED_LAYERS = {"virt", "gaming", "tailscale", "vscode"}
+MANAGED_LAYERS = {"virt", "gaming", "tailscale", "vscode", "docker"}
 BROWSER_BOX = os.environ.get("TAMAGI_BROWSER_BOX", "browsers")
 KNOWN = {
     "appearance": {"theme", "tiling"},

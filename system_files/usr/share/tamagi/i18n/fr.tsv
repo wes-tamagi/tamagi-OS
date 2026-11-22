@@ -889,3 +889,7 @@ Your settings.json already exists; to use Podman add	Votre settings.json existe 
 Could not install the Dev Containers extension now; in VS Code: Extensions, search Dev Containers.	Impossible d'installer l'extension Dev Containers maintenant ; dans VS Code : Extensions, cherchez Dev Containers.
 VS Code installed. Open a folder with a .devcontainer and choose Reopen in Container.	VS Code installé. Ouvrez un dossier avec .devcontainer et choisissez Reopen in Container.
 extra files of the image that go in with the layer	fichiers supplémentaires de l'image ajoutés avec la couche
+Docker Engine with Compose and buildx, native (asks for the password)	Docker Engine avec Compose et buildx, natif (demande le mot de passe)
+lazydocker — containers, images and logs in the terminal (Docker or Podman)	lazydocker — conteneurs, images et journaux dans le terminal (Docker ou Podman)
+Docker installed. Log out and back in to use it without sudo.	Docker installé. Déconnectez-vous puis reconnectez-vous pour l'utiliser sans sudo.
+A terminal view of containers, images and logs	Une vue des conteneurs, images et journaux dans le terminal

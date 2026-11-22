@@ -79,6 +79,23 @@ INI
     for i in 0 1 2 3 4 5 6 7; do echo "bright$i=${PALETTE[$((i + 8))]#\#}"; done
 }
 
+apply_ptyxis() { # the terminal of the system: a palette "Tamagi" with the colours of the theme
+    local dir="${XDG_DATA_HOME:-$HOME/.local/share}/org.gnome.Ptyxis/palettes" i section uuid
+    mkdir -p "$dir"
+    {
+        printf '[Palette]\nName=Tamagi\n'
+        for section in Light Dark; do
+            printf '\n[%s]\nForeground=%s\nBackground=%s\nCursor=%s\n' "$section" "$FG" "$BG" "$CURSOR"
+            for i in "${!PALETTE[@]}"; do printf 'Color%s=%s\n' "$i" "${PALETTE[$i]}"; done
+        done
+    } > "$dir/tamagi.palette"
+    # Chosen for the default profile, when Ptyxis has already made one.
+    uuid=$(gsettings get org.gnome.Ptyxis default-profile-uuid 2>/dev/null | tr -d "'") || true
+    if [[ -n $uuid ]]; then
+        gsettings set "org.gnome.Ptyxis.Profile:/org/gnome/Ptyxis/Profiles/$uuid/" palette tamagi 2>/dev/null || true
+    fi
+}
+
 apply_foot() { # só reescreve o foot.ini que o próprio tamagi-theme gerou
     local ini="$CONFIG/foot/foot.ini"
     if [[ ! -e $ini ]] || head -1 "$ini" | grep -q '^# Gerado por tamagi-theme'; then
@@ -231,6 +248,7 @@ apply_terminal() { # foot (terminal and Tamagi windows), btop and Neovim
     foot_config > "$CONFIG/tamagi/foot.ini"      # the Tamagi windows (/usr/libexec/tamagi/popup)
     rm -f "$CONFIG/tamagi/alacritty.toml"        # from when those windows were alacritty
     apply_foot
+    apply_ptyxis
     apply_btop
     apply_nvim "$name"
     echo "$name" > "$STATE"

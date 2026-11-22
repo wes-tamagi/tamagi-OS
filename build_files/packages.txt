@@ -60,6 +60,9 @@ uv
 # foot: terminal padrão (Super+Enter e apps de terminal): leve e rápido para
 # abrir. O cosmic-term continua instalado e no lançador.
 foot
+# Ptyxis: o terminal do sistema (Super+Enter). Conhece as caixas distrobox e
+# os contêineres do podman: abre uma aba direto dentro deles pelo menu.
+ptyxis
 git
 gh
 neovim

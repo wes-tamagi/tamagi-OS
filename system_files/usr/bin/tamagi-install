@@ -58,6 +58,8 @@ is_installed() {
         run:*tailscale-setup)  command -v tailscale >/dev/null 2>&1 ;;
         run:*llm-scripts-setup) [[ -x $HOME/.local/bin/llm ]] ;;
         run:*vscode-setup)     command -v code >/dev/null 2>&1 ;;
+        run:*lazydocker-setup) [[ -x $HOME/.local/bin/lazydocker ]] ;;
+        run:*docker-setup)     command -v dockerd >/dev/null 2>&1 ;;
         *)          return 1 ;;
     esac
 }

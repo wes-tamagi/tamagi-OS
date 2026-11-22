@@ -26,6 +26,8 @@ devbox-ubuntu	Development	1.5GB	run:tamagi-devbox create ubuntu	Ubuntu developme
 devbox-opensuse	Development	1.5GB	run:tamagi-devbox create opensuse	openSUSE Tumbleweed development box (distrobox)
 devbox-arch	Development	1.5GB	run:tamagi-devbox create arch	Arch development box (distrobox)
 vscode	Development	450MB	run:/usr/libexec/tamagi/vscode-setup	VS Code with Dev Containers (Podman), native (asks for the password)
+docker	Development	500MB	run:/usr/libexec/tamagi/docker-setup	Docker Engine with Compose and buildx, native (asks for the password)
+lazydocker	Development	20MB	run:/usr/libexec/tamagi/lazydocker-setup	lazydocker — containers, images and logs in the terminal (Docker or Podman)
 claude	AI agents	220MB	agent:claude	Claude Code — Anthropic's coding agent
 antigravity	AI agents	700MB	agent:antigravity	Antigravity — Google's agentic IDE, with Chrome
 codex	AI agents	320MB	agent:codex	Codex CLI — OpenAI's coding agent

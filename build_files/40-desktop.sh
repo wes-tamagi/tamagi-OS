@@ -203,7 +203,7 @@ cat > "$M/favorite_applications" <<'RON'
 [
     "tamagi-browser",
     "com.system76.CosmicFiles",
-    "foot",
+    "org.gnome.Ptyxis",
     "tamagi-agent",
     "org.tamagi.Menu",
     "com.system76.CosmicSettings",
@@ -222,7 +222,7 @@ cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
 [
     "tamagi-browser",
     "com.system76.CosmicFiles",
-    "foot",
+    "org.gnome.Ptyxis",
     "tamagi-agent",
     "com.system76.CosmicEdit",
     "com.system76.CosmicSettings",
@@ -289,6 +289,7 @@ PY
 # Terminal para apps de terminal (.desktop com Terminal=true) e `xdg-terminal-exec`:
 # o foot primeiro (é o padrão), depois o cosmic-term.
 install -Dm644 /dev/stdin /etc/xdg/xdg-terminals.list <<'LIST'
+org.gnome.Ptyxis.desktop
 foot.desktop
 com.system76.CosmicTerm.desktop
 LIST

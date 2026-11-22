@@ -1,0 +1,34 @@
+#!/usr/bin/bash
+# docker-setup — Docker Engine, native and optional.
+#
+# Podman is the container engine of the system and stays. For what really
+# asks for Docker (Compose projects, tools that speak only to the Docker
+# daemon), this installs Docker CE from Docker's own repository (signed) in a
+# reversible layer, with buildx and the compose plugin, starts it by socket
+# and lets your user use it without sudo.
+#
+#   docker-setup            install            (catalog: tamagi install docker)
+#   docker-setup remove     stops Docker and removes the layer (images and volumes stay in /var/lib/docker)
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+LAYER=docker
+REPO="docker-ce=https://download.docker.com/linux/fedora/$(. /usr/lib/os-release; echo "$VERSION_ID")/x86_64/stable=https://download.docker.com/linux/fedora/gpg"
+
+case "${1:-install}" in
+    install)
+        if ! command -v dockerd >/dev/null 2>&1; then
+            # The package's scriptlet would create the group (the layer installs
+            # without scriptlets); the socket unit needs it to exist.
+            getent group docker >/dev/null || sudo groupadd -r docker
+            tamagi-layer add "$LAYER" --repo "$REPO" --unit containerd.service --unit docker.socket \
+                docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        fi
+        sudo usermod -aG docker "$USER"
+        echo "$(t "Docker installed. Log out and back in to use it without sudo.")"
+        echo "$(t "A terminal view of containers, images and logs"): tamagi install lazydocker" ;;
+    remove)
+        sudo systemctl stop docker.service docker.socket containerd.service 2>/dev/null || true
+        tamagi-layer remove "$LAYER" ;;
+    *) echo "usage: docker-setup [install|remove]" >&2; exit 2 ;;
+esac

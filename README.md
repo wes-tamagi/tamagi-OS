@@ -731,11 +731,12 @@ ficam para a caixa de desenvolvimento.
 
 - **Desktop:** COSMIC, com terminal, arquivos, editor, loja e player próprios;
   tiling ligado, teclado ABNT2. O COSMIC Files abre em grade, pastas primeiro.
-- **Terminal:** o [foot](https://codeberg.org/dnkl/foot) é o padrão
-  (`Super+Enter`, apps de terminal, dock), com a fonte e as cores do tema; o
-  cosmic-term continua instalado, no lançador. O `tamagi-theme` grava
-  `~/.config/foot/foot.ini`; para personalizar, apague a primeira linha
-  ("Gerado por tamagi-theme") e o arquivo deixa de ser reescrito.
+- **Terminal:** o [Ptyxis](https://gitlab.gnome.org/chergert/ptyxis) é o
+  terminal do sistema (`Super+Enter`, dock): conhece as caixas distrobox e os
+  contêineres do podman e abre uma aba já dentro deles; recebe a paleta do
+  tema. O [foot](https://codeberg.org/dnkl/foot) fica nas janelas do Tamagi
+  (primeiro login, atalhos, agente). O cosmic-term continua instalado, e há um
+  fork dele para virar o terminal definitivo (veja [UPSTREAMS.md](UPSTREAMS.md)).
 - **Barra:** uma só, embaixo, com os apps no centro, a bandeja e o relógio à
   direita — o layout "Centered" do AnduinOS feito com os applets do COSMIC
   (flutuante, cantos arredondados, levemente translúcida).
@@ -886,6 +887,9 @@ O projeto agradece a todos os que tornaram esta distro possível.
 O Tamagi é escrito com a ajuda de agentes de IA, sob a direção do autor: o
 **Gemini** (Google, pelo Antigravity) e o **Claude** (Anthropic) são
 colaboradores do projeto. Veja [CONTRIBUTORS.md](CONTRIBUTORS.md).
+
+Os projetos em que o Tamagi se apoia, os forks que mantemos e o que é só
+referenciado estão em [UPSTREAMS.md](UPSTREAMS.md).
 
 - **Base: [Universal Blue](https://universal-blue.org/).** A imagem de partida
   é a `base-main`: sistema atômico com codecs, firmware, distrobox e `ujust` já
