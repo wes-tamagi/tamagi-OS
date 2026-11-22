@@ -4,7 +4,7 @@
 
 OS_RELEASE=/usr/lib/os-release
 BUILD_DATE=$(date -u +%Y%m%d)
-TAMAGI_URL=https://github.com/wes-tamagi/tamagi-system
+TAMAGI_URL=https://github.com/wes-tamagi/tamagi-OS
 
 # ── Marcas do Fedora fora da imagem (o Tamagi é derivado, não é o Fedora) ──
 # Os logos do Fedora são marca registrada: entram os genéricos (generic-logos
