@@ -28,7 +28,7 @@ a change we need that upstream has not merged.
 | [main](https://github.com/wes-tamagi/main) | ublue-os/main | Apache-2.0 | The base image (`base-main`) |
 | [akmods](https://github.com/wes-tamagi/akmods) | ublue-os/akmods | Apache-2.0 | OGC kernel and signed modules |
 | [bluefin](https://github.com/wes-tamagi/bluefin) | ublue-os/bluefin | Apache-2.0 | Reference for the developer setup (VS Code + Dev Containers) |
-| [Tamagi](https://github.com/wes-tamagi/Tamagi) | ublue-os/bazzite | Apache-2.0 | Reference for gaming: Valve's gamescope, game session, HDR |
+| [bazzite](https://github.com/wes-tamagi/bazzite) | ublue-os/bazzite | Apache-2.0 | Reference for gaming: Valve's gamescope, game session, HDR |
 
 ## Referenced only
 
@@ -147,10 +147,9 @@ What we can adopt from utah without changing base:
 
 ## The Bazzite fork
 
-`wes-tamagi/Tamagi` is an unmodified fork of ublue-os/bazzite. Tamagi already
-gets from Bazzite what it needs without it: the OGC kernel and modules come
-from ublue-os/akmods, and the gaming layer installs the packages at run time.
-Suggested: rename the fork to `bazzite` so the name stops suggesting it is the
-OS, and keep it as a read-only reference for gamescope, the game session and
-HDR settings. Merging it into `tamagi-OS` would import a second distribution's
-build system for no gain.
+`wes-tamagi/bazzite` is an unmodified fork of ublue-os/bazzite, kept as a
+read-only reference for gamescope, the game session and HDR settings. Tamagi
+gets what it needs from Bazzite without it: the OGC kernel and modules come
+from ublue-os/akmods (the version Bazzite's `stable` ships), and the gaming
+layer installs the packages at run time. Nothing from Bazzite's `testing` or
+`unstable` streams goes into the image.
