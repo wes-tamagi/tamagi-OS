@@ -26,6 +26,7 @@ build *ARGS:
         --build-arg FEDORA_VERSION={{ fedora }} \
         --build-arg IMAGE_REF={{ image }} \
         --build-arg KERNEL_FLAVOR={{ kernel }} \
+        --build-arg TAMAGI_DEFAULT_LANG={{ env("TAMAGI_DEFAULT_LANG", "en") }} \
         --build-arg AKMODS_FLAVOR={{ akmods }} \
         -t {{ image }}:{{ tag }}-layers {{ ARGS }} .
     if [ "${TAMAGI_RECHUNK:-1}" = 1 ]; then bash rechunk.sh {{ image }}:{{ tag }}-layers {{ image }}:{{ tag }}; else podman tag {{ image }}:{{ tag }}-layers {{ image }}:{{ tag }}; fi

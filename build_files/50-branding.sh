@@ -160,3 +160,16 @@ listing=$(lsinitrd "$img")
 grep -q 'usr/share/plymouth/themes/tamagi/throbber-0001.png' <<<"$listing" \
     || { echo "o tema do Plymouth não entrou no initramfs" >&2; exit 1; }
 echo "Plymouth: tema tamagi no initramfs ($(wc -l <<<"$after") módulos do dracut)"
+
+# ── Só imagens do Tamagi assinadas ──────────────────────────────────────────
+# O CI assina cada imagem publicada (cosign). Aqui o sistema passa a EXIGIR a
+# assinatura de tudo que vier de ghcr.io/wes-tamagi: uma atualização (bootc
+# upgrade/switch) ou um pull sem assinatura válida, ou assinado com outra
+# chave, é recusado, e o sistema continua na imagem em que está.
+# A chave pública é a cosign.pub do repositório (system_files/etc/pki/containers).
+POLICY=/etc/containers/policy.json
+jq '.transports.docker["ghcr.io/wes-tamagi"] = [{"type": "sigstoreSigned", "keyPath": "/etc/pki/containers/tamagi.pub", "signedIdentity": {"type": "matchRepository"}}]' \
+    "$POLICY" > "$POLICY.new"
+mv "$POLICY.new" "$POLICY"
+jq -e '.transports.docker["ghcr.io/wes-tamagi"][0].type == "sigstoreSigned"' "$POLICY" >/dev/null
+grep -q "BEGIN PUBLIC KEY" /etc/pki/containers/tamagi.pub

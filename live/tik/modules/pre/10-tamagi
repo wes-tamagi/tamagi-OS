@@ -15,7 +15,7 @@
 # Variáveis e funções do tik usadas aqui: gui, tik_log, d, log, error.
 #
 # Instalação sem perguntas (testes e automação), pela linha do kernel:
-#   tamagi.autoinstall=/dev/vda [tamagi.autoinstall.lang=pt|es|fr] [tamagi.autoinstall.user=nome]
+#   tamagi.autoinstall=/dev/vda [tamagi.autoinstall.lang=en|pt|es|fr] [tamagi.autoinstall.user=nome]
 #   [tamagi.autoinstall.password=senha] [tamagi.autoinstall.luks=senha-do-disco] [tamagi.autoinstall.tpm=1]
 #   [tamagi.autoinstall.kargs=arg1,arg2]
 
@@ -157,7 +157,10 @@ declare -gA TXT_fr=(
     [disk_title]="Choisissez le disque" [disk_text]="Choisissez le disque où Tamagi sera installé. <b>Tout ce qu'il contient sera effacé : vérifiez que vos fichiers sont sauvegardés.</b>"
     [no_disk]="Aucun disque trouvé pour l'installation."
 )
-# English is the default language; Portuguese (Brazil) is the second.
+# The default language of the image (en; pt in the :ptbr variant) is the
+# pre-selected one and comes first in the list; the other is the second.
+tamagi_default_lang="$(cat /usr/share/tamagi/default-lang 2>/dev/null || echo en)"
+[ "${tamagi_default_lang}" = "pt" ] || tamagi_default_lang="en"
 tamagi_lang="en"
 tamagi_locale="en_US.UTF-8"
 T() { local -n _txt="TXT_${tamagi_lang}"; printf '%s' "${_txt[$1]:-${TXT_en[$1]}}"; }
@@ -174,7 +177,7 @@ tamagi_set_lang() { # tamagi_set_lang pt|en|es|fr
     tamagi_t_col_parts="$(T col_parts)"; tamagi_t_col_fs="$(T col_fs)"
     tamagi_t_disk_title="$(T disk_title)"; tamagi_t_disk_text="$(T disk_text)"; tamagi_t_no_disk="$(T no_disk)"
 }
-tamagi_set_lang en
+tamagi_set_lang "${tamagi_default_lang}"
 # As janelas do instalador (zenity, GTK 4) desenham por software: o renderizador
 # por GPU do GTK deixa botões sem texto em algumas placas e VMs, e a instalação
 # não pode depender disso.
@@ -200,14 +203,15 @@ tamagi_cancel() { # o usuário fechou uma janela: sair ou continuar?
 }
 
 tamagi_ask_language() {
+    local first=(TRUE "en" "English (United States)" FALSE "pt" "Português (Brasil)")
+    [ "${tamagi_default_lang}" = "pt" ] && first=(TRUE "pt" "Português (Brasil)" FALSE "en" "English (United States)")
     d --list --radiolist --title="Tamagi" --width=460 --height=370 \
         --text="Language  ·  Idioma  ·  Idioma  ·  Langue" \
         --column="" --column="id" --column="Language / Idioma / Langue" --hide-column=2 --print-column=2 \
-        TRUE  "en" "English (United States)" \
-        FALSE "pt" "Português (Brasil)" \
+        "${first[@]}" \
         FALSE "es" "Español" \
         FALSE "fr" "Français"
-    tamagi_set_lang "${result:-en}"
+    tamagi_set_lang "${result:-${tamagi_default_lang}}"
 }
 
 tamagi_welcome() {
@@ -473,12 +477,13 @@ if [ -n "${tamagi_auto}" ]; then
     d() { log "[auto] janela ignorada: $*"; result=""; return 0; }
     d_opt() { log "[auto] janela ignorada: $*"; result=""; return 0; }
     TIK_INSTALL_DEVICE="${tamagi_auto}"
-    tamagi_keymap="us"; tamagi_xkb_layout="us"; tamagi_xkb_variant=""
-    tamagi_timezone="UTC"
-    case "$(tamagi_karg tamagi.autoinstall.lang)" in
+    tamagi_xkb_variant=""
+    tamagi_auto_lang="$(tamagi_karg tamagi.autoinstall.lang)"
+    case "${tamagi_auto_lang:-${tamagi_default_lang}}" in
         pt) tamagi_set_lang pt; tamagi_keymap="br-abnt2"; tamagi_xkb_layout="br"; tamagi_timezone="America/Sao_Paulo" ;;
         es) tamagi_set_lang es; tamagi_keymap="es"; tamagi_xkb_layout="es"; tamagi_timezone="Europe/Madrid" ;;
         fr) tamagi_set_lang fr; tamagi_keymap="fr"; tamagi_xkb_layout="fr"; tamagi_timezone="Europe/Paris" ;;
+        *)  tamagi_set_lang en; tamagi_keymap="us"; tamagi_xkb_layout="us"; tamagi_timezone="UTC" ;;
     esac
     tamagi_user="$(tamagi_karg tamagi.autoinstall.user)"; tamagi_user="${tamagi_user:-tamagi}"
     tamagi_fullname="${tamagi_user}"

@@ -1,0 +1,5 @@
+# Tamagi images are signed with cosign (sigstore): fetch the signature along
+# with the image so that policy.json can require it.
+docker:
+  ghcr.io/wes-tamagi:
+    use-sigstore-attachments: true

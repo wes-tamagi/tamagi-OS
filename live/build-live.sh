@@ -86,8 +86,13 @@ TOML
 # A sessão live (painel, janelas do tik) em inglês e com teclado US, o idioma
 # padrão do Tamagi; o instalador pergunta o idioma logo no começo e o sistema
 # instalado recebe o que for escolhido.
-echo 'LANG=en_US.UTF-8' > /etc/locale.conf
-echo 'KEYMAP=us' > /etc/vconsole.conf
+if [ "$(cat /usr/share/tamagi/default-lang 2>/dev/null)" = pt ]; then
+    echo 'LANG=pt_BR.UTF-8' > /etc/locale.conf
+    echo 'KEYMAP=br-abnt2' > /etc/vconsole.conf
+else
+    echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+    echo 'KEYMAP=us' > /etc/vconsole.conf
+fi
 # Na mídia o assistente de primeiro login do Tamagi não aparece.
 install -d -o live -g live /var/home/live/.config /var/home/live/.config/tamagi
 touch /var/home/live/.config/tamagi/firstrun-done

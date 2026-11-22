@@ -898,7 +898,17 @@ atualizações automáticas estão em [tamagiguide.md](tamagiguide.md).
 
 **Idiomas:** inglês é o idioma padrão do Tamagi (instalador, sessão live,
 teclado e comandos); português do Brasil é o segundo, seguido de espanhol e
-francês. O instalador pergunta o idioma na primeira tela.
+francês. Há uma variante com português do Brasil como padrão, construída do
+mesmo código com `TAMAGI_DEFAULT_LANG=pt just build` e publicada como
+`ghcr.io/wes-tamagi/tamagi:ptbr`.
+
+**Imagens assinadas:** o sistema instalado só aceita imagens do Tamagi
+(`ghcr.io/wes-tamagi`) assinadas com a chave do projeto (`cosign.pub`); uma
+atualização sem assinatura válida é recusada e o sistema fica na imagem atual.
+
+**Papéis de parede:** além dos gerados por tema, dez ilustrados
+(`tamagi-art-*`), em Configurações › Papel de parede; `tools/art-wallpapers.py`
+os produz.
 
 Os projetos em que o Tamagi se apoia, os forks que mantemos e o que é só
 referenciado estão em [UPSTREAMS.md](UPSTREAMS.md).

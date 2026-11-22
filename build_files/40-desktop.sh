@@ -73,13 +73,21 @@ fi
 # Tiling automático ligado em todos os workspaces (Super+Y alterna).
 echo true > "$C/com.system76.CosmicComp/v1/autotile"
 echo Global > "$C/com.system76.CosmicComp/v1/autotile_behavior"
-# Teclado US por padrão, como o idioma (inglês); o instalador grava o que for
-# escolhido (ABNT2 para português do Brasil).
-cat > "$C/com.system76.CosmicComp/v1/xkb_config" <<'RON'
+# O idioma padrão da imagem (TAMAGI_DEFAULT_LANG: en ou pt) fica gravado em
+# /usr/share/tamagi/default-lang: o instalador, a sessão live e o `tamagi lang`
+# leem dali. O teclado de fábrica acompanha (US ou ABNT2); o instalador grava
+# o que for escolhido.
+case "${TAMAGI_DEFAULT_LANG:-en}" in
+    en) XKB_DEFAULT=us ;;
+    pt) XKB_DEFAULT=br ;;
+    *)  echo "TAMAGI_DEFAULT_LANG deve ser en ou pt" >&2; exit 1 ;;
+esac
+echo "${TAMAGI_DEFAULT_LANG:-en}" > /usr/share/tamagi/default-lang
+cat > "$C/com.system76.CosmicComp/v1/xkb_config" <<RON
 (
     rules: "",
     model: "",
-    layout: "us",
+    layout: "${XKB_DEFAULT}",
     variant: "",
     options: None,
     repeat_delay: 600,

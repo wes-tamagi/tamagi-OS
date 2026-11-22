@@ -11,6 +11,9 @@ set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
 declare -A LOCALE=([pt]=pt_BR.UTF-8 [en]=en_US.UTF-8 [es]=es_ES.UTF-8 [fr]=fr_FR.UTF-8)
+# The default language of this image (en, or pt in the :ptbr variant) comes first.
+DEFAULT_LANG=$(cat /usr/share/tamagi/default-lang 2>/dev/null || echo en)
+[[ $DEFAULT_LANG == pt ]] && ORDER=(pt en es fr) || { DEFAULT_LANG=en; ORDER=(en pt es fr); }
 declare -A NAME=([pt]="Português (Brasil)" [en]="English (United States)" [es]="Español" [fr]="Français")
 LANG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/lang"
 
@@ -21,7 +24,7 @@ current() {
         if [[ -n ${LOCALE[$l]:-} ]]; then echo "${LOCALE[$l]} ($l)"; return 0; fi
     fi
     l=$(localectl status 2>/dev/null | sed -n 's/.*LANG=\([a-zA-Z_]*\).*/\1/p' | head -1)
-    echo "${l:-${LANG:-en_US}}"
+    echo "${l:-${LANG:-${LOCALE[$DEFAULT_LANG]%.*}}}"
 }
 
 set_lang() {
@@ -46,9 +49,9 @@ set_lang() {
 
 case "${1:-}" in
     "")            echo "$(t "System language"): $(current)" ;;
-    list)    for c in en pt es fr; do printf '%s  %s\n' "$c" "${NAME[$c]}"; done ;;
-    pick) choice=$(for c in en pt es fr; do echo "${NAME[$c]}"; done | gum choose --header "$(t "System language")") || exit 0
-                   for c in en pt es fr; do
+    list)    for c in "${ORDER[@]}"; do printf '%s  %s\n' "$c" "${NAME[$c]}"; done ;;
+    pick) choice=$(for c in "${ORDER[@]}"; do echo "${NAME[$c]}"; done | gum choose --header "$(t "System language")") || exit 0
+                   for c in "${ORDER[@]}"; do
                        if [[ ${NAME[$c]} == "$choice" ]]; then set_lang "$c"; break; fi
                    done ;;
     set)   set_lang "${2:-}" ;;

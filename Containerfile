@@ -12,6 +12,9 @@ ARG BASE_IMAGE=ghcr.io/ublue-os/base-main
 # o do Fedora Rawhide).
 # Veja build_files/12-kernel.sh, em especial a nota sobre Secure Boot.
 ARG KERNEL_FLAVOR=ogc
+# Idioma padrão da imagem e do instalador: en (padrão) ou pt (português do
+# Brasil, publicado como :ptbr). É a única diferença entre as duas variantes.
+ARG TAMAGI_DEFAULT_LANG=en
 # Módulos prontos do Universal Blue: o mesmo sabor do kernel (ogc ou main). O
 # ark não tem módulos lá; com ele, passe AKMODS_FLAVOR=main (o Justfile faz).
 ARG AKMODS_FLAVOR=${KERNEL_FLAVOR}
@@ -105,6 +108,7 @@ ARG IMAGE_VENDOR=local
 ARG IMAGE_REF=
 ARG STARSHIP_VERSION=v1.27.0
 ARG KERNEL_FLAVOR=ogc
+ARG TAMAGI_DEFAULT_LANG=en
 
 COPY --from=llama /out/usr /usr
 COPY --from=rustdesk /out/usr /usr
@@ -120,7 +124,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     TAMAGI_VERSION="${TAMAGI_VERSION}" TAMAGI_CODENAME="${TAMAGI_CODENAME}" \
     IMAGE_VENDOR=${IMAGE_VENDOR} IMAGE_REF=${IMAGE_REF} \
     STARSHIP_VERSION=${STARSHIP_VERSION} \
-    KERNEL_FLAVOR=${KERNEL_FLAVOR} \
+    KERNEL_FLAVOR=${KERNEL_FLAVOR} TAMAGI_DEFAULT_LANG=${TAMAGI_DEFAULT_LANG} \
     /ctx/build_files/build.sh
 
 # The version label is what bootc records at install time (rechunk.sh carries it over).

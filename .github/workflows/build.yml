@@ -17,9 +17,6 @@ on:
   push:
     branches:
       - main
-      # A variante com português do Brasil como idioma padrão: publicada com as
-      # etiquetas ptbr, 45-ptbr e 45.AAAAMMDD-ptbr.
-      - ptbr-cli-minimal
     paths-ignore:
       - "**.md"
   schedule:
@@ -37,8 +34,14 @@ concurrency:
 
 jobs:
   build:
-    name: Construir, testar e publicar
+    name: Construir, testar e publicar (${{ matrix.lang }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # Duas variantes do mesmo commit, que só diferem no idioma padrão:
+        # en -> 45, 45.AAAAMMDD e latest;  pt -> 45-ptbr, 45.AAAAMMDD-ptbr e ptbr.
+        lang: [en, pt]
     permissions:
       contents: read
       packages: write
@@ -62,6 +65,7 @@ jobs:
           sudo podman build \
             --build-arg FEDORA_VERSION=${FEDORA_VERSION} \
             --build-arg KERNEL_FLAVOR=ogc \
+            --build-arg TAMAGI_DEFAULT_LANG=${{ matrix.lang }} \
             --build-arg AKMODS_FLAVOR=ogc \
             --build-arg IMAGE_VENDOR=${GITHUB_REPOSITORY_OWNER,,} \
             --build-arg IMAGE_REF=${IMAGE_REGISTRY}/${IMAGE_NAME} \
@@ -77,18 +81,16 @@ jobs:
       # Daqui para baixo só no branch principal: um pull request constrói e
       # testa, mas nunca publica nada em seu nome.
       - name: Entrar no GHCR
-        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || github.ref == 'refs/heads/ptbr-cli-minimal')
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
         run: echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Publicar
         id: push
-        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || github.ref == 'refs/heads/ptbr-cli-minimal')
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
         run: |
           set -euo pipefail
-          # Uma imagem só (kernel Open Gaming Collective): 45, 45.AAAAMMDD e latest.
           tags="${FEDORA_VERSION} ${FEDORA_VERSION}.${BUILD_DATE} latest"
-          # O ramo ptbr-cli-minimal publica a variante em português, sem tocar no latest.
-          if [ "${GITHUB_REF}" = "refs/heads/ptbr-cli-minimal" ]; then
+          if [ "${{ matrix.lang }}" = "pt" ]; then
             tags="ptbr ${FEDORA_VERSION}-ptbr ${FEDORA_VERSION}.${BUILD_DATE}-ptbr"
           fi
           for tag in $tags; do
@@ -102,21 +104,23 @@ jobs:
       #   gh secret set SIGNING_SECRET < cosign.key
       #   git add cosign.pub            (a chave pública vai para o repositório)
       - name: Instalar o cosign
-        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || github.ref == 'refs/heads/ptbr-cli-minimal')
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
         uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
         with:
           cosign-release: "v3.1.4"
 
       - name: Assinar a imagem
-        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || github.ref == 'refs/heads/ptbr-cli-minimal')
+        if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
         env:
           COSIGN_EXPERIMENTAL: false
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           if [ -z "${COSIGN_PRIVATE_KEY}" ]; then
-            echo "::notice::SIGNING_SECRET não configurado: a imagem foi publicada sem assinatura."
-            exit 0
+            # O sistema instalado recusa imagem do Tamagi sem assinatura: publicar
+            # sem assinar deixaria todos sem atualização.
+            echo "::error::SIGNING_SECRET não configurado: a imagem foi publicada SEM assinatura e será recusada pelos sistemas instalados."
+            exit 1
           fi
           echo "${{ secrets.GITHUB_TOKEN }}" | cosign login ghcr.io -u "${{ github.actor }}" --password-stdin
           # Formato antigo de bundle, como no image-template (compatível com rpm-ostree).

@@ -117,7 +117,7 @@ if [[ $MODE == --upgrade ]]; then
     echo "   v2 publicada: $(cat "$OUT/vm-upgrade.digest")"
     append+=" tamagi.autoinstall.imgref=10.0.2.2:5000/tamagi:latest"
 fi
-[[ $MODE == --pt || $MODE == --es || $MODE == --fr ]] && append+=" tamagi.autoinstall.lang=${MODE#--}"
+[[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] && append+=" tamagi.autoinstall.lang=${MODE#--}"
 start=$SECONDS
 timeout 3600 qemu-system-x86_64 -enable-kvm -machine q35 -cpu host -smp "$CPUS" -m "$RAM" \
     -drive if=pflash,format=raw,readonly=on,file="$CODE" \
@@ -159,6 +159,8 @@ fi
 luks=()
 [[ $MODE == *luks ]] && luks=(--luks "$LUKS_PASS")
 [[ $MODE == *tpm ]] && luks=(--tpm)
-[[ $MODE == --pt || $MODE == --es || $MODE == --fr ]] && luks+=(--lang "${MODE#--}")
+[[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] && luks+=(--lang "${MODE#--}")
+# Sem opção de idioma, a ISO instala no idioma padrão da imagem (en; pt na variante :ptbr).
+[[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] || luks+=(--lang "${TAMAGI_DEFAULT_LANG:-en}")
 python3 "$HERE/vm_check.py" --serial "$OUT/vm-serial.sock" --qmp "$OUT/vm-qmp.sock" \
     --user tamagi --password tamagi --screenshot "$OUT/vm-greeter.png" "${luks[@]}"
