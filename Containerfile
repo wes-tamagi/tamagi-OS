@@ -12,8 +12,8 @@ ARG BASE_IMAGE=ghcr.io/ublue-os/base-main
 # o do Fedora Rawhide).
 # Veja build_files/12-kernel.sh, em especial a nota sobre Secure Boot.
 ARG KERNEL_FLAVOR=ogc
-# Idioma padrão da imagem e do instalador: en (padrão) ou pt (português do
-# Brasil, publicado como :ptbr). É a única diferença entre as duas variantes.
+# Idioma padrão da imagem e do instalador: en (padrão, a única publicada) ou
+# pt (português do Brasil, só para build local).
 ARG TAMAGI_DEFAULT_LANG=en
 # Módulos prontos do Universal Blue: o mesmo sabor do kernel (ogc ou main). O
 # ark não tem módulos lá; com ele, passe AKMODS_FLAVOR=main (o Justfile faz).

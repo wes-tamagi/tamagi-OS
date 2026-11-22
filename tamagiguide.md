@@ -62,8 +62,6 @@ has not been tested by the project; copy your files first.**
    sudo bootc switch ghcr.io/wes-tamagi/tamagi:latest
    ```
 
-   (`:ptbr` is the same system with Brazilian Portuguese as the default language.)
-
 4. **Before rebooting, enable COSMIC's login screen.** The choice of login
    screen lives in `/etc`, which migration does not replace; without this step
    the system may come up with no login screen.

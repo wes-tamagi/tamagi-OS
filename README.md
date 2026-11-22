@@ -178,9 +178,9 @@ The UEFI-only ISO boots a live COSMIC session and launches the installer.
 
 - **Languages:** English is the default; Brazilian Portuguese is second, then
   Spanish and French. The chosen language applies to the installer, the OS and
-  the CLI. A variant with Brazilian Portuguese as the default is built from
-  the same source (`TAMAGI_DEFAULT_LANG=pt just build`) and published as
-  `ghcr.io/wes-tamagi/tamagi:ptbr`.
+  the CLI. Only one image is published (`latest`); a variant with
+  Brazilian Portuguese as the default can be built locally from the same
+  source (`TAMAGI_DEFAULT_LANG=pt just build`).
 - **Offline:** installation copies the image embedded in the ISO.
 - **Atomic installation:** before wiping the disk, the installer checks disk
   capacity and the SHA-256 digest of every embedded layer, and aborts on

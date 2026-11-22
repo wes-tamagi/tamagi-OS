@@ -34,14 +34,8 @@ concurrency:
 
 jobs:
   build:
-    name: Construir, testar e publicar (${{ matrix.lang }})
+    name: Construir, testar e publicar
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        # Duas variantes do mesmo commit, que só diferem no idioma padrão:
-        # en -> 45, 45.AAAAMMDD e latest;  pt -> 45-ptbr, 45.AAAAMMDD-ptbr e ptbr.
-        lang: [en, pt]
     permissions:
       contents: read
       packages: write
@@ -65,7 +59,6 @@ jobs:
           sudo podman build \
             --build-arg FEDORA_VERSION=${FEDORA_VERSION} \
             --build-arg KERNEL_FLAVOR=ogc \
-            --build-arg TAMAGI_DEFAULT_LANG=${{ matrix.lang }} \
             --build-arg AKMODS_FLAVOR=ogc \
             --build-arg IMAGE_VENDOR=${GITHUB_REPOSITORY_OWNER,,} \
             --build-arg IMAGE_REF=${IMAGE_REGISTRY}/${IMAGE_NAME} \
@@ -89,10 +82,9 @@ jobs:
         if: github.event_name != 'pull_request' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
         run: |
           set -euo pipefail
+          # Uma imagem só, com inglês como idioma padrão: 45, 45.AAAAMMDD e latest.
+          # (A variante em português só é construída localmente: TAMAGI_DEFAULT_LANG=pt just build.)
           tags="${FEDORA_VERSION} ${FEDORA_VERSION}.${BUILD_DATE} latest"
-          if [ "${{ matrix.lang }}" = "pt" ]; then
-            tags="ptbr ${FEDORA_VERSION}-ptbr ${FEDORA_VERSION}.${BUILD_DATE}-ptbr"
-          fi
           for tag in $tags; do
             sudo podman push --digestfile=/tmp/digestfile ${IMAGE_NAME}:build ${IMAGE_REGISTRY}/${IMAGE_NAME}:${tag}
           done
