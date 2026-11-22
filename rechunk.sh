@@ -30,6 +30,16 @@ if [[ ${RECHUNK_INNER:-} != 1 ]]; then
     RECHUNK_INNER=1 exec podman unshare bash "$0" "$SRC" "$OUT" "$WORK"
 fi
 
+# The new image is made from the files alone and starts with no labels. bootc
+# records the image version at install time, and bootupd refuses a record
+# without it (bootloader-update.service fails at every boot): the version
+# label is carried over. The other labels of the source describe the base
+# image (its title, its kernel, an expiry date for its registry) and stay out.
+version=$(podman inspect "$SRC" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')
+labels=(--label "org.opencontainers.image.title=Tamagi"
+        --label "org.opencontainers.image.description=Tamagi — atomic COSMIC desktop for AI and agents (bootc)")
+[[ -n $version && $version != "<no value>" ]] && labels+=(--label "org.opencontainers.image.version=$version")
+
 mnt=$(podman image mount "$SRC")
 trap 'podman image umount "$SRC" >/dev/null 2>&1 || true' EXIT
 echo "rechunk: $SRC mounted at $mnt"
@@ -39,10 +49,10 @@ podman run --rm --privileged --security-opt label=disable \
     "$SRC" bash -c '
         set -euo pipefail
         rpm-ostree compose build-chunked-oci --bootc --format-version 2 \
-            --max-layers "$LAYERS" --rootfs /rootfs \
+            --max-layers "$LAYERS" --rootfs /rootfs "$@" \
             --output containers-storage:localhost/rechunked:latest
         skopeo copy --quiet containers-storage:localhost/rechunked:latest oci-archive:/work/image.oci.tar
-    '
+    ' rechunk "${labels[@]}"
 podman image umount "$SRC" >/dev/null
 trap - EXIT
 echo "rechunk: importing as $OUT"

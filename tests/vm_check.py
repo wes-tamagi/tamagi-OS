@@ -162,8 +162,11 @@ def main():
         check("chave do TPM amarrada ao PCR 7 no primeiro boot", seal.endswith("feito") and "failed" not in seal, seal + " | " + detail)
         out, _ = sudo("sh -c 'cryptsetup luksDump $(blkid -t TYPE=crypto_LUKS -o device | head -1) | grep -A12 systemd-tpm2 | grep -i pcrs | tr -s \" \"'")
         check("o registro no TPM usa o PCR 7", bool(re.search(r"tpm2-hash-pcrs:\s*7\b", out)), out)
-    for karg in ("init_on_alloc=1", "slab_nomerge", "vsyscall=none", "rootflags=compress=zstd:1"):
+    for karg in ("init_on_alloc=1", "slab_nomerge", "vsyscall=none"):
         check(f"argumento do kernel {karg}", karg in cmdline.split(), cmdline)
+    # O instalador acrescenta opções depois da compressão (",noatime"): vale o começo.
+    check("argumento do kernel rootflags=compress=zstd:1",
+          any(a.startswith("rootflags=compress=zstd:1") for a in cmdline.split()), cmdline)
     out, _ = sudo("bootc status --format json 2>/dev/null | python3 -c 'import json,sys; s=json.load(sys.stdin)[\"status\"]; print(s[\"booted\"][\"image\"][\"image\"][\"image\"], s[\"type\"])'")
     check("bootc reconhece o sistema (bootcHost)", "bootcHost" in out, out)
     # O console serial mistura mensagens do kernel na saída: procura a referência.
@@ -195,6 +198,9 @@ def main():
     out, _ = run("systemctl is-enabled firewalld; systemctl is-active firewalld")
     check("firewall ativo", out.split() == ["enabled", "active"], out)
     out, _ = run("systemctl --failed --no-legend --plain | awk '{print $1}' | tr '\\n' ' '")
+    if out.strip():
+        why, _ = sudo("sh -c 'for u in %s; do journalctl -b -u $u -o cat --no-pager | tail -6; done'" % out.strip())
+        out = f"{out.strip()} | {why}"
     check("nenhum serviço falhou no boot", out == "", out)
     out, _ = run("systemctl is-active tuned.service tuned-ppd.service | tr '\\n' ' '")
     check("perfis de energia (tuned + tuned-ppd) ativos", out.split() == ["active", "active"], out)
@@ -204,10 +210,9 @@ def main():
     check("nenhuma pasta sem rótulo SELinux em /boot e /sysroot", out == "", out)
     out, _ = sudo("ausearch -m avc -ts boot 2>/dev/null | grep -c unlabeled_t")
     check("nenhuma negação do SELinux por arquivo sem rótulo", out.splitlines()[-1:] == ["0"], out)
-    out, _ = run("systemctl is-active virtqemud.socket virtnetworkd.socket | tr '\\n' ' '; ls -dZ /var/lib/libvirt/images | cut -d' ' -f1")
-    check("libvirt pronto (sockets ativos, pasta de imagens rotulada)", out.split()[:2] == ["active", "active"] and "virt_image_t" in out, out)
-    out, _ = sudo("sh -c 'export LC_ALL=C; virsh -c qemu:///system list --all 2>&1 | head -1; virsh -c qemu:///system net-list --all 2>&1 | grep -c default'")
-    check("virsh fala com o QEMU do sistema e a rede default existe", "Id" in out and out.splitlines()[-1] == "1", out)
+    # Máquinas virtuais são opcionais (tamagi vm install): nada de libvirt na imagem.
+    out, _ = run("command -v virsh virt-manager | wc -l; systemctl is-enabled tamagi-layer-units.service")
+    check("virt-manager fora da imagem; serviço das camadas ligado", out.split() == ["0", "enabled"], out)
     out, _ = run("systemctl is-enabled rpm-ostreed-automatic.timer flatpak-system-update.timer; systemctl --user is-enabled tamagi-autoupdate.timer flatpak-user-update.timer")
     check("atualização automática: os quatro timers ligados", out.split() == ["enabled"] * 4, out)
     out, _ = run("systemctl --user list-timers --all --no-legend 2>/dev/null | grep -c tamagi-autoupdate")
