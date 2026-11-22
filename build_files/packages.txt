@@ -31,7 +31,9 @@ desktop-file-utils
 # ── Fontes ──
 jetbrains-mono-fonts
 cascadia-code-nf-fonts
-google-noto-sans-fonts
+# Noto Sans: a variável, que já vem na base (google-noto-sans-vf-fonts). A
+# estática por cima duplicava a família e o COSMIC errava o peso do texto.
+google-noto-sans-vf-fonts
 # Roboto Slab: a fonte com serifa do sistema (títulos e documentos).
 google-roboto-slab-fonts
 google-noto-color-emoji-fonts
@@ -89,6 +91,9 @@ erofs-utils
 greenboot
 # Histórico da pasta pessoal (snapshots btrfs a cada hora): tamagi-snap.
 snapper
+# Manutenção do btrfs como no openSUSE MicroOS/Aeon: scrub mensal (acha
+# corrupção silenciosa) e balance semanal, em timers do systemd.
+btrfsmaintenance
 
 # ── Segurança (inspirado no GrapheneOS; veja tamagi-harden) ──
 usbguard

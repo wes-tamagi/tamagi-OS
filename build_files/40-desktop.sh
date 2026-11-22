@@ -86,7 +86,8 @@ cat > "$C/com.system76.CosmicComp/v1/xkb_config" <<'RON'
 )
 RON
 # Janelas utilitárias do Tamagi (menu, ações rápidas, agente) abrem flutuando:
-# o popup usa o foot com o app id "tamagi-popup".
+# o popup usa o foot com o app id "org.tamagi.Menu" (o da paleta: a barra
+# mostra o ícone do Tamagi em vez de um ícone genérico).
 rules="$C/com.system76.CosmicSettings.WindowRules/v1/tiling_exception_defaults"
 python3 - "$rules" <<'PY'
 import sys
@@ -107,8 +108,8 @@ foot --config=/usr/share/tamagi/foot.ini --check-config >/dev/null || { echo "fo
 tamagi-theme foot tokyo-night > /etc/xdg/foot/foot.ini
 foot --check-config >/dev/null || { echo "foot.ini gerado pelo tamagi-theme é inválido" >&2; exit 1; }
 # O atalho System(Terminal) do COSMIC (Super+Enter) roda o que estiver aqui.
-sed -i 's|^\(\s*Terminal: \)"cosmic-term",|\1"foot",|' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions"
-grep -q 'Terminal: "foot"' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions" \
+sed -i 's|^\(\s*Terminal: \)"cosmic-term",|\1"/usr/libexec/tamagi/term",|' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions"
+grep -q 'Terminal: "/usr/libexec/tamagi/term"' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions" \
     || { echo "system_actions do COSMIC mudou de formato: o terminal padrão não virou foot" >&2; exit 1; }
 
 # ── Arquivos (COSMIC Files): grade, pastas primeiro ──
@@ -155,6 +156,9 @@ DCONF
 # (o perfil padrão do Fedora já lê o banco "local"; só cria se não existir)
 [[ -e /etc/dconf/profile/user ]] || printf 'user-db:user\nsystem-db:local\n' | install -Dm644 /dev/stdin /etc/dconf/profile/user
 dconf update
+# Uma família, uma cópia: Noto Sans estática e variável juntas fazem o texto
+# sumir ou trocar de peso em apps do COSMIC.
+rpm -q google-noto-sans-fonts >/dev/null 2>&1 && { echo "google-noto-sans-fonts (estática) duplicaria a Noto Sans variável" >&2; exit 1; }
 fc-cache -f >/dev/null
 [[ $(fc-match -f '%{family}' sans-serif) == "Noto Sans" ]] || { echo "sans-serif não é Noto Sans" >&2; exit 1; }
 [[ $(fc-match -f '%{family}' serif) == "Roboto Slab" ]] || { echo "serif não é Roboto Slab" >&2; exit 1; }
@@ -201,7 +205,7 @@ cat > "$M/favorite_applications" <<'RON'
     "com.system76.CosmicFiles",
     "foot",
     "tamagi-agent",
-    "tamagi-menu",
+    "org.tamagi.Menu",
     "com.system76.CosmicSettings",
 ]
 RON
@@ -297,8 +301,8 @@ done
 
 gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 
-for f in /usr/share/applications/tamagi-*.desktop \
-         /usr/share/applications/claude-code.desktop /usr/share/applications/agy.desktop \
+for f in /usr/share/applications/tamagi-*.desktop /usr/share/applications/org.tamagi.Menu.desktop \
+         /usr/share/tamagi/desktop/*.desktop \
          /etc/xdg/autostart/tamagi-*.desktop; do
     desktop-file-validate "$f"
 done

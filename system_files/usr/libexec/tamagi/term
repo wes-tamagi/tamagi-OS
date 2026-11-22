@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+# The system terminal (Super+Enter): foot, started in your home folder — the
+# compositor would hand it its own working directory, "/".
+[[ $PWD == / ]] && { cd "$HOME" || true; }
+exec foot "$@"

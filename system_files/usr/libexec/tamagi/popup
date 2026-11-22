@@ -1,15 +1,16 @@
 #!/usr/bin/bash
 # Opens a terminal command in a window of its own (foot, the system terminal).
-#   popup <command...>          floating window (app id tamagi-popup; the rule
+#   popup <command...>          floating window (app id org.tamagi.Menu: the
+#                               bar shows the Tamagi icon; the floating rule
 #                               is in CosmicSettings.WindowRules)
 #   popup --tile <command...>   ordinary window, joins the tiling
 #   popup --class <id> --title <text> <command...>   window with an identity
 #                               of its own (the dock recognises the pinned app)
-class=tamagi-popup
+class=org.tamagi.Menu
 title=Tamagi
 while [[ ${1:-} == --* ]]; do
     case $1 in
-        --tile)  class=tamagi-term; shift ;;
+        --tile)  class=foot; shift ;;
         --class) class=$2; shift 2 ;;
         --title) title=$2; shift 2 ;;
         *) break ;;
@@ -32,4 +33,5 @@ fi
 if [[ -d $HOME/.local/bin ]]; then
     case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
 fi
-exec foot --config="$cfg" --app-id="$class" --title="$title" --window-size-chars=104x30 --override=pad=14x12 "$@"
+# Size in characters: POPUP_SIZE=COLSxROWS for a command that needs more room.
+exec foot --config="$cfg" --app-id="$class" --title="$title" --window-size-chars="${POPUP_SIZE:-104x30}" --override=pad=14x12 "$@"

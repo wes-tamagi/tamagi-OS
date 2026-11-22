@@ -13,6 +13,8 @@ rm -f /usr/lib/greenboot/check/required.d/01_repository_dns_check.sh \
 # snapper só agem nas configurações criadas; o serviço faz as conversões
 # agendadas antes do login.
 systemctl enable snapper-timeline.timer snapper-cleanup.timer tamagi-home-snapshots.service
+# Manutenção do btrfs (btrfsmaintenance): scrub mensal e balance semanal.
+systemctl enable btrfs-scrub.timer btrfs-balance.timer
 
 # O kernel padrão (Open Gaming Collective) é assinado só pelo Universal Blue: este guarda
 # cancela uma atualização que não iniciaria com o Secure Boot (chave ausente).

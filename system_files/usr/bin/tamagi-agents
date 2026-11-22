@@ -56,6 +56,14 @@ declare -A GH_ASSET=([codex]='^codex-x86_64-unknown-linux-musl\.tar\.gz$' [openc
 die() { echo "$(t "error"): $*" >&2; exit 1; }
 # Agents that run in the development box: npm packages (Node is there) and
 # CLIO (needs the complete Perl, which the immutable host does not carry).
+# The menu entry of an agent appears when the agent is installed (the image
+# carries the entry as a template, not in the menu).
+APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+menu_entry() {
+    [[ -f /usr/share/tamagi/desktop/$1.desktop ]] || return 0
+    install -Dm644 "/usr/share/tamagi/desktop/$1.desktop" "$APPS/$1.desktop"
+    update-desktop-database "$APPS" 2>/dev/null || true
+}
 needs_box() { [[ -n ${NPM[$1]:-} || $1 == clio ]]; }
 ensure_box() { podman container exists "$BOX" 2>/dev/null || tamagi-devbox create fedora --name "$BOX"; }
 write_launcher() { # write_launcher <name> <program inside the home>: works from the host and from any box
@@ -141,8 +149,8 @@ install_one() {
     known "$name" || die "$(t "unknown agent"): $1 (${ORDER[*]})"
     info "── ${TITLE[$name]}"
     case $name in
-        claude)      claude --version </dev/null ;;
-        antigravity) tamagi-antigravity install ;;
+        claude)      claude --version </dev/null && menu_entry claude-code ;;
+        antigravity) tamagi-antigravity install && menu_entry agy ;;
         codex|opencode|clio) install_github "$name" ;;
         qwen|gemini|openclaw) install_npm "$name" ;;
         local)       tamagi-ai setup ;;
@@ -153,8 +161,8 @@ remove_one() {
     local name; name=$(canon "$1")
     known "$name" || die "$(t "unknown agent"): $1"
     case $name in
-        claude)      rm -f "$BIN_DIR/claude"; rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/claude" ;;
-        antigravity) tamagi-antigravity remove ;;
+        claude)      rm -f "$BIN_DIR/claude" "$APPS/claude-code.desktop"; rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/claude" ;;
+        antigravity) tamagi-antigravity remove; rm -f "$APPS/agy.desktop" ;;
         codex|opencode) rm -f "$BIN_DIR/$name" ;;
         clio)        rm -f "$BIN_DIR/clio"; [[ -d $CLIO_DIR ]] && rm -rf -- "${CLIO_DIR:?}" ;;
         qwen|gemini|openclaw)

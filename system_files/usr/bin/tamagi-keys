@@ -1,10 +1,14 @@
 #!/usr/bin/bash
-# Mostra a tabela de atalhos do Tamagi, no idioma do sistema.
+# Shows the table of Tamagi shortcuts, in the system language.
 . /usr/libexec/tamagi/i18n
 file=$(tfile /usr/share/tamagi/keys.txt)
-if [[ -t 1 ]]; then
+if [[ ! -t 1 ]]; then cat "$file"; exit 0; fi
+# Longer than the window: a pager (arrows scroll, q leaves) instead of a list
+# whose first lines scroll away.
+rows=$(tput lines 2>/dev/null || echo 24)
+if (( $(wc -l < "$file") + 4 > rows )); then
+    gum pager --soft-wrap=false < "$file"
+else
     gum style --border rounded --padding "0 2" --border-foreground 4 "$(cat "$file")"
     read -rsn1 -p "  ($(t "press any key to close"))"
-else
-    cat "$file"
 fi

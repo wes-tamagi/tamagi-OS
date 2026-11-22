@@ -26,7 +26,7 @@ clear
 # Fixed width smaller than the window: a long sentence (French, Spanish)
 # would otherwise break the frame.
 cols=$(tput cols 2>/dev/null || echo 80)
-width=$(( cols - 12 )); (( width > 72 )) && width=72; (( width < 30 )) && width=30
+width=$(( cols - 8 )); (( width > 84 )) && width=84; (( width < 30 )) && width=30
 gum style --border double --padding "0 2" --border-foreground 4 --width "$width" \
     "$(t "Welcome to Tamagi")" "" \
     "$(t "Atomic, lean system: the host is read-only and updates itself.")" \
