@@ -186,7 +186,7 @@ def main():
     want = {"pt": ("pt_BR.UTF-8", "br-abnt2", "America/Sao_Paulo"), "en": ("en_US.UTF-8", "us", "UTC"),
             "es": ("es_ES.UTF-8", "es", "Europe/Madrid"), "fr": ("fr_FR.UTF-8", "fr", "Europe/Paris")}[args.lang]
     check(f"idioma {want[0]} e teclado {want[1]}", f"LANG={want[0]}" in out and f"Keymap: {want[1]}" in out, out)
-    out, _ = run("bash -lc '. /usr/libexec/tamagi/i18n; t Sair'")
+    out, _ = run("bash -lc '. /usr/libexec/tamagi/i18n; t Quit'")
     check("ferramentas do Tamagi no idioma instalado", out.splitlines()[-1:] == [{"pt": "Sair", "en": "Quit", "es": "Salir", "fr": "Quitter"}[args.lang]], out)
     out, _ = run("timedatectl show -p Timezone --value")
     zone = want[2]
@@ -220,7 +220,7 @@ def main():
     out, _ = run("grep -c 'tokyo-night-mon.png' /usr/share/cosmic/com.system76.CosmicBackground/v1/all")
     check("papel de parede padrão é o brasão", out == "1", out)
     out, _ = run("tamagi-harden status | head -1")
-    check("tamagi-harden: modo equilibrado", "equilibrado" in out, out)
+    check("tamagi-harden: modo equilibrado", "equilibrado" in out or "balanced" in out, out)
     # Caixas distrobox: no host somente-leitura o comando gerado tem de ser aceito
     # pelo podman (o distrobox 1.8.2.5 gerava ":ro:rslave", que o podman 6 recusa).
     out, _ = run("distrobox create --yes --dry-run --name teste --image docker.io/library/ubuntu:26.04 2>&1 | grep -c ':ro:rslave'")
