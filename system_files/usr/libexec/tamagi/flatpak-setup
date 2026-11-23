@@ -1,24 +1,24 @@
 #!/usr/bin/bash
-# Instala os apps Flatpak essenciais do Tamagi (uma vez, no primeiro boot com
-# rede). Os opcionais quem escolhe é o usuário, no primeiro login (tamagi-firstrun).
-# Remotes: Flathub e o repositório COSMIC da System76 (applets e apps feitos
-# para o COSMIC; https://github.com/pop-os/cosmic-flatpak).
+# Instala os apps Flatpak essenciais do Tamagi no escopo --user (zero Flatpak de
+# sistema: todos os apps ficam portáteis em ~/.local/share/flatpak dentro de /var/home).
 set -uo pipefail
 
 LIST=/usr/share/tamagi/flatpaks.list
-STAMP=/var/lib/tamagi/flatpaks.done
+STATE_DIR=${XDG_STATE_HOME:-$HOME/.local/state}/tamagi
+STAMP=$STATE_DIR/flatpaks.done
 
-flatpak remote-add --system --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo
-flatpak remote-add --system --if-not-exists cosmic /etc/flatpak/remotes.d/cosmic.flatpakrepo
+flatpak remote-add --user --if-not-exists flathub /etc/flatpak/remotes.d/flathub.flatpakrepo 2>/dev/null \
+    || flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak remote-add --user --if-not-exists cosmic /etc/flatpak/remotes.d/cosmic.flatpakrepo 2>/dev/null || true
 
 failed=0
 while read -r remote app kind _; do
     [[ -z $remote || $remote == \#* ]] && continue
     [[ ${kind:-essencial} == essencial ]] || continue
-    flatpak install --system --noninteractive --or-update "$remote" "$app" || failed=1
+    flatpak install --user --noninteractive --or-update "$remote" "$app" || failed=1
 done < "$LIST"
 
-# Sem o carimbo o serviço tenta de novo no próximo boot.
+# Sem o carimbo o serviço tenta de novo no próximo login.
 (( failed )) && exit 1
-mkdir -p "$(dirname "$STAMP")"
+mkdir -p "$STATE_DIR"
 touch "$STAMP"

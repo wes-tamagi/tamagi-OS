@@ -187,6 +187,45 @@ def restore(arg, number=None):
     return 0
 
 
+def send_backup(dest):
+    dest_path = pathlib.Path(dest)
+    if not dest_path.is_dir():
+        print(f"error: destination directory not found: {dest}", file=sys.stderr)
+        return 2
+    snaps = sorted([s for s in list_snaps() if (s[3] / "snapshot").is_dir()], key=lambda x: x[0])
+    if not snaps:
+        print("no snapshots available to send", file=sys.stderr)
+        return 1
+    latest = snaps[-1]
+    src_sub = str(latest[3] / "snapshot")
+    marker = dest_path / f".tamagi-last-{USER}"
+    parent_sub = None
+    if marker.is_file():
+        prev_num = marker.read_text(encoding="utf-8").strip()
+        for s in snaps:
+            if str(s[0]) == prev_num and (dest_path / f"snapshot-{prev_num}").exists():
+                parent_sub = str(s[3] / "snapshot")
+                break
+    cmd_send = ["pkexec", "btrfs", "send"]
+    if parent_sub and parent_sub != src_sub:
+        cmd_send += ["-p", parent_sub]
+    cmd_send.append(src_sub)
+    p1 = subprocess.Popen(cmd_send, stdout=subprocess.PIPE)
+    p2 = subprocess.Popen(["btrfs", "receive", str(dest_path)], stdin=p1.stdout)
+    p1.stdout.close()
+    rc2 = p2.wait()
+    rc1 = p1.wait()
+    if rc1 == 0 and rc2 == 0:
+        recv_dir = dest_path / "snapshot"
+        target_dir = dest_path / f"snapshot-{latest[0]}"
+        if recv_dir.exists() and not target_dir.exists():
+            recv_dir.rename(target_dir)
+        marker.write_text(f"{latest[0]}\n", encoding="utf-8")
+        print(f"sent snapshot #{latest[0]} -> {target_dir}")
+        return 0
+    return 1
+
+
 def main(argv):
     cmd = argv[0] if argv else "status"
     if cmd in ("status",):
@@ -195,6 +234,8 @@ def main(argv):
         return subprocess.run(["pkexec", HELPER, "enable", USER], check=False).returncode
     if cmd in ("clean-backup",):
         return subprocess.run(["pkexec", HELPER, "clean", USER], check=False).returncode
+    if cmd in ("send",) and len(argv) == 2:
+        return send_backup(argv[1])
     if cmd in ("now",):
         desc = " ".join(argv[1:]) or "manual"
         return subprocess.run(["snapper", "-c", CONFIG, "create", "-c", "number", "-d", desc],

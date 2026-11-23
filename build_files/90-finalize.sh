@@ -1,7 +1,20 @@
 #!/usr/bin/bash
 # Habilita os serviços do Tamagi e limpa o que o build deixou para trás.
 
-systemctl enable tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-tpm-seal.service tamagi-combustion.service
+systemctl enable tamagi-firstboot.service tamagi-tpm-seal.service tamagi-combustion.service
+systemctl --global enable tamagi-flatpak-setup.service
+
+# Virtualização nativa e console Cockpit ativados sob demanda por socket (0 RAM em idle).
+systemctl disable virtqemud.service 2>/dev/null || true
+systemctl enable cockpit.socket virtqemud.socket virtnetworkd.socket virtstoraged.socket \
+    virtnodedevd.socket virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket \
+    virtlogd.socket virtlockd.socket
+if [[ -f /usr/share/libvirt/networks/default.xml && ! -e /etc/libvirt/qemu/networks/default.xml ]]; then
+    install -Dm600 /usr/share/libvirt/networks/default.xml /etc/libvirt/qemu/networks/default.xml
+    install -d /etc/libvirt/qemu/networks/autostart
+    ln -sfn ../default.xml /etc/libvirt/qemu/networks/autostart/default.xml
+fi
+authselect enable-feature with-libvirt >/dev/null 2>&1 || true
 
 # systemd-boot no lugar do GRUB: a partição EFI é montada em /efi (a pasta tem
 # de existir na imagem, que é somente-leitura), e o serviço que atualiza o

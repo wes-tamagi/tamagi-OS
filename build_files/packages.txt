@@ -134,9 +134,35 @@ iperf3
 nmap-ncat
 wol
 
-# ── Máquinas virtuais ──
-# virt-manager, libvirt e QEMU não vêm na imagem: `tamagi vm install` os
-# instala nativamente (RPM do Fedora numa camada do tamagi-layer, não Flatpak).
+# ── Máquinas virtuais e Console Web (DX nativo, ativado por socket) ──
+qemu-kvm
+qemu-img
+qemu-device-display-virtio-gpu-gl
+qemu-device-display-virtio-vga-gl
+qemu-ui-opengl
+virglrenderer
+qemu-ui-spice-core
+qemu-audio-spice
+qemu-char-spice
+qemu-device-usb-redirect
+libvirt-daemon-kvm
+libvirt-client
+libvirt-dbus
+libvirt-daemon-config-network
+libvirt-daemon-config-nwfilter
+dnsmasq
+libvirt-nss
+edk2-ovmf
+swtpm
+swtpm-tools
+virtiofsd
+passt
+guestfs-tools
+cockpit
+cockpit-machines
+cockpit-podman
+cockpit-storaged
+cockpit-networkmanager
 
 # ── IA local ──
 vulkan-tools

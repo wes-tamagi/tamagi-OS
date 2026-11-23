@@ -47,6 +47,9 @@ def strings(root):
     # the image carries only the binaries): t("…") calls, same English keys.
     for src in sorted((root.parent / "rust").glob("*/src/*.rs")):
         found += [m.replace('\\"', '"') for m in PY_CALLS_DQ.findall(src.read_text(encoding="utf-8"))]
+    # The tools written in Go (go/, next to system_files in the repository).
+    for src in sorted((root.parent / "go").rglob("*.go")):
+        found += [m.replace('\\"', '"') for m in PY_CALLS_DQ.findall(src.read_text(encoding="utf-8"))]
     # The first-login window (welcome/, Rust + libcosmic): its list of strings.
     welcome = root.parent / "welcome/NEW_STRINGS.txt"
     if welcome.is_file():

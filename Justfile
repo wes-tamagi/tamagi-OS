@@ -64,7 +64,7 @@ lint:
         && python3 -c "import ast, sys; [ast.parse(open(p).read()) for p in sys.argv[1:]]" \
             system_files/usr/bin/tamagi-agent system_files/usr/bin/tamagi-menu \
             system_files/usr/bin/tamagi-snap system_files/usr/bin/tamagi-capture system_files/usr/bin/tamagi-rewind \
-            system_files/usr/bin/tamagi-workspace system_files/usr/bin/tamagi-doctor \
+            system_files/usr/bin/tamagi-workspace \
             system_files/usr/libexec/tamagi/tamagi_i18n.py system_files/usr/libexec/tamagi/gum-multi \
             system_files/usr/libexec/tamagi/update-changes live/files/usr/libexec/tamagi-installer-splash \
         && python3 tests/i18n-strings.py system_files --check \

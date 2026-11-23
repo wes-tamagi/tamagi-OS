@@ -238,8 +238,8 @@ def main():
     out, _ = sudo("ausearch -m avc -ts boot 2>/dev/null | grep -c unlabeled_t")
     check("nenhuma negação do SELinux por arquivo sem rótulo", out.splitlines()[-1:] == ["0"], out)
     # Máquinas virtuais são opcionais (tamagi vm install): nada de libvirt na imagem.
-    out, _ = run("command -v virsh virt-manager | wc -l; systemctl is-enabled tamagi-layer-units.service")
-    check("virt-manager fora da imagem; serviço das camadas ligado", out.split() == ["0", "enabled"], out)
+    out, _ = run("command -v virsh qemu-kvm cockpit-bridge >/dev/null && systemctl is-enabled cockpit.socket virtqemud.socket tamagi-layer-units.service | tr '\\n' ' '")
+    check("DX nativo (Cockpit/libvirt/QEMU) e camadas ligadas", out.strip() == "enabled enabled enabled", out)
     # Uma camada de verdade, de ponta a ponta (tamagi-layer em Rust): instala um
     # pacote pequeno por cima da imagem, confere que aparece e desfaz.
     sudo("-v")

@@ -251,7 +251,7 @@ resolve_desktop() { # resolve_desktop <name-or-slug>
 }
 
 install_app() {
-    local preset="" isolated=0 profile="" browser="app" category="Network;" pin=0
+    local preset="" isolated=0 profile="" browser="app" category="Network;" pin=0 kiosk=0
     local -a pos=()
     while (( $# )); do
         case "$1" in
@@ -265,6 +265,7 @@ install_app() {
             --category)     category=${2:-}; shift 2 ;;
             --category=*)   category=${1#*=}; shift ;;
             --pin)          pin=1; shift ;;
+            --kiosk)        kiosk=1; shift ;;
             -h|--help)      usage; return 0 ;;
             *)              pos+=("$1"); shift ;;
         esac
@@ -311,7 +312,11 @@ install_app() {
         mode="profile:$profile"
         extra_arg="--profile $profile "
     fi
-    exec_cmd="tamagi-browser $browser ${extra_arg}--app=$url --class=$id"
+    if (( kiosk )); then
+        exec_cmd="tamagi-browser $browser ${extra_arg}--kiosk $url --class=$id"
+    else
+        exec_cmd="tamagi-browser $browser ${extra_arg}--app=$url --class=$id"
+    fi
 
     cat > "$APPS/$id.desktop" <<DESKTOP
 [Desktop Entry]

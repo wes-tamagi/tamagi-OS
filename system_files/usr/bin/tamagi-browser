@@ -472,6 +472,11 @@ case "${1:-}" in
     status)          cmd_status ;;
     profile)         shift; cmd_profile "$@" ;;
     google-account)  shift; cmd_google_account "$@" ;;
+    guest)
+        shift
+        gdir=$(mktemp -d /tmp/tamagi-browser-guest.XXXXXX)
+        trap 'rm -rf "$gdir"' EXIT
+        chromium-browser --user-data-dir="$gdir" --no-first-run --no-default-browser-check "$@" ;;
     fido)            cmd_fido ;;
     update)          cmd_update ;;
     enter)           ensure_box; exec distrobox enter "$BOX" ;;

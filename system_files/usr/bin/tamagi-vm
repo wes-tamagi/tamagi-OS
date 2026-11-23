@@ -1,66 +1,50 @@
 #!/usr/bin/bash
-# tamagi-vm — virtual machines with virt-manager, native and on demand.
+# tamagi-vm — virtual machines with Cockpit Machines, libvirt and QEMU/KVM (built in).
 #
-# virt-manager, libvirt and QEMU/KVM do not ship in the image. This installs
-# the Fedora RPMs natively (not Flatpak) in a reversible layer over /usr
-# (tamagi-layer), with everything: UEFI and Secure Boot firmware, virtual TPM
-# (Windows 11), 3D acceleration in the guest (virgl), SPICE (clipboard, sound,
-# USB redirection), shared folders (virtiofs), the default NAT network,
-# rootless networking (passt), VM names in DNS (libvirt-nss) and the image
-# tools (guestfs-tools). The libvirt daemons start by socket, only when used.
+# Virtualization ships built into the DX image and starts on demand by socket
+# (cockpit.socket + virtqemud.socket — zero idle RAM). Opens Cockpit Machines
+# natively in Chromium app mode and reads .img, .qcow2 and .iso files directly.
 #
-#   tamagi vm             opens virt-manager (installs the first time)
-#   tamagi vm install     installs the virtualization layer (asks for the password)
-#   tamagi vm status
+#   tamagi vm             opens the integrated Cockpit Machines VM console
+#   tamagi vm install     checks/enables built-in virtualization sockets
+#   tamagi vm status      shows KVM, libvirt, Cockpit and VM access status
 #   tamagi vm access [standard|full]
-#                         standard: VMs run confined (libvirt's default). They
-#                           use USB devices you pass through and disk images
-#                           in libvirt's folders.
-#                         full: VMs run as root and without SELinux
-#                           confinement, so they reach anything on this
-#                           computer: USB sticks, whole external disks
-#                           (/dev/sdX), and images stored on external drives
-#                           (/run/media/…). Convenient and less safe: a VM
-#                           that is broken out of has the whole machine.
-#   tamagi vm remove      removes the layer (your VMs and disks stay)
+#                         standard: VMs run confined (libvirt's default).
+#                         full: VMs run as root without SELinux confinement
+#                           (access USB sticks and external disks).
+#   tamagi vm open        alias for `tamagi vm`
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
-LAYER=virt
-# The complete stack, as a desktop distro would ship it built in.
-PKGS=(
-    virt-manager virt-viewer virt-install virt-top            # the app, the console and the CLI tools
-    libvirt-daemon-kvm libvirt-client libvirt-dbus            # libvirt for KVM (virsh included)
-    libvirt-daemon-config-network libvirt-daemon-config-nwfilter dnsmasq   # default NAT network and filters
-    libvirt-nss                                               # reach VMs by name (ssh my-vm)
-    qemu-kvm qemu-img                                         # QEMU/KVM and disk images
-    qemu-device-display-virtio-gpu-gl qemu-device-display-virtio-vga-gl qemu-ui-opengl virglrenderer   # 3D in the guest
-    qemu-ui-spice-core qemu-audio-spice qemu-char-spice qemu-device-usb-redirect   # SPICE: clipboard, sound, USB
-    edk2-ovmf swtpm swtpm-tools                               # UEFI, Secure Boot and virtual TPM (Windows 11)
-    virtiofsd                                                 # shared folders
-    passt                                                     # networking for VMs without root (session)
-    guestfs-tools                                             # virt-customize, virt-sysprep, virt-sparsify
-)
-UNITS=(virtqemud.socket virtnetworkd.socket virtstoraged.socket virtnodedevd.socket
-       virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket virtlogd.socket virtlockd.socket)
+UNITS=(cockpit.socket virtqemud.socket virtnetworkd.socket virtstoraged.socket
+       virtnodedevd.socket virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket
+       virtlogd.socket virtlockd.socket)
 
-installed() { command -v virt-manager >/dev/null 2>&1; }
+installed() { command -v virsh >/dev/null 2>&1 && command -v qemu-kvm >/dev/null 2>&1; }
 die() { echo "$(t "error"): $*" >&2; exit 1; }
 
-# What the packages' scriptlets would have done (the layer installs without them).
-post_install() {
-    # The default NAT network: defined and started with the host.
-    if [[ -f /usr/share/libvirt/networks/default.xml && ! -e /etc/libvirt/qemu/networks/default.xml ]]; then
-        sudo install -Dm600 /usr/share/libvirt/networks/default.xml /etc/libvirt/qemu/networks/default.xml
-        sudo install -d /etc/libvirt/qemu/networks/autostart
-        sudo ln -sfn ../default.xml /etc/libvirt/qemu/networks/autostart/default.xml
+ensure_sockets() {
+    local u missing=0
+    for u in "${UNITS[@]}"; do
+        systemctl is-active --quiet "$u" 2>/dev/null || missing=1
+    done
+    if (( missing )); then
+        sudo systemctl start "${UNITS[@]}" >/dev/null 2>&1 || true
     fi
-    # VM names resolve on the host (ssh my-vm): libvirt-nss in the hosts line.
-    sudo authselect enable-feature with-libvirt >/dev/null 2>&1 || true
-    sudo systemctl restart virtnetworkd.socket 2>/dev/null || true
 }
 
-# ── Access of the VMs to the machine ────────────────────────────────────────
+open_console() {
+    ensure_sockets
+    local url="https://localhost:9090/machines"
+    if command -v chromium-browser >/dev/null 2>&1; then
+        setsid -f chromium-browser --app="$url" --class=tamagi-vm --ignore-certificate-errors >/dev/null 2>&1
+    elif command -v xdg-open >/dev/null 2>&1; then
+        setsid -f xdg-open "$url" >/dev/null 2>&1
+    else
+        echo "$url"
+    fi
+}
+
 QEMU_CONF=/etc/libvirt/qemu.conf
 MARK_BEGIN="# >>> tamagi vm access (managed; change with: tamagi vm access standard|full)"
 MARK_END="# <<< tamagi vm access"
@@ -69,14 +53,12 @@ access_now() { sudo grep -qF "$MARK_BEGIN" "$QEMU_CONF" 2>/dev/null && echo full
 
 set_access() {
     local mode=$1
-    installed || die "virt-manager $(t "is not installed"): tamagi vm install"
+    installed || die "libvirt/QEMU $(t "is not installed")"
     sudo touch "$QEMU_CONF"
-    # Always start from a file without the managed block.
     sudo sed -i "/^# >>> tamagi vm access/,/^# <<< tamagi vm access/d" "$QEMU_CONF"
     if [[ $mode == full ]]; then
         printf '%s\n' "$MARK_BEGIN" 'user = "root"' 'group = "root"' 'dynamic_ownership = 0' \
             'security_driver = "none"' "$MARK_END" | sudo tee -a "$QEMU_CONF" >/dev/null
-        # You manage the VMs of the system and reach KVM and disks without asking each time.
         local g
         for g in libvirt kvm disk; do
             getent group "$g" >/dev/null && sudo usermod -aG "$g" "$USER"
@@ -90,39 +72,30 @@ set_access() {
 }
 
 install_vm() {
-    if installed; then echo "$(t "virt-manager is already installed.")"; return 0; fi
+    installed || die "libvirt/QEMU $(t "is not installed")"
     grep -qE 'vmx|svm' /proc/cpuinfo || echo "$(t "warning: virtualization (VT-x/AMD-V) seems to be disabled in the firmware; VMs will be slow.")" >&2
-    echo -e "\033[1m$(t "Installing virt-manager, libvirt and QEMU/KVM natively (layer 'virt')…")\033[0m"
-    local args=() u
-    for u in "${UNITS[@]}"; do args+=(--unit "$u"); done
-    tamagi-layer add "$LAYER" "${args[@]}" "${PKGS[@]}"
-    post_install
+    ensure_sockets
+    echo "$(t "Cockpit Machines and QEMU/KVM are built into this image.")"
     echo "$(t "Done. Open it with"): tamagi vm"
 }
 
 case "${1:-open}" in
-    open)
-        if ! installed; then
-            [[ -t 0 ]] || exec /usr/libexec/tamagi/popup "$0" install
-            install_vm
-        fi
-        setsid -f virt-manager >/dev/null 2>&1 ;;
+    open) open_console ;;
     install) install_vm ;;
     status)
-        if installed; then
-            echo "virt-manager: $(t "installed") ($(awk '$1 == "virt-manager" {print $2}' /usr/share/tamagi/layers/$LAYER.packages 2>/dev/null))"
-            echo "KVM: $([[ -e /dev/kvm ]] && t "yes" || t "no")"
-            echo "$(t "VM access"): $(access_now)   (tamagi vm access standard|full)"
-        else
-            echo "virt-manager: $(t "not installed") (tamagi vm install)"
-        fi ;;
+        echo "cockpit-machines: $(rpm -q --qf '%{VERSION}-%{RELEASE}' cockpit-machines 2>/dev/null || t "built in")"
+        echo "libvirt / QEMU: $(installed && t "built in" || t "not installed")"
+        echo "KVM: $([[ -e /dev/kvm ]] && t "yes" || t "no")"
+        echo "cockpit.socket: $(systemctl is-active cockpit.socket 2>/dev/null || echo inactive)"
+        echo "$(t "VM access"): $(access_now)   (tamagi vm access standard|full)" ;;
     access)
         case "${2:-status}" in
             status)        echo "$(t "VM access"): $(access_now)" ;;
             standard|full) set_access "$2" ;;
             *) echo "usage: tamagi vm access [standard|full]" >&2; exit 2 ;;
         esac ;;
-    remove) tamagi-layer remove "$LAYER" ;;
+    remove)
+        echo "$(t "Virtualization is built into the DX image. Use 'tamagi vm access standard' to keep VMs confined.")" ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
     *) echo "usage: tamagi vm [open|install|status|access|remove]" >&2; exit 2 ;;
 esac

@@ -1,0 +1,18 @@
+[Unit]
+Description=Instala os apps Flatpak essenciais do Tamagi no usuário
+ConditionPathExists=!%S/tamagi/flatpaks.done
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Nice=19
+CPUWeight=20
+IOSchedulingClass=idle
+IOWeight=20
+ExecStart=/usr/libexec/tamagi/flatpak-setup
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=default.target

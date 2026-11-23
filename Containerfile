@@ -23,7 +23,7 @@ ARG AKMODS_FLAVOR=${KERNEL_FLAVOR}
 FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS llama
 ARG LLAMA_CPP_REF=v1.0.0
 RUN dnf -y install --setopt=install_weak_deps=False \
-        git-core cmake ninja-build gcc-c++ \
+        git-core cmake ninja-build clang llvm lld \
         vulkan-headers vulkan-loader-devel spirv-headers-devel glslc \
         openssl-devel && dnf clean all
 # Clone sem blobs, mas com o histórico de commits: o build usa a contagem de
@@ -33,8 +33,14 @@ RUN git clone --filter=blob:none --branch "${LLAMA_CPP_REF}" \
 WORKDIR /src
 # GGML_NATIVE=OFF: binário portátil (o ggml escolhe AVX2/AVX-512 em runtime
 # com GGML_CPU_ALL_VARIANTS, que exige o backend como biblioteca dinâmica).
+# Compilado com Clang + LLD + ThinLTO (estilo OpenMandriva) no estágio de build.
 RUN cmake -B build -G Ninja \
         -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_COMPILER=clang \
+        -DCMAKE_CXX_COMPILER=clang++ \
+        -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld" \
+        -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld" \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_INSTALL_LIBDIR=lib64 \
         -DGGML_NATIVE=OFF \
@@ -93,6 +99,15 @@ RUN cargo test --release --locked \
     && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi /out/usr/bin/tamagi \
     && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-layer /out/usr/bin/tamagi-layer
 
+# ── Estágio 1d: ferramentas escritas em Go (go/) ─────────────────────────────
+FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS tamagigo
+RUN dnf -y install --setopt=install_weak_deps=False golang && dnf clean all
+COPY go /src
+WORKDIR /src
+RUN go test ./... \
+    && CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/usr/bin/tamagi-doctor ./cmd/tamagi-doctor \
+    && CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/usr/bin/tamagi-install ./cmd/tamagi-install
+
 # ── Kernel e módulos prontos e assinados do Universal Blue (ublue-os/akmods) ──
 # build_files/12-kernel.sh troca o kernel (se o sabor pedir) e instala os módulos.
 FROM ghcr.io/ublue-os/akmods:${AKMODS_FLAVOR}-${FEDORA_VERSION} AS akmods
@@ -121,6 +136,7 @@ COPY --from=llama /out/usr /usr
 COPY --from=rustdesk /out/usr /usr
 COPY --from=ctx /system_files /
 COPY --from=tamagitools /out/usr /usr
+COPY --from=tamagigo /out/usr /usr
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=bind,from=akmods,source=/,target=/akmods \

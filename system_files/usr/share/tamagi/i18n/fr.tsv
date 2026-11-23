@@ -1026,3 +1026,8 @@ Curated Web Apps	Applications web prêtes
 Refreshed icons	Icônes actualisées
 Delete isolated profile data too?	Supprimer aussi les données du profil isolé ?
 Keeping pre-installed Chromium. Install another browser anytime: tamagi browser install	Chromium préinstallé conservé. Installez un autre navigateur quand vous voulez : tamagi browser install
+Cockpit Machines and QEMU/KVM are built into this image.	Cockpit Machines et QEMU/KVM sont déjà intégrés à cette image.
+built in	intégré
+Virtualization is built into the DX image. Use 'tamagi vm access standard' to keep VMs confined.	La virtualisation fait partie de l'image DX. Utilisez 'tamagi vm access standard' pour garder les VMs confinées.
+Search Flathub online…	Rechercher sur Flathub en ligne…
+App name or Flathub ID…	Nom de l'application ou ID Flathub…

@@ -264,6 +264,10 @@ label_subvols() {
     chcon system_u:object_r:var_lib_t:s0 "$MNT/var-flatpak" 2>/dev/null || true
     chcon system_u:object_r:var_t:s0 "$MNT/var-cache" 2>/dev/null || true
     chcon system_u:object_r:var_log_t:s0 "$MNT/var-log" 2>/dev/null || true
+    if [[ -e $MNT/var-libvirt ]]; then
+        chattr +C "$MNT/var-libvirt" 2>/dev/null || true
+        chcon system_u:object_r:virt_image_t:s0 "$MNT/var-libvirt" 2>/dev/null || true
+    fi
 }
 
 enroll_luks_fresh() {
@@ -385,7 +389,7 @@ if [[ $PRESERVE_HOME == 1 ]]; then
             [[ -d $MNT/$HOME_SUBVOL ]] || die "subvolume $HOME_SUBVOL não encontrado em $ROOTDEV"
         fi
 
-        for sv in root var-containers var-flatpak var-cache var-log; do
+        for sv in root var-containers var-flatpak var-cache var-log var-libvirt; do
             [[ -e $MNT/$sv ]] && delete_subvol_tree "$MNT/$sv"
             btrfs subvolume create "$MNT/$sv" >/dev/null
         done
@@ -405,7 +409,7 @@ if [[ $PRESERVE_HOME == 1 ]]; then
         udevadm settle
         mkdir -p "$MNT"
         mount "$ROOTDEV" "$MNT"
-        for sv in root var-containers var-flatpak var-cache var-log; do
+        for sv in root var-containers var-flatpak var-cache var-log var-libvirt; do
             btrfs subvolume create "$MNT/$sv" >/dev/null
         done
         label_subvols ""
@@ -455,7 +459,7 @@ PARTS
     # "var-containers", "var-flatpak", "var-cache" e "var-log" isolam os dados
     # mutáveis pesados da raiz.
     mount "$ROOTDEV" "$MNT"
-    for sv in root home var-containers var-flatpak var-cache var-log; do
+    for sv in root home var-containers var-flatpak var-cache var-log var-libvirt; do
         btrfs subvolume create "$MNT/$sv" >/dev/null
     done
     label_subvols home
@@ -576,6 +580,7 @@ UUID=$BTRFS_UUID /var/lib/containers btrfs subvol=var-containers,compress=zstd:1
 UUID=$BTRFS_UUID /var/lib/flatpak btrfs subvol=var-flatpak,compress=zstd:1,noatime 0 0
 UUID=$BTRFS_UUID /var/cache btrfs subvol=var-cache,compress=zstd:1,noatime 0 0
 UUID=$BTRFS_UUID /var/log btrfs subvol=var-log,compress=zstd:1,noatime 0 0
+UUID=$BTRFS_UUID /var/lib/libvirt/images btrfs subvol=var-libvirt,nodatacow,noatime 0 0
 UUID=$ESP_UUID /efi vfat umask=0077,shortname=winnt,x-systemd.automount,x-systemd.idle-timeout=2min 0 2
 FSTAB
 grep -q ' /var/home btrfs ' "$DEPLOY/etc/fstab" || die "não consegui registrar o subvolume home em /etc/fstab"
