@@ -143,6 +143,10 @@ status_auto() {
         tl "Update cancelled by Secure Boot: the Universal Blue key is missing."
         echo "  tamagi setup secure-boot-key   ($(t "password"): universalblue)"
     fi
+    # Installed before the systemd-boot layout (GRUB, ostree backend of bootc).
+    if jq -e '.status.booted != null and .status.booted.composefs == null' "$STATUS" >/dev/null 2>&1; then
+        tl "This machine uses the previous disk layout (GRUB). Updates keep arriving, but the full system needs a clean install from the new ISO."
+    fi
     if [[ -n $(staged_digest) ]]; then
         tl "A new image is staged: reboot to apply."
     fi

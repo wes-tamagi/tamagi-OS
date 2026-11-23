@@ -143,6 +143,7 @@ User Flatpaks	Flatpaks do usuário
 Subsystems and mise	Subsistemas e mise
 Quarantined digests	Digests em quarentena
 A new image is staged: reboot to apply.	Há uma imagem nova pronta: reinicie para usar.
+This machine uses the previous disk layout (GRUB). Updates keep arriving, but the full system needs a clean install from the new ISO.	Esta máquina usa o esquema de disco anterior (GRUB). As atualizações continuam chegando, mas o sistema completo exige uma instalação limpa pela ISO nova.
 No quarantined digests.	Nenhum digest em quarentena.
 Quarantine cleared.	Quarentena limpa.
 Flatpaks	Flatpaks

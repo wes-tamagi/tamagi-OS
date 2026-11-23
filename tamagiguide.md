@@ -5,9 +5,19 @@ migration from Bluefin/Aurora), what it offers, and how to keep it up to date.
 
 ## 1. Fresh install or migration?
 
+> **Clean install required (Tamagi installed before 2026-11-23).** Tamagi now
+> boots with systemd-boot on bootc's composefs backend: an 8 GiB EFI partition
+> at `/efi`, one Btrfs with subvolumes, no `/boot` partition and no GRUB. bootc
+> cannot convert an existing GRUB installation in place. A machine installed
+> from an older ISO keeps booting and keeps receiving updates, but it stays on
+> the old layout and misses `tamagi harden strict`, `tamagi update changes` and
+> the Secure Boot guard. To get the full system: copy your files, then install
+> from the new ISO (the installer erases the chosen disk).
+
 | Situation | Recommendation |
 |---|---|
-| I already use Tamagi | **Update** (`tamagi update`). Never reinstall to update. |
+| I already use Tamagi, installed from the ISO of 2026-11-23 or later | **Update** (`tamagi update`). Never reinstall to update. |
+| I already use Tamagi, installed from an older ISO | **Clean install** from the new ISO, once (see the notice above). Until then, updates keep arriving. |
 | I use Bluefin or Aurora and want Tamagi as my main system | **Fresh install** from the ISO, with a copy of the home folder. |
 | I use Bluefin or Aurora and want to try it without formatting | **Migration** with `bootc switch` (section 3), knowing its limits. |
 

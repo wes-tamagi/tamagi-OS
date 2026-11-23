@@ -18,6 +18,15 @@ distrobox containers. Local inference uses llama.cpp, compiled into the image.
 The whole OS is an OCI container: `podman build` builds the image, updates
 switch atomically, and the previous deployment stays on disk for rollback.
 
+> **Clean install required (Tamagi installed before 2026-11-23).** Tamagi now
+> boots with systemd-boot on bootc's composefs backend: an 8 GiB EFI partition
+> at `/efi`, one Btrfs with subvolumes, no `/boot` partition and no GRUB. bootc
+> cannot convert an existing GRUB installation in place. A machine installed
+> from an older ISO keeps booting and keeps receiving updates, but it stays on
+> the old layout and misses `tamagi harden strict`, `tamagi update changes` and
+> the Secure Boot guard. To get the full system: copy your files, then install
+> from the new ISO (the installer erases the chosen disk).
+
 ## Contents
 
 - [Quick start](#quick-start)
