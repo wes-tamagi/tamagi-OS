@@ -52,8 +52,7 @@ qemu() {
 }
 disk_args=(-drive "file=$DISK,if=virtio,format=qcow2,discard=unmap")
 
-# TPM virtual (swtpm) para o modo --tpm. O swtpm vem da imagem do Tamagi, num
-# contêiner; ele encerra quando o QEMU desconecta, então sobe um por VM. O
+# TPM virtual (swtpm) para o modo --tpm. Ele encerra quando o QEMU desconecta, então sobe um por VM. O
 # estado (as chaves seladas) fica em output/vm-tpm entre a instalação e o boot.
 TPM_DIR="$OUT/vm-tpm"
 tpm_args=()
@@ -61,8 +60,9 @@ start_tpm() {
     mkdir -p "$TPM_DIR"
     rm -f "$TPM_DIR/sock"
     podman rm -f tamagi-swtpm >/dev/null 2>&1 || true
-    podman run -d --rm --name tamagi-swtpm -v "$TPM_DIR":/tpm "${TAMAGI_IMAGE:-localhost/tamagi}:${TAMAGI_TAG:-latest}" \
-        swtpm socket --tpm2 --tpmstate dir=/tpm --ctrl type=unixio,path=/tpm/sock >/dev/null
+    # O swtpm deste computador (pacote swtpm); a imagem do Tamagi não o traz.
+    command -v swtpm >/dev/null || { echo "falta o swtpm neste computador (pacote swtpm)" >&2; exit 1; }
+    swtpm socket --tpm2 --tpmstate dir="$TPM_DIR" --ctrl type=unixio,path="$TPM_DIR/sock" --daemon >/dev/null
     for _ in $(seq 50); do [[ -S $TPM_DIR/sock ]] && break; sleep 0.2; done
     [[ -S $TPM_DIR/sock ]] || { echo "o swtpm não subiu" >&2; exit 1; }
     # shellcheck disable=SC2054  # as vírgulas são dos argumentos do QEMU
