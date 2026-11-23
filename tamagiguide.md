@@ -11,13 +11,21 @@ migration from Bluefin/Aurora), what it offers, and how to keep it up to date.
 > cannot convert an existing GRUB installation in place. A machine installed
 > from an older ISO keeps booting and keeps receiving updates, but it stays on
 > the old layout and misses `tamagi harden strict`, `tamagi update changes` and
-> the Secure Boot guard. To get the full system: copy your files, then install
-> from the new ISO (the installer erases the chosen disk).
+> the Secure Boot guard. To get the full system: back up your files first, then
+> install from the new ISO — the installer automatically detects existing
+> `/var/home` (including LUKS2 and previous GRUB/ostree layouts) and offers to
+> preserve your personal files Aeon-style instead of wiping them.
+>
+> Visual guides:
+>
+> ![Tamagi update & clean install infographic](docs/tamagi-update-infographic.png)
+>
+> ![Tamagi commands & innovations infographic](docs/tamagi-commands-innovations.png)
 
 | Situation | Recommendation |
 |---|---|
 | I already use Tamagi, installed from the ISO of 2026-11-23 or later | **Update** (`tamagi update`). Never reinstall to update. |
-| I already use Tamagi, installed from an older ISO | **Clean install** from the new ISO, once (see the notice above). Until then, updates keep arriving. |
+| I already use Tamagi, installed from an older ISO | **Clean install** from the new ISO, once (you can keep `/var/home` when prompted by the installer). Until then, updates keep arriving. |
 | I use Bluefin or Aurora and want Tamagi as my main system | **Fresh install** from the ISO, with a copy of the home folder. |
 | I use Bluefin or Aurora and want to try it without formatting | **Migration** with `bootc switch` (section 3), knowing its limits. |
 
@@ -46,11 +54,12 @@ Why a fresh install is the recommendation for who comes from another system:
 5. Follow the installer: language (English is the default; Brazilian
    Portuguese comes next), keyboard, time zone, account, disk encryption and
    the disk.
-6. At first login a window offers the basics to tick and a browser (Opera
-   GX, Chrome, Chromium or Vivaldi). Each item says how it is installed.
-   Nothing is mandatory; everything else, including the ready-made profiles,
-   can be installed later with `tamagi install` (a name that is not in the
-   catalog is looked up on Flathub).
+6. At first login a window offers the basics to tick and optional extra browsers
+   (Chromium ships pre-installed natively with ChromeDriver and Google Account
+   sign-in; Opera GX, Chrome, Firefox and Vivaldi stay optional). Each item
+   says how it is installed. Nothing is mandatory; everything else, including
+   the ready-made profiles, can be installed later with `tamagi install` (a
+   name that is not in the catalog is looked up on Flathub).
 7. Copy your files back and reinstall your Flatpaks.
 
 ## 3. Migrating from Bluefin or Aurora, without formatting
@@ -122,8 +131,10 @@ To give up for good after a few days, point back:
 - **Atomic system:** the system is a read-only image. Each update swaps the
   whole image and keeps the previous one to go back to.
 - **One command:** `tamagi` gathers everything (`tamagi` alone lists the commands).
-- **Almost nothing preinstalled:** browser, games, virtual machines, Docker,
-  VS Code, Tailscale and AI agents are optional (`tamagi install`).
+- **Almost nothing preinstalled:** native Chromium (with ChromeDriver and
+  Google Account OAuth2 sign-in) ships out of the box; extra browsers, games,
+  virtual machines, Docker, VS Code, Tailscale and AI agents are optional
+  (`tamagi install`).
 - **Profiles:** `tamagi profiles` applies a ready-made set (AI, development,
   games, office).
 - **The system in a file:** `tamagi init` writes the current state to
@@ -168,6 +179,8 @@ What to know:
   and prepares; the running system does not change until a reboot. There is no
   hurry to reboot.
 - **See what changes before rebooting:** `tamagi update changes`.
+- **Check without downloading, inspect history, discard a staged update, or roll back:** `tamagi update check`, `tamagi update history`, `tamagi update drop`, `tamagi update rollback`.
+- **Update and apply right away:** `tamagi update --reboot` or `tamagi update --soft-reboot`.
 - **Only the system:** `tamagi update --system` (same as `sudo bootc upgrade`).
 - **Do not use `dnf` or `rpm-ostree install` on the system.** Programs go
   through Flatpak, boxes or the catalog (`tamagi install`). Packages on top of

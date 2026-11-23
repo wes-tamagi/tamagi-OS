@@ -23,6 +23,7 @@ tamagi_dir="${XDG_RUNTIME_DIR:-/run}/tamagi-install"
 mkdir -p "${tamagi_dir}" && chmod 700 "${tamagi_dir}"
 tamagi_answers="${tamagi_dir}/answers"
 tamagi_luks_key="${tamagi_dir}/luks.key"
+tamagi_existing_luks_key="${tamagi_dir}/existing-luks.key"
 tamagi_started=0
 tamagi_done=0
 
@@ -71,6 +72,13 @@ declare -gA TXT_pt=(
     [col_disk]="Disco" [col_size]="Tamanho" [col_parts]="Partições" [col_fs]="Conteúdo"
     [disk_title]="Escolha o disco" [disk_text]="Escolha o disco onde o Tamagi será instalado. <b>Tudo o que está nele será apagado: confira se os seus arquivos têm cópia.</b>"
     [no_disk]="Nenhum disco encontrado para a instalação."
+    [home_found_title]="Preservar seus arquivos?" [home_keep]="Manter arquivos (/var/home)" [home_erase]="Apagar tudo"
+    [home_found_text]="<b>Pasta pessoal encontrada neste disco</b>\n\nUsuários detectados: <tt>{users}</tt>\n\nDeseja substituir apenas o sistema e <b>manter seus arquivos pessoais</b> em <tt>/var/home</tt> (como no openSUSE Aeon)?"
+    [luks_found_title]="Disco criptografado encontrado" [luks_unlock_yes]="Desbloquear e tentar preservar" [luks_unlock_no]="Apagar tudo e reinstalar"
+    [luks_found_text]="Este disco tem uma partição criptografada (LUKS2).\nDeseja informar a senha atual para verificar e preservar seus arquivos em <tt>/var/home</tt>?"
+    [luks_unlock_prompt]="Digite a senha atual da criptografia do disco:"
+    [luks_unlock_bad]="Senha incorreta para abrir a partição criptografada."
+    [begin_preserve_text]="O sistema no disco abaixo será reinstalado <b>preservando sua pasta pessoal</b> (<tt>/var/home</tt>: {users}):"
 )
 declare -gA TXT_en=(
     [welcome_body]="This assistant installs Tamagi on this computer.\nJust a few questions: keyboard, time zone, your account and the disk.\n\nThe installation is atomic: the disk only starts Tamagi at the very last step.\nIf anything stops halfway, it is not left with a half-installed system." [try_only]="Just try it"
@@ -103,6 +111,13 @@ declare -gA TXT_en=(
     [col_disk]="Disk" [col_size]="Size" [col_parts]="Partitions" [col_fs]="Contents"
     [disk_title]="Choose the disk" [disk_text]="Choose the disk where Tamagi will be installed. <b>Everything on it will be erased: make sure your files are backed up.</b>"
     [no_disk]="No disk found for the installation."
+    [home_found_title]="Keep your personal files?" [home_keep]="Keep files (/var/home)" [home_erase]="Erase everything"
+    [home_found_text]="<b>Existing home folder found on this disk</b>\n\nDetected users: <tt>{users}</tt>\n\nReplace only the operating system and <b>keep your personal files</b> in <tt>/var/home</tt> (like openSUSE Aeon)?"
+    [luks_found_title]="Encrypted disk detected" [luks_unlock_yes]="Unlock and try to preserve" [luks_unlock_no]="Erase everything"
+    [luks_found_text]="This disk has an encrypted partition (LUKS2).\nDo you want to enter the current disk password to check and preserve your files in <tt>/var/home</tt>?"
+    [luks_unlock_prompt]="Enter the current disk encryption password:"
+    [luks_unlock_bad]="Incorrect password for the encrypted partition."
+    [begin_preserve_text]="The operating system on the disk below will be reinstalled while <b>preserving your home folder</b> (<tt>/var/home</tt>: {users}):"
 )
 declare -gA TXT_es=(
     [welcome_body]="Este asistente instala Tamagi en este equipo.\nSon pocas preguntas: teclado, zona horaria, tu cuenta y el disco.\n\nLa instalación es atómica: el disco solo arranca Tamagi en el último paso.\nSi algo se detiene a la mitad, no queda con un sistema a medias." [try_only]="Solo probar"
@@ -135,6 +150,13 @@ declare -gA TXT_es=(
     [col_disk]="Disco" [col_size]="Tamaño" [col_parts]="Particiones" [col_fs]="Contenido"
     [disk_title]="Elija el disco" [disk_text]="Elija el disco donde se instalará Tamagi. <b>Todo lo que hay en él será borrado: compruebe que tiene copia de sus archivos.</b>"
     [no_disk]="No se encontró ningún disco para la instalación."
+    [home_found_title]="¿Conservar sus archivos?" [home_keep]="Mantener archivos (/var/home)" [home_erase]="Borrar todo"
+    [home_found_text]="<b>Carpeta personal encontrada en este disco</b>\n\nUsuarios detectados: <tt>{users}</tt>\n\n¿Reemplazar solo el sistema y <b>conservar sus archivos personales</b> en <tt>/var/home</tt> (como openSUSE Aeon)?"
+    [luks_found_title]="Disco cifrado detectado" [luks_unlock_yes]="Desbloquear y conservar" [luks_unlock_no]="Borrar todo"
+    [luks_found_text]="Este disco tiene una partición cifrada (LUKS2).\n¿Desea ingresar la contraseña actual para verificar y conservar sus archivos en <tt>/var/home</tt>?"
+    [luks_unlock_prompt]="Escriba la contraseña actual del cifrado del disco:"
+    [luks_unlock_bad]="Contraseña incorrecta para abrir la partición cifrada."
+    [begin_preserve_text]="El sistema del disco de abajo se reinstalará <b>conservando su carpeta personal</b> (<tt>/var/home</tt>: {users}):"
 )
 declare -gA TXT_fr=(
     [welcome_body]="Cet assistant installe Tamagi sur cet ordinateur.\nQuelques questions seulement : clavier, fuseau horaire, votre compte et le disque.\n\nL'installation est atomique : le disque ne démarre Tamagi qu'à la toute dernière étape.\nSi quelque chose s'arrête en cours de route, il ne reste pas avec un système à moitié installé." [try_only]="Seulement essayer"
@@ -167,6 +189,13 @@ declare -gA TXT_fr=(
     [col_disk]="Disque" [col_size]="Taille" [col_parts]="Partitions" [col_fs]="Contenu"
     [disk_title]="Choisissez le disque" [disk_text]="Choisissez le disque où Tamagi sera installé. <b>Tout ce qu'il contient sera effacé : vérifiez que vos fichiers sont sauvegardés.</b>"
     [no_disk]="Aucun disque trouvé pour l'installation."
+    [home_found_title]="Conserver vos fichiers ?" [home_keep]="Conserver (/var/home)" [home_erase]="Tout effacer"
+    [home_found_text]="<b>Dossier personnel trouvé sur ce disque</b>\n\nUtilisateurs détectés : <tt>{users}</tt>\n\nRemplacer uniquement le système et <b>conserver vos fichiers personnels</b> dans <tt>/var/home</tt> (comme openSUSE Aeon) ?"
+    [luks_found_title]="Disque chiffré détecté" [luks_unlock_yes]="Déverrouiller et conserver" [luks_unlock_no]="Tout effacer"
+    [luks_found_text]="Ce disque contient une partition chiffrée (LUKS2).\nVoulez-vous saisir le mot de passe actuel pour vérifier et conserver vos fichiers dans <tt>/var/home</tt> ?"
+    [luks_unlock_prompt]="Saisissez le mot de passe actuel du chiffrement du disque :"
+    [luks_unlock_bad]="Mot de passe incorrect pour ouvrir la partition chiffrée."
+    [begin_preserve_text]="Le système sur le disque ci-dessous sera réinstallé tout en <b>conservant votre dossier personnel</b> (<tt>/var/home</tt> : {users}) :"
 )
 # The default language of the image (en; pt in the :ptbr variant) is the
 # pre-selected one and comes first in the list; the other is the second.
@@ -411,11 +440,108 @@ get_img() { # o tik procuraria uma imagem de disco; aqui a origem é a imagem bo
 }
 
 dump_image() { # no tik: grava a imagem no disco. Aqui: bootc install.
-    local target=$2 info rc
+    local target=$2 info rc preserve=0
+    local -A D=()
     info=$(lsblk -dno SIZE,MODEL "${target}" 2>/dev/null | sed -E 's/ +/ /g')
-    d --question --no-wrap --title="$(T begin_title)" --width=480 \
-        --ok-label="$(T begin_ok)" --cancel-label="$(T cancel)" \
-        --text="$(T begin_text)\n\n<tt>${target}</tt>\n${info}\n\n$(T begin_enc): <b>$([ -s "${tamagi_luks_key}" ] && T yes || T no)</b>\n$(T begin_warn)"
+
+    detect_into() {
+        local line k v rc_d=0
+        D=()
+        while IFS='=' read -r k v; do
+            [[ -n $k ]] && D[$k]=$v
+        done < <(tamagi_priv /usr/libexec/tamagi-detect-home "${target}" "$@" 2>/dev/null) || rc_d=$?
+        return "$rc_d"
+    }
+
+    append_preserve_answers() {
+        sed -i '/^PRESERVE_/d; /^HOME_/d; /^SYS_PART=/d; /^ESP_PART=/d; /^BOOT_PART=/d' "${tamagi_answers}"
+        {
+            echo "PRESERVE_HOME=1"
+            echo "PRESERVE_MODE=${D[PRESERVABLE]}"
+            echo "PRESERVE_LUKS=${D[PRESERVE_LUKS]:-0}"
+            echo "HOME_PART=${D[HOME_PART]}"
+            echo "HOME_SUBVOL=${D[HOME_SUBVOL]:-}"
+            echo "HOME_RELPATH=${D[HOME_RELPATH]:-}"
+            echo "HOME_FSTYPE=${D[HOME_FSTYPE]:-btrfs}"
+            echo "SYS_PART=${D[SYS_PART]:-}"
+            echo "ESP_PART=${D[ESP_PART]}"
+            echo "BOOT_PART=${D[BOOT_PART]:-}"
+        } >> "${tamagi_answers}"
+    }
+
+    if [ -n "${tamagi_auto}" ]; then
+        if [ "${tamagi_preserve_auto:-}" = "1" ]; then
+            if [ -s "${tamagi_luks_key}" ]; then
+                detect_into --key-file "${tamagi_luks_key}" || error "tamagi.autoinstall.preserve_home=1: falha ao abrir LUKS em ${target}"
+            else
+                detect_into || true
+            fi
+            case "${D[PRESERVABLE]:-}" in
+                btrfs-subvol|ostree-home|separate-home)
+                    preserve=1
+                    append_preserve_answers
+                    log "[tamagi] autoinstall: preservando /var/home (${D[PRESERVABLE]}, usuários: ${D[USERS]:-})" ;;
+                *) error "tamagi.autoinstall.preserve_home=1: nenhum /var/home preservável encontrado em ${target}" ;;
+            esac
+        fi
+    elif [ -x /usr/libexec/tamagi-detect-home ]; then
+        detect_into || true
+        if [ "${D[PRESERVABLE]:-}" = "luks" ]; then
+            if zenity --question --no-wrap --title="$(T luks_found_title)" --width=480 \
+                --ok-label="$(T luks_unlock_yes)" --cancel-label="$(T luks_unlock_no)" --text="$(T luks_found_text)"; then
+                local existing_pw rc_u
+                while true; do
+                    existing_pw=$(zenity --password --title="$(T luks_found_title)" --text="$(T luks_unlock_prompt)") || break
+                    ( umask 077; printf '%s' "${existing_pw}" > "${tamagi_existing_luks_key}" )
+                    rc_u=0
+                    detect_into --key-file "${tamagi_existing_luks_key}" || rc_u=$?
+                    if [ "${rc_u}" -eq 0 ]; then
+                        break
+                    elif [ "${rc_u}" -eq 2 ]; then
+                        rm -f "${tamagi_existing_luks_key}"
+                        tamagi_msg "$(T luks_unlock_bad)"
+                    else
+                        rm -f "${tamagi_existing_luks_key}"
+                        break
+                    fi
+                done
+            fi
+        fi
+        case "${D[PRESERVABLE]:-}" in
+            btrfs-subvol|ostree-home|separate-home)
+                local htxt
+                htxt="$(T home_found_text)"
+                htxt="${htxt//\{users\}/${D[USERS]:-}}"
+                if zenity --question --no-wrap --title="$(T home_found_title)" --width=500 \
+                    --ok-label="$(T home_keep)" --cancel-label="$(T home_erase)" --text="${htxt}"; then
+                    preserve=1
+                    append_preserve_answers
+                    if [ "${D[PRESERVE_LUKS]:-0}" = "1" ] && [ -s "${tamagi_existing_luks_key}" ]; then
+                        sed -i '/^LUKS_KEYFILE=/d; /^LUKS_TPM=/d' "${tamagi_answers}"
+                        echo "LUKS_KEYFILE=${tamagi_existing_luks_key}" >> "${tamagi_answers}"
+                        if [ -e /sys/class/tpm/tpm0 ] && [ "$(cat /sys/class/tpm/tpm0/tpm_version_major 2>/dev/null)" = "2" ]; then
+                            zenity --question --no-wrap --title="$(T tpm_title)" --width=520 \
+                                --ok-label="$(T tpm_yes)" --cancel-label="$(T tpm_no)" --text="$(T tpm_text)" \
+                                && echo "LUKS_TPM=1" >> "${tamagi_answers}"
+                        fi
+                    fi
+                fi ;;
+        esac
+    fi
+
+    if (( preserve )); then
+        local ptxt enc_label
+        ptxt="$(T begin_preserve_text)"
+        ptxt="${ptxt//\{users\}/${D[USERS]:-}}"
+        enc_label="$( [ "${D[PRESERVE_LUKS]:-0}" = "1" ] || [ -s "${tamagi_luks_key}" ] && T yes || T no )"
+        d --question --no-wrap --title="$(T begin_title)" --width=500 \
+            --ok-label="$(T begin_ok)" --cancel-label="$(T cancel)" \
+            --text="${ptxt}\n\n<tt>${target}</tt>\n${info}\n\n$(T begin_enc): <b>${enc_label}</b>\n$(T begin_warn)"
+    else
+        d --question --no-wrap --title="$(T begin_title)" --width=480 \
+            --ok-label="$(T begin_ok)" --cancel-label="$(T cancel)" \
+            --text="$(T begin_text)\n\n<tt>${target}</tt>\n${info}\n\n$(T begin_enc): <b>$([ -s "${tamagi_luks_key}" ] && T yes || T no)</b>\n$(T begin_warn)"
+    fi
     tamagi_started=1
     log "[tamagi] instalando em ${target}"
     if $gui && [ -z "${tamagi_auto}" ]; then
@@ -449,7 +575,7 @@ set_boot_target() { :; }
 cleanup() { # no tik: reinicia ou DESLIGA. Aqui: cancelar volta ao desktop live.
     retval=$?
     log "[STOP][${retval}] $0"
-    rm -f "${tamagi_luks_key}" "${tamagi_answers}"
+    rm -f "${tamagi_luks_key}" "${tamagi_existing_luks_key}" "${tamagi_answers}"
     # Saiu antes de instalar: a conferência da mídia não tem mais para quem trabalhar.
     [ -s "${tamagi_verify}/pid" ] && kill "$(cat "${tamagi_verify}/pid")" 2>/dev/null
     if [ -n "${tamagi_auto}" ]; then
@@ -510,6 +636,7 @@ if [ -n "${tamagi_auto}" ]; then
     tamagi_tpm="$(tamagi_karg tamagi.autoinstall.tpm)"
     # Só para testes: outra origem de atualizações (um registry local).
     tamagi_imgref="$(tamagi_karg tamagi.autoinstall.imgref)"
+    tamagi_preserve_auto="$(tamagi_karg tamagi.autoinstall.preserve_home)"
     [ -d /sys/firmware/efi ] || error "sem UEFI"
 else
     tamagi_ask_language

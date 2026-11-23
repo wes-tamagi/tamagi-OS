@@ -60,7 +60,7 @@ for f in /usr/lib/tik/lib/* /etc/tik/modules/pre/10-tamagi; do bash -n "$f"; don
 
 # ── Arquivos da sessão live ─────────────────────────────────────────────
 cp -a "$CTX/files/." /
-chmod 755 /usr/libexec/tamagi-install /usr/libexec/tamagi-installer-launch /usr/libexec/tamagi-installer-splash /usr/libexec/tamagi-verify-media
+chmod 755 /usr/libexec/tamagi-install /usr/libexec/tamagi-installer-launch /usr/libexec/tamagi-installer-splash /usr/libexec/tamagi-verify-media /usr/libexec/tamagi-detect-home
 desktop-file-validate /usr/share/applications/tamagi-installer.desktop /etc/xdg/autostart/tamagi-installer.desktop
 cat > /etc/tamagi-live.conf <<CONF
 # De onde o instalador tira o sistema e para onde o sistema instalado olha.
@@ -99,7 +99,7 @@ touch /var/home/live/.config/tamagi/firstrun-done
 chown -R live:live /var/home/live
 
 # ── Serviços que só fazem sentido no sistema instalado ──────────────────
-systemctl disable tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-combustion.service 2>/dev/null || true
+systemctl disable tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-combustion.service tamagi-layer-rebuild.service 2>/dev/null || true
 systemctl mask rpm-ostreed-automatic.timer rpm-ostreed-automatic.service \
     bootc-fetch-apply-updates.timer bootloader-update.service \
     ostree-remount.service systemd-remount-fs.service 2>/dev/null || true
@@ -110,12 +110,18 @@ echo 'None' > "$idle/screen_off_time"
 echo 'None' > "$idle/suspend_on_ac_time"
 echo 'None' > "$idle/suspend_on_battery_time"
 
-# ── initramfs live: sabe achar a ISO e montar o squashfs com overlay ────
+# ── initramfs live: enxuto (sem módulos do sistema instalado que inflam para
+#    270+ MB e atrasam o dracut-initqueue em pendrives USB 2.0) e com drivers
+#    USB/live explícitos para achar a ISO e montar o squashfs com overlay ────
 kver=$(ls /usr/lib/modules | head -1)
 dracut --force --no-hostonly --reproducible --zstd \
     --add "dmsquash-live pollcdrom" \
+    --add-drivers "usb-storage uas sd_mod sr_mod isofs squashfs overlay loop" \
+    --omit "ostree bootc plymouth drm network network-manager nfs cifs nvmf iscsi fcoe fcoe-uefi \
+            crypt systemd-cryptsetup fido2 pcsc pkcs11 tpm2-tss fips fips-crypto-policies \
+            nss-softokn lvm mdraid resume lunmask nvdimm" \
     --kver "$kver" "/usr/lib/modules/$kver/initramfs-live.img"
-ls -la "/usr/lib/modules/$kver/initramfs-live.img"
+ls -lh "/usr/lib/modules/$kver/initramfs-live.img"
 
 dnf5 clean all
 find /var -mindepth 1 -maxdepth 1 ! -name tmp ! -name cache ! -name home -exec rm -rf {} +

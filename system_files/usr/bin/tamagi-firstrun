@@ -49,11 +49,11 @@ tamagi-theme sync >/dev/null 2>&1 || true
 picked=()
 
 step "Browser"
-tl "No browser ships in the image. Choose one (you can install others later)."
-none=$(t "not now")
+tl "Chromium ships pre-installed with Google Account sign-in. Optionally install another browser, or keep Chromium."
+keep="keep      $(t "Keep Chromium (default)")"
 browser=$(gum choose --height 8 --header "$(t "Which browser?")" \
-    "opera-gx  Opera GX" "chrome    Google Chrome" "chromium  Chromium" "vivaldi   Vivaldi" "$none") || browser=$none
-if [[ $browser != "$none" ]]; then
+    "$keep" "opera-gx  Opera GX" "chrome    Google Chrome" "vivaldi   Vivaldi" "firefox   Firefox") || browser=$keep
+if [[ $browser != "$keep" ]]; then
     method=flatpak
     # Opera GX exists for Linux only as a Flatpak.
     if [[ ${browser%% *} != opera-gx ]]; then

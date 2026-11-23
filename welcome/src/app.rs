@@ -104,7 +104,7 @@ impl Application for Welcome {
             page: Page::Welcome,
             catalog: flags.catalog,
             basics: flags.basics.iter().map(|(index, _)| *index).collect(),
-            browser: 0,
+            browser: BROWSERS.len(),
             browser_method: 0,
             checked: flags.basics.iter().filter(|(_, on)| *on).map(|(index, _)| *index).collect(),
             disk_question: flags.disk_question,
@@ -546,7 +546,7 @@ impl Welcome {
         browsers = browsers.add(choice(none, self.browser, Message::Browser, text(capitalized(&tr("not now"))).width(Length::Fill)));
 
         let right: Element<'_, Message> = if self.browser == none {
-            panel(text(tr("No browser now. Later: tamagi install")).class(dim_class())).into()
+            panel(text(tr("Keeping pre-installed Chromium. Install another browser anytime: tamagi browser install")).class(dim_class())).into()
         } else {
             let methods = self.methods();
             let mut section = widget::settings::section().title(tr("Install how?"));
@@ -573,7 +573,7 @@ impl Welcome {
         scrolling(
             widget::column::with_capacity(2)
                 .spacing(spacing.space_s)
-                .push(heading(tr("Browser"), tr("No browser ships in the image. Choose one (you can install others later).")))
+                .push(heading(tr("Browser"), tr("Chromium ships pre-installed with Google Account sign-in. Optionally install another browser, or keep Chromium.")))
                 .push(columns),
         )
     }

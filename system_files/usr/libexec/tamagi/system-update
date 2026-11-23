@@ -21,6 +21,10 @@ set -uo pipefail
 QUARANTINE=${TAMAGI_QUARANTINE:-/var/lib/tamagi/quarantine.list}
 STATUS=${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}
 GUARD=/usr/libexec/tamagi/secureboot-guard
+LOCK=${TAMAGI_UPDATE_LOCK:-/run/lock/tamagi-system-update.lock}
+HISTORY=${TAMAGI_UPDATE_HISTORY:-/var/lib/tamagi/update/history.log}
+HOOKS_DIR=${TAMAGI_UPDATE_HOOKS:-/etc/tamagi/update.d}
+MIN_FREE_GB=${TAMAGI_MIN_FREE_GB:-8}
 
 ON_BATTERY=skip      # skip | run
 ON_METERED=skip      # skip | run
@@ -30,6 +34,26 @@ for conf in /usr/lib/tamagi/update.conf /etc/tamagi/update.conf; do
 done
 
 log() { echo "system-update: $*"; }
+
+record_history() { # record_history <action> <detail>
+    local action=$1 detail=${2:-}
+    mkdir -p "$(dirname "$HISTORY")"
+    printf '%s  %-14s  %s\n' "$(date -Is)" "$action" "$detail" >> "$HISTORY"
+    if [[ -f $HISTORY ]] && (( $(wc -l < "$HISTORY") > 120 )); then
+        tail -n 100 "$HISTORY" > "$HISTORY.tmp" && mv -f "$HISTORY.tmp" "$HISTORY"
+    fi
+    chmod 644 "$HISTORY" 2>/dev/null || true
+}
+
+run_hooks() { # run_hooks <pre.d|post.d> <booted> <staged>
+    local dir="$HOOKS_DIR/$1" booted=${2:-} staged=${3:-} script
+    [[ -d $dir ]] || return 0
+    for script in "$dir"/*.sh; do
+        [[ -x $script ]] || continue
+        TAMAGI_UPDATE_BOOTED="$booted" TAMAGI_UPDATE_STAGED="$staged" "$script" \
+            || log "hook ${script##*/} failed (continuing)"
+    done
+}
 
 refresh_status() {
     local tmp
@@ -107,7 +131,66 @@ save_packages() {
 mode=${1:-timer}
 case $mode in
     --status)  refresh_status; exit $? ;;
+    --rollback)
+        refresh_status || true
+        prev=$(field '.status.rollback.image.imageDigest')
+        bootc rollback || exit 1
+        record_history "rollback" "${prev:-previous}"
+        refresh_status
+        exit 0 ;;
+    --drop)
+        # transactional-update --drop: discards a staged deployment using bootc's
+        # native command so bootloader entries and state stay consistent.
+        refresh_status || { log "bootc status failed"; exit 1; }
+        staged_verity=$(field '.status.staged.composefs.verity')
+        staged_digest=$(field '.status.staged.image.imageDigest')
+        if [[ -z $staged_digest ]]; then
+            log "no staged deployment to discard"
+            exit 0
+        fi
+        if [[ -n $staged_verity ]]; then
+            bootc delete-deployment "$staged_verity" || exit 1
+        else
+            # Fallback for legacy ostree-backend installs: index 0 is staged when present.
+            ostree admin undeploy 0 || exit 1
+        fi
+        rm -f /var/lib/tamagi/update/staged.pkgs /var/lib/tamagi/update/staged.digest 2>/dev/null || true
+        record_history "drop" "$staged_digest"
+        refresh_status
+        exit 0 ;;
+    --apply)
+        refresh_status || exit 1
+        staged_verity=$(field '.status.staged | select(.downloadOnly != true) | .composefs.verity')
+        [[ -n $staged_verity ]] || { log "no staged update ready to apply"; exit 1; }
+        systemctl reboot
+        exit 0 ;;
+    --soft-reboot)
+        refresh_status || exit 1
+        staged_verity=$(field '.status.staged | select(.downloadOnly != true) | .composefs.verity')
+        [[ -n $staged_verity ]] || { log "no staged update ready to apply"; exit 1; }
+        if bootc internals prep-soft-reboot "$staged_verity" >/dev/null 2>&1; then
+            systemctl soft-reboot
+        else
+            log "soft-reboot unavailable for this update (kernel changed?); performing full reboot"
+            systemctl reboot
+        fi
+        exit 0 ;;
 esac
+
+# Single-instance lock (flock): if the background timer is already downloading
+# an update when the user runs `tamagi update`, wait for it instead of colliding
+# on bootc/composefs; if the timer triggers while a manual update is running,
+# the timer exits quietly.
+mkdir -p "$(dirname "$LOCK")"
+exec 9>"$LOCK"
+if ! flock -n 9; then
+    if [[ $mode == timer ]]; then
+        log "another system-update is already running: skipping timer run"
+        exit 0
+    fi
+    log "waiting for the background update in progress to finish…"
+    flock 9
+fi
 
 refresh_status || { log "bootc status failed"; exit 1; }
 
@@ -131,7 +214,7 @@ fi
 
 if [[ -n $remote && ( $remote == "$booted" || ( $remote == "$staged" && -z $held ) ) ]]; then
     log "already up to date ($remote)"
-    [[ $mode == --check ]] && exit 1
+    [[ $mode == --check ]] && exit 10
     exit 0
 fi
 [[ $mode == --check ]] && { echo "$remote"; exit 0; }
@@ -142,6 +225,23 @@ if [[ -n $remote && -r $QUARANTINE ]] && grep -qxF "$remote" "$QUARANTINE"; then
         "The available image is the same one that failed the previous boot. Waiting for a newer build."
     exit 0
 fi
+
+# Prevent btrfs/snapper storage collapse before downloading a new system image:
+# prune old home snapshots, stale conversion backups, and orphaned composefs objects.
+if [[ -x /usr/libexec/tamagi/home-snapshots ]]; then
+    /usr/libexec/tamagi/home-snapshots prune 15 || true
+fi
+free_bytes=$(df --output=avail -B1 /sysroot 2>/dev/null | tail -1 | tr -d ' ')
+if [[ $free_bytes =~ ^[0-9]+$ ]] && (( free_bytes < 15 * 1024 * 1024 * 1024 )); then
+    bootc internals composefs-gc --prune-repo 2>/dev/null || true
+    free_bytes=$(df --output=avail -B1 /sysroot 2>/dev/null | tail -1 | tr -d ' ')
+fi
+if [[ $free_bytes =~ ^[0-9]+$ ]] && (( free_bytes < MIN_FREE_GB * 1024 * 1024 * 1024 )); then
+    log "not enough free disk space on /sysroot ($(( free_bytes / 1024 / 1024 / 1024 )) GiB < ${MIN_FREE_GB} GiB)"
+    exit 1
+fi
+
+run_hooks pre.d "$booted" "${remote:-}"
 
 # Two steps, so that a bad update never becomes the next boot: the image is
 # downloaded and prepared but held back (it would not be applied on shutdown);
@@ -163,6 +263,7 @@ staged=$(field '.status.staged.image.imageDigest')
 "$GUARD"; rc=$?
 if (( rc == 3 )); then
     log "held back by the Secure Boot guard: $staged"
+    record_history "held-secureboot" "$staged"
     exit 0
 fi
 
@@ -175,5 +276,7 @@ if ! bootc upgrade --from-downloaded; then
 fi
 refresh_status
 save_packages || log "could not read the package list of the new image (tamagi update changes will not show it)"
+record_history "staged" "$staged"
+run_hooks post.d "$booted" "$staged"
 log "prepared: $staged (takes effect on the next boot)"
 exit 0

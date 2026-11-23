@@ -114,6 +114,11 @@ def check_storage():
                                 f"sudo chown {os.environ.get('USER', '$USER')}: {HOME / '.local'} {HOME / '.local/state'}")
             except OSError:
                 pass
+    # Verifica se o snapper foi ligado por engano na raiz (/ pertence ao bootc; snapshots lá retêm imagens antigas)
+    root_snap = pathlib.Path("/etc/snapper/configs/root")
+    if root_snap.is_file():
+        return item("storage", "WARN", f"{free_gb:.1f} GiB · {t('snapper configured on / (conflicts with bootc)')}",
+                    "sudo /usr/libexec/tamagi/home-snapshots prune")
     # Verifica atributo NoCoW (+C) na pasta de discos de VM em Btrfs
     vm_dir = DATA / "libvirt/images"
     if vm_dir.is_dir():

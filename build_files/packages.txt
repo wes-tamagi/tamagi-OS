@@ -3,6 +3,12 @@
 # O resto é opcional e escolhido pelo usuário (`tamagi install`): Flatpak,
 # camada nativa (tamagi-layer) ou caixa distrobox.
 
+# ── Browsers & WebApps (native Chromium + ChromeDriver) ──
+# Chromium ships natively with ChromeDriver and Google Account OAuth2 sign-in
+# pre-configured (/etc/chromium/tamagi.conf). Other browsers are optional via `tamagi browser`.
+chromium
+chromedriver
+
 # ── Desktop COSMIC (System76, escrito em Rust; tiling nativo) ──
 @cosmic-desktop
 cosmic-greeter

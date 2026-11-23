@@ -83,6 +83,7 @@ def main():
     ap.add_argument("--tpm", action="store_true", help="disco criptografado que abre sozinho pelo TPM")
     ap.add_argument("--lang", default="en")
     ap.add_argument("--screenshot")
+    ap.add_argument("--preserved-file", help="arquivo esperado vindo de /var/home preservada")
     args = ap.parse_args()
 
     con = Serial(args.serial)
@@ -143,13 +144,23 @@ def main():
     check("raiz no subvolume root", "subvol=/root" in out, out)
     out, _ = run("findmnt -rno FSTYPE,OPTIONS /var/home")
     check("/var/home é o subvolume home, com compressão zstd", out.startswith("btrfs") and "subvol=/home" in out and "compress=zstd" in out, out)
+    out, _ = run("for d in /var/lib/containers /var/lib/flatpak /var/cache /var/log; do findmnt -rno TARGET,OPTIONS \"$d\"; done | tr '\\n' ';'")
+    check("subvolumes de estado (/var/lib/containers, flatpak, cache, log) isolados da raiz",
+          all(s in out for s in ("subvol=/var-containers", "subvol=/var-flatpak", "subvol=/var-cache", "subvol=/var-log")), out)
     out, _ = run("stat -c %i \"$HOME\"; ls -Zd /var/home | cut -d' ' -f1")
     check("a pasta do usuário nasceu como subvolume btrfs (snapshots)", out.split()[0] == "256", out)
     check("rótulo SELinux de /var/home", "home_root_t" in out, out)
     out, _ = sudo("sh -c 'snapper list-configs 2>&1 | tail -n +3 | tr -s \" \" | tr \"\\n\" \";\"'")
     check("snapper: snapshots da pasta pessoal ligados no primeiro boot", "/var/home/" in out, out)
     out, _ = sudo("sh -c 'ls /efi/loader/entries >/dev/null 2>&1; findmnt -rno FSTYPE,SIZE /efi; lsblk -rno PARTLABEL,FSTYPE | grep -c ext4; bootctl is-installed 2>&1; bootctl status 2>/dev/null | grep -m1 -i \"Product:\"'")
-    check("partição EFI de 8 GiB em /efi, sem partição /boot, com systemd-boot", "vfat 8G" in out and "\n0\n" in out + "\n" and "yes" in out and "systemd-boot" in out, out)
+    efi_ok = ("vfat " if args.preserved_file else "vfat 8G") in out and "\n0\n" in out + "\n" and "yes" in out and "systemd-boot" in out
+    efi_label = "partição EFI unificada em /efi (sem /boot ext4), com systemd-boot" if args.preserved_file else "partição EFI de 8 GiB em /efi, sem partição /boot, com systemd-boot"
+    check(efi_label, efi_ok, out)
+    if args.preserved_file:
+        out, _ = sudo(f"sh -c 'cat {args.preserved_file!r}; echo; stat -c \"%U:%G %C\" {args.preserved_file!r}'")
+        check("arquivo preservado em /var/home com dono e contexto SELinux corretos", "TAMAGI-HOME-PRESERVED-OK" in out and f"{args.user}:{args.user}" in out and "user_home_t" in out, out)
+        out, _ = sudo("sh -c 'snapper -c home-tamagi list 2>&1 || tamagi-snap list 2>&1'")
+        check("snapshot preservado (#1) aparece após reinstalação", "1 " in out or "preserv" in out, out)
     out, _ = run("tr ' ' '\\n' < /proc/cmdline | grep -c '^composefs.digest='")
     check("sistema iniciado pelo backend composefs do bootc", out.strip().endswith("1"), out[-200:])
     out, _ = sudo("sh -c 'cat /var/lib/tamagi/combustion-done 2>&1; test -e /etc/tamagi/first-boot && echo marca-ficou || echo marca-apagada'")
@@ -245,6 +256,9 @@ def main():
     check("papel de parede padrão é o brasão", out == "1", out)
     out, _ = run("tamagi-harden status | head -1")
     check("tamagi-harden: modo equilibrado", "equilibrado" in out or "balanced" in out, out)
+    out, _ = run("chromium-browser --version; chromedriver --version; tamagi-browser installed; grep -c '/etc/chromium/tamagi.conf' /etc/chromium/chromium.conf")
+    check("Chromium nativo + ChromeDriver + conta Google prontos",
+          "Chromium" in out and "ChromeDriver" in out and "chromium:native" in out and out.splitlines()[-1:] == ["1"], out)
     # Caixas distrobox: no host somente-leitura o comando gerado tem de ser aceito
     # pelo podman (o distrobox 1.8.2.5 gerava ":ro:rslave", que o podman 6 recusa).
     out, _ = run("distrobox create --yes --dry-run --name teste --image docker.io/library/ubuntu:26.04 2>&1 | grep -c ':ro:rslave'")

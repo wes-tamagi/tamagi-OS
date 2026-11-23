@@ -3,6 +3,7 @@
 .git
 .github
 .cache
+docs
 output
 tests
 disk_config

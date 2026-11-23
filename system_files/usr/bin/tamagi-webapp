@@ -1,82 +1,496 @@
 #!/usr/bin/bash
-# tamagi-webapp — transforma um site em aplicativo com janela própria
-# (o Chrome da caixa de navegadores em modo --app), como os web apps do Omarchy.
+# tamagi-webapp — ChromeOS-inspired Web Apps (PWAs) on native Chromium/Chromium browsers.
+# Supports Web App Manifest/icon discovery, shared Google-signed-in profile or
+# isolated profiles, COSMIC dock pinning, and curated presets.
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 ICONS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/tamagi-webapps"
+WEBAPP_PROFILES="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/webapp-profiles"
+COSMIC_FAV_USER="${XDG_CONFIG_HOME:-$HOME/.config}/cosmic/com.system76.CosmicAppList/v1/favorites"
+COSMIC_FAV_SYS="/usr/share/cosmic/com.system76.CosmicAppList/v1/favorites"
+
+# Curated presets: id<TAB>Name<TAB>URL<TAB>Categories
+PRESETS=(
+    $'gmail\tGmail\thttps://mail.google.com\tNetwork;Email;'
+    $'calendar\tGoogle Calendar\thttps://calendar.google.com\tOffice;Calendar;'
+    $'drive\tGoogle Drive\thttps://drive.google.com\tNetwork;'
+    $'docs\tGoogle Docs\thttps://docs.google.com\tOffice;WordProcessor;'
+    $'sheets\tGoogle Sheets\thttps://docs.google.com/spreadsheets\tOffice;Spreadsheet;'
+    $'meet\tGoogle Meet\thttps://meet.google.com\tNetwork;AudioVideo;'
+    $'youtube\tYouTube\thttps://www.youtube.com\tAudioVideo;'
+    $'whatsapp\tWhatsApp\thttps://web.whatsapp.com\tNetwork;InstantMessaging;'
+    $'chatgpt\tChatGPT\thttps://chatgpt.com\tNetwork;Utility;'
+    $'claude\tClaude\thttps://claude.ai\tNetwork;Utility;'
+    $'github\tGitHub\thttps://github.com\tDevelopment;'
+    $'figma\tFigma\thttps://www.figma.com\tGraphics;'
+    $'notion\tNotion\thttps://www.notion.so\tOffice;'
+    $'excalidraw\tExcalidraw\thttps://excalidraw.com\tGraphics;'
+    $'discord\tDiscord\thttps://discord.com/app\tNetwork;InstantMessaging;'
+    $'spotify\tSpotify\thttps://open.spotify.com\tAudioVideo;Music;'
+)
 
 die() { echo "$(t "error"): $*" >&2; exit 1; }
 slug() { tr '[:upper:]' '[:lower:]' <<<"$1" | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g'; }
 
+usage() {
+    cat <<EOF
+tamagi-webapp — $(t "turn any website into a standalone app")
+
+  tamagi webapp install [<name> <url> [icon-url]] [--isolated] [--profile <p>] [--browser <b|app>] [--category <cat>] [--pin]
+  tamagi webapp install --preset <slug> [--isolated] [--profile <p>] [--browser <b|app>] [--pin]
+  tamagi webapp presets [--list]
+  tamagi webapp list [--json]
+  tamagi webapp launch <name>
+  tamagi webapp pin <name> | unpin <name>
+  tamagi webapp refresh-icons
+  tamagi webapp remove [<name>] [--purge]
+EOF
+}
+
+preset_lookup() {
+    local want=${1,,} row pid pname purl pcat
+    for row in "${PRESETS[@]}"; do
+        IFS=$'\t' read -r pid pname purl pcat <<<"$row"
+        if [[ $pid == "$want" ]]; then
+            printf '%s\t%s\t%s\n' "$pname" "$purl" "$pcat"
+            return 0
+        fi
+    done
+    return 1
+}
+
+fetch_icon() {
+    local url=$1 out_png=$2 explicit_icon=${3:-}
+    python3 - "$url" "$out_png" "$explicit_icon" <<'PY' || return 1
+import html.parser
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import urllib.parse
+import urllib.request
+
+url, out_png, explicit_icon = sys.argv[1:4]
+HEADERS = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 TamagiWebApp/1.0"}
+
+
+def fetch(target, limit=1_000_000):
+    req = urllib.request.Request(target, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=4) as resp:
+        return resp.read(limit)
+
+
+def parse_size(sizes_str):
+    if not sizes_str:
+        return 0
+    if "any" in sizes_str.lower():
+        return 512
+    best = 0
+    for m in re.finditer(r"(\d+)\s*[xX]\s*\d+", sizes_str):
+        best = max(best, int(m.group(1)))
+    return best
+
+
+class HeadParser(html.parser.HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.manifest = None
+        self.icons = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() != "link":
+            return
+        d = {k.lower(): (v or "") for k, v in attrs}
+        rels = {r.strip().lower() for r in d.get("rel", "").split()}
+        href = d.get("href", "").strip()
+        if not href:
+            return
+        if "manifest" in rels and not self.manifest:
+            self.manifest = href
+        if rels & {"apple-touch-icon", "apple-touch-icon-precomposed", "icon"}:
+            score = parse_size(d.get("sizes", ""))
+            if "apple-touch-icon" in rels:
+                score = max(score, 180)
+            if d.get("type", "").lower() == "image/svg+xml" or href.lower().endswith(".svg"):
+                score = max(score, 320)
+            self.icons.append((score, href))
+
+
+candidates = []
+if explicit_icon:
+    candidates.append((1000, explicit_icon))
+
+parsed = urllib.parse.urlparse(url)
+origin = f"{parsed.scheme}://{parsed.netloc}"
+
+try:
+    html_bytes = fetch(url, 512_000)
+    hp = HeadParser()
+    hp.feed(html_bytes.decode("utf-8", errors="ignore"))
+    if hp.manifest:
+        try:
+            m_url = urllib.parse.urljoin(url, hp.manifest)
+            m_data = json.loads(fetch(m_url, 256_000).decode("utf-8", errors="ignore"))
+            for ic in m_data.get("icons", []):
+                src = ic.get("src")
+                if not src:
+                    continue
+                score = parse_size(ic.get("sizes", "")) + 100
+                if ic.get("type") == "image/svg+xml":
+                    score = max(score, 450)
+                candidates.append((score, urllib.parse.urljoin(m_url, src)))
+        except Exception:
+            pass
+    for score, href in hp.icons:
+        candidates.append((score, urllib.parse.urljoin(url, href)))
+except Exception:
+    pass
+
+candidates.append((60, f"{origin}/apple-touch-icon.png"))
+candidates.append((40, f"{origin}/favicon.ico"))
+if parsed.netloc:
+    q = urllib.parse.quote(parsed.netloc)
+    candidates.append((20, f"https://www.google.com/s2/favicons?domain={q}&sz=128"))
+
+candidates.sort(key=lambda item: item[0], reverse=True)
+seen = set()
+for _, cand in candidates:
+    if not cand or cand in seen:
+        continue
+    seen.add(cand)
+    try:
+        data = fetch(cand, 2_000_000)
+        if not data:
+            continue
+    except Exception:
+        continue
+    fd, tmp_path = tempfile.mkstemp(prefix="tamagi-webapp-icon-")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        mime = subprocess.check_output(["file", "-b", "--mime-type", tmp_path], text=True).strip()
+        if not mime.startswith("image/"):
+            continue
+        if mime == "image/svg+xml" and subprocess.run(["which", "rsvg-convert"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            subprocess.run(["rsvg-convert", "-w", "256", "-h", "256", tmp_path, "-o", out_png], check=True)
+        else:
+            os.replace(tmp_path, out_png)
+            tmp_path = None
+        sys.exit(0)
+    except Exception:
+        continue
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+sys.exit(1)
+PY
+}
+
+pin_toggle() { # pin_toggle add|remove <desktop-id-no-ext> [quiet]
+    local op=$1 app_id=$2 quiet=${3:-0}
+    if [[ ! -f $COSMIC_FAV_USER ]]; then
+        [[ $op == remove ]] && return 0
+        mkdir -p "$(dirname "$COSMIC_FAV_USER")"
+        if [[ -f $COSMIC_FAV_SYS ]]; then
+            cp "$COSMIC_FAV_SYS" "$COSMIC_FAV_USER"
+        else
+            printf '[\n]\n' > "$COSMIC_FAV_USER"
+        fi
+    fi
+    python3 - "$COSMIC_FAV_USER" "$op" "$app_id" <<'PY'
+import re
+import sys
+
+path, op, app_id = sys.argv[1:4]
+text = open(path, encoding="utf-8").read()
+items = re.findall(r'"([^"]+)"', text)
+if op == "add":
+    if app_id not in items:
+        items.append(app_id)
+else:
+    items = [x for x in items if x != app_id]
+out = "[\n" + "".join(f'    "{x}",\n' for x in items) + "]\n"
+open(path, "w", encoding="utf-8").write(out)
+PY
+    if (( ! quiet )); then
+        if [[ $op == add ]]; then
+            echo "$(t "Pinned to COSMIC dock"): $app_id"
+        else
+            echo "$(t "Unpinned from COSMIC dock"): $app_id"
+        fi
+    fi
+}
+
+desktop_value() {
+    local file=$1 key=$2
+    grep -m1 "^${key}=" "$file" 2>/dev/null | cut -d= -f2- || true
+}
+
+resolve_desktop() { # resolve_desktop <name-or-slug>
+    local raw=${1:-} s f
+    [[ -n $raw ]] || return 1
+    s=$(slug "$raw")
+    if [[ -f "$APPS/$s.desktop" ]] && grep -q '^X-Tamagi-WebApp=true' "$APPS/$s.desktop"; then
+        echo "$APPS/$s.desktop"; return 0
+    fi
+    if [[ -f "$APPS/webapp-$s.desktop" ]] && grep -q '^X-Tamagi-WebApp=true' "$APPS/webapp-$s.desktop"; then
+        echo "$APPS/webapp-$s.desktop"; return 0
+    fi
+    for f in "$APPS"/webapp-*.desktop; do
+        [[ -f $f ]] && grep -q '^X-Tamagi-WebApp=true' "$f" || continue
+        if [[ $(desktop_value "$f" Name) == "$raw" ]]; then
+            echo "$f"; return 0
+        fi
+    done
+    return 1
+}
+
 install_app() {
-    local name=${1:-} url=${2:-} icon_url=${3:-} id icon origin candidate
+    local preset="" isolated=0 profile="" browser="app" category="Network;" pin=0
+    local -a pos=()
+    while (( $# )); do
+        case "$1" in
+            --preset)       preset=${2:-}; shift 2 ;;
+            --preset=*)     preset=${1#*=}; shift ;;
+            --isolated)     isolated=1; shift ;;
+            --profile)      profile=${2:-}; shift 2 ;;
+            --profile=*)    profile=${1#*=}; shift ;;
+            --browser)      browser=${2:-}; shift 2 ;;
+            --browser=*)    browser=${1#*=}; shift ;;
+            --category)     category=${2:-}; shift 2 ;;
+            --category=*)   category=${1#*=}; shift ;;
+            --pin)          pin=1; shift ;;
+            -h|--help)      usage; return 0 ;;
+            *)              pos+=("$1"); shift ;;
+        esac
+    done
+
+    local name=${pos[0]:-} url=${pos[1]:-} icon_url=${pos[2]:-}
+    if [[ -n $preset ]]; then
+        local row
+        row=$(preset_lookup "$preset") || die "$(t "unknown web app preset"): '$preset'"
+        IFS=$'\t' read -r name url category <<<"$row"
+    fi
+
     if [[ -z $name || -z $url ]]; then
-        [[ -t 0 ]] || die "usage: tamagi webapp install <name> <url> [icon-url]"
+        [[ -t 0 ]] || die "usage: tamagi webapp install <name> <url> [icon-url] [--isolated|--profile <p>] [--pin]"
         name=$(gum input --placeholder "$(t "App name (e.g. WhatsApp)")")
         url=$(gum input --placeholder "$(t "URL (e.g. https://web.whatsapp.com)")")
     fi
     [[ $url =~ ^https?:// ]] || die "$(t "URL must start with http:// or https://")"
-    id="webapp-$(slug "$name")"
+    [[ $browser =~ ^(app|chrome|chromium|vivaldi|opera-gx)$ ]] \
+        || die "$(t "web apps need Chrome, Chromium, Vivaldi or Opera GX"): $browser"
+    if [[ -n $profile ]]; then
+        (( ! isolated )) || die "$(t "choose either --isolated or --profile, not both")"
+        [[ $profile =~ ^[a-z][a-z0-9-]{0,30}$ ]] || die "$(t "invalid profile name"): '$profile'"
+    fi
+    [[ $category == *";" ]] || category="${category};"
+
+    local id; id="webapp-$(slug "$name")"
     [[ $id != webapp- ]] || die "$(t "invalid name")"
     mkdir -p "$APPS" "$ICONS"
 
-    icon=web-browser
-    origin=$(grep -oE '^https?://[^/]+' <<<"$url")
-    for candidate in "$icon_url" "$origin/apple-touch-icon.png" "$origin/favicon.ico"; do
-        [[ -n $candidate ]] || continue
-        if curl -fsSL --max-time 10 -o "$ICONS/$id.download" "$candidate" 2>/dev/null \
-                && file -b --mime-type "$ICONS/$id.download" | grep -q '^image/'; then
-            mv "$ICONS/$id.download" "$ICONS/$id.png"
-            icon="$ICONS/$id.png"
-            break
-        fi
-    done
-    rm -f "${ICONS:?}/${id:?}.download"
+    local icon="web-browser"
+    if fetch_icon "$url" "$ICONS/$id.png" "$icon_url" 2>/dev/null && [[ -s "$ICONS/$id.png" ]]; then
+        icon="$ICONS/$id.png"
+    else
+        rm -f "${ICONS:?}/${id:?}.png"
+    fi
+
+    local exec_cmd mode="shared" extra_arg=""
+    if (( isolated )); then
+        mode="isolated"
+        mkdir -p "$WEBAPP_PROFILES/$id"
+        extra_arg="--user-data-dir=$WEBAPP_PROFILES/$id "
+    elif [[ -n $profile ]]; then
+        mode="profile:$profile"
+        extra_arg="--profile $profile "
+    fi
+    exec_cmd="tamagi-browser $browser ${extra_arg}--app=$url --class=$id"
 
     cat > "$APPS/$id.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=$name
 Comment=Web app: $url
-Exec=tamagi-browser app --app=$url --class=$id
+Exec=$exec_cmd
 Icon=$icon
 Terminal=false
-Categories=Network;
+Categories=$category
 StartupWMClass=$id
+SingleMainWindow=true
+StartupNotify=true
 X-Tamagi-WebApp=true
+X-Tamagi-WebApp-URL=$url
+X-Tamagi-WebApp-Mode=$mode
+Actions=open-in-browser;
+
+[Desktop Action open-in-browser]
+Name=Open in Browser Tab
+Name[pt_BR]=Abrir em aba do navegador
+Name[pt]=Abrir em aba do navegador
+Name[es]=Abrir en pestaña del navegador
+Name[fr]=Ouvrir dans un onglet du navigateur
+Exec=tamagi-browser $url
 DESKTOP
     update-desktop-database "$APPS" 2>/dev/null || true
-    echo "$(t "Web app created"): '$name'."
+    (( pin )) && pin_toggle add "$id" 1
+    echo "$(t "Web app created"): '$name' ($mode)."
 }
 
 list_apps() {
-    local f
+    if [[ ${1:-} == --json ]]; then
+        python3 - "$APPS" "$COSMIC_FAV_USER" <<'PY'
+import glob
+import json
+import os
+import re
+import sys
+
+apps_dir, fav_path = sys.argv[1:3]
+pinned = set()
+if os.path.isfile(fav_path):
+    pinned = set(re.findall(r'"([^"]+)"', open(fav_path, encoding="utf-8").read()))
+
+out = []
+for f in sorted(glob.glob(os.path.join(apps_dir, "webapp-*.desktop"))):
+    raw = open(f, encoding="utf-8", errors="ignore").read()
+    if "\nX-Tamagi-WebApp=true" not in "\n" + raw:
+        continue
+    kv = {}
+    for line in raw.splitlines():
+        if "=" in line and not line.startswith("["):
+            k, v = line.split("=", 1)
+            kv.setdefault(k, v)
+    wid = os.path.basename(f)[:-8]
+    url = kv.get("X-Tamagi-WebApp-URL") or kv.get("Comment", "").removeprefix("Web app: ")
+    out.append({
+        "id": wid,
+        "name": kv.get("Name", wid),
+        "url": url,
+        "mode": kv.get("X-Tamagi-WebApp-Mode", "shared"),
+        "icon": kv.get("Icon", ""),
+        "pinned": wid in pinned,
+        "desktop": f,
+    })
+print(json.dumps(out, indent=2))
+PY
+        return 0
+    fi
+    local f url mode tag name
     for f in "$APPS"/webapp-*.desktop; do
         [[ -f $f ]] && grep -q '^X-Tamagi-WebApp=true' "$f" || continue
-        printf '%-24s %s\n' "$(grep -m1 '^Name=' "$f" | cut -d= -f2-)" \
-            "$(grep -m1 '^Comment=' "$f" | sed 's/^Comment=Web app: //')"
+        name=$(desktop_value "$f" Name)
+        url=$(desktop_value "$f" X-Tamagi-WebApp-URL)
+        [[ -n $url ]] || url=$(desktop_value "$f" Comment | sed 's/^Web app: //')
+        mode=$(desktop_value "$f" X-Tamagi-WebApp-Mode)
+        tag=""
+        [[ -n $mode && $mode != shared ]] && tag=" [$mode]"
+        printf '%-24s %s%s\n' "$name" "$url" "$tag"
     done
 }
 
+cmd_presets() {
+    local list_only=0 row pid pname purl pcat
+    [[ ${1:-} == --list ]] && list_only=1
+    if (( ! list_only )) && [[ -t 0 && -t 1 ]]; then
+        local -a choices=()
+        for row in "${PRESETS[@]}"; do
+            IFS=$'\t' read -r pid pname purl pcat <<<"$row"
+            choices+=("$(printf '%-12s %-18s %s' "$pid" "$pname" "$purl")")
+        done
+        local picked
+        picked=$(printf '%s\n' "${choices[@]}" | gum choose --height 18 --header "$(t "Curated Web Apps")") || return 0
+        pid=${picked%% *}
+        install_app --preset "$pid"
+        return 0
+    fi
+    for row in "${PRESETS[@]}"; do
+        IFS=$'\t' read -r pid pname purl pcat <<<"$row"
+        printf '  %-12s %-18s %s\n' "$pid" "$pname" "$purl"
+    done
+}
+
+cmd_launch() {
+    local name=${1:-} f
+    [[ -n $name ]] || die "usage: tamagi webapp launch <name>"
+    f=$(resolve_desktop "$name") || die "$(t "web app not found") '$name'"
+    local exec_line
+    exec_line=$(desktop_value "$f" Exec)
+    [[ -n $exec_line ]] || die "$(t "web app not found") '$name'"
+    # Exec contains no shell metacharacters (generated exclusively by install_app).
+    # shellcheck disable=SC2086
+    exec $exec_line
+}
+
+cmd_pin() {
+    local op=$1 name=${2:-} f id
+    [[ -n $name ]] || die "usage: tamagi webapp $op <name>"
+    f=$(resolve_desktop "$name") || die "$(t "web app not found") '$name'"
+    id=$(basename "$f" .desktop)
+    pin_toggle "$op" "$id" 0
+}
+
+cmd_refresh_icons() {
+    local f url id updated=0
+    mkdir -p "$ICONS"
+    for f in "$APPS"/webapp-*.desktop; do
+        [[ -f $f ]] && grep -q '^X-Tamagi-WebApp=true' "$f" || continue
+        id=$(basename "$f" .desktop)
+        url=$(desktop_value "$f" X-Tamagi-WebApp-URL)
+        [[ -n $url ]] || url=$(desktop_value "$f" Comment | sed 's/^Web app: //')
+        [[ -n $url ]] || continue
+        if fetch_icon "$url" "$ICONS/$id.png" "" 2>/dev/null && [[ -s "$ICONS/$id.png" ]]; then
+            sed -i "s|^Icon=.*|Icon=$ICONS/$id.png|" "$f"
+            updated=$(( updated + 1 ))
+        fi
+    done
+    update-desktop-database "$APPS" 2>/dev/null || true
+    echo "$(t "Refreshed icons"): $updated"
+}
+
 remove_app() {
-    local name=${1:-} id
+    local purge=0 name="" arg f id dname
+    for arg in "$@"; do
+        case "$arg" in
+            --purge) purge=1 ;;
+            *)       name=$arg ;;
+        esac
+    done
     if [[ -z $name ]]; then
-        [[ -t 0 ]] || die "usage: tamagi webapp remove <name>"
+        [[ -t 0 ]] || die "usage: tamagi webapp remove <name> [--purge]"
         name=$(list_apps | gum choose --header "$(t "Remove which one?")" | sed -E 's/ {2,}.*//') || exit 0
     fi
-    id="webapp-$(slug "$name")"
-    [[ -f $APPS/$id.desktop ]] || die "$(t "web app not found") '$name'"
-    rm -f "${APPS:?}/${id:?}.desktop" "${ICONS:?}/${id:?}.png"
+    f=$(resolve_desktop "$name") || die "$(t "web app not found") '$name'"
+    id=$(basename "$f" .desktop)
+    dname=$(desktop_value "$f" Name)
+    rm -f "${f:?}" "${ICONS:?}/${id:?}.png"
+    pin_toggle remove "$id" 1
+    if [[ -d "$WEBAPP_PROFILES/$id" ]]; then
+        if (( purge )); then
+            rm -rf -- "${WEBAPP_PROFILES:?}/${id:?}"
+        elif [[ -t 0 ]] && gum confirm "$(t "Delete isolated profile data too?") ($dname)" --affirmative "$(t "Yes")" --negative "$(t "No")"; then
+            rm -rf -- "${WEBAPP_PROFILES:?}/${id:?}"
+        fi
+    fi
     update-desktop-database "$APPS" 2>/dev/null || true
-    echo "$(t "Web app removed"): '$name'."
+    echo "$(t "Web app removed"): '${dname:-$name}'."
 }
 
 case "${1:-}" in
-    install) shift; install_app "$@" ;;
-    remove)   shift; remove_app "$@" ;;
-    list)       list_apps ;;
-    -h|--help|help) echo "tamagi webapp [install <name> <url> [icon-url] | remove <name> | list]" ;;
-    *) echo "usage: tamagi webapp install <name> <url> [icon-url] | remove <name> | list" >&2; exit 2 ;;
+    install)       shift; install_app "$@" ;;
+    presets)       shift; cmd_presets "$@" ;;
+    launch)        shift; cmd_launch "$@" ;;
+    pin)           shift; cmd_pin add "$@" ;;
+    unpin)         shift; cmd_pin remove "$@" ;;
+    refresh-icons) shift; cmd_refresh_icons "$@" ;;
+    remove)        shift; remove_app "$@" ;;
+    list)          shift; list_apps "$@" ;;
+    -h|--help|help) usage ;;
+    *) echo "usage: tamagi webapp [install|presets|list|launch|pin|unpin|refresh-icons|remove]" >&2; exit 2 ;;
 esac

@@ -1,0 +1,15 @@
+[Unit]
+Description=Tamagi: asynchronously rebuild outdated native layers after system update
+Documentation=file:///usr/share/doc/tamagi/README.md
+After=network-online.target systemd-sysext.service tamagi-layer-units.service
+Wants=network-online.target
+ConditionDirectoryNotEmpty=/var/lib/extensions
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+ExecStart=/usr/libexec/tamagi/layer-autorebuild
+
+[Install]
+WantedBy=multi-user.target

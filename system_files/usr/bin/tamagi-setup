@@ -41,6 +41,10 @@ case "${1:-}" in
     clean)
         podman image prune -af
         flatpak uninstall --unused -y
+        sudo bootc internals composefs-gc --prune-repo 2>/dev/null || true
+        if [[ -x /usr/libexec/tamagi/home-snapshots ]]; then
+            sudo /usr/libexec/tamagi/home-snapshots prune 15 || true
+        fi
         ;;
     lazyvim)
         dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"

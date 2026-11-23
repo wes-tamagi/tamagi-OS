@@ -25,7 +25,9 @@ its own Podman container
 More apps, by name: tamagi install (what the catalog does not list comes from Flathub).
 Native
 Next
-No browser now. Later: tamagi install
+Keep Chromium (default)
+Keeping pre-installed Chromium. Install another browser anytime: tamagi browser install
+Chromium ships pre-installed with Google Account sign-in. Optionally install another browser, or keep Chromium.
 Nothing here asks for the password.
 Nothing selected
 Nothing selected: nothing will be installed.

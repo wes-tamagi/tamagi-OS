@@ -12,20 +12,32 @@
 #                                      para o próximo boot, antes do login)
 #   home-snapshots pending           faz as conversões agendadas (serviço de boot)
 #   home-snapshots clean <usuário>    apaga a cópia de segurança da conversão
+#   home-snapshots prune [min_free_gb] poda snapshots antigos se o espaço livre cair
+#                                      abaixo do mínimo (e limpa backups com >7 dias)
 #   home-snapshots status <usuário>
 #
 # Snapshot btrfs só existe de subvolume, e no Tamagi /var/home é uma pasta
 # comum. A conversão copia com reflink (instantâneo e sem ocupar espaço em
 # dobro), confere e troca os nomes; a pasta original fica como
 # /var/home/.<usuário>.antes-snapshots até `limpar`.
-# ~/.cache, ~/.local/share/containers e os discos de VM (tamagi-windows, libvirt)
-# viram subvolumes à parte: ficam fora dos snapshots (mudam o tempo todo e só
-# ocupariam espaço).
+# ~/.cache, ~/.local/share/containers, Flatpaks do usuário, jogos (Steam/Lutris)
+# e os discos de VM (tamagi-windows, libvirt) viram subvolumes à parte: ficam
+# fora dos snapshots (mudam o tempo todo e só ocupariam espaço).
+# O snapper NUNCA é ligado na raiz (/): a imagem do sistema já é atômica pelo
+# bootc (composefs), e snapshots da raiz prenderiam camadas antigas no btrfs.
 set -euo pipefail
 
 HOMES=/var/home
 PENDING=/var/lib/tamagi/home-snapshots.pending
-EXCLUDE=(.cache .local/share/containers .local/share/tamagi-windows .local/share/libvirt/images)
+EXCLUDE=(
+    .cache
+    .local/share/containers
+    .local/share/flatpak
+    .local/share/Steam
+    .local/share/lutris
+    .local/share/tamagi-windows
+    .local/share/libvirt/images
+)
 
 die() { echo "home-snapshots: $*" >&2; exit 1; }
 [[ $(id -u) -eq 0 ]] || die "precisa de root (use: tamagi-snap enable)"
@@ -120,16 +132,99 @@ convert_home() {
 
 setup_snapper() {
     local user=$1 cfg; cfg=$(config_of "$1")
-    if [[ ! -f /etc/snapper/configs/$cfg ]]; then
-        snapper --no-dbus -c "$cfg" create-config "$HOMES/$user"
+    local snaps="$HOMES/$user/.snapshots"
+    local preserved="$HOMES/$user/.snapshots.tamagi-preserve"
+    # Guardrail: o snapper nunca gerencia a raiz (/), que pertence ao bootc.
+    if [[ -f /etc/snapper/configs/root ]]; then
+        grep -q '^SUBVOLUME="/"' /etc/snapper/configs/root 2>/dev/null && rm -f /etc/snapper/configs/root
     fi
+    if [[ ! -f /etc/snapper/configs/$cfg ]]; then
+        if [[ -d $snaps ]]; then
+            # Preserva snapshots de uma instalação anterior: o create-config do snapper
+            # exige criar o próprio subvolume .snapshots vazio, então guardamos e
+            # reconectamos o existente logo em seguida.
+            rm -rf "$preserved" 2>/dev/null || true
+            mv "$snaps" "$preserved"
+            if snapper --no-dbus -c "$cfg" create-config "$HOMES/$user"; then
+                if is_subvol "$preserved"; then
+                    btrfs subvolume delete "$snaps" >/dev/null 2>&1 || rm -rf "$snaps"
+                    mv "$preserved" "$snaps"
+                else
+                    shopt -s nullglob dotglob
+                    for item in "$preserved"/*; do
+                        mv "$item" "$snaps/"
+                    done
+                    shopt -u nullglob dotglob
+                    rmdir "$preserved" 2>/dev/null || rm -rf "$preserved"
+                fi
+            else
+                mv "$preserved" "$snaps"
+                return 1
+            fi
+        else
+            snapper --no-dbus -c "$cfg" create-config "$HOMES/$user"
+        fi
+    fi
+    chown root:root "$snaps"
+    chmod 750 "$snaps"
     snapper --no-dbus -c "$cfg" set-config \
         ALLOW_USERS="$user" SYNC_ACL=yes \
         TIMELINE_CREATE=yes TIMELINE_CLEANUP=yes TIMELINE_MIN_AGE=1800 \
-        TIMELINE_LIMIT_HOURLY=24 TIMELINE_LIMIT_DAILY=7 TIMELINE_LIMIT_WEEKLY=4 \
+        TIMELINE_LIMIT_HOURLY=12 TIMELINE_LIMIT_DAILY=7 TIMELINE_LIMIT_WEEKLY=4 \
         TIMELINE_LIMIT_MONTHLY=0 TIMELINE_LIMIT_QUARTERLY=0 TIMELINE_LIMIT_YEARLY=0 \
         NUMBER_CLEANUP=yes NUMBER_LIMIT=10 SPACE_LIMIT=0.3 FREE_LIMIT=0.2
     snapper --no-dbus -c "$cfg" create -d "snapshots ligados" -c number
+}
+
+# Evita colapso de espaço entre o snapper e o bootc: remove config "root" se
+# alguém a tiver criado por engano, apaga cópias de conversão (.antes-snapshots)
+# com mais de 7 dias e, se o espaço livre cair abaixo de <min_free_gb> (padrão
+# 15 GiB), roda os algoritmos de limpeza do snapper e poda os snapshots mais
+# antigos até abrir espaço.
+prune_space() {
+    local min_gb=${1:-15} free_bytes min_bytes cfg
+    min_bytes=$(( min_gb * 1024 * 1024 * 1024 ))
+    if [[ -f /etc/snapper/configs/root ]] && grep -q '^SUBVOLUME="/"' /etc/snapper/configs/root 2>/dev/null; then
+        echo "home-snapshots: removendo configuração indevida do snapper na raiz (/ pertence ao bootc)" >&2
+        rm -f /etc/snapper/configs/root
+    fi
+    # Cópias de segurança da conversão inicial com mais de 7 dias.
+    if [[ -d $HOMES ]]; then
+        while read -r old; do
+            [[ -n $old ]] || continue
+            echo "home-snapshots: limpando cópia de conversão antiga $old"
+            rm -rf --one-file-system "$old"
+        done < <(find "$HOMES" -maxdepth 1 -mindepth 1 -name '.*.antes-snapshots' -mtime +7 2>/dev/null || true)
+    fi
+    [[ -d /etc/snapper/configs ]] || return 0
+    for cfg in /etc/snapper/configs/home-*; do
+        [[ -f $cfg ]] || continue
+        cfg=$(basename "$cfg")
+        snapper --no-dbus -c "$cfg" cleanup timeline >/dev/null 2>&1 || true
+        snapper --no-dbus -c "$cfg" cleanup number >/dev/null 2>&1 || true
+    done
+    free_bytes=$(df --output=avail -B1 "$HOMES" 2>/dev/null | tail -1 | tr -d ' ')
+    [[ $free_bytes =~ ^[0-9]+$ ]] || return 0
+    (( free_bytes >= min_bytes )) && return 0
+    echo "home-snapshots: espaço livre baixo ($(( free_bytes / 1024 / 1024 / 1024 )) GiB < ${min_gb} GiB); podando snapshots antigos"
+    for cfg in /etc/snapper/configs/home-*; do
+        [[ -f $cfg ]] || continue
+        cfg=$(basename "$cfg")
+        local subvol
+        subvol=$(awk -F'"' '/^SUBVOLUME=/ {print $2}' "/etc/snapper/configs/$cfg" 2>/dev/null)
+        [[ -n $subvol && -d $subvol/.snapshots ]] || continue
+        local snaps=()
+        mapfile -t snaps < <(find "$subvol/.snapshots" -maxdepth 1 -mindepth 1 -type d -printf '%f\n' | grep -E '^[0-9]+$' | sort -n)
+        # Mantém sempre os 3 snapshots mais recentes.
+        if (( ${#snaps[@]} > 3 )); then
+            local to_del=("${snaps[@]:0:${#snaps[@]}-3}")
+            for s in "${to_del[@]}"; do
+                snapper --no-dbus -c "$cfg" delete "$s" >/dev/null 2>&1 || true
+                free_bytes=$(df --output=avail -B1 "$HOMES" 2>/dev/null | tail -1 | tr -d ' ')
+                [[ $free_bytes =~ ^[0-9]+$ ]] && (( free_bytes >= min_bytes )) && break
+            done
+        fi
+    done
 }
 
 activate() {
@@ -169,6 +264,8 @@ case "${1:-}" in
         [[ -e $old ]] || { echo "não há cópia de segurança"; exit 0; }
         rm -rf --one-file-system "$old"
         echo "cópia de segurança apagada" ;;
+    prune)
+        prune_space "${2:-15}" ;;
     status)
         [[ -n ${2:-} ]] || die "usage: home-snapshots status <usuário>"
         u=$2

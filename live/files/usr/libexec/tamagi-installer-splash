@@ -136,7 +136,7 @@ def main():
     p.add_argument("secondary", nargs="?", default="")
     args = p.parse_args()
 
-    app = Adw.Application(application_id="br.tamagi.Instalador.Dialogo")
+    app = Adw.Application(application_id="org.tamagi.Installer.Dialog")
     state = {"rc": 1, "win": None}
 
     def activate(a):

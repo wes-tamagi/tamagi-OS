@@ -2,9 +2,15 @@
 # tamagi-update — um comando para atualizar tudo (sistema, Flatpaks, caixas, agentes de IA).
 #
 #   tamagi-update              sistema + Flatpaks + subsistemas/caixas + agentes de IA
+#   tamagi-update --reboot     atualiza tudo e reinicia se houver nova imagem
+#   tamagi-update --soft-reboot atualiza tudo e faz soft-reboot (ou reboot completo se o kernel mudou)
 #   tamagi-update --arch       só pacotes do Arch (pacman e AUR)
 #   tamagi-update --system     só a imagem do sistema
-#   tamagi-update status       timers automáticos e digests em quarentena
+#   tamagi-update check        verifica se há atualização da imagem sem baixar
+#   tamagi-update rollback     volta para a imagem anterior do sistema (bootc rollback)
+#   tamagi-update drop         descarta uma atualização preparada antes de reiniciar
+#   tamagi-update history      mostra o histórico recente de atualizações do sistema
+#   tamagi-update status       timers automáticos, imagem pronta e digests em quarentena
 #   tamagi-update auto on|off  liga ou desliga a atualização automática
 #   tamagi-update quarantine   mostra digests bloqueados após falha de boot
 #   tamagi-update unquarantine limpa a quarentena de digests
@@ -20,6 +26,8 @@ failed=()
 
 STATUS="${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}"
 SYSTEM_UPDATE=/usr/libexec/tamagi/system-update
+HISTORY="${TAMAGI_UPDATE_HISTORY:-/var/lib/tamagi/update/history.log}"
+APPLY_MODE=""
 
 # `bootc status` needs root: the system publishes a copy for the desktop.
 # (An image downloaded but held back by the Secure Boot guard is not staged.)
@@ -28,6 +36,15 @@ staged_digest() { jq -r '.status.staged | select(.downloadOnly != true) | .image
 quarantine_count() {
     [[ -r $QUARANTINE ]] || { echo 0; return; }
     grep -cvE '^(#|[[:space:]]*$)' "$QUARANTINE" 2>/dev/null || echo 0
+}
+
+pre_update_snapshot() {
+    # Transactional checkpoint of the home folder before updating boxes,
+    # Flatpaks and agents, so `tamagi rewind` has an exact pre-update point.
+    local cfg="home-${SUDO_USER:-${USER:-}}"
+    [[ -n ${SUDO_USER:-${USER:-}} && -f /etc/snapper/configs/$cfg ]] || return 0
+    command -v snapper >/dev/null 2>&1 || return 0
+    snapper -c "$cfg" create -c number -d "pre-update $(date +%Y-%m-%d)" >/dev/null 2>&1 || true
 }
 
 update_system() {
@@ -134,6 +151,14 @@ status_auto() {
     timer_line "System Flatpaks" flatpak-system-update.timer
     timer_line "User Flatpaks" --user flatpak-user-update.timer
     timer_line "Distrobox boxes" --user tamagi-autoupdate.timer
+    if [[ -r $STATUS ]]; then
+        local booted_ver rollback_ver sys_avail
+        booted_ver=$(jq -r '.status.booted.image | "\(.version // "?") (\((.imageDigest // "")[7:19]))"' "$STATUS" 2>/dev/null || true)
+        rollback_ver=$(jq -r '.status.rollback.image | select(. != null) | "\(.version // "?") (\((.imageDigest // "")[7:19]))"' "$STATUS" 2>/dev/null || true)
+        sys_avail=$(df -h --output=avail /sysroot 2>/dev/null | tail -1 | tr -d ' ')
+        [[ -n $booted_ver ]] && echo "$(t "Running image"): $booted_ver${sys_avail:+ · ${sys_avail} $(t "free")}"
+        [[ -n $rollback_ver ]] && echo "$(t "Previous image"): $rollback_ver"
+    fi
     local qcount
     qcount=$(quarantine_count)
     if (( qcount > 0 )); then
@@ -174,6 +199,60 @@ cmd_unquarantine() {
     tl "Quarantine cleared."
 }
 
+cmd_check() {
+    local remote rc=0
+    remote=$(sudo "$SYSTEM_UPDATE" --check 2>/dev/null) || rc=$?
+    case "$rc" in
+        0)
+            echo "$(t "New image available"): $remote"
+            return 0 ;;
+        10)
+            tl "Everything is up to date."
+            return 0 ;;
+        *)
+            tl "Could not reach the image registry."
+            return 1 ;;
+    esac
+}
+
+cmd_rollback() {
+    if sudo "$SYSTEM_UPDATE" --rollback; then
+        tl "Previous system image selected for the next boot."
+        return 0
+    fi
+    return 1
+}
+
+cmd_drop() {
+    if ! jq -e '.status.staged != null' "$STATUS" >/dev/null 2>&1 && [[ -z $(staged_digest) ]]; then
+        tl "No staged update to discard."
+        return 0
+    fi
+    if sudo "$SYSTEM_UPDATE" --drop; then
+        tl "Staged update discarded."
+        return 0
+    fi
+    return 1
+}
+
+cmd_history() {
+    if [[ ! -s $HISTORY ]]; then
+        tl "No update history yet."
+        return 0
+    fi
+    cat "$HISTORY"
+}
+
+maybe_apply_reboot() {
+    [[ -n $APPLY_MODE ]] || return 0
+    if [[ -n $(staged_digest) ]]; then
+        tl "Applying staged update now..."
+        sudo "$SYSTEM_UPDATE" "$APPLY_MODE" || failed+=(reboot)
+    else
+        tl "No new image staged; reboot not needed."
+    fi
+}
+
 set_auto() { # set_auto on|off
     local verb=enable
     [[ $1 == off ]] && verb=disable
@@ -182,33 +261,49 @@ set_auto() { # set_auto on|off
     status_auto
 }
 
-case "${1:-all}" in
-    --arch)       update_arch ;;
-    --system)     update_system ;;
-    --auto)       update_auto ;;
-    status)       status_auto; exit 0 ;;
-    changes) /usr/libexec/tamagi/update-changes "${@:2}"; exit $? ;;
-    quarantine)   cmd_quarantine; exit 0 ;;
-    unquarantine) cmd_unquarantine; exit 0 ;;
-    auto)         case "${2:-}" in on|off) set_auto "$2"; exit 0 ;; *) echo "usage: tamagi-update auto on|off" >&2; exit 2 ;; esac ;;
-    all)
-        update_system
-        update_layers
-        step "Flatpaks"
-        flatpak update -y || failed+=(flatpak)
-        step "Distrobox boxes"
-        archs=$(arch_boxes)
-        for box in $(all_boxes); do
-            grep -qx "$box" <<<"$archs" && continue
-            distrobox upgrade "$box" || failed+=("caixa:$box")
-        done
-        update_arch
-        if [[ -n $(tamagi-agents installed 2>/dev/null) ]]; then
-            step "AI agents"
-            tamagi-agents update || failed+=(agents)
-        fi
-        ;;
-    *) echo "usage: tamagi-update [--arch|--system|status|changes|quarantine|unquarantine|auto on|off]" >&2; exit 2 ;;
+run_all() {
+    pre_update_snapshot
+    update_system
+    update_layers
+    step "Flatpaks"
+    flatpak update -y || failed+=(flatpak)
+    step "Distrobox boxes"
+    archs=$(arch_boxes)
+    for box in $(all_boxes); do
+        grep -qx "$box" <<<"$archs" && continue
+        distrobox upgrade "$box" || failed+=("caixa:$box")
+    done
+    update_arch
+    if [[ -n $(tamagi-agents installed 2>/dev/null) ]]; then
+        step "AI agents"
+        tamagi-agents update || failed+=(agents)
+    fi
+}
+
+args=()
+for a in "$@"; do
+    case "$a" in
+        --reboot)      APPLY_MODE=--apply ;;
+        --soft-reboot) APPLY_MODE=--soft-reboot ;;
+        *)             args+=("$a") ;;
+    esac
+done
+
+case "${args[0]:-all}" in
+    --arch)        update_arch ;;
+    --system)      update_system; maybe_apply_reboot ;;
+    --auto)        update_auto ;;
+    check|--check) cmd_check; exit $? ;;
+    rollback)      cmd_rollback; exit $? ;;
+    drop)          cmd_drop; exit $? ;;
+    history)       cmd_history; exit 0 ;;
+    status)        status_auto; exit 0 ;;
+    changes)       /usr/libexec/tamagi/update-changes "${args[@]:1}"; exit $? ;;
+    quarantine)    cmd_quarantine; exit 0 ;;
+    unquarantine)  cmd_unquarantine; exit 0 ;;
+    auto)          case "${args[1]:-}" in on|off) set_auto "${args[1]}"; exit 0 ;; *) echo "usage: tamagi-update auto on|off" >&2; exit 2 ;; esac ;;
+    all)           run_all; maybe_apply_reboot ;;
+    *) echo "usage: tamagi-update [--arch|--system|check|rollback|drop|history|status|changes|quarantine|unquarantine|auto on|off] [--reboot|--soft-reboot]" >&2; exit 2 ;;
 esac
 
 echo

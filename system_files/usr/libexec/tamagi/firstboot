@@ -20,14 +20,45 @@ user=${C[USER]:-}
 if [[ -n $user ]]; then
     [[ $user =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "nome de usuário inválido: $user" >&2; exit 1; }
     if ! id "$user" >/dev/null 2>&1; then
-        # Em btrfs, a pasta pessoal já nasce como subvolume: é o que permite os
-        # snapshots automáticos (home-snapshots).
-        subvol=()
-        [[ $(stat -f -c %T /var/home 2>/dev/null) == btrfs ]] && subvol=(--btrfs-subvolume-home)
-        useradd --create-home "${subvol[@]}" --shell /bin/bash --groups wheel \
-            --comment "${C[FULLNAME]:-$user}" --password "${C[PASSWORD_HASH]:-!}" "$user"
-        echo "usuário $user criado"
-        if [[ ${#subvol[@]} -gt 0 && ${C[HOME_SNAPSHOTS]:-yes} != no ]]; then
+        uhome="/var/home/$user"
+        if [[ -d $uhome ]]; then
+            # Pasta pessoal preservada de uma instalação anterior: mantém UID/GID
+            # existentes quando disponíveis para não quebrar permissões nem reescrever tudo.
+            old_uid=$(stat -c '%u' "$uhome" 2>/dev/null || echo "")
+            old_gid=$(stat -c '%g' "$uhome" 2>/dev/null || echo "")
+            uid_args=()
+            if [[ $old_uid =~ ^[0-9]+$ ]] && (( old_uid >= 1000 )) && ! getent passwd "$old_uid" >/dev/null 2>&1; then
+                uid_args+=(--uid "$old_uid")
+            fi
+            if [[ $old_gid =~ ^[0-9]+$ ]] && (( old_gid >= 1000 )) && ! getent group "$old_gid" >/dev/null 2>&1; then
+                groupadd --gid "$old_gid" "$user"
+                uid_args+=(--gid "$old_gid")
+            fi
+            useradd --no-create-home --home-dir "$uhome" "${uid_args[@]}" --shell /bin/bash --groups wheel \
+                --comment "${C[FULLNAME]:-$user}" --password "${C[PASSWORD_HASH]:-!}" "$user"
+            echo "usuário $user reconectado à pasta preservada $uhome"
+            ugroup=$(id -gn "$user")
+            if [[ $(stat -c '%u' "$uhome" 2>/dev/null) != "$(id -u "$user")" || $(stat -c '%g' "$uhome" 2>/dev/null) != "$(id -g "$user")" ]]; then
+                chown "$user:$ugroup" "$uhome"
+                find "$uhome" -mindepth 1 -maxdepth 1 ! -name .snapshots -exec chown -R "$user:$ugroup" {} +
+            fi
+            if command -v restorecon >/dev/null; then
+                if ! stat -c '%C' "$uhome" 2>/dev/null | grep -q 'user_home_dir_t'; then
+                    restorecon -R "$uhome" 2>/dev/null || true
+                else
+                    restorecon -R "$uhome/.local" "$uhome/.config" 2>/dev/null || true
+                fi
+            fi
+        else
+            # Em btrfs, a pasta pessoal já nasce como subvolume: é o que permite os
+            # snapshots automáticos (home-snapshots).
+            subvol=()
+            [[ $(stat -f -c %T /var/home 2>/dev/null) == btrfs ]] && subvol=(--btrfs-subvolume-home)
+            useradd --create-home "${subvol[@]}" --shell /bin/bash --groups wheel \
+                --comment "${C[FULLNAME]:-$user}" --password "${C[PASSWORD_HASH]:-!}" "$user"
+            echo "usuário $user criado"
+        fi
+        if [[ $(stat -f -c %T /var/home 2>/dev/null) == btrfs && ${C[HOME_SNAPSHOTS]:-yes} != no ]]; then
             /usr/libexec/tamagi/home-snapshots enable "$user" || echo "snapshots da pasta pessoal: não deu para ligar" >&2
         fi
         # Defesa em profundidade: garante que ~/.local e subpastas XDG pertençam ao usuário.

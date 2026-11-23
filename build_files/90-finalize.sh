@@ -54,8 +54,9 @@ systemctl mask bootc-fetch-apply-updates.timer 2>/dev/null || true
 systemctl enable systemd-sysext.service
 
 # Camadas que trazem serviços (ex.: `tamagi vm install`, com o libvirt): depois
-# do sysext entrar no /usr, cria usuários/pastas e liga as units pedidas.
-systemctl enable tamagi-layer-units.service
+# do sysext entrar no /usr, cria usuários/pastas e liga as units pedidas;
+# o rebuild assíncrono atualiza camadas antigas após um bootc upgrade.
+systemctl enable tamagi-layer-units.service tamagi-layer-rebuild.service
 
 # Boot mais rápido e menos ruído em background:
 #   - NetworkManager-wait-online atrasa o boot esperando DHCP/Wi-Fi sem necessidade;

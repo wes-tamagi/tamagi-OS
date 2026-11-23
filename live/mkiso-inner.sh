@@ -39,18 +39,22 @@ mm=$(find /live/usr/lib/efi/shim -name mmx64.efi | head -1)
 grub=$(find /live/usr/lib/efi/grub2 -name grubx64.efi | head -1)
 [[ -f $shim && -f $grub ]] || { echo "shim/GRUB não encontrados em /live/usr/lib/efi" >&2; exit 1; }
 
-BASE="root=live:CDLABEL=$LABEL rd.live.image rd.live.overlay.overlayfs=1 enforcing=0"
+BASE="root=live:CDLABEL=$LABEL rd.live.image rd.live.overlay.overlayfs=1 rd.luks=0 rd.lvm=0 rd.md=0 rd.multipath=0 enforcing=0 rootdelay=5"
 cat > /tmp/grub.cfg <<CFG
 set default=0
 set timeout=5
 search --no-floppy --set=root --label $LABEL
 
-menuentry "Tamagi — instalar ou experimentar" {
+menuentry "Tamagi — Install or Try" {
     linux /boot/vmlinuz $BASE quiet
     initrd /boot/initrd.img
 }
-menuentry "Tamagi — vídeo em modo seguro (se a tela ficar preta)" {
+menuentry "Tamagi — Safe Graphics Mode (nomodeset)" {
     linux /boot/vmlinuz $BASE nomodeset
+    initrd /boot/initrd.img
+}
+menuentry "Tamagi — Boot Diagnostics (verbose)" {
+    linux /boot/vmlinuz $BASE rd.live.debug=1
     initrd /boot/initrd.img
 }
 CFG
@@ -79,10 +83,15 @@ cp /tmp/grub.cfg "$TREE/EFI/BOOT/grub.cfg"
 
 echo "montando a ISO…"
 # ISO 9660 nível 3 (arquivos > 4 GB) com a partição EFI anexada: inicia por
-# pendrive (GPT) e por CD/DVD ou VM (El Torito), sempre em UEFI.
+# pendrive (GPT/MBR híbrido) e por CD/DVD ou VM (El Torito), sempre em UEFI.
+# -partition_offset 16 grava um segundo conjunto de superblocos ISO 9660 na
+# partição 1 (setor 64 = 32 KiB): assim tanto o disco inteiro (/dev/sdX) quanto
+# a partição (/dev/sdX1) têm filesystem iso9660 válido com LABEL=TAMAGI_LIVE,
+# evitando que o dracut-initqueue trave quando o udev escaneia as partições.
 xorriso -as mkisofs \
     -o "/out/$OUT_NAME" \
     -V "$LABEL" -iso-level 3 -R -J -joliet-long \
+    -partition_offset 16 \
     -append_partition 2 C12A7328-F81F-11D2-BA4B-00A0C93EC93B "$EFI_IMG" \
     -appended_part_as_gpt \
     -e --interval:appended_partition_2:all:: -no-emul-boot \

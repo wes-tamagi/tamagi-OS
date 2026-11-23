@@ -302,10 +302,31 @@ en = "Install a browser"
 es = "Instalar navegador"
 fr = "Installer un navigateur"
 [action.subtitle]
-pt = "Chrome, Firefox, Vivaldi ou Chromium: Flatpak, nativo ou caixa"
-en = "Chrome, Firefox, Vivaldi or Chromium: Flatpak, native or box"
-es = "Chrome, Firefox, Vivaldi o Chromium: Flatpak, nativo o caja"
-fr = "Chrome, Firefox, Vivaldi ou Chromium : Flatpak, natif ou boîte"
+pt = "Chromium já vem instalado; instale Chrome, Firefox, Vivaldi ou Opera GX (Flatpak, nativo ou caixa)"
+en = "Chromium ships pre-installed; install Chrome, Firefox, Vivaldi or Opera GX (Flatpak, native or box)"
+es = "Chromium viene preinstalado; instala Chrome, Firefox, Vivaldi u Opera GX (Flatpak, nativo o caja)"
+fr = "Chromium est préinstallé ; installez Chrome, Firefox, Vivaldi ou Opera GX (Flatpak, natif ou boîte)"
+
+[[action]]
+id = "browser.google_account"
+category = "install"
+icon = "web-browser-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-browser google-account"
+keywords = "chromium google account oauth sync login conta"
+[action.title]
+pt = "Conta Google no Chromium (OAuth2)"
+en = "Chromium Google Account Sign-In (OAuth2)"
+es = "Cuenta de Google en Chromium (OAuth2)"
+fr = "Compte Google dans Chromium (OAuth2)"
+[action.subtitle]
+pt = "Ativa, desativa ou mostra o estado do login e sincronização Google no Chromium"
+en = "Enable, disable, or check Google Account sign-in & sync in Chromium"
+es = "Activa, desactiva o muestra el estado del acceso Google en Chromium"
+fr = "Active, désactive ou affiche l'état du compte Google dans Chromium"
 
 [[action]]
 id = "install.mise"
@@ -390,6 +411,27 @@ pt = "Transforma um site em aplicativo próprio no menu"
 en = "Turn any website into a standalone menu app"
 es = "Convierte un sitio en una aplicación del menú"
 fr = "Transforme un site en application dans le menu"
+
+[[action]]
+id = "install.webapp_presets"
+category = "install"
+icon = "network-workgroup-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-webapp presets"
+keywords = "webapp presets gmail youtube whatsapp github figma notion chatgpt claude pwa"
+[action.title]
+pt = "Instalar Web Apps prontos (PWA)"
+en = "Install Curated Web Apps (PWA)"
+es = "Instalar aplicaciones web listas (PWA)"
+fr = "Installer des applications web prêtes (PWA)"
+[action.subtitle]
+pt = "Gmail, Calendar, Drive, Meet, YouTube, WhatsApp, GitHub, ChatGPT, Claude e mais"
+en = "Gmail, Calendar, Drive, Meet, YouTube, WhatsApp, GitHub, ChatGPT, Claude & more"
+es = "Gmail, Calendar, Drive, Meet, YouTube, WhatsApp, GitHub, ChatGPT, Claude y más"
+fr = "Gmail, Calendar, Drive, Meet, YouTube, WhatsApp, GitHub, ChatGPT, Claude et plus"
 
 [[action]]
 id = "install.games"

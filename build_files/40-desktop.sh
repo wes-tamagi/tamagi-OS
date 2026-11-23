@@ -83,6 +83,13 @@ case "${TAMAGI_DEFAULT_LANG:-en}" in
     *)  echo "TAMAGI_DEFAULT_LANG deve ser en ou pt" >&2; exit 1 ;;
 esac
 echo "${TAMAGI_DEFAULT_LANG:-en}" > /usr/share/tamagi/default-lang
+if [[ ${TAMAGI_DEFAULT_LANG:-en} == pt ]]; then
+    echo 'LANG=pt_BR.UTF-8' > /etc/locale.conf
+    echo 'KEYMAP=br-abnt2' > /etc/vconsole.conf
+else
+    echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+    echo 'KEYMAP=us' > /etc/vconsole.conf
+fi
 cat > "$C/com.system76.CosmicComp/v1/xkb_config" <<RON
 (
     rules: "",
@@ -308,6 +315,12 @@ for f in foot-server footclient; do
     [[ -f /usr/share/applications/$f.desktop ]] && \
         desktop-file-edit --set-key=NoDisplay --set-value=true /usr/share/applications/$f.desktop
 done
+
+# ── Chromium: Omarchy Google Account OAuth2 + Wayland/PipeWire + ~/.config/chromium-flags.conf ──
+if [[ -f /etc/chromium/chromium.conf ]] && ! grep -q '/etc/chromium/tamagi.conf' /etc/chromium/chromium.conf; then
+    printf '\n# Tamagi OS defaults (Google Account OAuth2, Wayland/PipeWire, ~/.config/chromium-flags.conf)\n[[ -f /etc/chromium/tamagi.conf ]] && . /etc/chromium/tamagi.conf\n' >> /etc/chromium/chromium.conf
+fi
+bash -n /etc/chromium/chromium.conf /etc/chromium/tamagi.conf
 
 gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 

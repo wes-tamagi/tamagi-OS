@@ -999,3 +999,30 @@ On the host too, from this box	En el sistema también, desde esta caja
 this tool lives in the development box, which this computer does not have yet.	esta herramienta vive en la caja de desarrollo, que este equipo aún no tiene.
 Create the development box now? (about 1.5 GB, a few minutes)	¿Crear la caja de desarrollo ahora? (unos 1,5 GB, algunos minutos)
 the box was created, but it did not bring this tool	la caja se creó, pero no trajo esta herramienta
+snapper configured on / (conflicts with bootc)	snapper configurado en la raíz / (conflicto con bootc)
+New image available	Nueva imagen disponible
+Previous system image selected for the next boot.	Imagen anterior del sistema seleccionada para el próximo arranque.
+No staged update to discard.	No hay ninguna actualización preparada para descartar.
+Staged update discarded.	Actualización preparada descartada.
+Could not reach the image registry.	No se pudo consultar el registro de la imagen.
+No update history yet.	Todavía no hay historial de actualizaciones.
+Applying staged update now...	Aplicando la actualización preparada ahora...
+No new image staged; reboot not needed.	No hay ninguna imagen nueva preparada; no hace falta reiniciar.
+Chromium ships pre-installed with Google Account sign-in. Optionally install another browser, or keep Chromium.	Chromium viene preinstalado con cuenta de Google. Opcionalmente instala otro navegador, o conserva Chromium.
+Keep Chromium (default)	Conservar Chromium (predeterminado)
+toggle Chromium Google Account sign-in	activa o desactiva la cuenta Google en Chromium
+Chromium ships pre-installed in the base image and cannot be removed	Chromium viene preinstalado en la imagen base y no se puede eliminar
+disabled	desactivado
+enabled (OAuth2 credentials active)	activado (credenciales OAuth2 activas)
+Chromium Google Account sign-in	Cuenta de Google en Chromium
+Google Account sign-in enabled in Chromium. Restart Chromium for changes to take effect.	Acceso con cuenta de Google activado en Chromium. Reinicia Chromium para aplicar.
+Google Account sign-in disabled in Chromium. Restart Chromium for changes to take effect.	Acceso con cuenta de Google desactivado en Chromium. Reinicia Chromium para aplicar.
+turn any website into a standalone app	convierte cualquier sitio en una aplicación independiente
+Pinned to COSMIC dock	Fijado al dock de COSMIC
+Unpinned from COSMIC dock	Desfijado del dock de COSMIC
+unknown web app preset	preset de aplicación web desconocido
+choose either --isolated or --profile, not both	elige --isolated o --profile, no ambos
+Curated Web Apps	Aplicaciones web listas
+Refreshed icons	Iconos actualizados
+Delete isolated profile data too?	¿Eliminar también los datos del perfil aislado?
+Keeping pre-installed Chromium. Install another browser anytime: tamagi browser install	Conservando el Chromium preinstalado. Instala otro navegador cuando quieras: tamagi browser install

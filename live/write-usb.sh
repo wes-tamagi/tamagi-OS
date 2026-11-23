@@ -35,12 +35,17 @@ echo "ISO     : $ISO ($(( iso_size / 1024 / 1024 )) MiB)"
 (( YES )) || die "isto APAGA o pendrive acima. Para confirmar, repita o comando com --yes"
 
 for part in $(lsblk -nrpo NAME "$DEV" | tail -n +2); do umount "$part" 2>/dev/null || true; done
+echo "Limpando assinaturas antigas do pendrive…"
+wipefs -af "$DEV" >/dev/null 2>&1 || true
 echo "Gravando…"
 dd if="$ISO" of="$DEV" bs=4M oflag=direct status=progress conv=fsync
 sync
-echo "Conferindo a gravação…"
-if cmp -n "$iso_size" "$ISO" "$DEV"; then
-    echo "Pronto: a ISO foi gravada e conferida. Pode retirar o pendrive."
+blockdev --flushbufs "$DEV" 2>/dev/null || true
+partprobe "$DEV" 2>/dev/null || true
+udevadm settle 2>/dev/null || true
+echo "Conferindo a gravação (lendo do hardware, fora do cache)…"
+if cmp -n "$iso_size" "$ISO" <(dd if="$DEV" iflag=direct bs=4M status=none); then
+    echo "Pronto: a ISO foi gravada e conferida bit a bit. Pode retirar o pendrive."
 else
-    die "o conteúdo do pendrive NÃO confere com a ISO (pendrive com defeito?)"
+    die "o conteúdo do pendrive NÃO confere com a ISO (pendrive ou porta USB com defeito?)"
 fi

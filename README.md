@@ -10,10 +10,12 @@ and every filesystem or database change can be rolled back.
 
 The host is a [bootc](https://github.com/bootc-dev/bootc) OCI image built on
 [Universal Blue](https://universal-blue.org/) with the Rust-based COSMIC
-desktop and the Open Gaming Collective (OGC) kernel used by Bazzite. The base
-image contains no browsers, games, virtual machines, AI agents or development
-runtimes: all of these are opt-in through Flatpak, reversible native layers or
-distrobox containers. Local inference uses llama.cpp, compiled into the image.
+desktop and the Open Gaming Collective (OGC) kernel used by Bazzite. Native
+Chromium and ChromeDriver ship out of the box with Google Account OAuth2
+sign-in and Wayland/PipeWire integration, while games, virtual machines, extra
+browsers, AI agents and development runtimes stay opt-in through Flatpak,
+reversible native layers or distrobox containers. Local inference uses
+llama.cpp, compiled into the image.
 
 The whole OS is an OCI container: `podman build` builds the image, updates
 switch atomically, and the previous deployment stays on disk for rollback.
@@ -24,8 +26,14 @@ switch atomically, and the previous deployment stays on disk for rollback.
 > cannot convert an existing GRUB installation in place. A machine installed
 > from an older ISO keeps booting and keeps receiving updates, but it stays on
 > the old layout and misses `tamagi harden strict`, `tamagi update changes` and
-> the Secure Boot guard. To get the full system: copy your files, then install
-> from the new ISO (the installer erases the chosen disk).
+> the Secure Boot guard. To get the full system: back up important files and
+> install from the new ISO — the installer automatically detects existing
+> `/var/home` (including LUKS2 and previous GRUB/ostree layouts) and offers to
+> preserve your personal files Aeon-style while upgrading the OS layout.
+>
+> See the visual guides:
+> - [Update & clean install infographic](docs/tamagi-update-infographic.png)
+> - [Commands & innovations infographic](docs/tamagi-commands-innovations.png)
 
 ## Contents
 
@@ -114,8 +122,10 @@ Like openSUSE Aeon, the installer puts only the base system on disk. On first
 login a native COSMIC window (`tamagi-welcome`, Rust + libcosmic) offers only
 the basics: a short list to tick (`/usr/share/tamagi/basics.list`: the COSMIC
 apps, the Flatpak start-up manager Ignition, Mission Center, OnlyOffice and
-WhatsApp as a web app) and a browser (Opera GX, Google Chrome, Chromium or
-Vivaldi). Everything else, including the ready-made profiles, comes later
+WhatsApp as a web app) and optional extra browsers (native Chromium ships
+pre-installed with ChromeDriver and Google Account sign-in; Opera GX, Chrome,
+Firefox and Vivaldi can be added on demand). Everything else, including the
+ready-made profiles, comes later
 with `tamagi install`. **Every item shows how it is installed:**
 
 | Badge | Meaning |
@@ -252,10 +262,16 @@ see [tamagiguide.md](tamagiguide.md).
 | Devboxes and subsystems | `tamagi-autoupdate.timer` (skipped on battery) |
 
 ```bash
-tamagi update             # everything now: image, layers, Flatpaks, boxes, agents
-tamagi update status      # timers and pending reboots
-tamagi update changes     # what the staged image changes (with an optional local-LLM summary)
-tamagi update auto off    # or: on
+tamagi update                # everything now: image, layers, Flatpaks, boxes, agents
+tamagi update --reboot       # update everything and reboot if a new system image is staged
+tamagi update --soft-reboot  # fast userspace swap when kernel did not change (fallback to reboot)
+tamagi update check          # check if a newer system image is available without downloading
+tamagi update status         # timers, running/rollback images, free space, pending reboot
+tamagi update changes        # what the staged image changes (with an optional local-LLM summary)
+tamagi update drop           # discard a staged system update before rebooting
+tamagi update rollback       # select the previous system image for the next boot
+tamagi update history        # audit log of staged updates, drops, rollbacks and holds
+tamagi update auto off       # or: on
 ```
 
 **Signed images.** An installed system only accepts images from
@@ -279,32 +295,31 @@ installed Tamagi: `tamagi setup switch-image ghcr.io/YOUR_USER/tamagi:latest`.
 
 ## Software
 
-### Browsers: Flatpak, native or box
+### Browsers, Google Account Sign-In & WebApps
 
-No browser is preinstalled. Chrome, Firefox, Vivaldi and Chromium each support
-three install methods:
+Native **Chromium** and **ChromeDriver** come pre-installed in the base image
+with Omarchy-style Google Account OAuth2 credentials, Wayland IME, PipeWire
+WebRTC screen sharing, touchpad swipe navigation, and `~/.config/chromium-flags.conf`
+support. Toggle Google Account OAuth2 anytime via `tamagi browser google-account [on|off|status]`.
+Chrome, Firefox, Vivaldi and Opera GX remain available on demand:
 
 ```bash
-tamagi browser install                     # interactive selector
-tamagi browser install firefox             # Flatpak (default, Flathub)
-tamagi browser install chromium --native   # Fedora RPM through tamagi layer (asks for the password)
-tamagi browser install chrome --box        # Fedora distrobox with hardware video acceleration
-tamagi browser list                        # available and installed browsers
-tamagi browser default firefox             # set the default browser
-tamagi browser remove chrome
+tamagi browser google-account [on|off|status]  # Google Account sign-in & sync in Chromium
+tamagi browser install                        # interactive selector for additional browsers
+tamagi browser install firefox                # Flatpak (default, Flathub)
+tamagi browser install chrome --box           # Fedora distrobox with hardware video acceleration
+tamagi browser list                           # available and installed browsers
+tamagi browser default chromium               # set the default browser
 ```
 
-- **Panel button:** "Web Browser" offers installation until a browser exists,
-  then opens the default one.
+- **Panel button:** "Web Browser" opens Chromium (or whichever default browser
+  you pick).
 - **Opera GX:** exists for Linux only as a Flatpak (`com.opera.opera-gx`).
-- **Native:** Chrome and Vivaldi come from the vendors' repositories
-  (key-verified); Firefox and Chromium from Fedora. Layers are rebuilt after
-  OS updates.
-- **Box:** exposes GPU, audio, webcam, USB security keys and `$HOME`.
-  Chromium-based browsers start with VA-API decode/encode
-  (`~/.config/tamagi/browser-flags.conf`). `tamagi browser status` shows VA-API
-  and Vulkan.
-- **Web apps** (`tamagi webapp`) use whichever Chromium-based browser is installed.
+- **ChromeOS-style WebApps (`tamagi webapp`):** fetches PWA manifest/high-res
+  icons, shares your signed-in Chromium profile by default (or isolates data with
+  `--isolated` / `--profile <name>`), pins to the COSMIC dock (`pin` / `unpin`),
+  and includes 16 curated presets (`tamagi webapp presets`, `tamagi webapp install --preset gmail --pin`).
+- **Web apps** (`tamagi webapp`) use Chromium or whichever Chromium-based browser is installed.
 - **Isolated profiles:** each has its own data directory and launcher entry.
 
   ```bash

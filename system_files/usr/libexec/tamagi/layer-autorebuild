@@ -1,0 +1,13 @@
+#!/usr/bin/bash
+# layer-autorebuild — rebuilds outdated systemd-sysext layers after an OS update
+# asynchronously once network connectivity is up.
+set -uo pipefail
+
+stale=$(/usr/bin/tamagi-layer stale 2>/dev/null || true)
+[[ -n $stale ]] || exit 0
+
+if command -v nm-online >/dev/null 2>&1; then
+    nm-online -q -t 20 2>/dev/null || { echo "layer-autorebuild: offline, skipping"; exit 0; }
+fi
+
+/usr/bin/tamagi-layer rebuild || echo "layer-autorebuild: rebuild failed (will retry on next update)"

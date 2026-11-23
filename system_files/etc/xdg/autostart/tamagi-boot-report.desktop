@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Relatório de boot do Tamagi
+Name=Tamagi Boot Report
 Exec=/usr/bin/tamagi-boot-report notify
 OnlyShowIn=COSMIC;
 NoDisplay=true

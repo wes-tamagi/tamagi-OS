@@ -1,0 +1,322 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2380" viewBox="0 0 1600 2380">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%" stop-color="#13141f"/>
+      <stop offset="55%" stop-color="#161826"/>
+      <stop offset="100%" stop-color="#10121c"/>
+    </linearGradient>
+    <radialGradient id="glowBlue" cx="0.15" cy="0.06" r="0.38">
+      <stop offset="0%" stop-color="#7aa2f7" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#7aa2f7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowGold" cx="0.88" cy="0.12" r="0.35">
+      <stop offset="0%" stop-color="#f2c14e" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#f2c14e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="alertBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#281d25"/>
+      <stop offset="100%" stop-color="#1f1a29"/>
+    </linearGradient>
+    <radialGradient id="crestGlow">
+      <stop offset="0" stop-color="#6fc3b3" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#6fc3b3" stop-opacity="0"/>
+    </radialGradient>
+    <style>
+      .sans { font-family: "Noto Sans", sans-serif; }
+      .mono { font-family: "JetBrains Mono", monospace; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1600" height="2380" fill="url(#bg)"/>
+  <rect width="1600" height="2380" fill="url(#glowBlue)"/>
+  <rect width="1600" height="2380" fill="url(#glowGold)"/>
+
+  <!-- ── HEADER ───────────────────────────────────────────────────────────── -->
+  <g transform="translate(68, 44) scale(0.72)">
+    <rect width="192" height="192" rx="42" fill="#101a15" stroke="#f2c14e" stroke-opacity="0.35" stroke-width="3"/>
+    <circle cx="96" cy="96" r="48.58" fill="url(#crestGlow)"/>
+    <circle cx="96" cy="96" r="82.58" fill="none" stroke="#f2c14e" stroke-width="11.48"/>
+    <circle cx="96" cy="96" r="68.23" fill="none" stroke="#f2c14e" stroke-opacity="0.55" stroke-width="2.53"/>
+    <g fill="#f2c14e">
+      <path d="M0,-29.81 C5.25,-19.08 23.85,-13.12 23.85,2.38 A23.85,23.85 0 1 1 -23.85,2.38 C-23.85,-13.12 -5.25,-19.08 0,-29.81 Z" transform="rotate(0 96 96) translate(96 59.04)"/>
+      <path d="M0,-29.81 C5.25,-19.08 23.85,-13.12 23.85,2.38 A23.85,23.85 0 1 1 -23.85,2.38 C-23.85,-13.12 -5.25,-19.08 0,-29.81 Z" transform="rotate(120 96 96) translate(96 59.04)"/>
+      <path d="M0,-29.81 C5.25,-19.08 23.85,-13.12 23.85,2.38 A23.85,23.85 0 1 1 -23.85,2.38 C-23.85,-13.12 -5.25,-19.08 0,-29.81 Z" transform="rotate(240 96 96) translate(96 59.04)"/>
+    </g>
+    <circle cx="96" cy="96" r="9.54" fill="#6fc3b3"/>
+  </g>
+
+  <text x="234" y="96" class="sans" font-size="42" font-weight="800" fill="#e6e9ef">Tamagi 1.0 — What Changed &amp; How Updates Work</text>
+  <text x="234" y="135" class="sans" font-size="20.5" fill="#a9b1d6">Visual guide to systemd-boot + composefs, /var/home preservation, native Chromium, and transactional updates</text>
+
+  <!-- Pills -->
+  <g transform="translate(234, 155)" class="mono" font-size="14" font-weight="700">
+    <rect x="0" y="0" width="176" height="30" rx="15" fill="#232944" stroke="#7aa2f7" stroke-opacity="0.6"/>
+    <text x="88" y="20" text-anchor="middle" fill="#7aa2f7">bootc + composefs</text>
+    <rect x="190" y="0" width="144" height="30" rx="15" fill="#1b2d2b" stroke="#6fc3b3" stroke-opacity="0.6"/>
+    <text x="262" y="20" text-anchor="middle" fill="#6fc3b3">systemd-boot</text>
+    <rect x="348" y="0" width="174" height="30" rx="15" fill="#2d261a" stroke="#f2c14e" stroke-opacity="0.6"/>
+    <text x="435" y="20" text-anchor="middle" fill="#f2c14e">Armored Snapper</text>
+    <rect x="536" y="0" width="212" height="30" rx="15" fill="#1e2c22" stroke="#9ece6a" stroke-opacity="0.6"/>
+    <text x="642" y="20" text-anchor="middle" fill="#9ece6a">Preserves /var/home</text>
+  </g>
+
+  <!-- ── ALERT BANNER: CLEAN INSTALL ──────────────────────────────────────── -->
+  <rect x="64" y="220" width="1472" height="262" rx="20" fill="url(#alertBg)" stroke="#f2c14e" stroke-width="2"/>
+  <rect x="92" y="242" width="460" height="30" rx="8" fill="#f2c14e"/>
+  <text x="322" y="262" text-anchor="middle" class="sans" font-size="14" font-weight="800" fill="#13141f" letter-spacing="0.6">CLEAN INSTALL REQUIRED (ISOS BEFORE 2026-11-23)</text>
+
+  <text x="92" y="302" class="sans" font-size="22.5" font-weight="700" fill="#f2c14e">Why must older machines reinstall from the new ISO?</text>
+  <text x="92" y="334" class="sans" font-size="16.5" fill="#e6e9ef">• Tamagi switched from <tspan class="mono" font-size="15.5" fill="#f7768e">GRUB + /boot ext4 (ostree)</tspan> to <tspan class="mono" font-size="15.5" fill="#6fc3b3">systemd-boot + composefs</tspan>.</text>
+  <text x="92" y="362" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan class="mono" font-size="15.5" fill="#7aa2f7">bootc</tspan> cannot convert existing GRUB disks to <tspan class="mono" font-size="15.5" fill="#7aa2f7">systemd-boot</tspan> in place during normal updates.</text>
+  <text x="92" y="390" class="sans" font-size="16.5" fill="#a9b1d6">• Older installations still boot and get updates, but miss <tspan class="mono" font-size="15" fill="#e6e9ef">tamagi harden strict</tspan>,</text>
+  <text x="92" y="416" class="sans" font-size="16.5" fill="#a9b1d6">  <tspan class="mono" font-size="15" fill="#e6e9ef">tamagi update changes</tspan>, and the Secure Boot kernel guard.</text>
+  <text x="92" y="446" class="sans" font-size="15.5" font-weight="700" fill="#f2c14e">→ Installed from the 2026-11-23 ISO or newer? NO reinstall needed:</text>
+  <text x="110" y="468" class="sans" font-size="15.5" font-weight="700" fill="#f2c14e">just run <tspan class="mono" font-size="14.5" fill="#ffffff">tamagi update</tspan> as usual.</text>
+
+  <!-- Highlight box inside banner -->
+  <rect x="898" y="242" width="610" height="218" rx="14" fill="#152424" stroke="#6fc3b3" stroke-width="1.8"/>
+  <text x="922" y="278" class="sans" font-size="19" font-weight="800" fill="#6fc3b3">Your personal files can be preserved!</text>
+  <text x="922" y="308" class="sans" font-size="16" fill="#e6e9ef">Inspired by <tspan font-weight="700" fill="#ffffff">openSUSE Aeon</tspan>, the new installer detects your</text>
+  <text x="922" y="332" class="sans" font-size="16" fill="#e6e9ef">existing <tspan class="mono" font-size="15" fill="#6fc3b3">/var/home</tspan> or <tspan class="mono" font-size="15" fill="#6fc3b3">/home</tspan> automatically:</text>
+  <text x="922" y="362" class="sans" font-size="15.5" fill="#c0caf5">✓ Legacy Tamagi layout (<tspan class="mono" font-size="14" fill="#a9b1d6">ostree + /boot + LUKS2</tspan>)</text>
+  <text x="922" y="386" class="sans" font-size="15.5" fill="#c0caf5">✓ Btrfs subvolumes (<tspan class="mono" font-size="14" fill="#a9b1d6">home / @home</tspan>) or dedicated /home partition</text>
+  <text x="922" y="410" class="sans" font-size="15.5" fill="#c0caf5">✓ Reattaches Snapper snapshots and keeps UID/GID &amp; SELinux</text>
+  <text x="922" y="436" class="sans" font-size="13.5" fill="#f2c14e" font-weight="700">Tip: always keep an external backup before repartitioning.</text>
+
+  <!-- ── SECTION 1: WHAT CHANGED ──────────────────────────────────────────── -->
+  <text x="64" y="524" class="sans" font-size="25" font-weight="800" fill="#e6e9ef" letter-spacing="0.4">1. WHAT CHANGED IN ARCHITECTURE</text>
+  <line x1="64" y1="538" x2="1536" y2="538" stroke="#292e42" stroke-width="2"/>
+
+  <!-- Card 1 -->
+  <rect x="64" y="558" width="720" height="314" rx="18" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <rect x="64" y="558" width="8" height="314" rx="4" fill="#7aa2f7"/>
+  <text x="96" y="600" class="sans" font-size="22" font-weight="800" fill="#7aa2f7">Boot, Hybrid ISO &amp; Reliable USB Media</text>
+  <text x="96" y="634" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">dracut-initqueue hang fixed:</tspan> ISO built with</text>
+  <text x="112" y="658" class="mono" font-size="14.5" fill="#7aa2f7">xorriso -partition_offset 16</text>
+  <text x="372" y="658" class="sans" font-size="16" fill="#a9b1d6">giving partition 1 a valid ISO9660 label.</text>
+  <text x="96" y="690" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Lean live initramfs:</tspan> trimmed heavy host-only modules, added</text>
+  <text x="112" y="714" class="sans" font-size="16" fill="#a9b1d6">explicit USB drivers + <tspan class="mono" font-size="14.5" fill="#c0caf5">rd.luks=0 rd.lvm=0 rd.md=0</tspan> on media.</text>
+  <text x="96" y="746" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Verified USB writer:</tspan> <tspan class="mono" font-size="14.5" fill="#7aa2f7">live/write-usb.sh</tspan> wipes old metadata,</text>
+  <text x="112" y="770" class="sans" font-size="16" fill="#a9b1d6">uses Direct I/O (<tspan class="mono" font-size="14.5" fill="#c0caf5">oflag=direct</tspan>) and verifies bit-by-bit off cache.</text>
+  <text x="96" y="802" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">English boot &amp; Secure Boot:</tspan> English GRUB/Plymouth defaults;</text>
+  <text x="112" y="826" class="sans" font-size="16" fill="#a9b1d6">MOK key <tspan class="mono" font-size="14.5" fill="#f2c14e">universalblue.der</tspan> + diagnostics GRUB boot entry.</text>
+  <rect x="96" y="842" width="320" height="22" rx="6" fill="#161b2c"/>
+  <text x="106" y="857" class="mono" font-size="12.5" fill="#7aa2f7">sudo bash live/write-usb.sh /dev/sdX --yes</text>
+
+  <!-- Card 2 -->
+  <rect x="816" y="558" width="720" height="314" rx="18" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <rect x="816" y="558" width="8" height="314" rx="4" fill="#6fc3b3"/>
+  <text x="848" y="600" class="sans" font-size="22" font-weight="800" fill="#6fc3b3">Aeon-Style /var/home Preservation</text>
+  <text x="848" y="634" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Read-only probe:</tspan> the installer scans disks safely for</text>
+  <text x="864" y="658" class="sans" font-size="16" fill="#a9b1d6"><tspan class="mono" font-size="14.5" fill="#6fc3b3">home</tspan>, <tspan class="mono" font-size="14.5" fill="#6fc3b3">@home</tspan>, legacy <tspan class="mono" font-size="14.5" fill="#6fc3b3">ostree</tspan> homes, or dedicated /home partitions.</text>
+  <text x="848" y="690" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">LUKS2 compatible:</tspan> prompts for your passphrase to unlock</text>
+  <text x="864" y="714" class="sans" font-size="16" fill="#a9b1d6">encrypted volumes without formatting and re-seals TPM 2.0.</text>
+  <text x="848" y="746" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">/efi + /boot merge:</tspan> merges legacy ext4 <tspan class="mono" font-size="14.5" fill="#c0caf5">/boot</tspan> into the ESP</text>
+  <text x="864" y="770" class="sans" font-size="16" fill="#a9b1d6">for <tspan class="mono" font-size="14.5" fill="#c0caf5">systemd-boot</tspan> and migrates via Btrfs reflink with zero copy cost.</text>
+  <text x="848" y="802" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">1st-boot reconnect:</tspan> preserves existing UID/GID, SELinux labels,</text>
+  <text x="864" y="826" class="sans" font-size="16" fill="#a9b1d6">and reattaches your <tspan class="mono" font-size="14.5" fill="#6fc3b3">.snapshots</tspan> subtree to Snapper.</text>
+  <rect x="848" y="842" width="356" height="22" rx="6" fill="#142324"/>
+  <text x="858" y="857" class="mono" font-size="12.5" fill="#6fc3b3">tamagi-detect-home  ·  firstboot --no-create-home</text>
+
+  <!-- Card 3 -->
+  <rect x="64" y="896" width="720" height="314" rx="18" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <rect x="64" y="896" width="8" height="314" rx="4" fill="#f2c14e"/>
+  <text x="96" y="938" class="sans" font-size="22" font-weight="800" fill="#f2c14e">Btrfs + Snapper Armored Against Collapse</text>
+  <text x="96" y="972" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Strict separation:</tspan> <tspan class="mono" font-size="14.5" fill="#7aa2f7">bootc</tspan> owns the OS (<tspan class="mono" font-size="14.5" fill="#c0caf5">/</tspan>); Snapper manages</text>
+  <text x="112" y="996" class="sans" font-size="16" fill="#a9b1d6">ONLY <tspan class="mono" font-size="14.5" fill="#f2c14e">/var/home/&lt;user&gt;</tspan>. Root Snapper configs are blocked.</text>
+  <text x="96" y="1028" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Isolated subvolumes:</tspan> <tspan class="mono" font-size="14.5" fill="#c0caf5">var-containers</tspan>, <tspan class="mono" font-size="14.5" fill="#c0caf5">var-flatpak</tspan>, <tspan class="mono" font-size="14.5" fill="#c0caf5">var-cache</tspan>,</text>
+  <text x="112" y="1052" class="sans" font-size="16" fill="#a9b1d6">and <tspan class="mono" font-size="14.5" fill="#c0caf5">var-log</tspan> stay mounted separately so root never bloats.</text>
+  <text x="96" y="1084" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Games &amp; Flatpaks excluded:</tspan> <tspan class="mono" font-size="14.5" fill="#f2c14e">.local/share/Steam</tspan>, <tspan class="mono" font-size="14.5" fill="#c0caf5">flatpak</tspan>,</text>
+  <text x="112" y="1108" class="sans" font-size="16" fill="#a9b1d6"><tspan class="mono" font-size="14.5" fill="#c0caf5">lutris</tspan>, <tspan class="mono" font-size="14.5" fill="#c0caf5">containers</tspan>, and VMs become excluded subvolumes.</text>
+  <text x="96" y="1140" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Auto space pruning:</tspan> clears old snapshots and orphan objects</text>
+  <text x="112" y="1164" class="sans" font-size="16" fill="#a9b1d6">(<tspan class="mono" font-size="14.5" fill="#c0caf5">composefs-gc</tspan>) before staging updates when free space &lt; 15 GiB.</text>
+  <rect x="96" y="1180" width="380" height="22" rx="6" fill="#292316"/>
+  <text x="106" y="1195" class="mono" font-size="12.5" fill="#f2c14e">tamagi doctor  ·  home-snapshots prune 15</text>
+
+  <!-- Card 4 -->
+  <rect x="816" y="896" width="720" height="314" rx="18" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <rect x="816" y="896" width="8" height="314" rx="4" fill="#9ece6a"/>
+  <text x="848" y="938" class="sans" font-size="22" font-weight="800" fill="#9ece6a">Transactional Updates + Native Chromium</text>
+  <text x="848" y="972" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Race-free lock (flock):</tspan> if the 6h timer is staging an update,</text>
+  <text x="864" y="996" class="sans" font-size="16" fill="#a9b1d6">running <tspan class="mono" font-size="14.5" fill="#9ece6a">tamagi update</tspan> waits cleanly without lock collisions.</text>
+  <text x="848" y="1028" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">transactional-update features:</tspan> <tspan class="mono" font-size="14.5" fill="#9ece6a">check</tspan>, <tspan class="mono" font-size="14.5" fill="#9ece6a">drop</tspan>, <tspan class="mono" font-size="14.5" fill="#9ece6a">rollback</tspan>, <tspan class="mono" font-size="14.5" fill="#9ece6a">history</tspan>,</text>
+  <text x="864" y="1052" class="sans" font-size="16" fill="#a9b1d6"><tspan class="mono" font-size="14.5" fill="#9ece6a">--reboot</tspan>, <tspan class="mono" font-size="14.5" fill="#9ece6a">--soft-reboot</tspan>, pre/post hooks, and async layer rebuilds.</text>
+  <text x="848" y="1084" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Checkpoint sync:</tspan> creates <tspan class="mono" font-size="14.5" fill="#c0caf5">pre-update</tspan> home snapshot so</text>
+  <text x="864" y="1108" class="sans" font-size="16" fill="#a9b1d6"><tspan class="mono" font-size="14.5" fill="#c0caf5">tamagi rewind</tspan> aligns OS, apps, and files on every upgrade.</text>
+  <text x="848" y="1140" class="sans" font-size="16.5" fill="#e6e9ef">• <tspan font-weight="700">Pre-installed Chromium + WebApps:</tspan> ships native <tspan class="mono" font-size="14.5" fill="#9ece6a">chromium</tspan> +</text>
+  <text x="864" y="1164" class="sans" font-size="16" fill="#a9b1d6"><tspan class="mono" font-size="14.5" fill="#c0caf5">chromedriver</tspan>, Google Account OAuth2 sign-in &amp; ChromeOS PWAs.</text>
+  <rect x="848" y="1180" width="440" height="22" rx="6" fill="#19261b"/>
+  <text x="858" y="1195" class="mono" font-size="12.5" fill="#9ece6a">tamagi update [--reboot|--soft-reboot]  ·  drop  ·  history</text>
+
+  <!-- ── SECTION 2: CLEAN INSTALL STEPS ───────────────────────────────────── -->
+  <text x="64" y="1272" class="sans" font-size="25" font-weight="800" fill="#e6e9ef" letter-spacing="0.4">2. CLEAN INSTALL WALKTHROUGH (PRESERVING HOME)</text>
+  <line x1="64" y1="1286" x2="1536" y2="1286" stroke="#292e42" stroke-width="2"/>
+
+  <!-- Step 1 -->
+  <rect x="64" y="1308" width="346" height="218" rx="16" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <circle cx="96" cy="1342" r="18" fill="#7aa2f7"/>
+  <text x="96" y="1348" text-anchor="middle" class="sans" font-size="18" font-weight="800" fill="#13141f">1</text>
+  <text x="124" y="1348" class="sans" font-size="19" font-weight="800" fill="#e6e9ef">Backup &amp; Flash ISO</text>
+  <text x="84" y="1384" class="sans" font-size="15" fill="#c0caf5">List your Flatpaks and back up</text>
+  <text x="84" y="1406" class="sans" font-size="15" fill="#c0caf5">important files externally:</text>
+  <rect x="84" y="1420" width="306" height="28" rx="6" fill="#13141f"/>
+  <text x="94" y="1439" class="mono" font-size="12.5" fill="#7aa2f7">flatpak list --app --columns=app</text>
+  <text x="84" y="1472" class="sans" font-size="15" fill="#c0caf5">Write the new ISO to USB:</text>
+  <rect x="84" y="1484" width="306" height="28" rx="6" fill="#13141f"/>
+  <text x="94" y="1503" class="mono" font-size="12" fill="#7aa2f7">sudo bash live/write-usb.sh /dev/sdX --yes</text>
+
+  <!-- Step 2 -->
+  <rect x="439" y="1308" width="346" height="218" rx="16" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <circle cx="471" cy="1342" r="18" fill="#f2c14e"/>
+  <text x="471" y="1348" text-anchor="middle" class="sans" font-size="18" font-weight="800" fill="#13141f">2</text>
+  <text x="499" y="1348" class="sans" font-size="19" font-weight="800" fill="#e6e9ef">UEFI Boot &amp; MOK</text>
+  <text x="459" y="1384" class="sans" font-size="15" fill="#c0caf5">Boot from the USB drive in UEFI.</text>
+  <text x="459" y="1408" class="sans" font-size="15" fill="#c0caf5">First boot with <tspan font-weight="700" fill="#f2c14e">Secure Boot</tspan> enabled,</text>
+  <text x="459" y="1430" class="sans" font-size="15" fill="#c0caf5">inside blue MokManager screen:</text>
+  <text x="459" y="1456" class="sans" font-size="14.5" fill="#a9b1d6">Enroll key → <tspan class="mono" font-size="13" fill="#f2c14e">universalblue.der</tspan></text>
+  <rect x="459" y="1478" width="306" height="32" rx="6" fill="#292316"/>
+  <text x="470" y="1499" class="mono" font-size="13.5" fill="#f2c14e">MOK Password: universalblue</text>
+
+  <!-- Step 3 -->
+  <rect x="814" y="1308" width="346" height="218" rx="16" fill="#1c1e2e" stroke="#6fc3b3" stroke-width="1.8"/>
+  <circle cx="846" cy="1342" r="18" fill="#6fc3b3"/>
+  <text x="846" y="1348" text-anchor="middle" class="sans" font-size="18" font-weight="800" fill="#13141f">3</text>
+  <text x="874" y="1348" class="sans" font-size="19" font-weight="800" fill="#6fc3b3">Preserve /var/home</text>
+  <text x="834" y="1384" class="sans" font-size="15" fill="#c0caf5">When picking your target disk, the</text>
+  <text x="834" y="1406" class="sans" font-size="15" fill="#c0caf5">installer detects your old install</text>
+  <text x="834" y="1428" class="sans" font-size="15" fill="#c0caf5">(asks passphrase if LUKS2).</text>
+  <text x="834" y="1456" class="sans" font-size="15" fill="#e6e9ef">Pick <tspan font-weight="700" fill="#6fc3b3">"Keep files (/var/home)"</tspan></text>
+  <text x="834" y="1480" class="sans" font-size="14.5" fill="#a9b1d6">to replace only OS &amp; bootloader</text>
+  <text x="834" y="1502" class="sans" font-size="14.5" fill="#a9b1d6">while keeping your personal data.</text>
+
+  <!-- Step 4 -->
+  <rect x="1189" y="1308" width="347" height="218" rx="16" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <circle cx="1221" cy="1342" r="18" fill="#9ece6a"/>
+  <text x="1221" y="1348" text-anchor="middle" class="sans" font-size="18" font-weight="800" fill="#13141f">4</text>
+  <text x="1249" y="1348" class="sans" font-size="19" font-weight="800" fill="#e6e9ef">1st Login &amp; Health</text>
+  <text x="1209" y="1384" class="sans" font-size="15" fill="#c0caf5">Enter the same username as before</text>
+  <text x="1209" y="1406" class="sans" font-size="15" fill="#c0caf5">to reconnect your home folder</text>
+  <text x="1209" y="1428" class="sans" font-size="15" fill="#c0caf5">and Snapper snapshot history.</text>
+  <text x="1209" y="1458" class="sans" font-size="15" fill="#c0caf5">Then verify system health:</text>
+  <rect x="1209" y="1478" width="306" height="32" rx="6" fill="#13141f"/>
+  <text x="1220" y="1499" class="mono" font-size="13" fill="#9ece6a">tamagi doctor &amp;&amp; tamagi snap</text>
+
+  <!-- Arrows between steps -->
+  <polygon points="416,1417 432,1407 432,1427" fill="#7aa2f7" transform="rotate(180 424 1417)"/>
+  <polygon points="791,1417 807,1407 807,1427" fill="#6fc3b3" transform="rotate(180 799 1417)"/>
+  <polygon points="1166,1417 1182,1407 1182,1427" fill="#9ece6a" transform="rotate(180 1174 1417)"/>
+
+  <!-- ── SECTION 3: DAILY UPDATE WORKFLOW ─────────────────────────────────── -->
+  <text x="64" y="1584" class="sans" font-size="25" font-weight="800" fill="#e6e9ef" letter-spacing="0.4">3. DAILY UPDATE WORKFLOW</text>
+  <line x1="64" y1="1598" x2="1536" y2="1598" stroke="#292e42" stroke-width="2"/>
+
+  <!-- Left: Atomic Lifecycle -->
+  <rect x="64" y="1618" width="680" height="668" rx="18" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <text x="92" y="1658" class="sans" font-size="21" font-weight="800" fill="#7aa2f7">Atomic Update Lifecycle (Without Breaking the OS)</text>
+  <text x="92" y="1684" class="sans" font-size="15" fill="#a9b1d6">Automatic every 6 h (skips battery/metered links) or on-demand via <tspan class="mono" font-size="14" fill="#e6e9ef">tamagi update</tspan>.</text>
+
+  <!-- Flow Step 1 -->
+  <rect x="92" y="1706" width="624" height="84" rx="12" fill="#161826" stroke="#313957"/>
+  <text x="112" y="1736" class="sans" font-size="16.5" font-weight="700" fill="#f2c14e">1. Pre-flight &amp; Home Checkpoint</text>
+  <text x="112" y="1760" class="sans" font-size="14.5" fill="#c0caf5">An <tspan class="mono" font-size="13.5" fill="#7aa2f7">flock</tspan> lock prevents timer races; prunes old snapshots &amp;</text>
+  <text x="112" y="1780" class="sans" font-size="14.5" fill="#c0caf5"><tspan class="mono" font-size="13.5" fill="#c0caf5">composefs-gc</tspan> (&lt; 15 GiB), then takes a <tspan class="mono" font-size="13.5" fill="#f2c14e">pre-update</tspan> snapshot.</text>
+
+  <path d="M404,1790 L404,1812" stroke="#7aa2f7" stroke-width="2.5"/>
+  <polygon points="404,1818 398,1808 410,1808" fill="#7aa2f7"/>
+
+  <!-- Flow Step 2 -->
+  <rect x="92" y="1818" width="624" height="84" rx="12" fill="#161826" stroke="#313957"/>
+  <text x="112" y="1848" class="sans" font-size="16.5" font-weight="700" fill="#7aa2f7">2. Signed Download &amp; Secure Boot Guard</text>
+  <text x="112" y="1872" class="sans" font-size="14.5" fill="#c0caf5">Verifies <tspan class="mono" font-size="13.5" fill="#7aa2f7">cosign</tspan> signature, checks quarantine, and stages quietly.</text>
+  <text x="112" y="1892" class="sans" font-size="14.5" fill="#c0caf5">Aborts automatically if Secure Boot is on without enrolled MOK.</text>
+
+  <path d="M404,1902 L404,1924" stroke="#7aa2f7" stroke-width="2.5"/>
+  <polygon points="404,1930 398,1920 410,1920" fill="#7aa2f7"/>
+
+  <!-- Flow Step 3 -->
+  <rect x="92" y="1930" width="624" height="84" rx="12" fill="#161826" stroke="#313957"/>
+  <text x="112" y="1960" class="sans" font-size="16.5" font-weight="700" fill="#6fc3b3">3. Side-by-Side Staging + Apps &amp; Boxes</text>
+  <text x="112" y="1984" class="sans" font-size="14.5" fill="#c0caf5">New image is <tspan class="mono" font-size="13.5" fill="#6fc3b3">staged</tspan> (running OS untouched); Flatpaks, boxes, and</text>
+  <text x="112" y="2004" class="sans" font-size="14.5" fill="#c0caf5">AI agents update. Preview diffs with <tspan class="mono" font-size="13.5" fill="#6fc3b3">tamagi update changes</tspan>.</text>
+
+  <path d="M404,2014 L404,2036" stroke="#6fc3b3" stroke-width="2.5"/>
+  <polygon points="404,2042 398,2032 410,2032" fill="#6fc3b3"/>
+
+  <!-- Flow Step 4 -->
+  <rect x="92" y="2042" width="624" height="84" rx="12" fill="#161826" stroke="#313957"/>
+  <text x="112" y="2072" class="sans" font-size="16.5" font-weight="700" fill="#9ece6a">4. Atomic Boot Switch (or Soft-Reboot)</text>
+  <text x="112" y="2096" class="sans" font-size="14.5" fill="#c0caf5">On reboot (or via <tspan class="mono" font-size="13.5" fill="#9ece6a">--reboot / --soft-reboot</tspan>), the new version</text>
+  <text x="112" y="2116" class="sans" font-size="14.5" fill="#c0caf5">activates; the previous OS remains selectable in <tspan class="mono" font-size="13.5" fill="#9ece6a">systemd-boot</tspan>.</text>
+
+  <path d="M404,2126 L404,2148" stroke="#9ece6a" stroke-width="2.5"/>
+  <polygon points="404,2154 398,2144 410,2144" fill="#9ece6a"/>
+
+  <!-- Flow Step 5 -->
+  <rect x="92" y="2154" width="624" height="106" rx="12" fill="#231924" stroke="#f7768e" stroke-opacity="0.75"/>
+  <text x="112" y="2184" class="sans" font-size="16.5" font-weight="700" fill="#f7768e">5. Post-Boot Self-Healing &amp; Async Layer Rebuild</text>
+  <text x="112" y="2208" class="sans" font-size="14.5" fill="#e6e9ef">If core checks fail: 1st strike disables layers and retries;</text>
+  <text x="112" y="2228" class="sans" font-size="14.5" fill="#e6e9ef">2nd strike runs <tspan class="mono" font-size="13.5" fill="#f7768e">bootc rollback</tspan> + quarantine. When healthy,</text>
+  <text x="112" y="2248" class="sans" font-size="14.5" fill="#a9b1d6"><tspan class="mono" font-size="13" fill="#9ece6a">tamagi-layer-rebuild.service</tspan> updates sysexts in idle.</text>
+
+  <!-- Right: Commands Card -->
+  <rect x="772" y="1618" width="764" height="668" rx="18" fill="#1c1e2e" stroke="#2d3452" stroke-width="1.5"/>
+  <text x="800" y="1658" class="sans" font-size="21" font-weight="800" fill="#f2c14e">Day-to-Day Commands (tamagi update &amp; rewind)</text>
+  <text x="800" y="1684" class="sans" font-size="15" fill="#a9b1d6">Everything you need to check, inspect, stage, switch, or undo an update.</text>
+
+  <g transform="translate(800, 1706)">
+    <rect x="0" y="0" width="708" height="42" rx="8" fill="#161b2c"/>
+    <text x="14" y="26" class="mono" font-size="14.5" font-weight="700" fill="#7aa2f7">tamagi update</text>
+    <text x="304" y="26" class="sans" font-size="14.5" fill="#e6e9ef">Update OS image, layers, Flatpaks, boxes, and AI</text>
+
+    <rect x="0" y="46" width="708" height="42" rx="8" fill="#141622"/>
+    <text x="14" y="72" class="mono" font-size="14.5" font-weight="700" fill="#7aa2f7">tamagi update check</text>
+    <text x="304" y="72" class="sans" font-size="14.5" fill="#e6e9ef">Check registry for a new image without downloading</text>
+
+    <rect x="0" y="92" width="708" height="42" rx="8" fill="#161b2c"/>
+    <text x="14" y="118" class="mono" font-size="14.5" font-weight="700" fill="#6fc3b3">tamagi update changes</text>
+    <text x="304" y="118" class="sans" font-size="14.5" fill="#e6e9ef">Show package &amp; kernel diff + local AI summary</text>
+
+    <rect x="0" y="138" width="708" height="42" rx="8" fill="#141622"/>
+    <text x="14" y="164" class="mono" font-size="14.5" font-weight="700" fill="#6fc3b3">tamagi update status</text>
+    <text x="304" y="164" class="sans" font-size="14.5" fill="#e6e9ef">Timers, booted &amp; staged digests, and free space</text>
+
+    <rect x="0" y="184" width="708" height="42" rx="8" fill="#161b2c"/>
+    <text x="14" y="210" class="mono" font-size="14.5" font-weight="700" fill="#9ece6a">tamagi update --reboot</text>
+    <text x="304" y="210" class="sans" font-size="14.5" fill="#e6e9ef">Update everything and reboot if a new OS is staged</text>
+
+    <rect x="0" y="230" width="708" height="42" rx="8" fill="#141622"/>
+    <text x="14" y="256" class="mono" font-size="14.5" font-weight="700" fill="#9ece6a">tamagi update --soft-reboot</text>
+    <text x="304" y="256" class="sans" font-size="14.5" fill="#e6e9ef">Fast userspace switch (full reboot if kernel changed)</text>
+
+    <rect x="0" y="276" width="708" height="42" rx="8" fill="#161b2c"/>
+    <text x="14" y="302" class="mono" font-size="14.5" font-weight="700" fill="#f2c14e">tamagi update drop</text>
+    <text x="304" y="302" class="sans" font-size="14.5" fill="#e6e9ef">Discard a staged OS update before rebooting</text>
+
+    <rect x="0" y="322" width="708" height="42" rx="8" fill="#141622"/>
+    <text x="14" y="348" class="mono" font-size="14.5" font-weight="700" fill="#f2c14e">tamagi update rollback</text>
+    <text x="304" y="348" class="sans" font-size="14.5" fill="#e6e9ef">Queue the previous OS deployment for next boot</text>
+
+    <rect x="0" y="368" width="708" height="42" rx="8" fill="#161b2c"/>
+    <text x="14" y="394" class="mono" font-size="14.5" font-weight="700" fill="#7aa2f7">tamagi update history</text>
+    <text x="304" y="394" class="sans" font-size="14.5" fill="#e6e9ef">Inspect update, drop, rollback &amp; quarantine log</text>
+
+    <rect x="0" y="414" width="708" height="42" rx="8" fill="#141622"/>
+    <text x="14" y="440" class="mono" font-size="14.5" font-weight="700" fill="#f7768e">tamagi update quarantine</text>
+    <text x="304" y="440" class="sans" font-size="14.5" fill="#e6e9ef">List blocked deployments (unquarantine clears)</text>
+
+    <rect x="0" y="460" width="708" height="42" rx="8" fill="#161b2c"/>
+    <text x="14" y="486" class="mono" font-size="14.5" font-weight="700" fill="#f2c14e">tamagi setup clean</text>
+    <text x="304" y="486" class="sans" font-size="14.5" fill="#e6e9ef">Prune unused images, composefs-gc &amp; old snapshots</text>
+
+    <rect x="0" y="506" width="708" height="42" rx="8" fill="#141622"/>
+    <text x="14" y="532" class="mono" font-size="14.5" font-weight="700" fill="#6fc3b3">tamagi rewind  ·  doctor</text>
+    <text x="304" y="532" class="sans" font-size="14.5" fill="#e6e9ef">Unified OS/home timeline &amp; 12-subsystem diagnostics</text>
+  </g>
+
+  <!-- Footer -->
+  <line x1="64" y1="2312" x2="1536" y2="2312" stroke="#292e42" stroke-width="1.5"/>
+  <text x="64" y="2345" class="sans" font-size="15" font-weight="700" fill="#a9b1d6">Tamagi 1.0 "Kazunobu M"</text>
+  <text x="275" y="2345" class="sans" font-size="15" fill="#7882a6">·  Fedora 45 + COSMIC + Universal Blue (bootc composefs) + Native Chromium + llama.cpp</text>
+  <text x="1536" y="2345" text-anchor="end" class="mono" font-size="14" fill="#7aa2f7">github.com/wes-tamagi/tamagi-OS</text>
+</svg>

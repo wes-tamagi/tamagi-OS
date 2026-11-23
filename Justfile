@@ -86,6 +86,10 @@ build-iso: build-live
 test-iso *ARGS:
     bash tests/iso.sh output/tamagi.iso {{ ARGS }}
 
+# Testa preservação de /var/home a partir de layout GRUB+ostree anterior (sem interação)
+test-preserve-home:
+    bash tests/iso.sh output/tamagi.iso --preserve-home
+
 # Atualização automática de ponta a ponta numa VM (registry local, imagem nova, reinício) e volta automática de uma imagem ruim
 test-upgrade:
     bash tests/iso.sh output/tamagi.iso --upgrade

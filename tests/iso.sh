@@ -81,15 +81,54 @@ case "$MODE" in
         [[ -f $DISK ]] || { echo "sem disco instalado: rode antes just test-iso" >&2; exit 1; }
         qemu "${disk_args[@]}" "${window[@]}"
         exit ;;
-    auto|--luks|--tpm|--upgrade|--pt|--en|--es|--fr|--verify|--verify-luks|--verify-tpm|--rollback) ;;
+    auto|--luks|--tpm|--upgrade|--preserve-home|--pt|--en|--es|--fr|--verify|--verify-luks|--verify-tpm|--rollback) ;;
     *) echo "modo desconhecido: $MODE" >&2; exit 2 ;;
 esac
+
+# Monta disco GPT de 64 GiB simulando instalação Tamagi antiga (ESP 1G + /boot ext4 2G + Btrfs ostree)
+# para validar a preservação automática de /var/home e mesclagem EFI+boot em --preserve-home.
+build_preserve_disk() {
+    local target=$1 work raw p1 p2 p3
+    work=$(mktemp -d)
+    raw="$work/disk.raw"; p1="$work/p1.img"; p2="$work/p2.img"; p3="$work/p3.img"
+    mkdir -p "$work/boot/grub2" \
+             "$work/btrfs/ostree/deploy/default/var/home/tamagi/.snapshots/1/snapshot"
+    printf '%s\n' 'TAMAGI-HOME-PRESERVED-OK' > "$work/btrfs/ostree/deploy/default/var/home/tamagi/preserved-marker.txt"
+    printf '%s\n' '# preserved .bashrc' > "$work/btrfs/ostree/deploy/default/var/home/tamagi/.bashrc"
+    printf '<?xml version="1.0"?>\n<snapshot>\n  <type>single</type>\n  <num>1</num>\n  <date>2026-11-20 12:00:00</date>\n  <description>pre-clean-install</description>\n</snapshot>\n' \
+        > "$work/btrfs/ostree/deploy/default/var/home/tamagi/.snapshots/1/info.xml"
+    printf 'set timeout=5\n' > "$work/boot/grub2/grub.cfg"
+    truncate -s 64G "$raw"
+    sfdisk -q "$raw" <<'GPT'
+label: gpt
+unit: sectors
+start=2048, size=2097152, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI-SYSTEM"
+start=2099200, size=4194304, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="boot"
+start=6293504, size=127922176, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="fedora"
+GPT
+    truncate -s 1G "$p1" && mkfs.vfat -F 32 -n EFI-SYSTEM "$p1" >/dev/null
+    truncate -s 2G "$p2" && mke2fs -q -t ext4 -F -L boot -d "$work/boot" "$p2" >/dev/null
+    truncate -s $(( 127922176 * 512 )) "$p3"
+    mkfs.btrfs -q -f -L fedora_tamagi -r "$work/btrfs" \
+        -u rw:ostree/deploy/default/var/home/tamagi \
+        -u rw:ostree/deploy/default/var/home/tamagi/.snapshots \
+        -u ro:ostree/deploy/default/var/home/tamagi/.snapshots/1/snapshot "$p3"
+    dd if="$p1" of="$raw" bs=1M seek=1 conv=notrunc,sparse status=none
+    dd if="$p2" of="$raw" bs=1M seek=1025 conv=notrunc,sparse status=none
+    dd if="$p3" of="$raw" bs=1M seek=3073 conv=notrunc,sparse status=none
+    qemu-img convert -f raw -O qcow2 "$raw" "$target"
+    rm -rf "$work"
+}
 
 if [[ $MODE != --verify* && $MODE != --rollback ]]; then
 echo "── 1/2  Instalação sem perguntas (${MODE#--})"
 rm -f -- "$DISK" "$VARS" "$OUT/vm-install.log" "$OUT/vm-serial.sock" "$OUT/vm-qmp.sock"
 if [[ $MODE == --tpm ]]; then podman rm -f tamagi-swtpm >/dev/null 2>&1 || true; rm -rf "$TPM_DIR"; start_tpm; fi
-qemu-img create -q -f qcow2 "$DISK" 64G
+if [[ $MODE == --preserve-home ]]; then
+    build_preserve_disk "$DISK"
+else
+    qemu-img create -q -f qcow2 "$DISK" 64G
+fi
 cp "$VARS_TEMPLATE" "$VARS"
 # Kernel e initramfs saem da própria ISO, para poder passar a linha do kernel.
 boot=$(mktemp -d)
@@ -101,6 +140,7 @@ append+=" console=ttyS0 systemd.unit=multi-user.target"
 append+=" tamagi.autoinstall=/dev/vda tamagi.autoinstall.kargs=console=tty0,console=ttyS0"
 [[ $MODE == --luks || $MODE == --tpm ]] && append+=" tamagi.autoinstall.luks=$LUKS_PASS"
 [[ $MODE == --tpm ]] && append+=" tamagi.autoinstall.tpm=1"
+[[ $MODE == --preserve-home ]] && append+=" tamagi.autoinstall.preserve_home=1"
 if [[ $MODE == --upgrade ]]; then
     # Registry local (sem TLS) com a "v2": a imagem do Tamagi + um arquivo. Da VM,
     # o computador que a roda é 10.0.2.2.
@@ -183,6 +223,7 @@ fi
 luks=()
 [[ $MODE == *luks ]] && luks=(--luks "$LUKS_PASS")
 [[ $MODE == *tpm ]] && luks=(--tpm)
+[[ $MODE == --preserve-home ]] && luks+=(--preserved-file /var/home/tamagi/preserved-marker.txt)
 [[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] && luks+=(--lang "${MODE#--}")
 # Sem opção de idioma, a ISO instala no idioma padrão da imagem (en; pt na variante :ptbr).
 [[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] || luks+=(--lang "${TAMAGI_DEFAULT_LANG:-en}")

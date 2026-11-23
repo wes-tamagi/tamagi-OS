@@ -59,6 +59,7 @@ usage() {
     echo "  tamagi browser <name> [URL|options]       $(t "opens a specific browser")"
     echo "  tamagi browser <name> --profile <p>       $(t "open in an isolated profile (creates if missing)")"
     echo "  profile add <p> [name] | list | remove <p> [name]"
+    echo "  google-account [on|off|status]            $(t "toggle Chromium Google Account sign-in")"
     echo "  status | update | enter | fido            $(t "the box: status, update, shell and FIDO2 key")"
     echo
     echo "$(t "Browsers"): ${NAMES[*]}"
@@ -214,7 +215,10 @@ cmd_remove() {
     method=$(method_of "$name") || die "${TITLE[$name]} $(t "is not installed")"
     case $method in
         flatpak) flatpak uninstall --user -y "${FLATPAK[$name]}" ;;
-        native)  tamagi-layer remove "browser-$name" ;;
+        native)  if [[ $name == chromium && ! -f /var/lib/extensions/browser-chromium.raw ]]; then
+                     die "$(t "Chromium ships pre-installed in the base image and cannot be removed")"
+                 fi
+                 tamagi-layer remove "browser-$name" ;;
         box)     in_box distrobox-export --app "${APP[$name]}" --delete >/dev/null 2>&1 || true
                  # shellcheck disable=SC2086
                  in_box sudo dnf -y remove ${RPM[$name]} ;;
@@ -264,7 +268,11 @@ launch() {
     done
     method=$(method_of "$name") || die "${TITLE[$name]} $(t "is not installed"). tamagi browser install $name"
     local -a flags=() env=()
-    if [[ $name != firefox && $safe == 0 && $method != flatpak ]]; then mapfile -t flags < <(chromium_flags); fi
+    if [[ $name == chromium && $method == native && $safe == 0 && ! -f $FLAGS_FILE && -f /etc/chromium/tamagi.conf ]]; then
+        : # /etc/chromium/chromium.conf + tamagi.conf already inject OAuth2, Wayland, GPU and user flags
+    elif [[ $name != firefox && $safe == 0 && $method != flatpak ]]; then
+        mapfile -t flags < <(chromium_flags)
+    fi
     if [[ -n $profile ]]; then
         local dir; dir=$(profile_dir "$name" "$profile")
         mkdir -p "$dir"
@@ -424,6 +432,37 @@ cmd_update() {
     # Native layers are rebuilt with the system (tamagi update).
 }
 
+cmd_google_account() {
+    local action=${1:-status} marker="$CONF_DIR/no-chromium-google-account" state_msg
+    if [[ $action == status && -t 0 && -t 1 && $# -eq 0 ]]; then
+        if [[ -e $marker ]]; then state_msg=$(t "disabled"); else state_msg=$(t "enabled (OAuth2 credentials active)"); fi
+        local picked
+        picked=$(gum choose --header "$(t "Chromium Google Account sign-in"): $state_msg" \
+            "on   $(t "enabled (OAuth2 credentials active)")" \
+            "off  $(t "disabled")") || return 0
+        action=${picked%% *}
+    fi
+    case "$action" in
+        status)
+            if [[ -e $marker ]]; then
+                echo "$(t "Chromium Google Account sign-in"): $(t "disabled")"
+            else
+                echo "$(t "Chromium Google Account sign-in"): $(t "enabled (OAuth2 credentials active)")"
+            fi ;;
+        on|enable)
+            mkdir -p "$CONF_DIR"
+            rm -f "$marker"
+            echo "$(t "Google Account sign-in enabled in Chromium. Restart Chromium for changes to take effect.")" ;;
+        off|disable)
+            mkdir -p "$CONF_DIR"
+            : > "$marker"
+            echo "$(t "Google Account sign-in disabled in Chromium. Restart Chromium for changes to take effect.")" ;;
+        -h|--help|help)
+            echo "tamagi browser google-account [on|off|status]" ;;
+        *) die "usage: tamagi browser google-account [on|off|status]" ;;
+    esac
+}
+
 case "${1:-}" in
     install)         shift; cmd_install "$@" ;;
     remove)          shift; cmd_remove "$@" ;;
@@ -432,6 +471,7 @@ case "${1:-}" in
     default)         shift; cmd_default "$@" ;;
     status)          cmd_status ;;
     profile)         shift; cmd_profile "$@" ;;
+    google-account)  shift; cmd_google_account "$@" ;;
     fido)            cmd_fido ;;
     update)          cmd_update ;;
     enter)           ensure_box; exec distrobox enter "$BOX" ;;

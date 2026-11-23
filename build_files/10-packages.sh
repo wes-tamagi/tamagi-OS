@@ -27,8 +27,8 @@ if grep -qE ':ro\$\{rslave\}|:ro:rslave' "$DBX"; then
 fi
 sh -n "$DBX"
 
-# Nenhum navegador vem na imagem: o usuário escolhe (Flatpak, nativo ou caixa)
-# no primeiro login ou com `tamagi browser install`.
+# Native Chromium + ChromeDriver ship in the base image (packages.txt);
+# other browsers stay optional via first login or `tamagi browser install`.
 dnf5 -y remove firefox firefox-langpacks 2>/dev/null || true
 # Imagem enxuta: o player de vídeo do COSMIC (vem no grupo cosmic-desktop) é
 # opcional, `tamagi install cosmic-player`; o resto do grupo fica.

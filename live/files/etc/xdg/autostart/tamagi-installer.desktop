@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Instalar o Tamagi
+Name=Install Tamagi
 Exec=/usr/libexec/tamagi-installer-launch --autostart
 OnlyShowIn=COSMIC;
 NoDisplay=true

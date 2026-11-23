@@ -75,7 +75,7 @@ done
 cat > "$T/tamagi.plymouth" <<'THEME'
 [Plymouth Theme]
 Name=Tamagi
-Description=O brasão do Tamagi: o anel (tamaki) com as três joias (tama)
+Description=Tamagi crest: the ring (tamaki) with three jewels (tama)
 ModuleName=two-step
 
 [two-step]

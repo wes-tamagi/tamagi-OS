@@ -96,13 +96,16 @@ fi
 # pela metade que pareça instalado ou que a firmware tente iniciar.
 WIPED=0
 COMMITTED=0
+PRESERVE_HOME=${A[PRESERVE_HOME]:-0}
+PRESERVE_MODE=${A[PRESERVE_MODE]:-}
+ESP_PARTNUM=1
 cleanup() {
     local rc=$?
     set +e
     [[ -n ${WATCHER:-} ]] && kill "$WATCHER" 2>/dev/null
     umount -R "$MNT" 2>/dev/null
     [[ -n ${MAPPER:-} ]] && cryptsetup close "$MAPPER" 2>/dev/null
-    if (( WIPED && ! COMMITTED )); then
+    if (( WIPED && ! COMMITTED && ! PRESERVE_HOME )); then
         echo "instalação interrompida (código $rc): limpando $DISK para não deixar um sistema pela metade" >&2
         local part
         for part in $(lsblk -nrpo NAME,TYPE "$DISK" | awk '$2 == "part" { print $1 }'); do
@@ -160,33 +163,118 @@ swapoff -a 2>/dev/null || true
 while read -r mountpoint; do
     [[ -n $mountpoint ]] && umount -R "$mountpoint" 2>/dev/null || true
 done < <(lsblk -nro MOUNTPOINT "$DISK" | sort -r)
-WIPED=1
-wipefs -af "$DISK" >/dev/null
-sfdisk --wipe always --wipe-partitions always "$DISK" >/dev/null <<'PARTS'
-label: gpt
-size=8GiB, type=uefi, name="EFI-SYSTEM", attrs="NoBlockIOProtocol"
-type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name="root"
-PARTS
-udevadm settle
-partprobe "$DISK" 2>/dev/null || true
-udevadm settle
-mapfile -t PARTS < <(lsblk -nrpo NAME,TYPE "$DISK" | awk '$2 == "part" { print $1 }')
-(( ${#PARTS[@]} == 2 )) || die "esperava 2 partições em $DISK, achei ${#PARTS[@]}"
-ESP=${PARTS[0]} ROOT=${PARTS[1]}
 
-progress 6 format
-mkfs.vfat -F 32 -n EFI-SYSTEM "$ESP" >/dev/null
+is_subvol() { [[ $(stat -c %i "$1" 2>/dev/null) == 256 ]] && btrfs subvolume show "$1" >/dev/null 2>&1; }
 
-KARGS=(--karg "rootflags=subvol=root,compress=zstd:1,noatime")
-ROOTDEV=$ROOT
-if [[ -n ${A[LUKS_KEYFILE]:-} ]]; then
-    [[ -s ${A[LUKS_KEYFILE]} ]] || die "senha do disco vazia"
+delete_subvol_tree() {
+    local target=$1 rel sub
+    [[ -e $target ]] || return 0
+    [[ -n ${HOME_SUBVOL:-} && $target == "$MNT/$HOME_SUBVOL" ]] && die "recusado apagar o subvolume protegido $target"
+    if is_subvol "$target"; then
+        rel=${target#"$MNT/"}
+        # Apaga primeiro subvolumes aninhados (mais profundos antes), inclusive snapshots ro.
+        while IFS= read -r sub; do
+            [[ -n $sub && -e $MNT/$sub ]] || continue
+            btrfs property set -ts "$MNT/$sub" ro false 2>/dev/null || true
+            btrfs subvolume delete "$MNT/$sub" >/dev/null 2>&1 || true
+        done < <(btrfs subvolume list "$MNT" 2>/dev/null | awk -F' path ' '{print $2}' \
+            | awk -v p="$rel/" 'index($0, p) == 1 { print length($0) "\t" $0 }' | sort -rn | cut -f2-)
+        btrfs property set -ts "$target" ro false 2>/dev/null || true
+        btrfs subvolume delete "$target" >/dev/null
+    else
+        # Diretório comum (ex.: ostree/) pode conter subvolumes aninhados lá dentro.
+        rel=${target#"$MNT/"}
+        while IFS= read -r sub; do
+            [[ -n $sub && -e $MNT/$sub ]] || continue
+            btrfs property set -ts "$MNT/$sub" ro false 2>/dev/null || true
+            btrfs subvolume delete "$MNT/$sub" >/dev/null 2>&1 || true
+        done < <(btrfs subvolume list "$MNT" 2>/dev/null | awk -F' path ' '{print $2}' \
+            | awk -v p="$rel/" 'index($0, p) == 1 { print length($0) "\t" $0 }' | sort -rn | cut -f2-)
+        rm -rf --one-file-system "$target"
+    fi
+}
+
+migrate_ostree_home() {
+    local src_home=$1 dst_home=$2 src name n sdir rel sub_rel
+    [[ ! -e $dst_home ]] || die "$dst_home já existe"
+    [[ -d $src_home ]] || die "pasta de usuários $src_home não encontrada"
+    btrfs subvolume create "$dst_home" >/dev/null
+    for src in "$src_home"/*; do
+        [[ -e $src ]] || continue
+        name=$(basename "$src")
+        [[ $name == lost+found ]] && continue
+        if is_subvol "$src"; then
+            btrfs subvolume snapshot "$src" "$dst_home/$name" >/dev/null
+            if is_subvol "$src/.snapshots"; then
+                rmdir "$dst_home/$name/.snapshots" 2>/dev/null || true
+                btrfs subvolume create "$dst_home/$name/.snapshots" >/dev/null
+                chown root:root "$dst_home/$name/.snapshots"
+                chmod 750 "$dst_home/$name/.snapshots"
+                for sdir in "$src/.snapshots"/*; do
+                    [[ -d $sdir ]] || continue
+                    n=$(basename "$sdir")
+                    [[ $n =~ ^[0-9]+$ ]] || continue
+                    mkdir -p "$dst_home/$name/.snapshots/$n"
+                    chown root:root "$dst_home/$name/.snapshots/$n"
+                    chmod 755 "$dst_home/$name/.snapshots/$n"
+                    if [[ -f $sdir/info.xml ]]; then
+                        cp -a --reflink=auto "$sdir/info.xml" "$dst_home/$name/.snapshots/$n/info.xml"
+                        chown root:root "$dst_home/$name/.snapshots/$n/info.xml"
+                        chmod 644 "$dst_home/$name/.snapshots/$n/info.xml"
+                    fi
+                    if is_subvol "$sdir/snapshot"; then
+                        btrfs subvolume snapshot -r "$sdir/snapshot" "$dst_home/$name/.snapshots/$n/snapshot" >/dev/null
+                    fi
+                done
+            fi
+            sub_rel=${src#"$MNT/"}
+            while IFS= read -r rel; do
+                [[ -n $rel ]] || continue
+                rel=${rel#"$sub_rel/"}
+                [[ $rel == .snapshots || $rel == .snapshots/* ]] && continue
+                rmdir "$dst_home/$name/$rel" 2>/dev/null || true
+                mkdir -p "$(dirname "$dst_home/$name/$rel")"
+                btrfs subvolume snapshot "$src/$rel" "$dst_home/$name/$rel" >/dev/null
+            done < <(btrfs subvolume list "$MNT" 2>/dev/null | awk -F' path ' '{print $2}' \
+                | awk -v p="$sub_rel/" 'index($0, p) == 1 { print length($0) "\t" $0 }' | sort -n | cut -f2-)
+        else
+            cp -a --reflink=always "$src" "$dst_home/$name"
+            local c1 c2
+            c1=$(find "$src" -xdev | wc -l)
+            c2=$(find "$dst_home/$name" -xdev | wc -l)
+            [[ $c1 == "$c2" ]] || die "migração de $src não conferiu ($c1 x $c2)"
+        fi
+    done
+    local migrated=0
+    for src in "$dst_home"/*; do
+        [[ -d $src ]] && { migrated=1; break; }
+    done
+    (( migrated )) || die "nenhuma pasta pessoal migrada em $dst_home"
+}
+
+mountpoint_dir() {
+    mkdir -p "$1"
+    chcon system_u:object_r:boot_t:s0 "$1" 2>/dev/null || true
+}
+
+label_subvols() {
+    local home_sv=$1
+    [[ -n $home_sv && -e $MNT/$home_sv ]] && chcon system_u:object_r:home_root_t:s0 "$MNT/$home_sv" 2>/dev/null || true
+    chcon system_u:object_r:container_var_lib_t:s0 "$MNT/var-containers" 2>/dev/null || true
+    chcon system_u:object_r:var_lib_t:s0 "$MNT/var-flatpak" 2>/dev/null || true
+    chcon system_u:object_r:var_t:s0 "$MNT/var-cache" 2>/dev/null || true
+    chcon system_u:object_r:var_log_t:s0 "$MNT/var-log" 2>/dev/null || true
+}
+
+enroll_luks_fresh() {
+    local target_part=$1
+    [[ -s ${A[LUKS_KEYFILE]:-} ]] || die "senha do disco vazia"
     progress 8 luks
     cryptsetup luksFormat --batch-mode --type luks2 --pbkdf argon2id \
-        --key-file "${A[LUKS_KEYFILE]}" "$ROOT"
-    LUKS_UUID=$(cryptsetup luksUUID "$ROOT")
+        --key-file "${A[LUKS_KEYFILE]}" "$target_part"
+    LUKS_UUID=$(cryptsetup luksUUID "$target_part")
     MAPPER="luks-$LUKS_UUID"
-    cryptsetup open --key-file "${A[LUKS_KEYFILE]}" "$ROOT" "$MAPPER"
+    cryptsetup open --key-file "${A[LUKS_KEYFILE]}" "$target_part" "$MAPPER"
     ROOTDEV=/dev/mapper/$MAPPER
     LUKS_OPTS=discard
     # Desbloqueio sem senha: a chave do disco fica selada no chip TPM 2.0 deste
@@ -200,7 +288,7 @@ if [[ -n ${A[LUKS_KEYFILE]:-} ]]; then
     if [[ ${A[LUKS_TPM]:-0} == 1 ]]; then
         progress 10 tpm
         if systemd-cryptenroll --unlock-key-file="${A[LUKS_KEYFILE]}" \
-                --tpm2-device=auto --tpm2-pcrs= "$ROOT" >&2; then
+                --tpm2-device=auto --tpm2-pcrs= "$target_part" >&2; then
             LUKS_OPTS+=,tpm2-device=auto
             TPM_SEAL=$LUKS_UUID
             echo "TPM: chave do disco registrada (o PCR 7 entra no primeiro boot)" >&2
@@ -209,26 +297,174 @@ if [[ -n ${A[LUKS_KEYFILE]:-} ]]; then
         fi
     fi
     KARGS+=(--karg "rd.luks.uuid=$LUKS_UUID" --karg "rd.luks.options=$LUKS_OPTS")
-fi
-mkfs.btrfs -q -f -L tamagi "$ROOTDEV"
-udevadm settle
-
-# As pastas de ponto de montagem são criadas aqui, fora do bootc, então
-# recebem o rótulo SELinux à mão: sem ele ficam "unlabeled_t" e o
-# systemd-logind do sistema instalado é barrado ao olhar para a partição EFI.
-mountpoint_dir() {
-    mkdir -p "$1"
-    chcon system_u:object_r:boot_t:s0 "$1" 2>/dev/null || true
 }
-mkdir -p "$MNT"
-# Subvolumes: "root" recebe o sistema; "home" é montado em /var/home.
-mount "$ROOTDEV" "$MNT"
-btrfs subvolume create "$MNT/root" >/dev/null
-btrfs subvolume create "$MNT/home" >/dev/null
-chcon system_u:object_r:home_root_t:s0 "$MNT/home" 2>/dev/null || true
-umount "$MNT"
-BTRFS_UUID=$(blkid -s UUID -o value "$ROOTDEV")
-[[ -n $BTRFS_UUID ]] || die "não consegui ler o UUID do btrfs em $ROOTDEV"
+
+KARGS=(--karg "rootflags=subvol=root,compress=zstd:1,noatime")
+HOME_FSTAB_LINE=""
+
+if [[ $PRESERVE_HOME == 1 ]]; then
+    case "$PRESERVE_MODE" in
+        btrfs-subvol|ostree-home|separate-home) ;;
+        *) die "modo de preservação inválido: $PRESERVE_MODE" ;;
+    esac
+    ESP=${A[ESP_PART]:-}
+    HOME_PART=${A[HOME_PART]:-}
+    BOOT_PART=${A[BOOT_PART]:-}
+    [[ -b $ESP ]] || die "partição EFI inválida: $ESP"
+    [[ -b $HOME_PART ]] || die "partição /var/home inválida: $HOME_PART"
+    ESP_PARTNUM=$(lsblk -no PARTN "$ESP")
+    [[ $ESP_PARTNUM =~ ^[0-9]+$ ]] || die "número da partição EFI inválido: $ESP"
+
+    if [[ -n $BOOT_PART ]]; then
+        [[ -b $BOOT_PART ]] || die "partição /boot inválida: $BOOT_PART"
+        BOOT_PARTNUM=$(lsblk -no PARTN "$BOOT_PART")
+        [[ $BOOT_PARTNUM =~ ^[0-9]+$ && $BOOT_PARTNUM != "$ESP_PARTNUM" ]] || die "partição /boot inválida"
+        sjson=$(sfdisk -J "$DISK")
+        esp_start=$(jq -r --arg n "$ESP" '.partitiontable.partitions[] | select(.node == $n) | .start' <<<"$sjson")
+        esp_size=$(jq -r --arg n "$ESP" '.partitiontable.partitions[] | select(.node == $n) | .size' <<<"$sjson")
+        boot_start=$(jq -r --arg n "$BOOT_PART" '.partitiontable.partitions[] | select(.node == $n) | .start' <<<"$sjson")
+        boot_size=$(jq -r --arg n "$BOOT_PART" '.partitiontable.partitions[] | select(.node == $n) | .size' <<<"$sjson")
+        boot_end=$(( boot_start + boot_size ))
+        (( boot_start >= esp_start + esp_size && boot_end > esp_start )) || die "layout de /boot não é contíguo à ESP"
+        home_start=$(jq -r --arg n "$HOME_PART" '.partitiontable.partitions[] | select(.node == $n) | .start' <<<"$sjson")
+        (( home_start >= boot_end )) || die "partição /var/home sobrepõe /boot"
+        if [[ -n ${A[SYS_PART]:-} ]]; then
+            sys_start=$(jq -r --arg n "${A[SYS_PART]}" '.partitiontable.partitions[] | select(.node == $n) | .start' <<<"$sjson")
+            (( sys_start >= boot_end )) || die "partição de sistema sobrepõe /boot"
+        fi
+        sfdisk --no-reread --delete "$DISK" "$BOOT_PARTNUM" >/dev/null
+        printf 'start=%s, size=%s, type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI-SYSTEM", attrs="NoBlockIOProtocol"\n' \
+            "$esp_start" "$(( boot_end - esp_start ))" | sfdisk --no-reread -N "$ESP_PARTNUM" "$DISK" >/dev/null
+    else
+        sfdisk --no-reread --no-tell-kernel --part-attrs "$DISK" "$ESP_PARTNUM" "NoBlockIOProtocol" >/dev/null
+    fi
+    udevadm settle
+    partprobe "$DISK" 2>/dev/null || true
+    udevadm settle
+    [[ -b $ESP && -b $HOME_PART ]] || die "partições esperadas sumiram após atualizar a tabela"
+
+    progress 6 format
+    mkfs.vfat -F 32 -n EFI-SYSTEM "$ESP" >/dev/null
+
+    if [[ $PRESERVE_MODE == btrfs-subvol || $PRESERVE_MODE == ostree-home ]]; then
+        HOME_SUBVOL=${A[HOME_SUBVOL]:-home}
+        [[ $HOME_SUBVOL =~ ^@?[A-Za-z0-9_-]+$ ]] || die "subvolume inválido: $HOME_SUBVOL"
+        ROOTDEV=$HOME_PART
+        if [[ ${A[PRESERVE_LUKS]:-0} == 1 ]]; then
+            [[ -s ${A[LUKS_KEYFILE]:-} ]] || die "senha do disco LUKS ausente"
+            LUKS_UUID=$(cryptsetup luksUUID "$HOME_PART")
+            MAPPER="luks-$LUKS_UUID"
+            cryptsetup open --key-file "${A[LUKS_KEYFILE]}" "$HOME_PART" "$MAPPER"
+            ROOTDEV=/dev/mapper/$MAPPER
+            LUKS_OPTS=discard
+            if [[ ${A[LUKS_TPM]:-0} == 1 ]]; then
+                progress 10 tpm
+                systemd-cryptenroll --unlock-key-file="${A[LUKS_KEYFILE]}" --wipe-slot=tpm2 "$HOME_PART" >/dev/null 2>&1 || true
+                if systemd-cryptenroll --unlock-key-file="${A[LUKS_KEYFILE]}" \
+                        --tpm2-device=auto --tpm2-pcrs= "$HOME_PART" >&2; then
+                    LUKS_OPTS+=,tpm2-device=auto
+                    TPM_SEAL=$LUKS_UUID
+                    echo "TPM: chave do disco registrada (o PCR 7 entra no primeiro boot)" >&2
+                else
+                    echo "TPM: não foi possível registrar a chave; o disco fica só com a senha" >&2
+                fi
+            fi
+            KARGS+=(--karg "rd.luks.uuid=$LUKS_UUID" --karg "rd.luks.options=$LUKS_OPTS")
+        fi
+
+        mkdir -p "$MNT"
+        mount -o subvolid=5,compress=zstd:1,noatime "$ROOTDEV" "$MNT"
+        if [[ $PRESERVE_MODE == ostree-home ]]; then
+            HOME_RELPATH=${A[HOME_RELPATH]:-}
+            [[ $HOME_RELPATH =~ ^ostree/deploy/[A-Za-z0-9._-]+/var/home$ ]] || die "caminho ostree inválido: $HOME_RELPATH"
+            migrate_ostree_home "$MNT/$HOME_RELPATH" "$MNT/home"
+            HOME_SUBVOL=home
+            delete_subvol_tree "$MNT/ostree"
+            [[ -e $MNT/boot ]] && delete_subvol_tree "$MNT/boot"
+        else
+            [[ -d $MNT/$HOME_SUBVOL ]] || die "subvolume $HOME_SUBVOL não encontrado em $ROOTDEV"
+        fi
+
+        for sv in root var-containers var-flatpak var-cache var-log; do
+            [[ -e $MNT/$sv ]] && delete_subvol_tree "$MNT/$sv"
+            btrfs subvolume create "$MNT/$sv" >/dev/null
+        done
+        avail_bytes=$(df --output=avail -B1 "$MNT" | tail -1 | tr -d ' ')
+        (( avail_bytes >= 16 * 1024 * 1024 * 1024 )) || die "espaço livre insuficiente em $ROOTDEV ($(( avail_bytes / 1024 / 1024 / 1024 )) GiB < 16 GiB)"
+        label_subvols "$HOME_SUBVOL"
+        umount "$MNT"
+        BTRFS_UUID=$(blkid -s UUID -o value "$ROOTDEV")
+        [[ -n $BTRFS_UUID ]] || die "não consegui ler o UUID do btrfs em $ROOTDEV"
+        HOME_FSTAB_LINE=$(printf 'UUID=%s /var/home btrfs subvol=%s,compress=zstd:1,noatime 0 0' "$BTRFS_UUID" "$HOME_SUBVOL")
+    else
+        SYS_PART=${A[SYS_PART]:-}
+        [[ -b $SYS_PART && $SYS_PART != "$HOME_PART" ]] || die "partição de sistema inválida: $SYS_PART"
+        ROOTDEV=$SYS_PART
+        [[ -n ${A[LUKS_KEYFILE]:-} ]] && enroll_luks_fresh "$SYS_PART"
+        mkfs.btrfs -q -f -L tamagi "$ROOTDEV"
+        udevadm settle
+        mkdir -p "$MNT"
+        mount "$ROOTDEV" "$MNT"
+        for sv in root var-containers var-flatpak var-cache var-log; do
+            btrfs subvolume create "$MNT/$sv" >/dev/null
+        done
+        label_subvols ""
+        umount "$MNT"
+        BTRFS_UUID=$(blkid -s UUID -o value "$ROOTDEV")
+        [[ -n $BTRFS_UUID ]] || die "não consegui ler o UUID do btrfs em $ROOTDEV"
+        HOME_UUID=$(blkid -s UUID -o value "$HOME_PART")
+        [[ -n $HOME_UUID ]] || die "não consegui ler o UUID da partição /var/home em $HOME_PART"
+        HOME_FSTYPE=${A[HOME_FSTYPE]:-ext4}
+        case "$HOME_FSTYPE" in
+            btrfs)
+                if [[ -n ${A[HOME_SUBVOL]:-} ]]; then
+                    HOME_FSTAB_LINE=$(printf 'UUID=%s /var/home btrfs subvol=%s,compress=zstd:1,noatime 0 0' "$HOME_UUID" "${A[HOME_SUBVOL]}")
+                else
+                    HOME_FSTAB_LINE=$(printf 'UUID=%s /var/home btrfs compress=zstd:1,noatime 0 0' "$HOME_UUID")
+                fi ;;
+            ext4|xfs)
+                HOME_FSTAB_LINE=$(printf 'UUID=%s /var/home %s defaults,noatime 0 2' "$HOME_UUID" "$HOME_FSTYPE") ;;
+            *) die "sistema de arquivos de /var/home não suportado: $HOME_FSTYPE" ;;
+        esac
+    fi
+else
+    WIPED=1
+    wipefs -af "$DISK" >/dev/null
+    sfdisk --wipe always --wipe-partitions always "$DISK" >/dev/null <<'PARTS'
+label: gpt
+size=8GiB, type=uefi, name="EFI-SYSTEM", attrs="NoBlockIOProtocol"
+type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name="root"
+PARTS
+    udevadm settle
+    partprobe "$DISK" 2>/dev/null || true
+    udevadm settle
+    mapfile -t PARTS < <(lsblk -nrpo NAME,TYPE "$DISK" | awk '$2 == "part" { print $1 }')
+    (( ${#PARTS[@]} == 2 )) || die "esperava 2 partições em $DISK, achei ${#PARTS[@]}"
+    ESP=${PARTS[0]} ROOT=${PARTS[1]}
+
+    progress 6 format
+    mkfs.vfat -F 32 -n EFI-SYSTEM "$ESP" >/dev/null
+
+    ROOTDEV=$ROOT
+    [[ -n ${A[LUKS_KEYFILE]:-} ]] && enroll_luks_fresh "$ROOT"
+    mkfs.btrfs -q -f -L tamagi "$ROOTDEV"
+    udevadm settle
+
+    mkdir -p "$MNT"
+    # Subvolumes: "root" recebe o sistema; "home" é montado em /var/home;
+    # "var-containers", "var-flatpak", "var-cache" e "var-log" isolam os dados
+    # mutáveis pesados da raiz.
+    mount "$ROOTDEV" "$MNT"
+    for sv in root home var-containers var-flatpak var-cache var-log; do
+        btrfs subvolume create "$MNT/$sv" >/dev/null
+    done
+    label_subvols home
+    umount "$MNT"
+    BTRFS_UUID=$(blkid -s UUID -o value "$ROOTDEV")
+    [[ -n $BTRFS_UUID ]] || die "não consegui ler o UUID do btrfs em $ROOTDEV"
+    HOME_FSTAB_LINE=$(printf 'UUID=%s /var/home btrfs subvol=home,compress=zstd:1,noatime 0 0' "$BTRFS_UUID")
+fi
+
 # Só durante a instalação: sem barreiras de escrita (cada fsync do ostree deixa
 # de esperar o disco) e sem atime. Se faltar energia no meio, a instalação
 # recomeça do zero de qualquer forma; o sistema instalado monta com as opções
@@ -331,10 +567,17 @@ chmod 600 "$DEPLOY/etc/tamagi/install.conf"
 # provisionamento por pendrive (tamagi-combustion.service) rodar, uma vez.
 touch "$DEPLOY/etc/tamagi/first-boot"
 if [[ -n ${TPM_SEAL:-} ]]; then echo "$TPM_SEAL" > "$DEPLOY/etc/tamagi/tpm-seal"; fi
-# O subvolume "home" em /var/home (as opções repetem as da raiz) e a partição
-# EFI em /efi (sem esta linha o systemd a montaria sozinho em /boot).
-printf 'UUID=%s /var/home btrfs subvol=home,compress=zstd:1,noatime 0 0\n' "$BTRFS_UUID" >> "$DEPLOY/etc/fstab"
-printf 'UUID=%s /efi vfat umask=0077,shortname=winnt,x-systemd.automount,x-systemd.idle-timeout=2min 0 2\n' "$ESP_UUID" >> "$DEPLOY/etc/fstab"
+# O subvolume "home" em /var/home, os subvolumes de estado pesado (/var/lib/containers,
+# /var/lib/flatpak, /var/cache, /var/log) e a partição EFI em /efi (sem esta linha o
+# systemd a montaria sozinho em /boot).
+cat >> "$DEPLOY/etc/fstab" <<FSTAB
+$HOME_FSTAB_LINE
+UUID=$BTRFS_UUID /var/lib/containers btrfs subvol=var-containers,compress=zstd:1,noatime 0 0
+UUID=$BTRFS_UUID /var/lib/flatpak btrfs subvol=var-flatpak,compress=zstd:1,noatime 0 0
+UUID=$BTRFS_UUID /var/cache btrfs subvol=var-cache,compress=zstd:1,noatime 0 0
+UUID=$BTRFS_UUID /var/log btrfs subvol=var-log,compress=zstd:1,noatime 0 0
+UUID=$ESP_UUID /efi vfat umask=0077,shortname=winnt,x-systemd.automount,x-systemd.idle-timeout=2min 0 2
+FSTAB
 grep -q ' /var/home btrfs ' "$DEPLOY/etc/fstab" || die "não consegui registrar o subvolume home em /etc/fstab"
 
 progress 96 finish
@@ -363,11 +606,11 @@ udevadm settle
 # ── O passo que vale: libera a partição EFI para a firmware ──
 # Uma única atualização da tabela GPT (a cópia principal e a de reserva). Antes
 # dela o disco não inicia; depois dela, inicia o sistema completo.
-sfdisk --no-reread --no-tell-kernel --part-attrs "$DISK" 1 "" >/dev/null \
+sfdisk --no-reread --no-tell-kernel --part-attrs "$DISK" "$ESP_PARTNUM" "" >/dev/null \
     || die "não consegui liberar a partição EFI (o disco continua sem iniciar)"
 sync
 blockdev --flushbufs "$DISK" 2>/dev/null || true
-[[ -z $(sfdisk --part-attrs "$DISK" 1) ]] || die "a partição EFI continua marcada como não iniciável"
+[[ -z $(sfdisk --part-attrs "$DISK" "$ESP_PARTNUM") ]] || die "a partição EFI continua marcada como não iniciável"
 COMMITTED=1
 partprobe "$DISK" 2>/dev/null || true
 udevadm settle
