@@ -9,10 +9,12 @@
 # Category and description are written in English (the key of the
 # translations in /usr/share/tamagi/i18n) and shown in the system language.
 # The Flatpak apps of flatpaks.list (type "opcional") join this catalog.
-firefox	Browsers	260MB	run:tamagi-browser install firefox --flatpak	Firefox — Mozilla's browser (Flatpak)
+opera-gx	Browsers	450MB	run:tamagi-browser install opera-gx --flatpak	Opera GX (Flatpak)
 chrome	Browsers	380MB	run:tamagi-browser install chrome --flatpak	Google Chrome (Flatpak)
-vivaldi	Browsers	400MB	run:tamagi-browser install vivaldi --flatpak	Vivaldi (Flatpak)
 chromium	Browsers	350MB	run:tamagi-browser install chromium --flatpak	Chromium (Flatpak)
+vivaldi	Browsers	400MB	run:tamagi-browser install vivaldi --flatpak	Vivaldi (Flatpak)
+firefox	Browsers	260MB	run:tamagi-browser install firefox --flatpak	Firefox — Mozilla's browser (Flatpak)
+whatsapp	Communication	1MB	run:tamagi-webapp install WhatsApp https://web.whatsapp.com	WhatsApp — web app in its own window, opened by your Chromium-based browser
 virt-manager	Virtualization	900MB	run:tamagi-vm install	full virt-manager — KVM, UEFI, TPM, 3D, SPICE and virtiofs, native (asks for the password)
 windows	Virtualization	6GB	run:tamagi-windows install	Windows 11 in a container (dockur/windows)
 steam	Games	900MB	gaming:steam	Steam + steam-devices, native like on Bazzite (asks for the password)
@@ -29,7 +31,7 @@ vscode	Development	450MB	run:/usr/libexec/tamagi/vscode-setup	VS Code with Dev C
 docker	Development	500MB	run:/usr/libexec/tamagi/docker-setup	Docker Engine with Compose and buildx, native (asks for the password)
 lazydocker	Development	20MB	run:/usr/libexec/tamagi/lazydocker-setup	lazydocker — containers, images and logs in the terminal (Docker or Podman)
 claude	AI agents	220MB	agent:claude	Claude Code — Anthropic's coding agent
-antigravity	AI agents	700MB	agent:antigravity	Antigravity — Google's agentic IDE, with Chrome
+antigravity	AI agents	80MB	agent:antigravity	Antigravity CLI — Google's coding agent in the terminal (agy)
 codex	AI agents	320MB	agent:codex	Codex CLI — OpenAI's coding agent
 clio	AI agents	50MB	agent:clio	CLIO — coding agent in pure Perl, works with the local model (in the dev box)
 qwen	AI agents	150MB	agent:qwen	Qwen Code — Alibaba's coding agent (in the dev box)
@@ -38,4 +40,6 @@ gemini	AI agents	150MB	agent:gemini	Gemini CLI — Google's agent (in the dev bo
 openclaw	AI agents	300MB	agent:openclaw	OpenClaw — open-source personal assistant (in the dev box)
 local-ai	AI agents	2-9GB	agent:local	Local AI — the Tamagi agent with a model on your computer (llama.cpp)
 llm-scripts	AI agents	1MB	run:/usr/libexec/tamagi/llm-scripts-setup	llm-scripts — works out the best launch profile of a local model for your GPU
+rclone	Networks	115MB	run:tamagi-layer add rclone rclone	rclone — cloud storage in the terminal: sync and mount, native (asks for the password)
+cosmic-player	Creative	30MB	run:tamagi-layer add cosmic-player cosmic-player	COSMIC Player — the COSMIC video player, native (asks for the password)
 tailscale	Networks	60MB	run:/usr/libexec/tamagi/tailscale-setup	Tailscale — mesh VPN between your devices, native (asks for the password)

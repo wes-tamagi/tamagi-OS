@@ -1,13 +1,18 @@
 #!/usr/bin/bash
 # Habilita os serviços do Tamagi e limpa o que o build deixou para trás.
 
-systemctl enable tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-tpm-seal.service
+systemctl enable tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-tpm-seal.service tamagi-combustion.service
 
-# Verificação de saúde a cada boot e rollback automático da imagem (greenboot).
-systemctl enable greenboot-healthcheck.service greenboot-set-rollback-trigger.service
-rm -f /usr/lib/greenboot/check/required.d/01_repository_dns_check.sh \
-      /usr/lib/greenboot/check/required.d/02_watchdog.sh \
-      /usr/lib/greenboot/check/wanted.d/01_update_platforms_check.sh
+# systemd-boot no lugar do GRUB: a partição EFI é montada em /efi (a pasta tem
+# de existir na imagem, que é somente-leitura), e o serviço que atualiza o
+# GRUB a cada boot (bootupd) não tem o que fazer.
+mkdir -p /efi
+systemctl mask bootloader-update.service
+test -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi || { echo "systemd-boot não está na imagem" >&2; exit 1; }
+
+# Verificação de saúde a cada boot e volta automática para a imagem anterior
+# (boot-check): o bootc com systemd-boot não conta tentativas de boot.
+systemctl enable tamagi-boot-check.service
 
 # Snapshots da pasta pessoal (home-snapshots / tamagi-snap): os timers do
 # snapper só agem nas configurações criadas; o serviço faz as conversões
@@ -36,7 +41,14 @@ systemctl enable fstrim.timer
 
 # O kernel padrão (Open Gaming Collective) é assinado só pelo Universal Blue: este guarda
 # cancela uma atualização que não iniciaria com o Secure Boot (chave ausente).
-systemctl enable tamagi-secureboot-guard.path
+# (chamado pelo system-update logo depois de preparar a imagem nova).
+
+# A imagem do sistema: procurada a cada seis horas e preparada para o próximo
+# boot pelo bootc (system-update). O rpm-ostree não fala com este formato de
+# instalação (composefs): o timer dele fica desligado.
+systemctl enable tamagi-system-update.timer tamagi-system-status.service
+systemctl disable rpm-ostreed-automatic.timer 2>/dev/null || true
+systemctl mask bootc-fetch-apply-updates.timer 2>/dev/null || true
 
 # Camadas do tamagi-layer (/var/lib/extensions) entram no /usr a cada boot.
 systemctl enable systemd-sysext.service
@@ -50,8 +62,8 @@ systemctl enable tamagi-layer-units.service
 #   - dnf-makecache.timer não serve num host imutável (bootc não usa dnf no host).
 systemctl disable NetworkManager-wait-online.service dnf-makecache.timer 2>/dev/null || true
 
-# Atualização automática dos subsistemas (caixas), para todo usuário (a da
-# imagem e a dos Flatpaks já vêm ligadas pela base).
+# Atualização automática dos subsistemas (caixas), para todo usuário (a dos
+# Flatpaks já vem ligada pela base).
 systemctl --global enable tamagi-autoupdate.timer
 
 # Os apps de terminal (foot, btop, Neovim, janelas do Tamagi) acompanham o tema

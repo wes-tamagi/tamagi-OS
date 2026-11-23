@@ -40,6 +40,7 @@ set_lang() {
         pkill -u "$USER" -f 'tamagi-menu --service' 2>/dev/null || true
         setsid -f tamagi-menu --service >/dev/null 2>&1 || true
     fi
+    # shellcheck disable=SC2034  # read by the i18n library sourced below
     TAMAGI_LANG=$code
     # Recarrega traduções no idioma recém-escolhido para a mensagem de confirmação.
     # shellcheck source=/dev/null

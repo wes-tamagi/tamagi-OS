@@ -761,7 +761,6 @@ opens a specific browser	ouvre un navigateur précis
 the box: status, update, shell and FIDO2 key	la boîte : état, mise à jour, shell et clé FIDO2
 Installed	Installé
 Could not install the browser (no network?). Any key closes.	Impossible d'installer le navigateur (pas de réseau ?). Une touche pour fermer.
-web apps need Chrome, Chromium or Vivaldi	les applications web nécessitent Chrome, Chromium ou Vivaldi
 extra RPM repository (e.g. Google Chrome's)	dépôt RPM supplémentaire (p. ex. celui de Google Chrome)
 systemd unit the layer starts at every boot	unité systemd que la couche démarre à chaque démarrage
 installs natively: Steam + steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine	installe en natif : Steam + steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine
@@ -969,3 +968,33 @@ Tick what you want, with sizes and install methods.	Cochez ce que vous voulez, a
 Unlock the disk with the TPM chip at boot	Déverrouiller le disque avec la puce TPM au démarrage
 Waiting for the shared Flatpak runtime	En attente du runtime partagé de Flatpak
 Welcome	Bienvenue
+Nothing on Flathub for	Rien sur Flathub pour
+✓ = published by the app's own developer. Install with: tamagi install <app id>	✓ = publié par le développeur de l'application. Installez avec : tamagi install <id de l'application>
+Not in the catalog. On Flathub	Absent du catalogue. Sur Flathub
+Install one with	Installez-en une avec
+From Flathub	Depuis Flathub
+not in the catalog and not on Flathub	absent du catalogue et de Flathub
+Antigravity CLI is Google software and is downloaded now, on your machine (Google's terms).	Antigravity CLI est un logiciel de Google, téléchargé maintenant sur votre machine (conditions de Google).
+could not download Google's installer	impossible de télécharger l'installateur de Google
+what came from Google is not an install script; nothing was installed	ce qui est venu de Google n'est pas un script d'installation ; rien n'a été installé
+the installer did not leave the executable	l'installateur n'a pas laissé l'exécutable
+available only as a Flatpak	disponible uniquement en Flatpak
+web apps need Chrome, Chromium, Vivaldi or Opera GX	les applications web nécessitent Chrome, Chromium, Vivaldi ou Opera GX
+Ignition — apps and scripts that start with the session	Ignition — applications et scripts lancés avec la session
+Opera GX (Flatpak)	Opera GX (Flatpak)
+WhatsApp — web app in its own window, opened by your Chromium-based browser	WhatsApp — application web dans sa propre fenêtre, ouverte par votre navigateur basé sur Chromium
+Antigravity CLI — Google's coding agent in the terminal (agy)	Antigravity CLI — agent de programmation de Google dans le terminal (agy)
+Apps to start with	Applications pour commencer
+Browser and apps you chose	Navigateur et applications choisis
+More apps, by name: tamagi install (what the catalog does not list comes from Flathub).	Plus d'applications, par leur nom : tamagi install (ce que le catalogue ne liste pas vient de Flathub).
+Nothing to offer here. Later: tamagi install	Rien à proposer ici. Plus tard : tamagi install
+Ready-made sets (AI, development, games, office): tamagi profiles	Ensembles prêts (IA, développement, jeux, bureautique) : tamagi profiles
+This browser exists for Linux only as a Flatpak.	Ce navigateur n'existe pour Linux qu'en Flatpak.
+Tick the basics and pick a browser, then review. Nothing is installed before you confirm.	Cochez l'essentiel et choisissez un navigateur, puis vérifiez. Rien n'est installé avant votre confirmation.
+Tick what you want now. Everything else is one command away: tamagi install	Cochez ce que vous voulez maintenant. Tout le reste est à une commande : tamagi install
+rclone — cloud storage in the terminal: sync and mount, native (asks for the password)	rclone — stockage en nuage dans le terminal : synchroniser et monter, natif (demande le mot de passe)
+COSMIC Player — the COSMIC video player, native (asks for the password)	COSMIC Player — le lecteur vidéo de COSMIC, natif (demande le mot de passe)
+On the host too, from this box	Sur le système aussi, depuis cette boîte
+this tool lives in the development box, which this computer does not have yet.	cet outil vit dans la boîte de développement, que cet ordinateur n'a pas encore.
+Create the development box now? (about 1.5 GB, a few minutes)	Créer la boîte de développement maintenant ? (environ 1,5 Go, quelques minutes)
+the box was created, but it did not bring this tool	la boîte a été créée, mais elle n'a pas apporté cet outil

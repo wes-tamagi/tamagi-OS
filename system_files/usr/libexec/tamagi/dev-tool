@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+# dev-tool <tool> [args…] — opens a terminal tool that lives in the
+# development box (neovim, lazygit…). The image does not carry them: the box
+# installs them and exports a launcher to ~/.local/bin when it is created.
+# With no box yet, offers to create it and then opens the tool.
+set -uo pipefail
+. /usr/libexec/tamagi/i18n
+tool=${1:?tool}; shift
+export PATH="$HOME/.local/bin:$PATH"
+if command -v "$tool" >/dev/null 2>&1; then exec "$tool" "$@"; fi
+echo "$tool: $(t "this tool lives in the development box, which this computer does not have yet.")"
+echo
+if gum confirm "$(t "Create the development box now? (about 1.5 GB, a few minutes)")" \
+        --affirmative "$(t "Yes")" --negative "$(t "No")"; then
+    tamagi-devbox create fedora || { read -rsn1 -p "  ($(t "press any key to close"))"; exit 1; }
+    hash -r
+    if command -v "$tool" >/dev/null 2>&1; then exec "$tool" "$@"; fi
+    echo "$tool: $(t "the box was created, but it did not bring this tool")"
+    read -rsn1 -p "  ($(t "press any key to close"))"
+    exit 1
+fi

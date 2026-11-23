@@ -262,11 +262,11 @@ ours = [
     ("[Super, Shift]", "a", f'Spawn("{popup} tamagi-agent")'),
     ("[Super]", "k", f'Spawn("{popup} tamagi-keys")'),
     ("[Super, Shift]", "t", f'Spawn("{popup} btop")'),
-    ("[Super, Shift]", "n", f'Spawn("{popup} --tile nvim")'),
+    ("[Super, Shift]", "n", f'Spawn("{popup} --tile /usr/libexec/tamagi/dev-tool nvim")'),
     # Do Omarchy: captura, apps com Super+Shift+letra, emoji e lembrete.
     ("[Shift]", "Print", 'Spawn("tamagi-capture text")'),
     ("[Alt]", "Print", 'Spawn("tamagi-capture record")'),
-    ("[Super, Shift]", "g", f'Spawn("{popup} --tile lazygit")'),
+    ("[Super, Shift]", "g", f'Spawn("{popup} --tile /usr/libexec/tamagi/dev-tool lazygit")'),
     ("[Super, Shift]", "d", f'Spawn("{popup} tamagi-db")'),
     ("[Super, Shift]", "o", 'Spawn("/usr/libexec/tamagi/open-or-install org.onlyoffice.desktopeditors")'),
     ("[Super, Shift]", "m", 'Spawn("/usr/libexec/tamagi/open-or-install io.missioncenter.MissionCenter")'),

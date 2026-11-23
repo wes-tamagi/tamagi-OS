@@ -1,16 +1,16 @@
 #!/usr/bin/python3
 """update-changes — "o que muda nesta atualização", em linguagem simples.
 
-Compara a imagem em uso com a que está pronta para o próximo boot (ou duas
-imagens quaisquer do ostree) e mostra o que importa: kernel, desktop, drivers
+Compara a imagem em uso com a que está pronta para o próximo boot (as listas
+de pacotes que o system-update grava em /var/lib/tamagi/update) e mostra o que importa: kernel, desktop, drivers
 de vídeo, systemd, firmware… e quantos pacotes sobem de versão, entram e saem.
 Com a IA local ligada (tamagi-ai), ela escreve um resumo curto no seu idioma.
 
   update-changes                     imagem em uso -> atualização pronta
   update-changes --curto             uma linha (para a notificação)
   update-changes --sem-ia            sem o resumo da IA local
-  update-changes --de A --para B     duas imagens (commits do ostree)
-  update-changes --texto ARQUIVO     lê a saída de `rpm-ostree db diff` (testes)
+  update-changes --de A --para B     duas listas de pacotes ("nome época:versão-release" por linha)
+  update-changes --texto ARQUIVO     lê um diff no formato do `rpm-ostree db diff` (testes)
 """
 import argparse
 import json
@@ -100,24 +100,45 @@ def short_ver(evr):
     return re.sub(r"-[^-]+$", "", evr.split(":")[-1])
 
 
+UPDATE_DIR = os.environ.get("TAMAGI_UPDATE_DIR", "/var/lib/tamagi/update")
+STATUS = os.environ.get("TAMAGI_BOOTC_STATUS", "/run/tamagi/bootc-status.json")
+
+
 def staged_diff():
-    st = subprocess.run(["rpm-ostree", "status", "--json"], capture_output=True, text=True, check=False)
+    """Só vale se as listas gravadas são da imagem que está preparada agora."""
     try:
-        deps = json.loads(st.stdout).get("deployments", [])
-    except ValueError:
-        deps = []
-    booted = next((d for d in deps if d.get("booted")), None)
-    staged = next((d for d in deps if d.get("staged")), None)
-    if not booted or not staged:
+        with open(STATUS, encoding="utf-8") as fh:
+            staged = (json.load(fh).get("status", {}).get("staged") or {})
+        with open(os.path.join(UPDATE_DIR, "staged.digest"), encoding="utf-8") as fh:
+            saved = fh.read().strip()
+    except (OSError, ValueError):
         return None
-    return diff(booted["checksum"], staged["checksum"])
+    if staged.get("downloadOnly") or (staged.get("image") or {}).get("imageDigest") != saved:
+        return None
+    return diff(os.path.join(UPDATE_DIR, "booted.pkgs"), os.path.join(UPDATE_DIR, "staged.pkgs"))
+
+
+def read_list(path):
+    out = {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                name, _, evr = line.strip().partition(" ")
+                if name and evr:
+                    out[name] = evr[2:] if evr.startswith("0:") else evr
+    except OSError:
+        sys.exit(f"update-changes: {path}: lista de pacotes não encontrada")
+    return out
 
 
 def diff(a, b):
-    r = subprocess.run(["rpm-ostree", "db", "diff", a, b], capture_output=True, text=True, check=False)
-    if r.returncode != 0:
-        sys.exit(r.stderr.strip() or "rpm-ostree db diff falhou")
-    return r.stdout
+    """Duas listas de pacotes -> texto no formato do `rpm-ostree db diff` (o que parse() lê)."""
+    old, new = read_list(a), read_list(b)
+    lines = ["Upgraded:"]
+    lines += [f"  {n} {old[n]} -> {new[n]}" for n in sorted(new) if n in old and old[n] != new[n]]
+    lines += ["Added:"] + [f"  {n}-{new[n]}" for n in sorted(new) if n not in old]
+    lines += ["Removed:"] + [f"  {n}-{old[n]}" for n in sorted(old) if n not in new]
+    return "\n".join(lines) + "\n"
 
 
 def highlights(d):

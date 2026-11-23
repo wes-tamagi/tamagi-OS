@@ -2,7 +2,7 @@
 # tamagi-browser — web browsers, your choice of browser and of how it is installed.
 #
 # No browser ships in the image. Chrome, Firefox, Vivaldi and Chromium can each
-# be installed in three ways:
+# be installed in three ways (Opera GX exists for Linux only as a Flatpak):
 #   --flatpak   Flathub app, sandboxed (the default)
 #   --native    RPM over the image, in a reversible layer (tamagi-layer; asks
 #               for the password)
@@ -25,14 +25,15 @@ if [[ -z ${TAMAGI_BROWSER_BOX:-} ]] && ! podman container exists browsers 2>/dev
     BOX=navegadores
 fi
 
-NAMES=(chrome firefox vivaldi chromium)
-declare -A TITLE=([chrome]="Google Chrome" [firefox]="Firefox" [vivaldi]="Vivaldi" [chromium]="Chromium")
+NAMES=(chrome firefox vivaldi chromium opera-gx)
+declare -A TITLE=([chrome]="Google Chrome" [firefox]="Firefox" [vivaldi]="Vivaldi" [chromium]="Chromium" [opera-gx]="Opera GX")
 declare -A FLATPAK=([chrome]=com.google.Chrome [firefox]=org.mozilla.firefox
-                    [vivaldi]=com.vivaldi.Vivaldi [chromium]=org.chromium.Chromium)
-# Binary and menu entry of the RPM (native layer and box).
-declare -A BIN=([chrome]=google-chrome-stable [firefox]=firefox [vivaldi]=vivaldi-stable [chromium]=chromium-browser)
-declare -A APP=([chrome]=google-chrome [firefox]=org.mozilla.firefox [vivaldi]=vivaldi-stable [chromium]=chromium-browser)
-declare -A RPM=([chrome]=google-chrome-stable [firefox]="firefox firefox-langpacks" [vivaldi]=vivaldi-stable [chromium]=chromium)
+                    [vivaldi]=com.vivaldi.Vivaldi [chromium]=org.chromium.Chromium [opera-gx]=com.opera.opera-gx)
+# Binary and menu entry of the RPM (native layer and box). An empty RPM means
+# the browser is offered only as a Flatpak.
+declare -A BIN=([chrome]=google-chrome-stable [firefox]=firefox [vivaldi]=vivaldi-stable [chromium]=chromium-browser [opera-gx]=opera-gx)
+declare -A APP=([chrome]=google-chrome [firefox]=org.mozilla.firefox [vivaldi]=vivaldi-stable [chromium]=chromium-browser [opera-gx]=opera-gx)
+declare -A RPM=([chrome]=google-chrome-stable [firefox]="firefox firefox-langpacks" [vivaldi]=vivaldi-stable [chromium]=chromium [opera-gx]="")
 # Vendor repository of the RPM: "<id> <baseurl> <signing key>".
 declare -A REPO=(
     [chrome]="google-chrome https://dl.google.com/linux/chrome/rpm/stable/x86_64 https://dl.google.com/linux/linux_signing_key.pub"
@@ -197,6 +198,7 @@ cmd_install() {
     fi
     known "$name" || die "$(t "unknown browser"): '$name' (${NAMES[*]})"
     method=${method:-flatpak}
+    [[ $method == flatpak || -n ${RPM[$name]} ]] || die "${TITLE[$name]}: $(t "available only as a Flatpak")"
     info "$(t "Installing") ${TITLE[$name]} ($method)"
     "install_$method" "$name"
     record "$name" "$method"
@@ -301,7 +303,7 @@ profile_dir() { echo "$PROFILES_DIR/$1-$2"; }
 profile_desktop() { echo "$DATA_DIR/applications/tamagi-$1-$2.desktop"; }
 
 cmd_profile() {
-    local action=${1:-list} profile=${2:-} name=${3:-} d
+    local action=${1:-list} profile=${2:-} name=${3:-} d n
     [[ -n $name ]] || name=$(default_browser || echo chrome)
     case "$action" in
         list)
@@ -309,7 +311,10 @@ cmd_profile() {
             for d in "$PROFILES_DIR"/*/; do
                 [[ -d $d ]] || continue
                 found=1; d=$(basename "$d")
-                printf '%-10s %s\n' "${d%%-*}" "${d#*-}"
+                # The folder is <browser>-<profile>, and a browser name may have a hyphen.
+                for n in "${NAMES[@]}"; do
+                    [[ $d == "$n"-* ]] && printf '%-10s %s\n' "$n" "${d#"$n"-}"
+                done
             done
             (( found )) || echo "$(t "No profiles yet. Create one with"): tamagi browser profile add work"
             ;;
@@ -442,10 +447,10 @@ case "${1:-}" in
         fi ;;
     app)             # web apps (tamagi-webapp): needs a Chromium-based browser
         shift
-        for name in "$(default_browser || true)" chrome chromium vivaldi; do
+        for name in "$(default_browser || true)" chrome chromium vivaldi opera-gx; do
             [[ -n $name && $name != firefox ]] && method_of "$name" >/dev/null && launch "$name" "$@"
         done
-        die "$(t "web apps need Chrome, Chromium or Vivaldi"): tamagi browser install chromium" ;;
-    chrome|firefox|vivaldi|chromium) name=$1; shift; launch "$name" "$@" ;;
+        die "$(t "web apps need Chrome, Chromium, Vivaldi or Opera GX"): tamagi browser install chromium" ;;
+    chrome|firefox|vivaldi|chromium|opera-gx) name=$1; shift; launch "$name" "$@" ;;
     *)               open_default "$@" ;;
 esac

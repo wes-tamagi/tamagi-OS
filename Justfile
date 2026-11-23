@@ -54,14 +54,15 @@ test-browser:
 shell:
     podman run --rm -it {{ image }}:{{ tag }} bash
 
-# Lint dos scripts do repositório (usa o shellcheck que vem na imagem)
+# Lint dos scripts do repositório (o shellcheck não vem mais na imagem: é instalado no contêiner do lint)
 lint:
-    podman run --rm -v .:/src:ro,Z -w /src {{ image }}:{{ tag }} bash -c '\
+    podman run --rm -v .:/src:ro,Z -w /src quay.io/fedora/fedora:{{ fedora }} bash -c '\
+        dnf -y -q install --setopt=install_weak_deps=False ShellCheck python3 >/dev/null && \
         shellcheck -x -S warning build_files/*.sh tests/*.sh live/*.sh live/tik/modules/*/* \
             system_files/etc/profile.d/tamagi.sh \
             $(grep -lE "^#!/usr/bin/(env )?bash" system_files/usr/bin/* system_files/usr/libexec/tamagi/* live/files/usr/libexec/*) \
         && python3 -c "import ast, sys; [ast.parse(open(p).read()) for p in sys.argv[1:]]" \
-            system_files/usr/bin/tamagi-agent system_files/usr/bin/tamagi-menu system_files/usr/bin/tamagi \
+            system_files/usr/bin/tamagi-agent system_files/usr/bin/tamagi-menu \
             system_files/usr/bin/tamagi-snap system_files/usr/bin/tamagi-capture system_files/usr/bin/tamagi-rewind \
             system_files/usr/bin/tamagi-workspace system_files/usr/bin/tamagi-doctor \
             system_files/usr/libexec/tamagi/tamagi_i18n.py system_files/usr/libexec/tamagi/gum-multi \
@@ -85,13 +86,9 @@ build-iso: build-live
 test-iso *ARGS:
     bash tests/iso.sh output/tamagi.iso {{ ARGS }}
 
-# Atualização automática de ponta a ponta numa VM (registry local, imagem nova, reinício, rollback)
+# Atualização automática de ponta a ponta numa VM (registry local, imagem nova, reinício) e volta automática de uma imagem ruim
 test-upgrade:
     bash tests/iso.sh output/tamagi.iso --upgrade
-
-# Depois de `just test-iso`: simula uma atualização ruim e confere o rollback automático
-test-rollback:
-    bash tests/iso.sh output/tamagi.iso --rollback
 
 # Abre a ISO numa VM com janela, para usar o instalador de verdade
 run-iso:

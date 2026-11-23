@@ -1,0 +1,15 @@
+[Unit]
+Description=Tamagi: provisionamento no primeiro boot (mídia com rótulo "combustion", como no openSUSE Aeon)
+Documentation=file:///usr/share/doc/tamagi/README.md
+ConditionPathExists=/etc/tamagi/first-boot
+After=local-fs.target systemd-tmpfiles-setup.service tamagi-firstboot.service NetworkManager.service
+Before=systemd-user-sessions.service display-manager.service cosmic-greeter.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/tamagi/combustion
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

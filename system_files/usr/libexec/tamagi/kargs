@@ -1,0 +1,76 @@
+#!/usr/bin/bash
+# kargs — kernel parameters of this machine, with systemd-boot (runs as root).
+#
+# bootc has no command for per-machine kernel parameters; its documentation
+# says that editing the boot entries is supported. The parameters live in the
+# "options" line of each entry of the EFI partition (/efi/loader/entries).
+#
+#   kargs --append-if-missing=<p> ... --delete-if-present=<p> ...
+#   kargs --apply     puts the saved parameters back in every entry (called
+#                     after an update is prepared: the new entry gets them too)
+#   kargs --list      the parameters added on this machine
+#
+# What was added is remembered in /var/lib/tamagi/kargs (shared by every
+# image, so it survives updates and rollbacks). Parameters that come from the
+# image (/usr/lib/bootc/kargs.d) are not touched: removing those locally is
+# undefined for bootc. They take effect on the next boot.
+set -euo pipefail
+
+ESP=${TAMAGI_ESP:-/efi}
+LIST=${TAMAGI_KARGS_LIST:-/var/lib/tamagi/kargs}
+
+entries() { compgen -G "$ESP/loader/entries/*.conf" || true; compgen -G "$ESP/loader/entries.staged/*.conf" || true; }
+
+# edit_entry <file> <add|del> <param>: rewrites the options line.
+edit_entry() {
+    local file=$1 op=$2 param=$3 tmp
+    tmp=$(mktemp "$file.XXXXXX")
+    awk -v op="$op" -v p="$param" '
+        $1 == "options" {
+            out = "options"; found = 0
+            for (i = 2; i <= NF; i++) {
+                if ($i == p) { found = 1; if (op == "del") continue }
+                out = out " " $i
+            }
+            if (op == "add" && !found) out = out " " p
+            print out; next
+        }
+        { print }' "$file" > "$tmp"
+    if cmp -s "$file" "$tmp"; then rm -f "$tmp"; else mv -f "$tmp" "$file"; fi
+}
+
+apply_all() { # apply_all <add|del> <param>
+    local file
+    while read -r file; do
+        [[ -n $file ]] && edit_entry "$file" "$1" "$2"
+    done < <(entries)
+}
+
+remember() { # remember <add|del> <param>
+    mkdir -p "$(dirname "$LIST")"
+    touch "$LIST"
+    if [[ $1 == add ]]; then
+        grep -qxF -- "$2" "$LIST" || printf '%s\n' "$2" >> "$LIST"
+    else
+        grep -vxF -- "$2" "$LIST" > "$LIST.new" || true
+        mv -f "$LIST.new" "$LIST"
+    fi
+}
+
+(( $# )) || { echo "usage: kargs --append-if-missing=<p> | --delete-if-present=<p> | --apply | --list" >&2; exit 2; }
+[[ -d $ESP/loader/entries ]] || { echo "kargs: no boot entries in $ESP/loader/entries (this system does not use systemd-boot)" >&2; exit 1; }
+
+for arg in "$@"; do
+    case $arg in
+        --append-if-missing=*) remember add "${arg#*=}"; apply_all add "${arg#*=}" ;;
+        --delete-if-present=*) remember del "${arg#*=}"; apply_all del "${arg#*=}" ;;
+        --apply)
+            [[ -r $LIST ]] || exit 0
+            while IFS= read -r param; do
+                [[ -n $param ]] && apply_all add "$param"
+            done < "$LIST" ;;
+        --list) cat "$LIST" 2>/dev/null || true ;;
+        *) echo "kargs: unknown option: $arg" >&2; exit 2 ;;
+    esac
+done
+sync -f "$ESP" 2>/dev/null || true

@@ -111,6 +111,9 @@ if [[ $MODE == --upgrade ]]; then
     ctx=$(mktemp -d)
     printf 'FROM %s\nRUN echo v2 > /usr/share/tamagi/teste-atualizacao\n' "$IMG" > "$ctx/Containerfile"
     podman build -q -t localhost/tamagi-teste-v2 "$ctx" >/dev/null
+    # E a imagem RUIM, para a volta automática: uma verificação obrigatória que falha.
+    printf 'FROM localhost/tamagi-teste-v2\nRUN printf "#!/bin/sh\\necho FALHOU: imagem ruim de teste\\nexit 1\\n" > /usr/lib/tamagi/boot-check/required.d/99-teste.sh && chmod +x /usr/lib/tamagi/boot-check/required.d/99-teste.sh\n' > "$ctx/Containerfile"
+    podman build -q -t localhost/tamagi-teste-bad "$ctx" >/dev/null
     rm -rf "$ctx"
     podman push -q --tls-verify=false --compression-format zstd --compression-level 3 \
         --digestfile "$OUT/vm-upgrade.digest" localhost/tamagi-teste-v2 localhost:5000/tamagi:latest
@@ -138,18 +141,39 @@ fi
 [[ -f $DISK ]] || { echo "sem disco instalado em $DISK" >&2; exit 1; }
 rm -f -- "$OUT/vm-serial.sock" "$OUT/vm-qmp.sock"
 
+# Provisionamento no primeiro boot (tamagi-combustion.service): um segundo
+# disco com rótulo "combustion" e um script, como um pendrive do Aeon. Só vale
+# no primeiro boot depois de instalar; os modos --verify conferem o que ficou.
+combustion_args=()
+if [[ $MODE != --verify* && $MODE != --rollback && $MODE != --upgrade ]]; then
+    stick=$(mktemp -d)
+    mkdir "$stick/combustion"
+    echo "arquivo ao lado do script" > "$stick/combustion/dado.txt"
+    cat > "$stick/combustion/script" <<'SCRIPT'
+#!/bin/bash
+# combustion: network
+set -e
+{ echo "uid=$(id -u)"; echo "dado=$(cat dado.txt)"; echo "usr=$(touch /usr/teste 2>/dev/null && echo gravavel || echo somente-leitura)"; } > /etc/tamagi-combustion-teste
+SCRIPT
+    rm -f "$OUT/vm-combustion.img"
+    truncate -s 8M "$OUT/vm-combustion.img"
+    mkfs.vfat -n combustion "$OUT/vm-combustion.img" >/dev/null
+    mcopy -i "$OUT/vm-combustion.img" -s "$stick/combustion" ::/combustion
+    rm -rf "$stick"
+    combustion_args=(-drive "file=$OUT/vm-combustion.img,if=virtio,format=raw,readonly=on")
+fi
+
 echo "── 2/2  Primeiro boot do sistema instalado"
 [[ $MODE == *tpm ]] && start_tpm
-qemu "${disk_args[@]}" "${tpm_args[@]}" -device virtio-vga -display none \
+qemu "${disk_args[@]}" "${combustion_args[@]}" "${tpm_args[@]}" -device virtio-vga -display none \
     -serial "unix:$OUT/vm-serial.sock,server=on,wait=off" \
     -qmp "unix:$OUT/vm-qmp.sock,server=on,wait=off" &
 vm=$!
-trap 'kill $vm 2>/dev/null || true; podman rm -f tamagi-swtpm tamagi-registry >/dev/null 2>&1 || true; podman rmi localhost/tamagi-teste-v2 >/dev/null 2>&1 || true' EXIT
+trap 'kill $vm 2>/dev/null || true; podman rm -f tamagi-swtpm tamagi-registry >/dev/null 2>&1 || true; podman rmi localhost/tamagi-teste-v2 localhost/tamagi-teste-bad >/dev/null 2>&1 || true' EXIT
 sleep 2
 if [[ $MODE == --rollback ]]; then
-    echo "   (rollback automático: simula uma atualização ruim no disco já instalado)"
-    python3 "$HERE/vm_rollback.py" "$OUT/vm-serial.sock" "$OUT/vm-qmp.sock" tamagi tamagi
-    exit
+    echo "a volta automática agora é provada junto com a atualização: tests/iso.sh <iso> --upgrade" >&2
+    exit 2
 fi
 if [[ $MODE == --upgrade ]]; then
     echo "   (atualização automática: registry local -> imagem preparada -> reinício -> rollback)"

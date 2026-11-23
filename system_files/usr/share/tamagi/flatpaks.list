@@ -17,6 +17,7 @@ cosmic  io.github.cosmic_utils.minimon-applet    essencial   Sistema         5MB
 cosmic  io.github.cosmic_utils.weather-applet    essencial   Sistema         5MB    Clima na barra
 cosmic  io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager essencial Sistema 5MB Histórico da área de transferência
 flathub io.missioncenter.MissionCenter           opcional    System         35MB   Mission Center — system monitor
+flathub io.github.flattool.Ignition              opcional    System         5MB    Ignition — apps and scripts that start with the session
 flathub org.gnome.World.PikaBackup               opcional    System         45MB   Pika Backup — backups to a disk or server
 flathub org.onlyoffice.desktopeditors            opcional    Office      1.1GB  OnlyOffice — documents, spreadsheets and presentations
 flathub org.libreoffice.LibreOffice              opcional    Office      800MB  LibreOffice — documents, spreadsheets and presentations

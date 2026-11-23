@@ -1,15 +1,18 @@
-//! The window: Welcome → Profile → Browser → Catalog → Review → Installing → Done.
+//! The window: Welcome → Apps → Browser → Review → Installing → Done.
+//!
+//! Like the first boot of openSUSE Aeon: a short list of basics to tick and a
+//! browser to choose. Everything else in the catalog is installed later with
+//! `tamagi install`.
 
 use crate::catalog::{self, format_size, pretty_size, short_name, tagline, Item};
 use crate::flow::{self, Page};
 use crate::i18n::{capitalized, tr};
 use crate::method::{classify, Method};
-use crate::plan::{self, browser_action, Choices, Step, BROWSERS, BROWSER_METHODS};
-use crate::profile::{self, Entry, PROFILES};
+use crate::plan::{self, browser_action, methods_for, Choices, Step, BROWSERS};
 use crate::progress::{parse_line, Line, Tracker};
 use crate::review::{self, Row};
 use crate::system::{self, Event};
-use crate::ui::{badge, card_class, chip, legend, panel, radio_mark, LOCK_ICON};
+use crate::ui::{badge, legend, note, panel, radio_mark, small, text, LOCK_ICON, NOTE, SMALL};
 use cosmic::app::{Core, Settings, Task};
 use cosmic::iced::futures::channel::mpsc;
 use cosmic::iced::futures::StreamExt;
@@ -17,41 +20,24 @@ use cosmic::iced::{keyboard, Alignment, Color, Length, Size, Subscription};
 use cosmic::{executor, theme, widget, Application, ApplicationExt, Element};
 use std::collections::BTreeSet;
 
-/// The cards of the profiles: "Title: what it brings" (keys shared with the
-/// terminal assistant), in the order of `profile::PROFILES`.
-const PROFILE_KEYS: [&str; 4] = [
-    "AI and agents: Claude Code, Codex, opencode and the development box",
-    "Development: Fedora box, Node and Python, Zed and opencode",
-    "Games: native Steam, gamescope with HDR, MangoHud and Heroic",
-    "Office: Firefox, OnlyOffice and Thunderbird",
-];
-
 /// Lines of output kept for the details panel.
 const LOG_LINES: usize = 400;
 /// Widest the content gets, centred in a larger window.
-const CONTENT_WIDTH: f32 = 860.0;
+const CONTENT_WIDTH: f32 = 900.0;
 
 pub fn run() -> cosmic::iced::Result {
     let catalog = catalog::load();
-    let profiles = PROFILES.iter().map(|name| profile::load(name, &catalog)).collect();
-    let flags = Flags { catalog, profiles, disk_question: system::tpm_question_applies() };
-    let settings = Settings::default().size(Size::new(900.0, 680.0)).size_limits(cosmic::iced::Limits::NONE.min_width(640.0).min_height(480.0));
+    let basics = catalog::load_basics(&catalog);
+    let flags = Flags { catalog, basics, disk_question: system::tpm_question_applies() };
+    let settings = Settings::default().size(Size::new(960.0, 740.0)).size_limits(cosmic::iced::Limits::NONE.min_width(640.0).min_height(480.0));
     cosmic::app::run::<Welcome>(settings, flags)
 }
 
 pub struct Flags {
     catalog: Vec<Item>,
-    profiles: Vec<Vec<Entry>>,
+    /// The basics: (index in `catalog`, ticked by default).
+    basics: Vec<(usize, bool)>,
     disk_question: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProfileChoice {
-    /// Index in `profile::PROFILES`.
-    Ready(usize),
-    /// Choose item by item from the catalog.
-    ItemByItem,
-    NotNow,
 }
 
 #[derive(Debug, Clone)]
@@ -60,14 +46,12 @@ pub enum Message {
     Back,
     Skip,
     Close,
-    Profile(ProfileChoice),
     /// Index in `plan::BROWSERS`; `BROWSERS.len()` is "not now".
     Browser(usize),
-    /// Index in `plan::BROWSER_METHODS`.
+    /// Index in `plan::methods_for` of the browser chosen.
     BrowserMethod(usize),
     /// A catalog item (index) ticked or not.
     Toggle(usize, bool),
-    Search(String),
     Tpm(bool),
     ToggleLog,
     Run(Event),
@@ -77,14 +61,11 @@ pub struct Welcome {
     core: Core,
     page: Page,
     catalog: Vec<Item>,
-    /// What each profile installs, in the order of `profile::PROFILES`.
-    profiles: Vec<Vec<Entry>>,
-    profile: ProfileChoice,
+    /// The basics offered, as indices in `catalog`, in the order shown.
+    basics: Vec<usize>,
     browser: usize,
     browser_method: usize,
     checked: BTreeSet<usize>,
-    search: String,
-    search_id: widget::Id,
     disk_question: bool,
     tpm: bool,
     // Installing
@@ -122,14 +103,10 @@ impl Application for Welcome {
             core,
             page: Page::Welcome,
             catalog: flags.catalog,
-            profiles: flags.profiles,
-            // The suggestion: AI and agents.
-            profile: ProfileChoice::Ready(0),
+            basics: flags.basics.iter().map(|(index, _)| *index).collect(),
             browser: 0,
             browser_method: 0,
-            checked: BTreeSet::new(),
-            search: String::new(),
-            search_id: widget::Id::unique(),
+            checked: flags.basics.iter().filter(|(_, on)| *on).map(|(index, _)| *index).collect(),
             disk_question: flags.disk_question,
             tpm: false,
             steps: Vec::new(),
@@ -194,16 +171,19 @@ impl Application for Welcome {
             }
             Message::Skip => {
                 if self.page == Page::Welcome {
-                    self.profile = ProfileChoice::NotNow;
+                    self.checked.clear();
                     self.browser = BROWSERS.len();
                     self.tpm = false;
                     return self.install();
                 }
             }
             Message::Close => return cosmic::iced::exit(),
-            Message::Profile(choice) => self.profile = choice,
-            Message::Browser(index) => self.browser = index.min(BROWSERS.len()),
-            Message::BrowserMethod(index) => self.browser_method = index.min(BROWSER_METHODS.len() - 1),
+            Message::Browser(index) => {
+                self.browser = index.min(BROWSERS.len());
+                // A browser with fewer ways to install keeps a valid one.
+                self.browser_method = self.browser_method.min(self.methods().len().saturating_sub(1));
+            }
+            Message::BrowserMethod(index) => self.browser_method = index.min(self.methods().len().saturating_sub(1)),
             Message::Toggle(index, on) => {
                 if on {
                     self.checked.insert(index);
@@ -211,7 +191,6 @@ impl Application for Welcome {
                     self.checked.remove(&index);
                 }
             }
-            Message::Search(text) => self.search = text,
             Message::Tpm(on) => self.tpm = on,
             Message::ToggleLog => self.show_log = !self.show_log,
             Message::Run(event) => self.installer_event(event),
@@ -223,9 +202,8 @@ impl Application for Welcome {
         let spacing = theme::spacing();
         let page = match self.page {
             Page::Welcome => self.view_welcome(),
-            Page::Profile => self.view_profile(),
+            Page::Apps => self.view_apps(),
             Page::Browser => self.view_browser(),
-            Page::Catalog => self.view_catalog(),
             Page::Disk => self.view_disk(),
             Page::Review => self.view_review(),
             Page::Installing => self.view_installing(),
@@ -239,7 +217,7 @@ impl Application for Welcome {
             .max_width(CONTENT_WIDTH)
             .push(widget::container(self.view_steps()).padding(gutter))
             .push(widget::container(page).width(Length::Fill).height(Length::Fill));
-        if matches!(self.page, Page::Profile | Page::Catalog) {
+        if self.page == Page::Apps {
             content = content.push(widget::container(legend()).padding(gutter));
         }
         content = content.push(widget::container(self.view_footer()).padding(gutter));
@@ -253,7 +231,10 @@ impl Application for Welcome {
 }
 
 /// Width of the column the badges sit in, so the names after them line up.
-const BADGE_COLUMN: f32 = 132.0;
+const BADGE_COLUMN: f32 = 150.0;
+
+/// Headings inside a page.
+const TEXT_HEADING: f32 = 17.0;
 
 /// Text a little dimmer than the body, for what is secondary.
 fn dim(theme: &cosmic::Theme) -> cosmic::iced::widget::text::Style {
@@ -265,19 +246,11 @@ fn dim_class() -> theme::Text {
     theme::Text::Custom(dim)
 }
 
-/// "Title: the rest" -> ("Title", "the rest").
-fn split_title(text: &str) -> (String, String) {
-    match text.split_once(": ") {
-        Some((title, rest)) => (title.to_string(), rest.to_string()),
-        None => (text.to_string(), String::new()),
-    }
-}
-
 /// The heading of a page.
 fn heading<'a>(title: String, subtitle: String) -> Element<'a, Message> {
     let mut column = widget::column::with_capacity(2).spacing(theme::spacing().space_xxs).push(widget::text::title3(title));
     if !subtitle.is_empty() {
-        column = column.push(widget::text::body(subtitle).class(dim_class()));
+        column = column.push(note(subtitle).class(dim_class()));
     }
     column.into()
 }
@@ -295,8 +268,9 @@ fn fixed<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
 /// A row of a single-choice list: the whole row is the control (click, or
 /// Tab and Enter), with the radio mark showing which one is chosen.
 fn choice<'a>(value: usize, selected: usize, message: fn(usize) -> Message, label: impl Into<Element<'a, Message>>) -> widget::list::ListButton<'a, Message> {
-    let row = widget::row::with_capacity(2).spacing(theme::spacing().space_s).align_y(Alignment::Center).push(radio_mark(value == selected)).push(label);
-    widget::list::button(row).on_press(message(value))
+    let spacing = theme::spacing();
+    let row = widget::row::with_capacity(2).spacing(spacing.space_s).align_y(Alignment::Center).push(radio_mark(value == selected)).push(label);
+    widget::list::button(widget::container(row).padding([spacing.space_xxs, 0])).on_press(message(value))
 }
 
 fn approx(mb: f64) -> String {
@@ -305,36 +279,34 @@ fn approx(mb: f64) -> String {
 
 impl Welcome {
     fn pages(&self) -> Vec<Page> {
-        flow::pages(self.profile == ProfileChoice::ItemByItem, self.disk_question)
+        flow::pages(self.disk_question)
     }
 
-    /// Goes to a page. The catalog opens with the search field focused:
-    /// typing filters right away.
+    /// Goes to a page. It starts with nothing focused, so Enter means "next"
+    /// again (and not the button that had the focus on the page before).
     fn show(&mut self, page: Page) -> Task<Message> {
         self.page = page;
-        if page == Page::Catalog {
-            return widget::text_input::focus(self.search_id.clone());
-        }
-        // A new page starts with nothing focused, so Enter means "next" again
-        // (and not the button that had the focus on the page before).
         cosmic::iced::runtime::task::widget(cosmic::iced::core::widget::operation::focusable::unfocus())
     }
 
-    fn profile_title(index: usize) -> String {
-        split_title(&tr(PROFILE_KEYS[index])).0
+    /// The ways the browser chosen can be installed.
+    fn methods(&self) -> &'static [(&'static str, &'static str)] {
+        BROWSERS.get(self.browser).map(|(id, _)| methods_for(id)).unwrap_or(&[])
+    }
+
+    /// The flag of the install method chosen for the browser.
+    fn method_flag(&self) -> &'static str {
+        self.methods().get(self.browser_method).map(|(flag, _)| *flag).unwrap_or("flatpak")
+    }
+
+    fn picked(&self) -> impl Iterator<Item = &Item> {
+        self.basics.iter().filter(|index| self.checked.contains(index)).filter_map(|index| self.catalog.get(*index))
     }
 
     fn choices(&self) -> Choices {
         Choices {
-            profile: match self.profile {
-                ProfileChoice::Ready(index) => PROFILES.get(index).map(|p| p.to_string()),
-                _ => None,
-            },
-            browser: BROWSERS.get(self.browser).map(|(id, _)| (id.to_string(), BROWSER_METHODS[self.browser_method].0.to_string())),
-            picked: match self.profile {
-                ProfileChoice::ItemByItem => self.checked.iter().filter_map(|i| self.catalog.get(*i)).map(|item| item.action.clone()).collect(),
-                _ => Vec::new(),
-            },
+            browser: BROWSERS.get(self.browser).map(|(id, _)| (id.to_string(), self.method_flag().to_string())),
+            picked: self.picked().map(|item| item.action.clone()).collect(),
             tpm: self.disk_question && self.tpm,
         }
     }
@@ -343,34 +315,19 @@ impl Welcome {
     fn review_rows(&self) -> Vec<Row> {
         let mut rows = Vec::new();
         if let Some((id, name)) = BROWSERS.get(self.browser) {
-            let action = browser_action(id, BROWSER_METHODS[self.browser_method].0);
+            let action = browser_action(id, self.method_flag());
             let size_mb = self.catalog.iter().find(|item| item.id == *id).and_then(Item::size_mb);
             rows.push(Row { name: name.to_string(), method: classify(&action), size_mb });
         }
-        match self.profile {
-            ProfileChoice::Ready(index) => {
-                for entry in self.profiles.get(index).into_iter().flatten() {
-                    rows.push(Row { name: entry.name(tr), method: entry.method, size_mb: entry.size_mb });
-                }
-            }
-            ProfileChoice::ItemByItem => {
-                for item in self.checked.iter().filter_map(|i| self.catalog.get(*i)) {
-                    rows.push(Row { name: short_name(&tr(&item.desc)), method: item.method(), size_mb: item.size_mb() });
-                }
-            }
-            ProfileChoice::NotNow => {}
+        for item in self.picked() {
+            rows.push(Row { name: short_name(&tr(&item.desc)), method: item.method(), size_mb: item.size_mb() });
         }
         review::dedup(rows)
     }
 
     /// Starts the installation (or just finishes, when nothing was chosen).
     fn install(&mut self) -> Task<Message> {
-        let choices = self.choices();
-        let profile_items = match self.profile {
-            ProfileChoice::Ready(index) => self.profiles.get(index).map_or(0, Vec::len),
-            _ => 0,
-        };
-        let steps = plan::steps(&choices, profile_items);
+        let steps = plan::steps(&self.choices());
         self.tracker = Tracker::new(&steps);
         self.running = None;
         self.steps = steps.clone();
@@ -419,7 +376,8 @@ impl Welcome {
                 self.push_log(text);
             }
             Event::Ended(index, ok) => {
-                if !ok && self.steps.get(index).is_some_and(|s| s.weight > 0) {
+                let _ = index;
+                if !ok {
                     self.failed = true;
                 }
             }
@@ -449,23 +407,23 @@ impl Welcome {
         let mut row = widget::row::with_capacity(pages.len() * 2 + 2).spacing(spacing.space_xxs).align_y(Alignment::Center);
         for (index, page) in pages.iter().enumerate() {
             if index > 0 {
-                row = row.push(widget::text::caption("›").class(dim_class()));
+                row = row.push(small("›").class(dim_class()));
             }
             let label = tr(page.label());
             row = row.push(if index == current {
-                widget::text::caption_heading(label).class(theme::Text::Accent)
+                widget::text::heading(label).size(SMALL).class(theme::Text::Accent)
             } else if index < current {
-                widget::text::caption(label)
+                small(label)
             } else {
-                widget::text::caption(label).class(dim_class())
+                small(label).class(dim_class())
             });
         }
         row = row.push(widget::space::horizontal());
-        row = row.push(widget::text::caption(format!("{} {}/{}", tr("Step"), current + 1, pages.len())).class(dim_class()));
+        row = row.push(small(format!("{} {}/{}", tr("Step"), current + 1, pages.len())).class(dim_class()));
         widget::column::with_capacity(2)
             .spacing(spacing.space_xxs)
             .push(row)
-            .push(widget::progress_bar::linear::Linear::new().girth(4.0).progress((current + 1) as f32 / pages.len() as f32).width(Length::Fill))
+            .push(widget::progress_bar::linear::Linear::new().girth(5.0).progress((current + 1) as f32 / pages.len() as f32).width(Length::Fill))
             .into()
     }
 
@@ -506,113 +464,73 @@ impl Welcome {
 
     fn view_welcome(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
-        let mut methods = widget::column::with_capacity(Method::LEGEND.len() + 1).spacing(spacing.space_xs).push(widget::text::heading(tr("Every item says how it is installed")));
+        let mut methods = widget::column::with_capacity(Method::LEGEND.len() + 1).spacing(spacing.space_s).push(widget::text::heading(tr("Every item says how it is installed")).size(TEXT_HEADING));
         for method in Method::LEGEND {
             methods = methods.push(
                 widget::row::with_capacity(2)
                     .spacing(spacing.space_s)
                     .align_y(Alignment::Center)
                     .push(widget::container(badge(method)).width(Length::Fixed(BADGE_COLUMN)))
-                    .push(widget::text::body(tr(method.explanation()))),
+                    .push(text(tr(method.explanation())).width(Length::Fill)),
             );
         }
         let column = widget::column::with_capacity(6)
-            .spacing(spacing.space_s)
-            .push(widget::space::vertical().height(Length::Fixed(f32::from(spacing.space_s))))
+            .spacing(spacing.space_m)
+            .push(widget::space::vertical().height(Length::Fixed(f32::from(spacing.space_xxs))))
             .push(widget::text::title1(tr("Welcome to Tamagi")))
             .push(
                 widget::column::with_capacity(2)
                     .spacing(spacing.space_xxs)
-                    .push(widget::text::body(tr("Atomic, lean system: the host is read-only and updates itself.")))
-                    .push(widget::text::body(tr("Almost nothing comes installed: you choose what you want, now or later."))),
+                    .push(text(tr("Atomic, lean system: the host is read-only and updates itself.")))
+                    .push(text(tr("Almost nothing comes installed: you choose what you want, now or later."))),
             )
-            .push(panel(methods))
-            .push(widget::text::body(tr("Pick a profile and a browser, then review. Nothing is installed before you confirm.")).class(dim_class()));
+            .push(panel(methods).padding(spacing.space_m))
+            .push(note(tr("Tick the basics and pick a browser, then review. Nothing is installed before you confirm.")).class(dim_class()));
         scrolling(column)
     }
 
-    fn view_profile(&self) -> Element<'_, Message> {
+    /// The basics: one large row per app, grouped by category. The whole row
+    /// is the control (click, or Tab and Enter).
+    fn view_apps(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
-        // The explanation sits beside the title: the six cards need the height.
-        let title = widget::row::with_capacity(3)
+        let total: f64 = self.picked().filter_map(Item::size_mb).sum();
+        let count = self.picked().count();
+        let summary = if count == 0 { tr("Nothing selected") } else { format!("{count} {} · {}", tr("selected"), approx(total)) };
+        let title = widget::row::with_capacity(2)
             .spacing(spacing.space_s)
             .align_y(Alignment::End)
-            .push(widget::text::title3(tr("Which profile?")))
-            .push(widget::space::horizontal())
-            .push(widget::text::caption(tr("A profile installs a ready-made set. You can apply others later: tamagi profiles")).class(dim_class()));
-        let mut column = widget::column::with_capacity(7).spacing(spacing.space_xxs).push(title);
-        for index in 0..PROFILES.len() {
-            column = column.push(self.profile_card(index));
-        }
-        let small = |title: String, note: String, choice: ProfileChoice| {
-            let content = widget::column::with_capacity(2).spacing(spacing.space_xxxs).push(widget::text::heading(title)).push(widget::text::caption(note).class(dim_class()));
-            widget::button::custom(content)
-                .class(card_class(self.profile == choice))
-                .selected(self.profile == choice)
-                .padding([spacing.space_xs, spacing.space_s])
-                .width(Length::Fill)
-                .on_press(Message::Profile(choice))
-        };
-        column = column.push(
-            widget::row::with_capacity(2)
-                .spacing(spacing.space_xxs)
-                .push(small(capitalized(&tr("choose item by item from the catalog")), tr("Tick what you want, with sizes and install methods."), ProfileChoice::ItemByItem))
-                .push(small(capitalized(&tr("not now")), tr("Install nothing from a profile."), ProfileChoice::NotNow)),
-        );
-        scrolling(column)
-    }
+            .push(widget::container(heading(tr("Apps to start with"), tr("Tick what you want now. Everything else is one command away: tamagi install"))).width(Length::Fill))
+            .push(widget::text::heading(summary).size(NOTE));
 
-    /// A profile: its name on the left, what it installs on the right, one
-    /// line per install method.
-    fn profile_card(&self, index: usize) -> Element<'_, Message> {
-        let spacing = theme::spacing();
-        let (title, subtitle) = split_title(&tr(PROFILE_KEYS[index]));
-        let entries = self.profiles.get(index).map(Vec::as_slice).unwrap_or(&[]);
-        let choice = ProfileChoice::Ready(index);
-        let selected = self.profile == choice;
-
-        let groups = profile::by_method(entries);
-        let total: f64 = entries.iter().filter_map(|e| e.size_mb).sum();
-        let mut extra = widget::row::with_capacity(2).spacing(spacing.space_xs).align_y(Alignment::Center);
-        if total > 0.0 {
-            extra = extra.push(widget::text::caption(approx(total)).class(dim_class()));
-        }
-        if index == 0 {
-            extra = extra.push(chip(tr("Suggested")));
-        }
-        // Size (and "Suggested") under the name; beside it when the card has
-        // a single line, so it does not grow for that.
-        let left: Element<'_, Message> = if groups.len() > 1 {
-            widget::column::with_capacity(2).spacing(spacing.space_xxs).push(widget::text::heading(title)).push(extra).into()
-        } else {
-            widget::row::with_capacity(2).spacing(spacing.space_xs).align_y(Alignment::Center).push(widget::text::heading(title)).push(extra).into()
-        };
-        let left = widget::container(left).width(Length::Fixed(180.0));
-
-        let right: Element<'_, Message> = if entries.is_empty() {
-            // The profile file could not be read: its one-line description.
-            widget::text::body(subtitle).width(Length::Fill).into()
-        } else {
-            let mut lines = widget::column::with_capacity(4).spacing(spacing.space_xxs).width(Length::Fill);
-            for (method, group) in groups {
-                let names: Vec<String> = group.iter().map(|e| e.name(tr)).collect();
-                lines = lines.push(
-                    widget::row::with_capacity(2)
-                        .spacing(spacing.space_xs)
-                        .push(widget::container(badge(method)).width(Length::Fixed(BADGE_COLUMN)))
-                        .push(widget::text::body(names.join(", ")).width(Length::Fill)),
-                );
+        let mut sections = widget::column::with_capacity(6).spacing(spacing.space_m);
+        for category in catalog::categories(&self.catalog, &self.basics) {
+            let mut section = widget::settings::section().title(tr(category));
+            for &index in &self.basics {
+                let Some(item) = self.catalog.get(index).filter(|item| item.category == category) else {
+                    continue;
+                };
+                let desc = tr(&item.desc);
+                let checked = self.checked.contains(&index);
+                let mut name = widget::column::with_capacity(2).spacing(spacing.space_xxxs).width(Length::Fill).push(text(short_name(&desc)));
+                if let Some(tagline) = tagline(&desc) {
+                    name = name.push(note(capitalized(&tagline)).class(dim_class()));
+                }
+                let row = widget::row::with_capacity(4)
+                    .spacing(spacing.space_m)
+                    .align_y(Alignment::Center)
+                    .push(widget::checkbox(checked).size(22).on_toggle(move |on| Message::Toggle(index, on)))
+                    .push(name)
+                    .push(badge(item.method()))
+                    .push(small(pretty_size(&item.size)).class(dim_class()).width(Length::Fixed(72.0)).align_x(Alignment::End));
+                section = section.add(widget::list::button(widget::container(row).padding([spacing.space_xs, 0])).on_press(Message::Toggle(index, !checked)));
             }
-            lines.into()
-        };
+            sections = sections.push(section);
+        }
+        if self.basics.is_empty() {
+            sections = sections.push(panel(text(tr("Nothing to offer here. Later: tamagi install")).class(dim_class())));
+        }
 
-        widget::button::custom(widget::row::with_capacity(2).spacing(spacing.space_s).push(left).push(right))
-            .class(card_class(selected))
-            .selected(selected)
-            .padding([spacing.space_xs, spacing.space_s])
-            .width(Length::Fill)
-            .on_press(Message::Profile(choice))
-            .into()
+        widget::column::with_capacity(2).spacing(spacing.space_s).push(fixed(title)).push(scrolling(sections)).into()
     }
 
     /// The browser on the left, how to install it on the right.
@@ -622,28 +540,30 @@ impl Welcome {
         let mut browsers = widget::settings::section().title(tr("Which browser?"));
         for (index, (id, name)) in BROWSERS.iter().enumerate() {
             let size = self.catalog.iter().find(|item| item.id == *id).map(|item| format!("≈ {}", pretty_size(&item.size))).unwrap_or_default();
-            let label = widget::row::with_capacity(3)
-                .align_y(Alignment::Center)
-                .push(widget::text::body(*name).width(Length::Fill))
-                .push(widget::text::caption(size).class(dim_class()));
+            let label = widget::row::with_capacity(2).align_y(Alignment::Center).push(text(*name).width(Length::Fill)).push(small(size).class(dim_class()));
             browsers = browsers.add(choice(index, self.browser, Message::Browser, label));
         }
-        browsers = browsers.add(choice(none, self.browser, Message::Browser, widget::text::body(capitalized(&tr("not now"))).width(Length::Fill)));
+        browsers = browsers.add(choice(none, self.browser, Message::Browser, text(capitalized(&tr("not now"))).width(Length::Fill)));
 
         let right: Element<'_, Message> = if self.browser == none {
-            panel(widget::text::body(tr("No browser now. Later: tamagi install")).class(dim_class())).into()
+            panel(text(tr("No browser now. Later: tamagi install")).class(dim_class())).into()
         } else {
-            let mut methods = widget::settings::section().title(tr("Install how?"));
-            for (index, (flag, key)) in BROWSER_METHODS.iter().enumerate() {
+            let methods = self.methods();
+            let mut section = widget::settings::section().title(tr("Install how?"));
+            for (index, (flag, key)) in methods.iter().enumerate() {
                 let method = classify(&browser_action("x", flag));
-                let text = tr(key);
+                let explained = tr(key);
                 let label = widget::column::with_capacity(2)
                     .spacing(spacing.space_xxs)
                     .push(badge(method))
-                    .push(widget::text::body(capitalized(&tagline(&text).unwrap_or(text))).width(Length::Fill));
-                methods = methods.add(choice(index, self.browser_method, Message::BrowserMethod, label.width(Length::Fill)));
+                    .push(note(capitalized(&tagline(&explained).unwrap_or(explained))).width(Length::Fill));
+                section = section.add(choice(index, self.browser_method, Message::BrowserMethod, label.width(Length::Fill)));
             }
-            methods.into()
+            let mut column = widget::column::with_capacity(2).spacing(spacing.space_xs).push(section);
+            if methods.len() == 1 {
+                column = column.push(note(tr("This browser exists for Linux only as a Flatpak.")).class(dim_class()));
+            }
+            column.into()
         };
 
         let columns = widget::row::with_capacity(2)
@@ -658,67 +578,6 @@ impl Welcome {
         )
     }
 
-    fn view_catalog(&self) -> Element<'_, Message> {
-        let spacing = theme::spacing();
-        let picked: Vec<&Item> = self.checked.iter().filter_map(|i| self.catalog.get(*i)).collect();
-        let total: f64 = picked.iter().filter_map(|item| item.size_mb()).sum();
-        let summary = if picked.is_empty() { tr("Nothing selected") } else { format!("{} {} · {}", picked.len(), tr("selected"), approx(total)) };
-        let search = widget::row::with_capacity(2)
-            .spacing(spacing.space_s)
-            .align_y(Alignment::Center)
-            .push(widget::search_input(tr("Search the catalog"), self.search.as_str()).id(self.search_id.clone()).on_input(Message::Search).on_clear(Message::Search(String::new())).width(Length::Fill))
-            .push(widget::text::caption_heading(summary));
-
-        let mut sections = widget::column::with_capacity(10).spacing(spacing.space_m);
-        let mut shown = 0;
-        for category in catalog::categories(&self.catalog) {
-            let category_name = tr(category);
-            let mut section = widget::settings::section().title(category_name.clone());
-            let mut rows = 0;
-            for (index, item) in self.catalog.iter().enumerate().filter(|(_, item)| item.category == category) {
-                let desc = tr(&item.desc);
-                let method = item.method();
-                let method_name = tr(method.label());
-                if !catalog::matches(&self.search, &[&desc, &category_name, &method_name, &item.id]) {
-                    continue;
-                }
-                // What comes after the name; the badge already says "asks for
-                // the password", so that note is dropped from the text.
-                let note = tagline(&desc).map(|t| capitalized(if method.asks_password() { catalog::without_trailing_note(&t) } else { &t })).unwrap_or_default();
-                let checked = self.checked.contains(&index);
-                let row = widget::row::with_capacity(5)
-                    .spacing(spacing.space_s)
-                    .align_y(Alignment::Center)
-                    .push(widget::checkbox(checked).on_toggle(move |on| Message::Toggle(index, on)))
-                    .push(widget::text::body(short_name(&desc)).width(Length::Fixed(270.0)))
-                    .push(widget::text::caption(note).class(dim_class()).width(Length::Fill))
-                    .push(widget::container(badge(method)).width(Length::Fixed(BADGE_COLUMN)).align_x(Alignment::End))
-                    .push(widget::text::caption(pretty_size(&item.size)).width(Length::Fixed(60.0)).align_x(Alignment::End));
-                // The whole row is the control: click or Tab + Enter.
-                section = section.add(widget::list::button(row).on_press(Message::Toggle(index, !checked)));
-                rows += 1;
-            }
-            if rows > 0 {
-                sections = sections.push(section);
-                shown += rows;
-            }
-        }
-        if shown == 0 {
-            sections = sections.push(widget::text::body(tr("Nothing in the catalog matches the search.")).class(dim_class()));
-        }
-
-        widget::column::with_capacity(3)
-            .spacing(spacing.space_s)
-            .push(fixed(
-                widget::column::with_capacity(2)
-                    .spacing(spacing.space_xs)
-                    .push(heading(tr("What to install"), tr("Everything here is optional and stays available later in: tamagi install")))
-                    .push(search),
-            ))
-            .push(scrolling(sections))
-            .into()
-    }
-
     fn view_disk(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
         let question = widget::settings::section().add(
@@ -726,12 +585,12 @@ impl Welcome {
                 .icon(widget::icon::from_name(LOCK_ICON).size(24).icon())
                 .toggler(self.tpm, Message::Tpm),
         );
-        let note = if self.tpm { tr("The password is asked for when this is set up.") } else { tr("Later: tamagi setup tpm-unlock on") };
+        let hint = if self.tpm { tr("The password is asked for when this is set up.") } else { tr("Later: tamagi setup tpm-unlock on") };
         let column = widget::column::with_capacity(3)
             .spacing(spacing.space_m)
             .push(heading(tr("Encrypted disk"), String::new()))
             .push(question)
-            .push(widget::text::body(note).class(dim_class()));
+            .push(text(hint).class(dim_class()));
         scrolling(column)
     }
 
@@ -741,18 +600,14 @@ impl Welcome {
         let spacing = theme::spacing();
         let rows = self.review_rows();
         let tpm = self.disk_question && self.tpm;
-        let subtitle = match self.profile {
-            ProfileChoice::Ready(index) => format!("{}: {}", tr("Profile"), Self::profile_title(index)),
-            _ => String::new(),
-        };
-        let title = fixed(heading(tr("Review"), subtitle));
+        let title = fixed(heading(tr("Review"), String::new()));
 
         if rows.is_empty() && !tpm {
             let nothing = panel(
                 widget::column::with_capacity(2)
                     .spacing(spacing.space_xxs)
-                    .push(widget::text::heading(tr("Nothing selected: nothing will be installed.")))
-                    .push(widget::text::body(tr("Everything here is optional and stays available later in: tamagi install")).class(dim_class())),
+                    .push(widget::text::heading(tr("Nothing selected: nothing will be installed.")).size(TEXT_HEADING))
+                    .push(note(tr("Everything here is optional and stays available later in: tamagi install")).class(dim_class())),
             );
             return widget::column::with_capacity(2).spacing(spacing.space_s).push(title).push(fixed(nothing)).into();
         }
@@ -763,15 +618,15 @@ impl Welcome {
                 .spacing(spacing.space_xs)
                 .align_y(Alignment::Center)
                 .push(badge(method))
-                .push(widget::text::body(tr(method.explanation())).class(dim_class()));
+                .push(note(tr(method.explanation())).class(dim_class()));
             let mut section = widget::settings::section().header(header);
             for row in group {
                 let size = row.size_mb.map(format_size).unwrap_or_default();
                 section = section.add(
                     widget::row::with_capacity(2)
                         .align_y(Alignment::Center)
-                        .push(widget::text::body(row.name.clone()).width(Length::Fill))
-                        .push(widget::text::caption(size).class(dim_class())),
+                        .push(text(row.name.clone()).width(Length::Fill))
+                        .push(small(size).class(dim_class())),
                 );
             }
             groups = groups.push(section);
@@ -782,7 +637,7 @@ impl Welcome {
                     widget::row::with_capacity(2)
                         .spacing(spacing.space_xs)
                         .align_y(Alignment::Center)
-                        .push(widget::text::body(tr("Unlock the disk with the TPM chip at boot")).width(Length::Fill))
+                        .push(text(tr("Unlock the disk with the TPM chip at boot")).width(Length::Fill))
                         .push(widget::icon::from_name(LOCK_ICON).size(16).icon()),
                 ),
             );
@@ -793,12 +648,12 @@ impl Welcome {
             names.push(tr("Encrypted disk"));
         }
         let password: Element<'_, Message> = if names.is_empty() {
-            widget::text::body(tr("Nothing here asks for the password.")).class(dim_class()).into()
+            note(tr("Nothing here asks for the password.")).class(dim_class()).into()
         } else {
             widget::row::with_capacity(2)
                 .spacing(spacing.space_xs)
                 .push(widget::icon::from_name(LOCK_ICON).size(16).icon())
-                .push(widget::text::body(format!("{}: {}", tr("Asks for the password"), names.join(", "))).width(Length::Fill))
+                .push(note(format!("{}: {}", tr("Asks for the password"), names.join(", "))).width(Length::Fill))
                 .into()
         };
         let summary = widget::column::with_capacity(2)
@@ -806,9 +661,9 @@ impl Welcome {
             .push(
                 widget::row::with_capacity(3)
                     .align_y(Alignment::Center)
-                    .push(widget::text::heading(tr("Approximate download")))
+                    .push(widget::text::heading(tr("Approximate download")).size(TEXT_HEADING))
                     .push(widget::space::horizontal())
-                    .push(widget::text::heading(approx(review::total_mb(&rows)))),
+                    .push(widget::text::heading(approx(review::total_mb(&rows))).size(TEXT_HEADING)),
             )
             .push(password);
 
@@ -822,26 +677,21 @@ impl Welcome {
             .spacing(spacing.space_s)
             .align_y(Alignment::Center)
             .push(widget::progress_bar::linear::Linear::new().girth(8.0).progress(fraction).width(Length::Fill))
-            .push(widget::text::body(format!("{:.0}%", fraction * 100.0)).width(Length::Fixed(44.0)).align_x(Alignment::End));
+            .push(text(format!("{:.0}%", fraction * 100.0)).width(Length::Fixed(52.0)).align_x(Alignment::End));
 
         // The commands of the plan: done, running (with its current stage), to come.
         let mut list = widget::settings::section();
-        for (index, step) in self.steps.iter().enumerate().filter(|(_, step)| step.weight > 0) {
+        for (index, step) in self.steps.iter().enumerate() {
             let state: Element<'_, Message> = match self.running {
                 Some(current) if current == index => widget::progress_bar::circular::Circular::new().size(16.0).into(),
                 Some(current) if current > index => widget::icon::from_name("object-select-symbolic").size(16).icon().into(),
                 _ => widget::space::horizontal().width(Length::Fixed(16.0)).into(),
             };
-            // The profile step says which profile.
-            let title = match (step.stages, self.profile) {
-                (plan::Stages::Counted, ProfileChoice::Ready(profile)) => format!("{}: {}", tr(step.title), Self::profile_title(profile)),
-                _ => tr(step.title),
-            };
-            let mut text = widget::column::with_capacity(2).spacing(spacing.space_xxxs).width(Length::Fill).push(widget::text::body(title));
+            let mut label = widget::column::with_capacity(2).spacing(spacing.space_xxxs).width(Length::Fill).push(text(tr(step.title)));
             if self.running == Some(index) && !self.stage.is_empty() {
-                text = text.push(widget::text::caption(self.stage.clone()).class(dim_class()));
+                label = label.push(note(self.stage.clone()).class(dim_class()));
             }
-            list = list.add(widget::row::with_capacity(2).spacing(spacing.space_s).align_y(Alignment::Center).push(widget::container(state).width(Length::Fixed(16.0))).push(text));
+            list = list.add(widget::row::with_capacity(2).spacing(spacing.space_s).align_y(Alignment::Center).push(widget::container(state).width(Length::Fixed(16.0))).push(label));
         }
 
         let details = if self.show_log { tr("Hide details") } else { tr("Show details") };
@@ -859,7 +709,7 @@ impl Welcome {
 
     /// The output of the installers, newest line at the bottom.
     fn view_log(&self) -> Element<'_, Message> {
-        let text = widget::text::monotext(self.log.join("\n")).size(12).width(Length::Fill);
+        let text = widget::text::monotext(self.log.join("\n")).size(SMALL).width(Length::Fill);
         panel(widget::scrollable(text).anchor_bottom().width(Length::Fill).height(Length::Fill)).height(Length::Fill).into()
     }
 
@@ -877,26 +727,27 @@ impl Welcome {
         if problems {
             let mut lines = widget::column::with_capacity(self.failures.len() + 1).spacing(spacing.space_xxs);
             for failure in &self.failures {
-                lines = lines.push(widget::text::body(failure.clone()));
+                lines = lines.push(text(failure.clone()));
             }
-            lines = lines.push(widget::text::body(format!("{}: tamagi install", tr("Try again with"))).class(dim_class()));
+            lines = lines.push(note(format!("{}: tamagi install", tr("Try again with"))).class(dim_class()));
             column = column.push(panel(lines));
         }
         let mut tips = widget::settings::section().title(tr("Good to know"));
         for tip in [
             "Super+Space opens the menu · Super+A the command palette · Super+K the shortcuts.",
             "Themes and wallpapers: COSMIC Settings (Appearance and Wallpaper).",
-            "AI agents jailed in the project: tamagi agents run claude (inside the project folder).",
+            "More apps, by name: tamagi install (what the catalog does not list comes from Flathub).",
+            "Ready-made sets (AI, development, games, office): tamagi profiles",
             "Every command of the system: tamagi",
         ] {
-            tips = tips.add(widget::text::body(tr(tip)).width(Length::Fill));
+            tips = tips.add(text(tr(tip)).width(Length::Fill));
         }
         column = column.push(tips);
         if self.installed && !self.log.is_empty() {
             let details = if self.show_log { tr("Hide details") } else { tr("Show details") };
             column = column.push(widget::row::with_capacity(2).push(widget::space::horizontal()).push(widget::button::text(details).on_press(Message::ToggleLog)));
             if self.show_log {
-                column = column.push(panel(widget::text::monotext(self.log.join("\n")).size(12).width(Length::Fill)));
+                column = column.push(panel(widget::text::monotext(self.log.join("\n")).size(SMALL).width(Length::Fill)));
             }
         }
         scrolling(column)

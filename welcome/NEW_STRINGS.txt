@@ -1,9 +1,9 @@
 Approximate download
-asks for the password
+Apps to start with
 Asks for the password
-Browser and items you chose
+asks for the password
+Browser and apps you chose
 Cancel
-Catalog
 Close
 Command
 Container
@@ -17,37 +17,36 @@ Flatpak
 Good to know
 Hide details
 home folder
-inside a distrobox
-Installing native items changes the system: type your password to continue.
-Install nothing from a profile.
 in your home folder
 In your user
+inside a distrobox
+Installing native items changes the system: type your password to continue.
 its own Podman container
+More apps, by name: tamagi install (what the catalog does not list comes from Flathub).
 Native
 Next
 No browser now. Later: tamagi install
 Nothing here asks for the password.
-Nothing in the catalog matches the search.
 Nothing selected
 Nothing selected: nothing will be installed.
+Nothing to offer here. Later: tamagi install
 Password
 Password needed
-Pick a profile and a browser, then review. Nothing is installed before you confirm.
 Podman
+Ready-made sets (AI, development, games, office): tamagi profiles
 Review
 runs a setup command
 sandboxed app from Flathub
-Search the catalog
 selected
 setup command
 Show details
 Skip for now
 Start
 Step
-Suggested
 system layer, asks for the password
 The password is asked for when this is set up.
-Tick what you want, with sizes and install methods.
+This browser exists for Linux only as a Flatpak.
+Tick the basics and pick a browser, then review. Nothing is installed before you confirm.
+Tick what you want now. Everything else is one command away: tamagi install
 Unlock the disk with the TPM chip at boot
-Waiting for the shared Flatpak runtime
 Welcome

@@ -2,7 +2,7 @@
 # home-snapshots — snapshots automáticos da pasta pessoal (roda como root).
 #
 # A ideia vem do HAMMER2 do DragonFly BSD: o sistema de arquivos guarda o
-# histórico sozinho. O Tamagi já volta o *sistema* (bootc + greenboot); isto
+# histórico sozinho. O Tamagi já volta o *sistema* (bootc + boot-check); isto
 # faz o mesmo pelos *seus arquivos*: o snapper tira um snapshot btrfs da
 # pasta pessoal a cada hora e guarda 24 por hora, 7 diários e 4 semanais.
 # `tamagi-snap restore <arquivo>` traz um arquivo de volta.

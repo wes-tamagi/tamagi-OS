@@ -14,6 +14,9 @@
 #   the GPU stack: Vulkan, VA-API and OpenCL drivers and tools (NVIDIA comes
 #   from the host through `distrobox --nvidia`)
 #   bubblewrap (the jail of `tamagi agents run`)
+#   the terminal tools that used to ship in the image and now live here:
+#   neovim, lazygit, gh, uv, glow, hyperfine, direnv, yq, ShellCheck
+#   (tamagi-devbox exports them to the host: see DEV_TOOLS there)
 #   mise (other languages and versions, per box) and the bridge to the
 #   browser of the host (links and logins open on the desktop)
 set -euo pipefail
@@ -36,6 +39,8 @@ provision_fedora() {
             rust cargo clippy rustfmt rust-analyzer nodejs npm \
             python3 python3-pip python3-devel python3-virtualenv
         try "${dnf[@]}" postgresql mariadb valkey
+        try "${dnf[@]}" neovim gh uv hyperfine direnv yq ShellCheck
+        try "${dnf[@]}" lazygit glow
         # The GPUs of the machine, usable from the box: Vulkan, video (VA-API), OpenCL.
         try "${dnf[@]}" mesa-vulkan-drivers vulkan-loader vulkan-tools mesa-va-drivers libva-utils mesa-libOpenCL clinfo
     fi
@@ -58,6 +63,9 @@ provision_ubuntu() {
             sqlite3 libsqlite3-dev libssl-dev zlib1g-dev libffi-dev libpq-dev \
             rustc cargo nodejs npm python3 python3-pip python3-dev python3-venv
         try "${apt[@]}" postgresql-client mariadb-client redis-tools
+        try "${apt[@]}" neovim gh hyperfine direnv shellcheck
+        try "${apt[@]}" lazygit
+        try "${apt[@]}" yq
         try "${apt[@]}" mesa-vulkan-drivers vulkan-tools mesa-va-drivers vainfo mesa-opencl-icd clinfo
     fi
     local extra=()
@@ -78,6 +86,8 @@ provision_opensuse() {
             sqlite3 sqlite3-devel libopenssl-devel zlib-devel libffi-devel \
             rust cargo nodejs-default npm-default python3-devel python3-pip
         try "${zy[@]}" postgresql mariadb-client valkey
+        try "${zy[@]}" neovim gh uv hyperfine direnv yq ShellCheck
+        try "${zy[@]}" lazygit glow
         try "${zy[@]}" libvulkan_radeon libvulkan_intel vulkan-tools libva-utils Mesa-libOpenCL clinfo
     fi
     local extra=()
@@ -95,6 +105,7 @@ provision_arch() {
         pacman -Syu --noconfirm --needed base-devel cmake ninja pkgconf git curl wget unzip jq ripgrep fd htop tmux \
             xdg-utils bubblewrap perl sqlite openssl rust nodejs npm python python-pip
         try "${pm[@]}" postgresql-libs postgresql mariadb-clients valkey
+        try "${pm[@]}" neovim github-cli uv hyperfine direnv go-yq shellcheck lazygit glow
         try "${pm[@]}" vulkan-radeon vulkan-intel vulkan-tools libva-utils libva-mesa-driver opencl-mesa clinfo
     fi
     local extra=()

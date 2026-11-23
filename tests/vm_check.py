@@ -140,8 +140,24 @@ def main():
     check("arquivo de respostas do instalador foi apagado", out.endswith("apagado"), out)
     out, _ = run("findmnt -rno FSTYPE,OPTIONS /sysroot")
     check("raiz btrfs com compressão zstd", out.startswith("btrfs") and "compress=zstd" in out, out)
-    out, _ = run("findmnt -rno FSTYPE /boot")
-    check("/boot separado (ext4)", out == "ext4", out)
+    check("raiz no subvolume root", "subvol=/root" in out, out)
+    out, _ = run("findmnt -rno FSTYPE,OPTIONS /var/home")
+    check("/var/home é o subvolume home, com compressão zstd", out.startswith("btrfs") and "subvol=/home" in out and "compress=zstd" in out, out)
+    out, _ = run("stat -c %i \"$HOME\"; ls -Zd /var/home | cut -d' ' -f1")
+    check("a pasta do usuário nasceu como subvolume btrfs (snapshots)", out.split()[0] == "256", out)
+    check("rótulo SELinux de /var/home", "home_root_t" in out, out)
+    out, _ = sudo("sh -c 'snapper list-configs 2>&1 | tail -n +3 | tr -s \" \" | tr \"\\n\" \";\"'")
+    check("snapper: snapshots da pasta pessoal ligados no primeiro boot", "/var/home/" in out, out)
+    out, _ = sudo("sh -c 'ls /efi/loader/entries >/dev/null 2>&1; findmnt -rno FSTYPE,SIZE /efi; lsblk -rno PARTLABEL,FSTYPE | grep -c ext4; bootctl is-installed 2>&1; bootctl status 2>/dev/null | grep -m1 -i \"Product:\"'")
+    check("partição EFI de 8 GiB em /efi, sem partição /boot, com systemd-boot", "vfat 8G" in out and "\n0\n" in out + "\n" and "yes" in out and "systemd-boot" in out, out)
+    out, _ = run("tr ' ' '\\n' < /proc/cmdline | grep -c '^composefs.digest='")
+    check("sistema iniciado pelo backend composefs do bootc", out.strip().endswith("1"), out[-200:])
+    out, _ = sudo("sh -c 'cat /var/lib/tamagi/combustion-done 2>&1; test -e /etc/tamagi/first-boot && echo marca-ficou || echo marca-apagada'")
+    check("provisionamento do primeiro boot rodou uma vez e apagou a marca", "marca-apagada" in out and "No such file" not in out, out)
+    teste, _ = sudo("sh -c 'cat /etc/tamagi-combustion-teste 2>/dev/null | tr \"\\n\" \" \"'")
+    if "ok (" in out or teste:
+        check("combustion/script do disco de rótulo combustion rodou como root, com os arquivos ao lado",
+              "uid=0" in teste and "dado=arquivo ao lado do script" in teste and "usr=somente-leitura" in teste, teste + " | " + out)
     out, _ = run("lsblk -rno TYPE,FSTYPE | sort -u | tr '\\n' ' '")
     if args.luks or args.tpm:
         check("disco criptografado (LUKS)", "crypt btrfs" in out and "crypto_LUKS" in out, out)
@@ -165,9 +181,9 @@ def main():
     for karg in ("init_on_alloc=1", "slab_nomerge", "vsyscall=none"):
         check(f"argumento do kernel {karg}", karg in cmdline.split(), cmdline)
     # O instalador acrescenta opções depois da compressão (",noatime"): vale o começo.
-    check("argumento do kernel rootflags=compress=zstd:1",
-          any(a.startswith("rootflags=compress=zstd:1") for a in cmdline.split()), cmdline)
-    out, _ = sudo("bootc status --format json 2>/dev/null | python3 -c 'import json,sys; s=json.load(sys.stdin)[\"status\"]; print(s[\"booted\"][\"image\"][\"image\"][\"image\"], s[\"type\"])'")
+    check("argumento do kernel rootflags com subvol=root e compress=zstd:1",
+          any(a.startswith("rootflags=") and "subvol=root" in a and "compress=zstd:1" in a for a in cmdline.split()), cmdline)
+    out, _ = sudo("bootc status --format json 2>/dev/null | python3 -c 'import json,sys; s=json.load(sys.stdin)[\"status\"]; print(s[\"booted\"][\"image\"][\"image\"][\"image\"], \"bootcHost\" if s[\"booted\"][\"composefs\"] else s[\"type\"])'")
     check("bootc reconhece o sistema (bootcHost)", "bootcHost" in out, out)
     # O console serial mistura mensagens do kernel na saída: procura a referência.
     ref = re.search(r"^(\S+/\S+) bootcHost", out, re.M)
@@ -221,7 +237,7 @@ def main():
     sudo("-v")
     out, rc = run("tamagi-layer remove teste 2>&1 | tail -1; command -v cowsay | wc -l; tamagi-layer list | grep -c '^teste '")
     check("camada nativa: tamagi-layer remove desfaz", out.split()[-2:] == ["0", "0"], out[-300:])
-    out, _ = run("systemctl is-enabled rpm-ostreed-automatic.timer flatpak-system-update.timer; systemctl --user is-enabled tamagi-autoupdate.timer flatpak-user-update.timer")
+    out, _ = run("systemctl is-enabled tamagi-system-update.timer flatpak-system-update.timer; systemctl --user is-enabled tamagi-autoupdate.timer flatpak-user-update.timer")
     check("atualização automática: os quatro timers ligados", out.split() == ["enabled"] * 4, out)
     out, _ = run("systemctl --user list-timers --all --no-legend 2>/dev/null | grep -c tamagi-autoupdate")
     check("timer de atualização do usuário agendado", out == "1", out)

@@ -25,6 +25,9 @@ tesseract-langpack-por
 tesseract-langpack-spa
 tesseract-langpack-fra
 nm-connection-editor
+# Discos (GNOME Disks): particionar, formatar, LUKS, SMART, imagens de disco e
+# teste de velocidade. O COSMIC ainda não tem equivalente tão completo. 8 MB.
+gnome-disk-utility
 librsvg2-tools
 desktop-file-utils
 
@@ -53,8 +56,6 @@ eza
 zoxide
 du-dust
 git-delta
-hyperfine
-uv
 
 # ── Terminal e desenvolvimento (estilo Omarchy) ──
 # foot: terminal padrão (Super+Enter e apps de terminal): leve e rápido para
@@ -64,18 +65,14 @@ foot
 # os contêineres do podman: abre uma aba direto dentro deles pelo menu.
 ptyxis
 git
-gh
-neovim
 btop
 fastfetch
 gum
-glow
-lazygit
-direnv
+# Fora da imagem, na caixa de desenvolvimento (`tamagi devbox`), que as exporta
+# para o sistema ao ser criada: neovim, lazygit, gh, uv, glow, hyperfine,
+# direnv, yq e ShellCheck (ver /usr/libexec/tamagi/devbox-provision).
 # Dev Containers com compose (o VS Code é opcional: tamagi install vscode).
 podman-compose
-yq
-ShellCheck
 
 # ── Desempenho ──
 # Jogos (Steam, steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine)
@@ -86,12 +83,11 @@ scx_rusty
 
 # ── Camadas sobre a imagem (tamagi-layer: systemd-sysext em erofs) ──
 erofs-utils
+# Carregador de boot: systemd-boot, como no openSUSE Aeon (o bootc o instala
+# com o backend composefs; o kernel fica na partição EFI e não há /boot).
+systemd-boot-unsigned
 
 # ── Boot que se conserta: verificação de saúde e rollback automático ──
-# Só o greenboot; as verificações são as do Tamagi (/usr/lib/greenboot/check).
-# O pacote greenboot-default-health-checks fica de fora de propósito: ele
-# exige rede, e um boot sem internet não pode provocar rollback.
-greenboot
 # Histórico da pasta pessoal (snapshots btrfs a cada hora): tamagi-snap.
 snapper
 # Manutenção do btrfs como no openSUSE MicroOS/Aeon: scrub mensal (acha
@@ -126,7 +122,7 @@ gvfs-goa
 ifuse
 android-tools
 fuse-sshfs
-rclone
+# rclone (115 MB) saiu da imagem: é opcional, `tamagi install rclone`.
 # Diagnóstico
 iperf3
 nmap-ncat

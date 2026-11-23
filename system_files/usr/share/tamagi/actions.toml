@@ -616,10 +616,10 @@ agent = false
 command = "tamagi-antigravity"
 keywords = "antigravity agy google ide agente ia gemini editor vscode"
 [action.title]
-pt = "Antigravity (IDE do Google)"
-en = "Antigravity (Google's IDE)"
-es = "Antigravity (IDE de Google)"
-fr = "Antigravity (IDE de Google)"
+pt = "Antigravity IDE (app do Google)"
+en = "Antigravity IDE (Google's desktop app)"
+es = "Antigravity IDE (app de Google)"
+fr = "Antigravity IDE (application de Google)"
 [action.subtitle]
 pt = "Na caixa de navegadores, ao lado do Chrome que o agente usa (~700 MB)"
 en = "In the browser box, next to the Chrome its agent uses (~700 MB)"
@@ -949,7 +949,7 @@ risk = "read"
 terminal = true
 confirm = false
 agent = true
-command = "bootc status 2>/dev/null || rpm-ostree status"
+command = "sudo bootc status"
 keywords = "bootc ostree image imagem status version versao"
 [action.title]
 pt = "Estado da imagem atômica"
@@ -1015,10 +1015,10 @@ agent = true
 command = "tamagi-boot-report status"
 keywords = "greenboot boot health saude report relatorio falha"
 [action.title]
-pt = "Saúde do boot (greenboot)"
-en = "Boot health (greenboot)"
-es = "Salud del arranque (greenboot)"
-fr = "Santé du démarrage (greenboot)"
+pt = "Saúde do boot"
+en = "Boot health"
+es = "Salud del arranque"
+fr = "Santé du démarrage"
 [action.subtitle]
 pt = "Verifica checagens de boot, quarentena e relatórios"
 en = "Checks boot health, quarantine, and failure reports"

@@ -1,8 +1,0 @@
-[Unit]
-Description=Tamagi: cancela atualização que não iniciaria com o Secure Boot
-Documentation=file:///usr/share/doc/tamagi/README.md
-
-[Service]
-Type=oneshot
-ExecStart=/usr/libexec/tamagi/secureboot-guard
-SuccessExitStatus=3

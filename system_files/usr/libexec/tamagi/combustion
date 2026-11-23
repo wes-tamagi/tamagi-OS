@@ -1,0 +1,91 @@
+#!/usr/bin/bash
+# tamagi-combustion — provisionamento no primeiro boot, no formato do
+# Combustion do openSUSE (https://github.com/openSUSE/combustion), que é o que
+# o Aeon usa junto com o tik.
+#
+# Um pendrive (ou disco de VM) com um sistema de arquivos de rótulo
+# "combustion" (ou "ignition", como no Aeon) e, dentro dele:
+#
+#   combustion/script        um script; roda como root, uma única vez
+#   combustion/<o que for>   arquivos que o script usa (ficam ao lado dele)
+#
+# No primeiro boot do sistema instalado, antes da tela de login, o script é
+# copiado para o disco e executado com a pasta dele como pasta atual. Serve
+# para deixar uma máquina pronta sem tocar nela: usuários, chaves SSH, Wi-Fi,
+# nome do computador, `tamagi install …`.
+#
+# Diferenças para o Combustion original (lá ele roda no initrd, dentro de um
+# snapshot do transactional-update):
+#   - aqui o sistema já está de pé: /usr é somente-leitura (imagem bootc), e o
+#     script escreve em /etc e /var, como qualquer administrador;
+#   - `# combustion: network` no script espera a rede (até 60 s) antes de rodar;
+#     `# combustion: prepare` não existe aqui e é ignorado;
+#   - ignition/config.ign (o Ignition do CoreOS) NÃO é interpretado: é só
+#     avisado no registro. O que ele faria cabe no script.
+#
+# Só no primeiro boot de uma instalação nova: o instalador deixa a marca
+# /etc/tamagi/first-boot no sistema novo, e este serviço só existe para ela.
+# Passado esse boot, com ou sem pendrive, a marca é apagada e fica o resultado
+# em /var/lib/tamagi/combustion-done: um pendrive esquecido ou plugado depois
+# não roda nada, e máquinas já instaladas não passam a rodar isto ao atualizar.
+# Registro: /var/log/tamagi-combustion.log e `journalctl -u tamagi-combustion`.
+set -uo pipefail
+
+MARK=/etc/tamagi/first-boot
+STAMP=/var/lib/tamagi/combustion-done
+LOG=/var/log/tamagi-combustion.log
+MNT=/run/tamagi-combustion
+WORK=/var/lib/tamagi/combustion
+
+log() { echo "$*"; echo "$(date -Is) $*" >> "$LOG"; }
+finish() {
+    mkdir -p "$(dirname "$STAMP")"; echo "$1" > "$STAMP"
+    rm -f "$MARK"; rmdir --ignore-fail-on-non-empty "$(dirname "$MARK")" 2>/dev/null
+    exit "${2:-0}"
+}
+
+[[ -e $MARK && ! -e $STAMP ]] || exit 0
+mkdir -p "$(dirname "$LOG")"
+
+# O pendrive pode demorar um instante para aparecer.
+udevadm settle --timeout=10 2>/dev/null || true
+dev=""
+for label in combustion COMBUSTION ignition IGNITION; do
+    dev=$(blkid -L "$label" 2>/dev/null) && [[ -n $dev ]] && break
+    dev=""
+done
+[[ -n $dev ]] || finish "sem mídia de provisionamento"
+
+mkdir -p "$MNT"
+if ! mount -o ro,nosuid,nodev "$dev" "$MNT" 2>>"$LOG"; then
+    log "combustion: não consegui montar $dev"
+    finish "falha ao montar $dev" 0
+fi
+trap 'umount "$MNT" 2>/dev/null; rmdir "$MNT" 2>/dev/null' EXIT
+
+[[ -f $MNT/ignition/config.ign ]] \
+    && log "combustion: ignition/config.ign encontrado, mas o Ignition não é interpretado no Tamagi (use combustion/script)"
+if [[ ! -f $MNT/combustion/script ]]; then
+    log "combustion: $dev não tem combustion/script; nada a fazer"
+    finish "sem combustion/script"
+fi
+
+# Cópia para o disco: o script roda mesmo que o pendrive seja retirado.
+rm -rf "$WORK"
+mkdir -p "$WORK"
+cp -a "$MNT/combustion/." "$WORK/"
+chmod 700 "$WORK"
+if grep -qE '^#[[:space:]]*combustion:.*\bnetwork\b' "$WORK/script"; then
+    log "combustion: esperando a rede (até 60 s)"
+    nm-online -q -t 60 2>/dev/null || log "combustion: a rede não subiu; o script roda assim mesmo"
+fi
+log "combustion: executando combustion/script de $dev"
+rc=0
+( cd "$WORK" && bash ./script ) >>"$LOG" 2>&1 || rc=$?
+if (( rc == 0 )); then
+    log "combustion: script concluído"
+    rm -rf "$WORK"
+    finish "ok ($dev)"
+fi
+log "combustion: o script terminou com código $rc (arquivos mantidos em $WORK)"
+finish "script falhou com código $rc ($dev)" 1

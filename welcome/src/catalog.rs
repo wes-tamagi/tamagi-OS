@@ -1,11 +1,14 @@
 //! The catalog of everything optional: `catalog.tsv` plus the `opcional`
-//! rows of `flatpaks.list` (the same two files `tamagi install` reads).
+//! rows of `flatpaks.list` (the same two files `tamagi install` reads), and
+//! `basics.list`: the short list of it offered at first login.
 
 use crate::method::{classify, Method};
 use std::path::PathBuf;
 
 pub const DEFAULT_CATALOG: &str = "/usr/share/tamagi/catalog.tsv";
 pub const DEFAULT_FLATPAKS: &str = "/usr/share/tamagi/flatpaks.list";
+
+pub const DEFAULT_BASICS: &str = "/usr/share/tamagi/basics.list";
 
 /// The category of the browsers: they have a page of their own.
 pub const BROWSERS: &str = "Browsers";
@@ -111,6 +114,44 @@ pub fn load() -> Vec<Item> {
     items
 }
 
+/// `basics.list`: `<on|off> <id>` per line; `on` = ticked by default.
+pub fn parse_basics(text: &str) -> Vec<(bool, String)> {
+    text.lines()
+        .filter_map(|line| {
+            let mut words = line.split_whitespace();
+            let on = match words.next()? {
+                "on" => true,
+                "off" => false,
+                _ => return None, // a comment, or a line this program does not know
+            };
+            Some((on, words.next()?.to_string()))
+        })
+        .collect()
+}
+
+/// The basics found in the catalog, in the order of the list: (index in
+/// `items`, ticked by default). The browsers are left out (they have their
+/// own page), and so is an id the catalog does not have.
+pub fn resolve_basics(basics: &[(bool, String)], items: &[Item]) -> Vec<(usize, bool)> {
+    let mut out: Vec<(usize, bool)> = Vec::new();
+    for (on, id) in basics {
+        if let Some(index) = items.iter().position(|item| item.id == *id && item.category != BROWSERS) {
+            if !out.iter().any(|(i, _)| *i == index) {
+                out.push((index, *on));
+            }
+        }
+    }
+    out
+}
+
+/// The basics of this system; empty when the file cannot be read.
+pub fn load_basics(items: &[Item]) -> Vec<(usize, bool)> {
+    match std::fs::read_to_string(path_from_env("TAMAGI_BASICS", DEFAULT_BASICS)) {
+        Ok(text) => resolve_basics(&parse_basics(&text), items),
+        Err(_) => Vec::new(),
+    }
+}
+
 /// "260MB" -> 260, "1.5GB" -> 1536, "2-9GB" -> 2048 (the smaller end of a range).
 pub fn parse_size_mb(size: &str) -> Option<f64> {
     let size = size.trim();
@@ -179,41 +220,15 @@ pub fn tagline(desc: &str) -> Option<String> {
     None
 }
 
-/// The text without a parenthesis at its end: "Game manager, native (asks
-/// for the password)" -> "Game manager, native". Used where a badge already
-/// says what the parenthesis says.
-pub fn without_trailing_note(text: &str) -> &str {
-    let trimmed = text.trim_end();
-    if trimmed.ends_with(')') {
-        if let Some(pos) = trimmed.rfind(" (") {
-            if pos > 0 {
-                return trimmed[..pos].trim_end();
-            }
-        }
-    }
-    trimmed
-}
-
-/// Categories in the order they first appear, without the browsers.
-pub fn categories(items: &[Item]) -> Vec<&str> {
+/// The categories of the items at `indices`, in the order they first appear.
+pub fn categories<'a>(items: &'a [Item], indices: &[usize]) -> Vec<&'a str> {
     let mut seen: Vec<&str> = Vec::new();
-    for item in items {
-        if item.category != BROWSERS && !seen.contains(&item.category.as_str()) {
+    for item in indices.iter().filter_map(|i| items.get(*i)) {
+        if !seen.contains(&item.category.as_str()) {
             seen.push(&item.category);
         }
     }
     seen
-}
-
-/// Whether an item matches what was typed in the search field. `haystack` is
-/// the text shown for it (already translated).
-pub fn matches(query: &str, haystack: &[&str]) -> bool {
-    let query = query.trim().to_lowercase();
-    if query.is_empty() {
-        return true;
-    }
-    let text = haystack.join(" ").to_lowercase();
-    query.split_whitespace().all(|word| text.contains(word))
 }
 
 #[cfg(test)]
@@ -293,27 +308,19 @@ flathub short.line opcional\n";
         assert_eq!(short_name("Vivaldi"), "Vivaldi");
         assert_eq!(tagline("Claude Code — Anthropic's coding agent").as_deref(), Some("Anthropic's coding agent"));
         assert_eq!(tagline("Vivaldi"), None);
-        assert_eq!(without_trailing_note("Game manager, native (asks for the password)"), "Game manager, native");
-        assert_eq!(without_trailing_note("Gerenciador de jogos, nativo (pede a senha) "), "Gerenciador de jogos, nativo");
-        assert_eq!(without_trailing_note("coding agent (in the dev box) and more"), "coding agent (in the dev box) and more");
-        assert_eq!(without_trailing_note("(only a note)"), "(only a note)");
-        assert_eq!(without_trailing_note("plain"), "plain");
     }
 
     #[test]
-    fn category_order_skips_browsers() {
+    fn basics() {
         let mut items = parse_catalog(CATALOG);
         items.extend(parse_flatpaks(FLATPAKS));
-        assert_eq!(categories(&items), ["Games", "AI agents", "System", "COSMIC"]);
-    }
-
-    #[test]
-    fn search() {
-        assert!(matches("", &["anything"]));
-        assert!(matches("  STEAM ", &["Steam + steam-devices", "Games"]));
-        assert!(matches("games steam", &["Steam + steam-devices", "Games"]));
-        assert!(!matches("steam office", &["Steam + steam-devices", "Games"]));
-        assert!(matches("flatpak", &["GIMP", "Flatpak"]));
+        let list = parse_basics("# comment\non  io.missioncenter.MissionCenter\noff steam\n\nmaybe x\non\noff firefox\noff unknown\noff steam\n");
+        assert_eq!(list, [(true, "io.missioncenter.MissionCenter".to_string()), (false, "steam".to_string()), (false, "firefox".to_string()), (false, "unknown".to_string()), (false, "steam".to_string())]);
+        // The browser, the unknown id and the repeat are left out.
+        let resolved = resolve_basics(&list, &items);
+        assert_eq!(resolved, [(4, true), (1, false)]);
+        let indices: Vec<usize> = resolved.iter().map(|(i, _)| *i).collect();
+        assert_eq!(categories(&items, &indices), ["System", "Games"]);
     }
 
     /// The files shipped in the image parse completely.
@@ -332,5 +339,12 @@ flathub short.line opcional\n";
         assert!(!flatpaks.is_empty());
         assert!(flatpaks.iter().all(|i| i.action.starts_with("flatpak:") && !i.desc.is_empty() && i.size_mb().is_some()));
         assert!(flatpaks.iter().all(|i| !i.id.contains("Flatseal")), "essential apps are not offered");
+        // Every line of the basics is in the catalog, and is quick to explain.
+        let mut all = catalog;
+        all.extend(flatpaks);
+        let basics = parse_basics(&std::fs::read_to_string(share.join("basics.list")).unwrap());
+        assert!(!basics.is_empty());
+        assert_eq!(resolve_basics(&basics, &all).len(), basics.len(), "an id of basics.list is not in the catalog (or is a browser, or repeated)");
+        assert!(basics.iter().any(|(on, _)| *on) && basics.iter().any(|(on, _)| !*on));
     }
 }

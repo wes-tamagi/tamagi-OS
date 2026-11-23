@@ -1,10 +1,33 @@
-//! Small pieces shared by the pages: the install-method badge, the legend,
-//! the selectable card. Colours come from the COSMIC theme only.
+//! Small pieces shared by the pages: the type sizes, the install-method
+//! badge, the legend. Colours come from the COSMIC theme only.
 
 use crate::i18n::tr;
 use crate::method::Method;
 use cosmic::iced::{Alignment, Background, Border, Color, Length};
 use cosmic::{theme, widget, Element};
+
+/// Type sizes. COSMIC's "caption" is 10 px and its "body" 14 px: too small
+/// to read and to hit on a laptop panel, so the choices use these instead.
+pub const TEXT: f32 = 16.0;
+/// Explanations under or beside a choice.
+pub const NOTE: f32 = 14.0;
+/// Badges, sizes, the step indicator.
+pub const SMALL: f32 = 13.0;
+
+/// The name of a choice.
+pub fn text<'a>(content: impl Into<String>) -> widget::Text<'a, cosmic::Theme> {
+    widget::text::body(content.into()).size(TEXT)
+}
+
+/// An explanation.
+pub fn note<'a>(content: impl Into<String>) -> widget::Text<'a, cosmic::Theme> {
+    widget::text::body(content.into()).size(NOTE)
+}
+
+/// The smallest text used.
+pub fn small<'a>(content: impl Into<String>) -> widget::Text<'a, cosmic::Theme> {
+    widget::text::body(content.into()).size(SMALL)
+}
 
 /// The icon that marks what asks for the password.
 pub const LOCK_ICON: &str = "system-lock-screen-symbolic";
@@ -27,13 +50,13 @@ fn tint(theme: &cosmic::Theme, method: Method) -> Color {
 /// The badge of an install method: "Flatpak", "Native" (with a lock: it asks
 /// for the password), "Box", "Container", "In your user".
 pub fn badge<'a, M: 'a>(method: Method) -> Element<'a, M> {
-    let mut row = widget::row::with_capacity(2).spacing(4).align_y(Alignment::Center);
+    let mut row = widget::row::with_capacity(2).spacing(5).align_y(Alignment::Center);
     if method.asks_password() {
-        row = row.push(widget::icon::from_name(LOCK_ICON).size(12).icon());
+        row = row.push(widget::icon::from_name(LOCK_ICON).size(14).icon());
     }
-    row = row.push(widget::text::caption(tr(method.label())));
+    row = row.push(small(tr(method.label())));
     widget::container(row)
-        .padding([2, 8])
+        .padding([3, 10])
         .class(theme::Container::custom(move |theme| {
             let tint = tint(theme, method);
             let on: Color = theme.cosmic().on_bg_color().into();
@@ -42,22 +65,6 @@ pub fn badge<'a, M: 'a>(method: Method) -> Element<'a, M> {
                 text_color: Some(on),
                 background: Some(Background::Color(with_alpha(tint, 0.16))),
                 border: Border { radius: theme.cosmic().corner_radii.radius_xl.into(), width: 1.0, color: with_alpha(tint, 0.6) },
-                ..Default::default()
-            }
-        }))
-        .into()
-}
-
-/// A small neutral chip ("Suggested").
-pub fn chip<'a, M: 'a>(label: String) -> Element<'a, M> {
-    widget::container(widget::text::caption(label))
-        .padding([2, 8])
-        .class(theme::Container::custom(|theme| {
-            let c = theme.cosmic();
-            widget::container::Style {
-                text_color: Some(c.on_accent_color().into()),
-                background: Some(Background::Color(c.accent_color().into())),
-                border: Border { radius: c.corner_radii.radius_xl.into(), ..Default::default() },
                 ..Default::default()
             }
         }))
@@ -74,7 +81,7 @@ pub fn legend<'a, M: Clone + 'static>() -> Element<'a, M> {
                 .spacing(spacing.space_xxs)
                 .align_y(Alignment::Center)
                 .push(badge(method))
-                .push(widget::text::caption(tr(method.short())))
+                .push(small(tr(method.short())))
                 .into()
         })
         .collect();
@@ -85,19 +92,20 @@ pub fn legend<'a, M: Clone + 'static>() -> Element<'a, M> {
 /// when chosen. Only a picture: the row around it is the control, so a click
 /// anywhere on the row and Tab + Enter behave the same.
 pub fn radio_mark<'a, M: 'a>(selected: bool) -> Element<'a, M> {
-    const SIZE: f32 = 16.0;
+    const SIZE: f32 = 20.0;
+    const DOT: f32 = 8.0;
     let dot: Element<'a, M> = if selected {
-        widget::container(widget::space::horizontal().width(Length::Fixed(6.0)))
-            .width(Length::Fixed(6.0))
-            .height(Length::Fixed(6.0))
+        widget::container(widget::space::horizontal().width(Length::Fixed(DOT)))
+            .width(Length::Fixed(DOT))
+            .height(Length::Fixed(DOT))
             .class(theme::Container::custom(|theme| widget::container::Style {
                 background: Some(Background::Color(theme.cosmic().on_accent_color().into())),
-                border: Border { radius: 3.0.into(), ..Default::default() },
+                border: Border { radius: (DOT / 2.0).into(), ..Default::default() },
                 ..Default::default()
             }))
             .into()
     } else {
-        widget::space::horizontal().width(Length::Fixed(6.0)).into()
+        widget::space::horizontal().width(Length::Fixed(DOT)).into()
     };
     widget::container(dot)
         .width(Length::Fixed(SIZE))
@@ -115,44 +123,6 @@ pub fn radio_mark<'a, M: 'a>(selected: bool) -> Element<'a, M> {
             }
         }))
         .into()
-}
-
-/// The look of a selectable card: a component surface, with the accent
-/// colour around the chosen one.
-pub fn card_class(selected: bool) -> theme::Button {
-    #[derive(Clone, Copy)]
-    enum State {
-        Idle,
-        Hovered,
-        Pressed,
-    }
-    fn style(theme: &cosmic::Theme, selected: bool, focused: bool, state: State) -> widget::button::Style {
-        let c = theme.cosmic();
-        let component = &c.background(false).component;
-        let background = match state {
-            State::Idle => component.base,
-            State::Hovered => component.hover,
-            State::Pressed => component.pressed,
-        };
-        let mut s = widget::button::Style::new();
-        s.background = Some(Background::Color(background.into()));
-        s.border_radius = c.corner_radii.radius_m.into();
-        s.border_width = if selected { 2.0 } else { 1.0 };
-        s.border_color = if selected { c.accent_color().into() } else { c.bg_divider().into() };
-        s.text_color = Some(component.on.into());
-        s.icon_color = Some(component.on.into());
-        if focused {
-            s.outline_width = 1.0;
-            s.outline_color = c.accent_color().into();
-        }
-        s
-    }
-    theme::Button::Custom {
-        active: Box::new(move |focused, theme| style(theme, selected, focused, State::Idle)),
-        disabled: Box::new(move |theme| style(theme, selected, false, State::Idle)),
-        hovered: Box::new(move |focused, theme| style(theme, selected, focused, State::Hovered)),
-        pressed: Box::new(move |focused, theme| style(theme, selected, focused, State::Pressed)),
-    }
 }
 
 /// A panel for secondary content (the log, a note).

@@ -18,7 +18,7 @@
    Super + Alt + Espacio     lanzador de aplicaciones
    Super + Enter             terminal
    Super + B / E             navegador / archivos
-   Super + Shift + N / T     neovim / btop
+   Super + Shift + N / T     neovim (caja dev) / btop
    Super + Shift + G / D     lazygit / bases de datos (tamagi-db)
    Super + Shift + O / M     OnlyOffice / Mission Center
    Super + Shift + W         Windows 11 (contenedor)

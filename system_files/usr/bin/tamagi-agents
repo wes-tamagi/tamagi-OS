@@ -30,7 +30,10 @@
 #   clio         CLIO (pure Perl, GPL-3.0): release from GitHub, digest verified,
 #                unpacked in your user; runs in the development box (the host
 #                has only a minimal Perl) and talks to the local model (llama.cpp)
-#   antigravity  Google's IDE, in the browser box (with the Chrome its agent drives)
+#   antigravity  Antigravity CLI (`agy`), Google's terminal agent: Google's own
+#                installer (it checks the SHA-512 of what it downloads), one
+#                binary in ~/.local/bin. The desktop IDE is a separate, much
+#                larger thing and is not in the catalog: tamagi antigravity
 #   qwen, gemini, openclaw   npm packages: they live in the development box
 #                (`tamagi devbox`), where Node, git and the compilers are; a
 #                launcher in ~/.local/bin opens them from anywhere
@@ -43,7 +46,7 @@ PREFIX="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/agents"   # npm prefix, used
 BOX="${TAMAGI_AGENTS_BOX:-dev}"
 ORDER=(claude antigravity codex clio qwen opencode gemini openclaw local)
 declare -A TITLE=(
-    [claude]="Claude Code — Anthropic" [antigravity]="Antigravity — Google (IDE)" [codex]="Codex CLI — OpenAI"
+    [claude]="Claude Code — Anthropic" [antigravity]="Antigravity CLI (agy) — Google" [codex]="Codex CLI — OpenAI"
     [clio]="CLIO — pure Perl, local models" [qwen]="Qwen Code — Alibaba" [opencode]="opencode — open source" [gemini]="Gemini CLI — Google"
     [openclaw]="OpenClaw — open source" [local]="Tamagi agent + local model (llama.cpp)"
 )
@@ -87,7 +90,7 @@ known() { [[ -n ${1:-} && -n ${TITLE[$1]:-} ]]; }
 is_installed() {
     case $1 in
         claude)      [[ -x $BIN_DIR/claude ]] ;;
-        antigravity) compgen -G "${XDG_DATA_HOME:-$HOME/.local/share}/applications/*antigravity*.desktop" >/dev/null ;;
+        antigravity) [[ -x $BIN_DIR/agy ]] ;;
         codex|opencode) [[ -x $BIN_DIR/$1 ]] ;;
         clio)        [[ -x $CLIO_DIR/clio && -e $BIN_DIR/clio ]] ;;
         qwen|gemini|openclaw) [[ -x $BIN_DIR/$1 && -e $PREFIX/bin/$1 ]] ;;
@@ -144,13 +147,31 @@ install_npm() {
     write_launcher "$name" "$PREFIX/bin/$name"
 }
 
+# Antigravity CLI: Google publishes it only through its install script, which
+# picks the build for this machine and checks its SHA-512. The script is
+# downloaded to a file and run from there (never piped from the network into
+# the shell), and told to put the binary in ~/.local/bin.
+AGY_INSTALLER=https://antigravity.google/cli/install.sh
+install_agy() {
+    local tmp; tmp=$(mktemp -d); DOWNLOAD_TMP=$tmp
+    echo "$(t "Antigravity CLI is Google software and is downloaded now, on your machine (Google's terms).")"
+    curl -fsSL --proto '=https' --tlsv1.2 -o "$tmp/install.sh" "$AGY_INSTALLER" \
+        || die "antigravity: $(t "could not download Google's installer")"
+    head -1 "$tmp/install.sh" | grep -q '^#!' || die "antigravity: $(t "what came from Google is not an install script; nothing was installed")"
+    mkdir -p "$BIN_DIR"
+    bash "$tmp/install.sh" --dir "$BIN_DIR" </dev/null
+    rm -rf -- "${tmp:?}"; DOWNLOAD_TMP=""
+    [[ -x $BIN_DIR/agy ]] || die "antigravity: $(t "the installer did not leave the executable")"
+    echo "agy: $("$BIN_DIR/agy" --version 2>/dev/null </dev/null | head -1)"
+}
+
 install_one() {
     local name; name=$(canon "$1")
     known "$name" || die "$(t "unknown agent"): $1 (${ORDER[*]})"
     info "── ${TITLE[$name]}"
     case $name in
         claude)      claude --version </dev/null && menu_entry claude-code ;;
-        antigravity) tamagi-antigravity install && menu_entry agy ;;
+        antigravity) install_agy && menu_entry agy ;;
         codex|opencode|clio) install_github "$name" ;;
         qwen|gemini|openclaw) install_npm "$name" ;;
         local)       tamagi-ai setup ;;
@@ -162,7 +183,7 @@ remove_one() {
     known "$name" || die "$(t "unknown agent"): $1"
     case $name in
         claude)      rm -f "$BIN_DIR/claude" "$APPS/claude-code.desktop"; rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/claude" ;;
-        antigravity) tamagi-antigravity remove; rm -f "$APPS/agy.desktop" ;;
+        antigravity) rm -f "$BIN_DIR/agy" "$APPS/agy.desktop" ;;
         codex|opencode) rm -f "$BIN_DIR/$name" ;;
         clio)        rm -f "$BIN_DIR/clio"; [[ -d $CLIO_DIR ]] && rm -rf -- "${CLIO_DIR:?}" ;;
         qwen|gemini|openclaw)
@@ -179,7 +200,7 @@ remove_one() {
 declare -A STATE=(
     [claude]=".claude" [codex]=".codex" [clio]=".clio" [qwen]=".qwen" [gemini]=".gemini" [openclaw]=".openclaw"
     [opencode]=".config/opencode .local/share/opencode .local/state/opencode .cache/opencode"
-    [antigravity]="" [local]=""
+    [antigravity]=".gemini" [local]=""
 )
 
 project_root() { # the git repository around the current folder, or the folder itself
@@ -241,9 +262,10 @@ cmd_run() { # cmd_run <shell?> args…
         cmd=("$@"); (( ${#cmd[@]} )) || cmd=(bash)
     else
         agent=$(canon "${1:-}"); shift || true
-        known "$agent" && [[ -n ${STATE[$agent]} ]] || die "usage: tamagi agents run <claude|codex|clio|qwen|opencode|gemini|openclaw> [args]"
+        known "$agent" && [[ -n ${STATE[$agent]} ]] || die "usage: tamagi agents run <claude|antigravity|codex|clio|qwen|opencode|gemini|openclaw> [args]"
         is_installed "$agent" || die "$agent $(t "is not installed"): tamagi agents install $agent"
         cmd=("$home/.local/bin/$agent" "$@")
+        [[ $agent == antigravity ]] && cmd=("$home/.local/bin/agy" "$@")
         [[ -n ${NPM[$agent]:-} ]] && cmd=("$PREFIX/bin/$agent" "$@")
         [[ $agent == clio ]] && cmd=("$CLIO_DIR/clio" "$@")
         opts+=(--state "${STATE[$agent]}")
@@ -291,7 +313,7 @@ cmd_update() {
             codex|opencode|clio) install_github "$name" || rc=1 ;;
             qwen|gemini|openclaw)
                 distrobox enter "$BOX" -- "$JAIL_BOX" --root "$PREFIX" --cwd "$PREFIX" -- npm install -g --prefix "$PREFIX" "${NPM[$name]}@latest" </dev/null || rc=1 ;;
-            *) ;;   # antigravity updates with its box; local models do not change
+            *) ;;   # agy updates itself; local models do not change
         esac
     done
     return $rc

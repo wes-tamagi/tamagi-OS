@@ -26,6 +26,17 @@ tamagi_luks_key="${tamagi_dir}/luks.key"
 tamagi_started=0
 tamagi_done=0
 
+# A imagem embutida na mídia é conferida (SHA-256 de cada camada) ANTES de o
+# disco ser apagado. A conferência começa já, em segundo plano, e roda enquanto
+# as perguntas são respondidas: quando o disco é escolhido ela costuma ter
+# terminado, e a imagem já está no cache de memória para a cópia.
+tamagi_verify="${tamagi_dir}/verify"
+tamagi_payload="$(sed -n 's/^PAYLOAD_DIR=//p' /etc/tamagi-live.conf 2>/dev/null)"
+if [ -n "${tamagi_payload}" ] && [ -d "${tamagi_payload}" ] && [ -x /usr/libexec/tamagi-verify-media ]; then
+    rm -rf "${tamagi_verify}"
+    ( setsid /usr/libexec/tamagi-verify-media "${tamagi_payload}" "${tamagi_verify}" >/dev/null 2>&1 & )
+fi
+
 # ── Idiomas do instalador: pt (padrão), en, es e fr ────────────────────────────────
 # T <chave> devolve o texto no idioma escolhido. As variáveis tamagi_t_* são
 # lidas pelo núcleo do tik (build-live.sh troca os textos fixos dele por elas).
@@ -389,6 +400,7 @@ tamagi_write_answers() {
           [ -s "${tamagi_luks_key}" ] && [ "${tamagi_tpm:-0}" = "1" ] && echo "LUKS_TPM=1"
           [ -n "${tamagi_extra_kargs:-}" ] && echo "EXTRA_KARGS=${tamagi_extra_kargs}"
           [ -n "${tamagi_imgref:-}" ] && echo "TARGET_IMGREF=${tamagi_imgref}"
+          echo "VERIFY_STATE=${tamagi_verify}"
       } > "${tamagi_answers}" )
 }
 
@@ -438,6 +450,8 @@ cleanup() { # no tik: reinicia ou DESLIGA. Aqui: cancelar volta ao desktop live.
     retval=$?
     log "[STOP][${retval}] $0"
     rm -f "${tamagi_luks_key}" "${tamagi_answers}"
+    # Saiu antes de instalar: a conferência da mídia não tem mais para quem trabalhar.
+    [ -s "${tamagi_verify}/pid" ] && kill "$(cat "${tamagi_verify}/pid")" 2>/dev/null
     if [ -n "${tamagi_auto}" ]; then
         if [ "${tamagi_done}" = "1" ]; then echo "TAMAGI-AUTOINSTALL: OK"; else echo "TAMAGI-AUTOINSTALL: FALHOU (código ${retval})"; fi
         sync

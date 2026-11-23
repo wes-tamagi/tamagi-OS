@@ -102,9 +102,12 @@ read and write only the project directory and its own configuration.
 ## First login and ready-made profiles
 
 Like openSUSE Aeon, the installer puts only the base system on disk. On first
-login a native COSMIC window (`tamagi-welcome`, Rust + libcosmic) asks what
-else to install: a profile, a browser and, for who prefers, item by item from
-the catalog. **Every item shows how it is installed:**
+login a native COSMIC window (`tamagi-welcome`, Rust + libcosmic) offers only
+the basics: a short list to tick (`/usr/share/tamagi/basics.list`: the COSMIC
+apps, the Flatpak start-up manager Ignition, Mission Center, OnlyOffice and
+WhatsApp as a web app) and a browser (Opera GX, Google Chrome, Chromium or
+Vivaldi). Everything else, including the ready-made profiles, comes later
+with `tamagi install`. **Every item shows how it is installed:**
 
 | Badge | Meaning |
 |---|---|
@@ -121,6 +124,8 @@ while you choose. The same choices stay available later:
 
 ```bash
 tamagi install                                    # the catalog
+tamagi install wesnoth                            # not in the catalog? found on Flathub and installed
+tamagi install search strategy                    # what Flathub has for a text
 tamagi profiles                                   # ai, dev, gamer, office
 tamagi apply ai                                   # AI agents + devbox (suggested)
 tamagi apply gamer                                # native Steam, gamescope HDR, MangoHud, Heroic
@@ -154,9 +159,13 @@ stays intact, and removing the layer restores the upstream image.
 
 ### 3. Self-healing boot
 
-On every boot, greenboot runs `/usr/lib/greenboot/check`. After three
-consecutive failed boots, GRUB reverts to the previous deployment, and the
-failed image is quarantined so automatic updates do not reinstall it. On the
+On every boot, `tamagi-boot-check.service` runs the checks in
+`/usr/lib/tamagi/boot-check`. bootc with systemd-boot does not count boot
+attempts, so Tamagi does it: a new image that fails is retried once with the
+native layers off, then `bootc rollback` brings the previous image back and
+the failed one is quarantined so automatic updates do not download it again.
+This covers boots that reach the system; a boot that stops in the kernel or
+the initramfs needs the previous entry picked by hand in the boot menu. On the
 next login, `tamagi boot-report` lists what failed and, if a local LLM is
 configured, summarizes it in the user's language.
 
@@ -168,8 +177,7 @@ with a custom module that calls `bootc install`. The ISO builds rootless:
 ```bash
 just build-iso      # output/tamagi.iso (about 5 GiB: fits an 8 GB USB drive)
 just test-iso       # unattended VM install + post-install verification
-just test-rollback  # simulate a broken update and verify automatic rollback
-just test-upgrade   # end-to-end upgrade test (local registry, update, reboot, rollback)
+just test-upgrade   # end-to-end: local registry, automatic update, reboot, then a bad image that must roll back by itself
 just run-iso        # launch the ISO in a windowed VM
 sudo bash live/write-usb.sh /dev/disk/by-id/usb-... --yes
 ```
@@ -184,7 +192,9 @@ The UEFI-only ISO boots a live COSMIC session and launches the installer.
 - **Offline:** installation copies the image embedded in the ISO.
 - **Atomic installation:** before wiping the disk, the installer checks disk
   capacity and the SHA-256 digest of every embedded layer, and aborts on
-  corrupted media before writing. The EFI partition is created with the GPT
+  corrupted media before writing. The digest check starts when the installer
+  window opens and runs while the questions are answered, so it adds no wait
+  after the disk is chosen. The EFI partition is created with the GPT
   `NoBlockIOProtocol` flag so firmware ignores it during copying or a power
   loss; the flag is cleared in one final partition-table write after full
   verification. Failed installs clean up the partitions they created.
@@ -199,10 +209,23 @@ The UEFI-only ISO boots a live COSMIC session and launches the installer.
 1. `live/Containerfile` layers tik (pinned by tag and commit),
    `live/tik/modules/pre/10-tamagi`, a live initramfs and the live user onto
    the base image.
-2. `/usr/libexec/tamagi-install` partitions the disk (ESP, ext4 `/boot`,
-   zstd-compressed Btrfs root, optional LUKS2 + TPM) and runs
-   `bootc install to-filesystem --source-imgref oci:...`.
-3. `tamagi-firstboot.service` creates the user account on first boot.
+2. `/usr/libexec/tamagi-install` partitions the disk and runs
+   `bootc install to-filesystem --source-imgref oci:...`. The layout follows
+   openSUSE Aeon: an 8 GiB ESP mounted at `/efi` (UEFI only), booted by
+   systemd-boot, and one zstd-compressed Btrfs (optional LUKS2 + TPM) with the
+   subvolumes `root` (the system) and `home` (`/var/home`). There is no
+   `/boot` partition and no GRUB: kernels and initramfs live on the ESP
+   (about 265 MiB per image). systemd-boot needs bootc's composefs backend
+   (`--composefs-backend --bootloader systemd`), where `rpm-ostree` does not
+   work: Tamagi's tools talk to `bootc`. A machine installed with the older
+   GRUB layout cannot be converted in place; it has to be reinstalled.
+3. `tamagi-firstboot.service` creates the user account on first boot; the
+   home folder is a Btrfs subvolume with snapper snapshots on from the start.
+   `tamagi-combustion.service` then looks, on that first boot only, for a
+   drive labelled `combustion` (or `ignition`) holding `combustion/script`
+   and runs it as root: the provisioning format of openSUSE
+   [Combustion](https://github.com/openSUSE/combustion), run from the booted
+   system instead of the initrd. CoreOS Ignition files are not interpreted.
 4. `tamagi.autoinstall=/dev/sdX` on the kernel command line runs an unattended
    installation (used by `just test-iso`).
 
@@ -215,7 +238,7 @@ see [tamagiguide.md](tamagiguide.md).
 
 | Component | Mechanism |
 |---|---|
-| OS image | staged in the background; takes effect on the next reboot (never reboots by itself) |
+| OS image | `tamagi-system-update.timer`, every six hours: `bootc` prepares the new image beside the running one; it takes effect on the next reboot (never reboots by itself). Skipped on battery and on metered connections (`/etc/tamagi/update.conf`) |
 | Flatpaks | system and user systemd timers |
 | Devboxes and subsystems | `tamagi-autoupdate.timer` (skipped on battery) |
 
@@ -264,6 +287,7 @@ tamagi browser remove chrome
 
 - **Panel button:** "Web Browser" offers installation until a browser exists,
   then opens the default one.
+- **Opera GX:** exists for Linux only as a Flatpak (`com.opera.opera-gx`).
 - **Native:** Chrome and Vivaldi come from the vendors' repositories
   (key-verified); Firefox and Chromium from Fedora. Layers are rebuilt after
   OS updates.
@@ -342,6 +366,14 @@ Each box keeps its own binaries (`~/.local/share/mise-<box>`) and shares
 `~/.config/mise/config.toml`. For automated tests, `tamagi devbox browser`
 installs Chromium in the box and sets `CHROME_BIN`,
 `PUPPETEER_EXECUTABLE_PATH` and `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
+
+**Terminal tools live in the box.** Neovim, lazygit, gh, uv, glow, hyperfine,
+direnv, yq and ShellCheck are not in the image: `tamagi devbox create`
+installs them in the box and exports a launcher for each to `~/.local/bin`,
+so `nvim` or `gh` typed on the host runs the one of the box. `Super+Shift+N`
+and `Super+Shift+G` offer to create the box when it does not exist yet.
+rclone and COSMIC Player are optional native layers (`tamagi install rclone`,
+`tamagi install cosmic-player`).
 
 **Containers:** Podman is the engine. Docker CE (`tamagi install docker`, a
 native layer) and lazydocker (`tamagi install lazydocker`) are optional.
@@ -449,7 +481,7 @@ tamagi agents install claude antigravity codex clio qwen opencode gemini opencla
 | Claude Code (`claude`) | official Anthropic installer, checksum-verified, in `~/.local/bin` |
 | Codex CLI (`codex`), opencode | official GitHub binary, SHA-256 verified, in `~/.local/bin` |
 | CLIO (`clio`) | pure Perl (GPL-3.0), GitHub release digest-verified; runs in the devbox against local llama.cpp |
-| Antigravity | Google's IDE inside the browser box, next to Chrome |
+| Antigravity CLI (`agy`) | Google's installer (SHA-512 checked by it), one binary in `~/.local/bin`; the desktop IDE is separate: `tamagi antigravity` |
 | Qwen Code, Gemini CLI, OpenClaw | npm packages inside the devbox, with launchers in `~/.local/bin` |
 | Local AI | `tamagi agent` backed by local llama.cpp (`tamagi ai setup`) |
 
@@ -570,7 +602,7 @@ and always ask for confirmation.
 - **Minimal apps:** only Flatseal, Warehouse, Loupe, Papers and three COSMIC
   applets are installed automatically.
 - **Networking:** WireGuard, OpenVPN, OpenConnect, L2TP, PPTP, SSTP,
-  IKEv2/IPsec, SSH, SMB, NFS, SSHFS, MTP, iPhone, rclone, mDNS, driverless
+  IKEv2/IPsec, SSH, SMB, NFS, SSHFS, MTP, iPhone, mDNS, driverless
   printing and scanning; Tailscale is opt-in (`tamagi install tailscale`).
 
 ### Shortcuts
@@ -587,7 +619,7 @@ and always ask for confirmation.
 | `Super+Arrows`, with `Shift` | focus / move window |
 | `Super+T` / `Super+Y` | float window / toggle tiling |
 | `Super+B` / `E` | browser / files |
-| `Super+Shift+G` / `D` / `M` / `W` | lazygit / databases / Mission Center / Windows |
+| `Super+Shift+G` / `D` / `M` / `W` | lazygit (from the dev box; offers to create it) / databases / Mission Center / Windows |
 | `Super+Ctrl+P` / `E` / `R` | privacy mode / emojis / reminder |
 | `Shift+Print` / `Alt+Print` | OCR of a region / screen recording |
 
@@ -619,8 +651,9 @@ just lint
   with signed `ublue-os/akmods` (xone, xpadneo, v4l2loopback).
 - **Secure Boot:** the OGC kernel is signed by Universal Blue, not Fedora.
   Enroll the key once with `tamagi setup secure-boot-key` (password
-  `universalblue`). `tamagi-secureboot-guard` blocks a staged update when
-  Secure Boot is on without the key enrolled. On the ISO, `universalblue.der`
+  `universalblue`). The updater downloads a new image held back, runs the
+  Secure Boot guard, and releases it only if its kernel would boot (Secure
+  Boot on without the key enrolled: it stays held). On the ISO, `universalblue.der`
   is on `TAMAGI_EFI` for MokManager.
 - **Other flavors, for local builds:** `KERNEL_FLAVOR=main just build`
   (Fedora-signed base kernel) or `KERNEL_FLAVOR=ark just build` (Fedora
@@ -703,8 +736,8 @@ daily work do not conflict.
   secureboot-guard) log in Portuguese only; some option names are still
   Portuguese (`tamagi panel set centro|classico`, the AI presets).
 - **Proprietary agents:** Claude Code downloads from Anthropic
-  (checksum-verified); Antigravity installs from Google's repository inside
-  the browser box (HTTPS only; the repository has no package signatures).
+  (checksum-verified); Antigravity CLI is installed by Google's own install
+  script (HTTPS only; it checks the SHA-512 of the binary it downloads).
 
 ## Acknowledgments
 

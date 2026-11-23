@@ -99,7 +99,7 @@ NM
         sysctl --system >/dev/null
         systemctl reload NetworkManager 2>/dev/null || true
         shift 2
-        rpm-ostree kargs "$@"
+        /usr/libexec/tamagi/kargs "$@"
     ' _ "$STRICT_SYSCTL" "$STRICT_NM" "${args[@]}"
     tl "Strict mode enabled. Kernel arguments take effect after reboot."
 }
@@ -112,7 +112,7 @@ cmd_balanced() {
         sysctl --system >/dev/null
         systemctl reload NetworkManager 2>/dev/null || true
         shift 2
-        rpm-ostree kargs "$@"
+        /usr/libexec/tamagi/kargs "$@"
     ' _ "$STRICT_SYSCTL" "$STRICT_NM" "${args[@]}"
     tl "Balanced mode restored. Reboot to revert kernel arguments."
 }

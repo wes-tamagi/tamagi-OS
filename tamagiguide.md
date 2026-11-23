@@ -36,10 +36,11 @@ Why a fresh install is the recommendation for who comes from another system:
 5. Follow the installer: language (English is the default; Brazilian
    Portuguese comes next), keyboard, time zone, account, disk encryption and
    the disk.
-6. At first login a window asks for a profile (AI, development, games,
-   office), a browser and the optional items. Each item says how it is
-   installed (native, Flatpak, box, container, in your user). Nothing is
-   mandatory; everything can be installed later with `tamagi install`.
+6. At first login a window offers the basics to tick and a browser (Opera
+   GX, Chrome, Chromium or Vivaldi). Each item says how it is installed.
+   Nothing is mandatory; everything else, including the ready-made profiles,
+   can be installed later with `tamagi install` (a name that is not in the
+   catalog is looked up on Flathub).
 7. Copy your files back and reinstall your Flatpaks.
 
 ## 3. Migrating from Bluefin or Aurora, without formatting
@@ -47,6 +48,13 @@ Why a fresh install is the recommendation for who comes from another system:
 Bluefin, Aurora and Tamagi belong to the same family (Universal Blue bootc
 images), so an installed system can be pointed at Tamagi's image. **This path
 has not been tested by the project; copy your files first.**
+
+A migrated machine keeps the disk layout it was installed with (GRUB and the
+ostree backend). Tamagi is built for systemd-boot with bootc's composefs
+backend, and bootc cannot convert one into the other in place. On a migrated
+machine the automatic update and `bootc rollback` work, but `tamagi harden
+strict` (kernel parameters), `tamagi update changes` and the Secure Boot guard
+do not. For the full system, install from the ISO.
 
 1. **Copy** the files of your home folder.
 2. **Remove packages added on top of the image**, if any (`rpm-ostree status`

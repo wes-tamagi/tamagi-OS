@@ -4,10 +4,10 @@
 # O kernel padrão do Tamagi (Open Gaming Collective) é assinado
 # só pelo Universal Blue. Com o Secure Boot ligado e a chave do Universal Blue
 # fora da lista do firmware (MOK), o shim recusa esse kernel antes de qualquer
-# coisa do sistema rodar — nem o greenboot consegue desfazer. Por isso, quando
-# uma atualização fica preparada (/run/ostree/staged-deployment), este serviço
+# coisa do sistema rodar — nem a volta automática consegue desfazer. Por isso,
+# logo depois de preparar uma atualização, o system-update chama este guarda, que
 # confere: kernel novo sem assinatura do Fedora + Secure Boot ligado + chave do
-# Universal Blue ausente => cancela a atualização e avisa como registrar a
+# Universal Blue ausente => sai com 3 (o system-update descarta a atualização) e avisa como registrar a
 # chave (tamagi setup secure-boot-key, senha universalblue, e reiniciar).
 #
 # Variáveis só para testes: TAMAGI_SB_ENABLED=0|1 TAMAGI_SB_KEY=0|1
@@ -27,11 +27,17 @@ key_enrolled() {
 }
 staged_vmlinuz() {
     [[ -n ${TAMAGI_STAGED_VMLINUZ:-} ]] && { echo "$TAMAGI_STAGED_VMLINUZ"; return; }
-    local dep csum serial os
-    dep=$(rpm-ostree status --json 2>/dev/null | jq -c '.deployments[] | select(.staged == true)' | head -1)
-    [[ -n $dep ]] || return 1
-    csum=$(jq -r .checksum <<<"$dep"); serial=$(jq -r '.serial // 0' <<<"$dep"); os=$(jq -r '.osname // "default"' <<<"$dep")
-    compgen -G "/ostree/deploy/$os/deploy/$csum.$serial/usr/lib/modules/*/vmlinuz" | head -1
+    # systemd-boot: o bootc deixa o kernel de cada imagem na partição EFI,
+    # numa pasta com o identificador dela (EFI/Linux/bootc_composefs-<id>).
+    # Imagens com o mesmo kernel dividem a pasta: o caminho certo é o da linha
+    # "linux" da entrada preparada (loader/entries.staged) dessa imagem.
+    local id entry path
+    id=$(jq -r '.status.staged.composefs.verity // empty' "${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}" 2>/dev/null)
+    [[ -n $id ]] || return 1
+    entry=$(grep -ls "composefs.digest=[^ ]*$id" /efi/loader/entries.staged/*.conf /efi/loader/entries/*.conf 2>/dev/null | head -1)
+    [[ -n $entry ]] || return 1
+    path=$(awk '$1 == "linux" {print $2; exit}' "$entry")
+    [[ -n $path ]] && echo "/efi$path"
 }
 notify_users() {
     local uid user
@@ -52,7 +58,6 @@ grep -aq 'Fedora Secure Boot Signer' "$vmlinuz" && exit 0
 
 echo "secureboot-guard: Secure Boot ligado, chave do Universal Blue ausente e kernel novo assinado só por ela: atualização cancelada"
 if [[ -z ${TAMAGI_SB_DRYRUN:-} ]]; then
-    rpm-ostree cleanup -p >/dev/null 2>&1 || true
     mkdir -p "$(dirname "$FLAG")"
     date -Is > "$FLAG"
     notify_users "Atualização cancelada: Secure Boot / Update cancelled: Secure Boot" \

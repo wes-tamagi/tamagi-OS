@@ -8,45 +8,30 @@
 set -u
 . "$(dirname "$0")/headless-env.sh"
 build_tools
-W=900 H=680
+W=960 H=740
 
-# Item by item, with the encrypted-disk question: every page, in English.
+# Every page, in English, with the encrypted-disk question.
 pages() {
-    echo "pages (item by item, English)"
+    echo "pages (English)"
     TAMAGI_WELCOME_TPM=1 STUB_SLEEP=2 session_start $W $H
     TAMAGI_WELCOME_TPM=1 STUB_SLEEP=2 app
     shot 1-welcome
     key Return
-    shot 2-profile
-    click 237 527            # "Choose item by item from the catalog"
+    shot 2-apps
+    click 400 "${Y_ONLYOFFICE:-560}"   # a row of the list: the whole row ticks
+    shot 2b-apps-ticked
     next
-    click 200 275            # Google Chrome
-    sleep 0.5
-    click 650 313            # Native
     shot 3-browser
+    click 200 "${Y_CHROME:-300}"       # Google Chrome: three ways to install
+    shot 3b-browser-chrome
     next
-    click 400 423            # Steam
-    click 400 322            # Windows 11 in a container
-    scroll 400 400 60
-    shot 4-catalog
-    click 300 186            # the search field
-    type_text "agent"
-    shot 4b-catalog-search
-    wtype -M ctrl -k a -m ctrl; key BackSpace
-    type_text "claude"
-    sleep 0.5
-    click 400 272            # the only row left: Claude Code
-    wtype -M ctrl -k a -m ctrl; key BackSpace
-    next
-    click 450 181            # unlock with the TPM
+    click 450 "${Y_TPM:-190}"          # unlock with the TPM
     shot 5-disk
     next
     shot 6-review
     key Return
     shot 7-installing 2.5
-    click 802 350            # Show details
-    shot 7b-installing-details 1.5
-    sleep 9
+    sleep 12
     shot 8-done
     cat "$STUB_LOG"
     ls "$HOME/.config/tamagi"
@@ -55,32 +40,42 @@ pages() {
     session_end
 }
 
-# The default path: Enter on every page (profile "AI and agents", Firefox).
-profile() {
-    echo "profile (Enter all the way)"
+# The default path: Enter on every page (the basics ticked by default, the first browser).
+defaults() {
+    echo "defaults (Enter all the way)"
     STUB_SLEEP=1 session_start $W $H
     STUB_SLEEP=1 app
     key Return; key Return; key Return
-    shot p6-review-profile
+    shot d6-review
     key Return
-    shot p7-installing-profile 3
-    sleep 8
-    shot p8-done-profile
+    sleep 6
+    shot d8-done
     cat "$STUB_LOG"
     session_end
 }
 
-# Portuguese: translated interface, categories and catalog descriptions.
+# A laptop panel: 1366x768, the window maximised by the compositor.
+laptop() {
+    echo "laptop (1366x768)"
+    session_start 1366 768
+    app
+    key Return
+    shot laptop-2-apps
+    next
+    shot laptop-3-browser
+    session_end
+}
+
+# Portuguese: translated interface, categories and descriptions.
 pt() {
     echo "pt (TAMAGI_LANG=pt)"
     TAMAGI_LANG=pt session_start $W $H
     TAMAGI_LANG=pt app
     shot pt-1-welcome
     key Return
-    shot pt-2-profile
-    click 237 527
-    next; next
-    shot pt-4-catalog
+    shot pt-2-apps
+    next
+    shot pt-3-browser
     cat "$HOME/.config/cosmic/com.system76.CosmicAppletTime/v1/military_time"
     session_end
 }
@@ -91,7 +86,7 @@ light() {
     session_start $W $H light
     app
     key Return
-    shot light-2-profile
+    shot light-2-apps
     key Return; key Return
     shot light-6-review
     session_end
@@ -100,20 +95,20 @@ light() {
 # An installer fails: what the last page says.
 failure() {
     echo "failure"
-    STUB_FAIL="steam" STUB_SLEEP=0.3 session_start $W $H
-    STUB_FAIL="steam" STUB_SLEEP=0.3 app
+    STUB_FAIL="Calculator" STUB_SLEEP=0.3 session_start $W $H
+    STUB_FAIL="Calculator" STUB_SLEEP=0.3 app
     key Return; key Return; key Return; key Return
     sleep 5
     shot fail-8-done
     session_end
 }
 
-# Skip on the first page: straight to the end, stamp written.
+# Skip on the first page: straight to the end, stamp written, nothing installed.
 skip() {
     echo "skip"
     session_start $W $H
     app
-    click 90 638             # Skip for now
+    click 90 "${Y_SKIP:-698}"          # Skip for now
     shot skip-8-done
     cat "$STUB_LOG"; ls "$HOME/.config/tamagi"
     session_end
@@ -144,12 +139,8 @@ sudo_dialog() {
     echo "sudo through SUDO_ASKPASS (password: ${SUDO_TEST_PASSWORD:?})"
     TAMAGI_WELCOME_TPM=1 STUB_SUDO=1 STUB_SLEEP=1 session_start $W $H
     TAMAGI_WELCOME_TPM=1 STUB_SUDO=1 STUB_SLEEP=1 app
-    key Return
-    click 660 527            # Not now (no profile)
-    next
-    click 200 423            # Not now (no browser)
-    next
-    click 450 181            # unlock with the TPM
+    key Return; next; next
+    click 450 "${Y_TPM:-190}"          # unlock with the TPM
     next
     shot sudo-6-review
     key Return
@@ -163,6 +154,6 @@ sudo_dialog() {
     session_end
 }
 
-[[ $# -gt 0 ]] || set -- pages profile pt light failure skip askpass
+[[ $# -gt 0 ]] || set -- pages defaults laptop pt light failure skip askpass
 for scenario in "$@"; do "$scenario"; done
 rm -rf "$WORK"

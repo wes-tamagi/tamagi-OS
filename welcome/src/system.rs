@@ -255,7 +255,6 @@ pub fn finish() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::plan::Stages;
     use std::sync::Mutex;
 
     #[test]
@@ -283,7 +282,7 @@ mod tests {
     }
 
     fn step(script: &str) -> Step {
-        Step { argv: vec!["sh".into(), "-c".into(), script.into()], title: "test", stages: Stages::Numbered, weight: 1 }
+        Step { argv: vec!["sh".into(), "-c".into(), script.into()], title: "test", weight: 1 }
     }
 
     #[test]
@@ -301,7 +300,7 @@ mod tests {
     #[test]
     fn failure_and_missing_program() {
         assert!(!run_step(&step("exit 3"), &|_| {}));
-        let missing = Step { argv: vec!["/nonexistent/tamagi-nothing".into()], title: "x", stages: Stages::Single, weight: 1 };
+        let missing = Step { argv: vec!["/nonexistent/tamagi-nothing".into()], title: "x", weight: 1 };
         let lines = Mutex::new(Vec::new());
         assert!(!run_step(&missing, &|e| {
             if let Event::Output(line) = e {

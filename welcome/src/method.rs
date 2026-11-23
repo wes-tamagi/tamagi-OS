@@ -97,11 +97,13 @@ pub fn classify(action: &str) -> Method {
             // tamagi-browser's own default.
             Method::Flatpak
         }
-        "tamagi-vm" => Method::Native,
+        // A Fedora package in a layer over the image.
+        "tamagi-vm" | "tamagi-layer" => Method::Native,
         "tamagi-devbox" => Method::Box,
         "tamagi-windows" => Method::Container,
         // Before docker-setup: "lazydocker-setup" also ends in "docker-setup".
-        "lazydocker-setup" | "llm-scripts-setup" => Method::User,
+        // A web app is a menu entry in the home folder.
+        "lazydocker-setup" | "llm-scripts-setup" | "tamagi-webapp" => Method::User,
         "docker-setup" | "vscode-setup" | "tailscale-setup" => Method::Native,
         _ => Method::Command,
     }
@@ -124,6 +126,7 @@ mod tests {
     #[test]
     fn run_commands() {
         assert_eq!(classify("run:tamagi-vm install"), Method::Native);
+        assert_eq!(classify("run:tamagi-layer add rclone rclone"), Method::Native);
         assert_eq!(classify("run:/usr/libexec/tamagi/docker-setup"), Method::Native);
         assert_eq!(classify("run:/usr/libexec/tamagi/vscode-setup"), Method::Native);
         assert_eq!(classify("run:/usr/libexec/tamagi/tailscale-setup"), Method::Native);
@@ -132,6 +135,7 @@ mod tests {
         assert_eq!(classify("run:tamagi-windows install"), Method::Container);
         assert_eq!(classify("run:/usr/libexec/tamagi/lazydocker-setup"), Method::User);
         assert_eq!(classify("run:/usr/libexec/tamagi/llm-scripts-setup"), Method::User);
+        assert_eq!(classify("run:tamagi-webapp install WhatsApp https://web.whatsapp.com"), Method::User);
     }
 
     #[test]

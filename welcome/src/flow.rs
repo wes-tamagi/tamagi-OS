@@ -3,10 +3,9 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
     Welcome,
-    Profile,
+    /// The basics: a short list to tick.
+    Apps,
     Browser,
-    /// Only for "choose item by item".
-    Catalog,
     /// Only with an encrypted disk and a TPM not used yet.
     Disk,
     Review,
@@ -19,9 +18,8 @@ impl Page {
     pub fn label(self) -> &'static str {
         match self {
             Page::Welcome => "Welcome",
-            Page::Profile => "Profile",
+            Page::Apps => "Apps",
             Page::Browser => "Browser",
-            Page::Catalog => "Catalog",
             Page::Disk => "Encrypted disk",
             Page::Review => "Review",
             Page::Installing => "Installing",
@@ -31,11 +29,8 @@ impl Page {
 }
 
 /// The pages of this run, in order.
-pub fn pages(item_by_item: bool, disk_question: bool) -> Vec<Page> {
-    let mut pages = vec![Page::Welcome, Page::Profile, Page::Browser];
-    if item_by_item {
-        pages.push(Page::Catalog);
-    }
+pub fn pages(disk_question: bool) -> Vec<Page> {
+    let mut pages = vec![Page::Welcome, Page::Apps, Page::Browser];
     if disk_question {
         pages.push(Page::Disk);
     }
@@ -69,35 +64,31 @@ mod tests {
 
     #[test]
     fn page_lists() {
-        assert_eq!(pages(false, false), [Welcome, Profile, Browser, Review, Installing, Done]);
-        assert_eq!(pages(true, false), [Welcome, Profile, Browser, Catalog, Review, Installing, Done]);
-        assert_eq!(pages(false, true), [Welcome, Profile, Browser, Disk, Review, Installing, Done]);
-        assert_eq!(pages(true, true), [Welcome, Profile, Browser, Catalog, Disk, Review, Installing, Done]);
+        assert_eq!(pages(false), [Welcome, Apps, Browser, Review, Installing, Done]);
+        assert_eq!(pages(true), [Welcome, Apps, Browser, Disk, Review, Installing, Done]);
     }
 
     #[test]
     fn forward() {
-        let p = pages(true, true);
-        assert_eq!(next(&p, Welcome), Some(Profile));
-        assert_eq!(next(&p, Browser), Some(Catalog));
-        assert_eq!(next(&p, Catalog), Some(Disk));
+        let p = pages(true);
+        assert_eq!(next(&p, Welcome), Some(Apps));
+        assert_eq!(next(&p, Apps), Some(Browser));
+        assert_eq!(next(&p, Browser), Some(Disk));
         assert_eq!(next(&p, Disk), Some(Review));
         assert_eq!(next(&p, Review), None);
         assert_eq!(next(&p, Done), None);
-        let short = pages(false, false);
+        let short = pages(false);
         assert_eq!(next(&short, Browser), Some(Review));
     }
 
     #[test]
     fn backward() {
-        let p = pages(true, false);
+        let p = pages(false);
         assert_eq!(back(&p, Welcome), None);
-        assert_eq!(back(&p, Review), Some(Catalog));
-        assert_eq!(back(&p, Catalog), Some(Browser));
+        assert_eq!(back(&p, Review), Some(Browser));
+        assert_eq!(back(&p, Browser), Some(Apps));
         assert_eq!(back(&p, Installing), None);
         assert_eq!(back(&p, Done), None);
-        // Changing the profile away from "item by item" removes the catalog page.
-        let short = pages(false, false);
-        assert_eq!(back(&short, Review), Some(Browser));
+        assert_eq!(back(&pages(true), Review), Some(Disk));
     }
 }

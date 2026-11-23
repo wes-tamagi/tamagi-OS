@@ -1,9 +1,10 @@
 #!/usr/bin/bash
 # tamagi-boot-report — o boot que se explica.
 #
-# Depois de cada atualização, o greenboot confere se o sistema subiu direito
-# (/usr/lib/greenboot/check). Se não subiu, o computador tenta mais duas vezes,
-# põe o digest com falha em quarentena e volta sozinho para a imagem anterior.
+# Depois de cada atualização, o boot-check confere se o sistema subiu direito
+# (/usr/lib/tamagi/boot-check). Se uma imagem nova não subiu, o computador tenta
+# mais uma vez, põe o digest com falha em quarentena e volta sozinho para a
+# imagem anterior (bootc rollback).
 #
 #   tamagi-boot-report            mostra os relatórios pendentes (e marca como vistos)
 #   tamagi-boot-report list       todos os relatórios guardados
@@ -29,10 +30,13 @@ pending() { # relatórios que este usuário ainda não viu
 status() {
     local qcount=0
     [[ -r $QUARANTINE ]] && qcount=$(grep -cvE '^(#|[[:space:]]*$)' "$QUARANTINE" 2>/dev/null || echo 0)
-    echo "$(t "Health check") : $(systemctl is-active greenboot-healthcheck.service 2>/dev/null || t "unknown")"
-    echo "$(t "Boot marked healthy"): $(systemctl is-active boot-complete.target 2>/dev/null || true)"
-    echo "$(t "Running image")        : $(rpm-ostree status -b 2>/dev/null | grep -m1 Version | sed 's/^ *Version: *//')"
-    echo "$(t "Previous image")      : $(rpm-ostree status 2>/dev/null | grep Version | sed -n '2s/^ *Version: *//p' | grep . || t "none saved")"
+    local st=${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json} good booted
+    good=$(cat /var/lib/tamagi/boot-state/good 2>/dev/null || true)
+    booted=$(jq -r '.status.booted.composefs.verity // empty' "$st" 2>/dev/null)
+    echo "$(t "Health check") : $(systemctl is-active tamagi-boot-check.service 2>/dev/null || t "unknown")"
+    echo "$(t "Boot marked healthy"): $([[ -n $good && $good == "$booted" ]] && echo active || echo inactive)"
+    echo "$(t "Running image")        : $(jq -r '.status.booted.image | "\(.version) (\(.timestamp[0:10]))"' "$st" 2>/dev/null)"
+    echo "$(t "Previous image")      : $(jq -r '.status.rollback.image | select(. != null) | "\(.version) (\(.timestamp[0:10]))"' "$st" 2>/dev/null | grep . || t "none saved")"
     echo "$(t "Quarantined digests"): $qcount"
     echo "$(t "Failure reports")  : $(find "$DIR" -name '*.txt' 2>/dev/null | wc -l), $(pending | wc -l) $(t "pending")"
 }
@@ -40,7 +44,7 @@ status() {
 explain() { # explain <arquivo>: explicação do agente local, se houver modelo
     if command -v tamagi-ai >/dev/null && [[ -n $(tamagi-ai list 2>/dev/null) ]]; then
         echo; echo "── $(t "Local AI agent explanation") ──"
-        tamagi-agent "A system update failed the greenboot health check and automatically rolled back to the previous image. Below is the failure report. Explain simply, in up to six sentences, what broke and what the user can do next. Do not run any commands." < "$1" \
+        tamagi-agent "A system update failed the boot health check and automatically rolled back to the previous image. Below is the failure report. Explain simply, in up to six sentences, what broke and what the user can do next. Do not run any commands." < "$1" \
             || tl "(the agent did not respond; see the report above)"
     else
         echo; tl "To get a local AI explanation: tamagi-ai setup"

@@ -18,56 +18,31 @@ QUARANTINE="${TAMAGI_QUARANTINE:-/var/lib/tamagi/quarantine.list}"
 step() { echo; echo -e "\033[1;34m── $(t "$1")\033[0m"; }
 failed=()
 
-staged_digest() {
-    local d=""
-    if command -v bootc >/dev/null 2>&1; then
-        d=$(bootc status --format json 2>/dev/null \
-            | jq -r '.status.staged.image.imageDigest // empty' 2>/dev/null || true)
-    fi
-    if [[ -z $d ]] && command -v rpm-ostree >/dev/null 2>&1; then
-        d=$(rpm-ostree status --json 2>/dev/null \
-            | jq -r '.deployments[] | select(.staged == true) | ."base-commit-meta"."ostree.manifest-digest" // .checksum // empty' 2>/dev/null | head -1 || true)
-    fi
-    echo "$d"
-}
+STATUS="${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}"
+SYSTEM_UPDATE=/usr/libexec/tamagi/system-update
 
-is_quarantined() {
-    local d=${1:-}
-    [[ -n $d && -r $QUARANTINE ]] && grep -qxF "$d" "$QUARANTINE"
-}
+# `bootc status` needs root: the system publishes a copy for the desktop.
+# (An image downloaded but held back by the Secure Boot guard is not staged.)
+staged_digest() { jq -r '.status.staged | select(.downloadOnly != true) | .image.imageDigest // empty' "$STATUS" 2>/dev/null; }
 
 quarantine_count() {
     [[ -r $QUARANTINE ]] || { echo 0; return; }
     grep -cvE '^(#|[[:space:]]*$)' "$QUARANTINE" 2>/dev/null || echo 0
 }
 
-guard_staged_quarantine() { # se uma imagem em quarentena foi preparada, cancela o stage
-    local d
-    d=$(staged_digest)
-    if is_quarantined "$d"; then
-        echo "$(t "Quarantined digest detected; update cancelled"): $d"
-        if [[ $(id -u) == 0 ]]; then
-            rpm-ostree cleanup -p >/dev/null 2>&1 || true
-        else
-            sudo -n rpm-ostree cleanup -p >/dev/null 2>&1 || true
-        fi
-        notify-send -a Tamagi -i dialog-warning "$(t "Update blocked by quarantine")" \
-            "$(t "The available image is the same one that failed the previous boot. Waiting for a newer build.")" 2>/dev/null || true
-        return 1
-    fi
-    return 0
-}
-
 update_system() {
     step "System (atomic image)"
-    if sudo bootc upgrade; then
-        if ! guard_staged_quarantine; then
-            return 0
-        fi
-        if bootc status --format json 2>/dev/null | jq -e '.status.staged != null' >/dev/null 2>&1; then
+    local before
+    before=$(staged_digest)
+    # Prepared beside the running system; quarantine and Secure Boot are
+    # checked there (system-update).
+    if sudo "$SYSTEM_UPDATE" --now; then
+        if [[ -n $(staged_digest) ]]; then
             tl "New image staged: takes effect on next boot."
-            echo
-            /usr/libexec/tamagi/update-changes --sem-ia || true
+            if [[ $(staged_digest) != "$before" ]]; then
+                echo
+                /usr/libexec/tamagi/update-changes --sem-ia || true
+            fi
         fi
     else
         tl "Could not update the image. If installed from a local build, publish it first"
@@ -127,12 +102,12 @@ update_auto() { # chamado pelo tamagi-autoupdate.timer: sem perguntas e sem senh
         echo; echo -e "\033[1;34m── $(t "Box") $box\033[0m"
         distrobox upgrade "$box" </dev/null || failed+=("caixa:$box")
     done
-    # Protege contra re-instalação de um digest que já falhou no greenboot.
-    if ! guard_staged_quarantine; then
-        return 0
-    fi
-    # A imagem nova é baixada pelo sistema em segundo plano; aqui só o aviso.
-    if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
+    # A imagem nova é preparada pelo sistema em segundo plano
+    # (tamagi-system-update.timer); aqui só o aviso, uma vez por imagem.
+    local staged seen="${XDG_RUNTIME_DIR:-/tmp}/tamagi-update-notified"
+    staged=$(staged_digest)
+    if [[ -n $staged && $(cat "$seen" 2>/dev/null) != "$staged" ]]; then
+        echo "$staged" > "$seen"
         # O que muda, numa linha (kernel, desktop, drivers…); detalhes e resumo
         # da IA local: tamagi-update changes.
         changes=$(/usr/libexec/tamagi/update-changes --curto 2>/dev/null || true)
@@ -155,7 +130,7 @@ timer_line() { # timer_line <rótulo> [--user] <unit>
 
 status_auto() {
     echo "$(t "Automatic updates"):"
-    timer_line "System (image, applied on boot)" rpm-ostreed-automatic.timer
+    timer_line "System (image, applied on boot)" tamagi-system-update.timer
     timer_line "System Flatpaks" flatpak-system-update.timer
     timer_line "User Flatpaks" --user flatpak-user-update.timer
     timer_line "Distrobox boxes" --user tamagi-autoupdate.timer
@@ -168,7 +143,7 @@ status_auto() {
         tl "Update cancelled by Secure Boot: the Universal Blue key is missing."
         echo "  tamagi setup secure-boot-key   ($(t "password"): universalblue)"
     fi
-    if rpm-ostree status --json 2>/dev/null | jq -e '.deployments[0].staged == true' >/dev/null 2>&1; then
+    if [[ -n $(staged_digest) ]]; then
         tl "A new image is staged: reboot to apply."
     fi
 }
@@ -198,7 +173,7 @@ cmd_unquarantine() {
 set_auto() { # set_auto on|off
     local verb=enable
     [[ $1 == off ]] && verb=disable
-    sudo systemctl "$verb" --now rpm-ostreed-automatic.timer flatpak-system-update.timer
+    sudo systemctl "$verb" --now tamagi-system-update.timer flatpak-system-update.timer
     systemctl --user "$verb" --now flatpak-user-update.timer tamagi-autoupdate.timer
     status_auto
 }

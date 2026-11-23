@@ -1,0 +1,14 @@
+[Unit]
+Description=Tamagi: health check of the boot; a bad new image goes back by itself
+Documentation=file:///usr/share/doc/tamagi/README.md
+After=tamagi-system-status.service systemd-user-sessions.service systemd-sysext.service
+Wants=tamagi-system-status.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/tamagi/boot-check
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=multi-user.target

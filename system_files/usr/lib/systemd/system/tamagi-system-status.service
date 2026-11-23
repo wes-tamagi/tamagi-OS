@@ -1,0 +1,10 @@
+[Unit]
+Description=Tamagi: publishes the state of the system image for the desktop
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tamagi/system-update --status
+
+[Install]
+WantedBy=multi-user.target bootc-status-updated.target

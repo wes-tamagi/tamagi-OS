@@ -41,7 +41,7 @@ case "${1:-}" in
     clean)
         podman image prune -af
         flatpak uninstall --unused -y
-        sudo rpm-ostree cleanup -bm ;;
+        ;;
     lazyvim)
         dir="${XDG_CONFIG_HOME:-$HOME/.config}/nvim"
         if [[ -e $dir ]]; then echo "$dir: $(t "already exists; nothing was changed")"; exit 0; fi

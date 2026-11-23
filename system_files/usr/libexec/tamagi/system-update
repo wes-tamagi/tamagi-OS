@@ -1,0 +1,179 @@
+#!/usr/bin/bash
+# system-update — the image of the system, updated with bootc (runs as root).
+#
+# The idea is the one of transactional-update (openSUSE): the new system is
+# prepared beside the running one, which is not touched; it becomes active only
+# on the next boot, and only if everything succeeded. A boot that fails goes
+# back to the previous image by itself. From Bluefin: one background service
+# that does not download on battery or on a metered connection.
+#
+#   system-update              called by tamagi-system-update.timer
+#   system-update --now        asked by a person (tamagi update): no conditions
+#   system-update --check      only says whether there is something new (exit 0 = yes)
+#   system-update --status     refreshes /run/tamagi/bootc-status.json
+#
+# `bootc status` needs root; the desktop (notifications, tamagi update status,
+# tamagi rewind) reads the copy in /run/tamagi/bootc-status.json.
+#
+# Settings: /usr/lib/tamagi/update.conf, overridden by /etc/tamagi/update.conf.
+set -uo pipefail
+
+QUARANTINE=${TAMAGI_QUARANTINE:-/var/lib/tamagi/quarantine.list}
+STATUS=${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}
+GUARD=/usr/libexec/tamagi/secureboot-guard
+
+ON_BATTERY=skip      # skip | run
+ON_METERED=skip      # skip | run
+for conf in /usr/lib/tamagi/update.conf /etc/tamagi/update.conf; do
+    # shellcheck source=/dev/null
+    [[ -r $conf ]] && . "$conf"
+done
+
+log() { echo "system-update: $*"; }
+
+refresh_status() {
+    local tmp
+    mkdir -p "$(dirname "$STATUS")"
+    tmp=$(mktemp "$STATUS.XXXXXX") || return 1
+    if bootc status --format=json --format-version=1 > "$tmp" 2>/dev/null && [[ -s $tmp ]]; then
+        chmod 644 "$tmp"
+        mv -f "$tmp" "$STATUS"
+    else
+        rm -f "$tmp"
+        return 1
+    fi
+}
+
+field() { jq -r "$1 // empty" "$STATUS" 2>/dev/null; }
+
+on_battery() { # only the battery of the computer counts, not a wireless mouse
+    local s
+    for s in /sys/class/power_supply/*; do
+        [[ $(cat "$s/type" 2>/dev/null) == Battery ]] || continue
+        [[ $(cat "$s/scope" 2>/dev/null) == Device ]] && continue
+        [[ $(cat "$s/status" 2>/dev/null) == Discharging ]] && return 0
+    done
+    return 1
+}
+
+metered() { # NetworkManager: 1 = yes, 3 = guessed yes
+    local v
+    v=$(busctl get-property org.freedesktop.NetworkManager /org/freedesktop/NetworkManager \
+        org.freedesktop.NetworkManager Metered 2>/dev/null | awk '{print $2}')
+    [[ $v == 1 || $v == 3 ]]
+}
+
+# The digest the registry has now for the image this system follows. Asked
+# before downloading: an image in quarantine is not even fetched.
+remote_digest() {
+    local ref transport
+    ref=$(field '.status.booted.image.image.image')
+    transport=$(field '.status.booted.image.image.transport')
+    [[ -n $ref && ${transport:-registry} == registry ]] || return 1
+    skopeo inspect --no-tags --format '{{.Digest}}' "docker://$ref" 2>/dev/null
+}
+
+notify_users() { # notify_users <urgency> <icon> <title> <body>
+    local uid user
+    for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
+        user=$(id -nu "$uid" 2>/dev/null) || continue
+        [[ -S /run/user/$uid/bus ]] || continue
+        runuser -u "$user" -- env DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+            notify-send -a Tamagi -u "$1" -i "$2" "$3" "$4" 2>/dev/null || true
+    done
+}
+
+# The packages of the image in use and of the prepared one, for "what changes
+# in this update" (update-changes): the prepared image is mounted read-only
+# from the store of bootc just to read its package list.
+save_packages() {
+    local id dir=/var/lib/tamagi/update mnt q='%{NAME} %{EPOCHNUM}:%{VERSION}-%{RELEASE}\n'
+    id=$(field '.status.staged.composefs.verity')
+    [[ -n $id && -e /sysroot/composefs/images/$id ]] || return 1
+    mkdir -p "$dir"
+    mnt=$(mktemp -d /run/tamagi/staged.XXXXXX) || return 1
+    if mount -t composefs -o ro,basedir=/sysroot/composefs/objects "/sysroot/composefs/images/$id" "$mnt"; then
+        rpm -qa --root "$mnt" --dbpath /usr/lib/sysimage/rpm --qf "$q" 2>/dev/null | sort > "$dir/staged.pkgs.new"
+        umount "$mnt"
+    fi
+    rmdir "$mnt" 2>/dev/null
+    [[ -s $dir/staged.pkgs.new ]] || { rm -f "$dir/staged.pkgs.new"; return 1; }
+    rpm -qa --qf "$q" | sort > "$dir/booted.pkgs"
+    mv -f "$dir/staged.pkgs.new" "$dir/staged.pkgs"
+    field '.status.staged.image.imageDigest' > "$dir/staged.digest"
+    chmod 644 "$dir"/*
+}
+
+mode=${1:-timer}
+case $mode in
+    --status)  refresh_status; exit $? ;;
+esac
+
+refresh_status || { log "bootc status failed"; exit 1; }
+
+if [[ $mode == timer ]]; then
+    if [[ $ON_BATTERY == skip ]] && on_battery; then log "on battery: next run"; exit 0; fi
+    if [[ $ON_METERED == skip ]] && metered; then log "metered connection: next run"; exit 0; fi
+fi
+
+booted=$(field '.status.booted.image.imageDigest')
+staged=$(field '.status.staged.image.imageDigest')
+# Downloaded but held back (the Secure Boot guard refused it): not ready.
+[[ $(field '.status.staged.downloadOnly') == true ]] && held=$staged || held=""
+remote=$(remote_digest) || remote=""
+
+if [[ -z $remote ]]; then
+    # Offline, or an image installed from a local build: nothing to ask.
+    [[ $mode == timer ]] && { log "registry not reachable: next run"; exit 0; }
+    log "could not reach the registry of the image"
+    [[ $mode == --check ]] && exit 1
+fi
+
+if [[ -n $remote && ( $remote == "$booted" || ( $remote == "$staged" && -z $held ) ) ]]; then
+    log "already up to date ($remote)"
+    [[ $mode == --check ]] && exit 1
+    exit 0
+fi
+[[ $mode == --check ]] && { echo "$remote"; exit 0; }
+
+if [[ -n $remote && -r $QUARANTINE ]] && grep -qxF "$remote" "$QUARANTINE"; then
+    log "the image available is in quarantine (it failed to boot here): $remote"
+    notify_users normal dialog-warning "Update blocked by quarantine" \
+        "The available image is the same one that failed the previous boot. Waiting for a newer build."
+    exit 0
+fi
+
+# Two steps, so that a bad update never becomes the next boot: the image is
+# downloaded and prepared but held back (it would not be applied on shutdown);
+# only after the Secure Boot guard agrees is it released.
+if [[ -n $held && $held == "$remote" ]]; then
+    log "already downloaded, checking again: $held"
+else
+    log "preparing ${remote:-the new image}"
+    if ! bootc upgrade --download-only; then
+        log "bootc upgrade failed"
+        exit 1
+    fi
+fi
+refresh_status
+staged=$(field '.status.staged.image.imageDigest')
+[[ -n $staged ]] || { log "nothing was prepared"; exit 0; }
+
+# A kernel the firmware would refuse (Secure Boot without the key) stays held.
+"$GUARD"; rc=$?
+if (( rc == 3 )); then
+    log "held back by the Secure Boot guard: $staged"
+    exit 0
+fi
+
+# The kernel parameters added on this machine go into the new boot entry too.
+/usr/libexec/tamagi/kargs --apply || log "could not re-apply the kernel parameters of this machine"
+
+if ! bootc upgrade --from-downloaded; then
+    log "could not release the prepared image"
+    exit 1
+fi
+refresh_status
+save_packages || log "could not read the package list of the new image (tamagi update changes will not show it)"
+log "prepared: $staged (takes effect on the next boot)"
+exit 0

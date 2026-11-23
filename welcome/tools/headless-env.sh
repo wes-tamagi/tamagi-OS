@@ -1,7 +1,7 @@
 # Sourced by screenshots.sh (inside a Fedora container): headless sway
 # sessions with a keyboard and a pointer, the stub back ends on PATH and the
 # repository's data files.
-#   SHARE   directory with catalog.tsv, flatpaks.list, i18n/, profiles/
+#   SHARE   directory with catalog.tsv, flatpaks.list, basics.list, i18n/
 #   BIN     the tamagi-welcome binary
 #   OUT     where the PNGs go
 # Packages: sway grim wtype wlr-protocols-devel wayland-devel gcc dbus-daemon
@@ -18,7 +18,7 @@ ORIGINAL_PATH=$PATH
 export WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 WLR_RENDERER=pixman
 export XDG_CURRENT_DESKTOP=COSMIC LANG=C.UTF-8
 export TAMAGI_CATALOG="$SHARE/catalog.tsv" TAMAGI_FLATPAKS="$SHARE/flatpaks.list"
-export TAMAGI_I18N_DIR="$SHARE/i18n" TAMAGI_PROFILES="$SHARE/profiles"
+export TAMAGI_I18N_DIR="$SHARE/i18n" TAMAGI_BASICS="$SHARE/basics.list"
 unset LC_ALL LC_MESSAGES TAMAGI_LANG XDG_CONFIG_HOME DISPLAY
 
 # Tools built once: the virtual pointer, and a sway without the file

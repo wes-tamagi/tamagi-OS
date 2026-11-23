@@ -1,9 +1,0 @@
-[Unit]
-Description=Tamagi: confere o Secure Boot quando uma atualização fica pronta
-
-[Path]
-PathExists=/run/ostree/staged-deployment
-Unit=tamagi-secureboot-guard.service
-
-[Install]
-WantedBy=paths.target

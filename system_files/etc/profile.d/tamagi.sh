@@ -15,7 +15,12 @@ case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; e
 case $- in *i*) ;; *) return 0 ;; esac
 [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/no-shell-setup" ] && return 0
 
-export EDITOR="${EDITOR:-nvim}"
+# Neovim lives in the development box (exported to ~/.local/bin when the box
+# is created); until then the editor of the image is vi.
+if [ -z "${EDITOR:-}" ]; then
+    if command -v nvim >/dev/null 2>&1; then EDITOR="nvim"; else EDITOR="vi"; fi
+    export EDITOR
+fi
 export BAT_THEME="${BAT_THEME:-ansi}"
 
 # Cache dos scripts de inicialização do shell: evita 4 subprocessos em todo novo terminal.
@@ -49,9 +54,9 @@ if command -v eza >/dev/null 2>&1; then
 fi
 if command -v dust >/dev/null 2>&1; then alias du='dust'; fi
 if command -v delta >/dev/null 2>&1; then export GIT_PAGER="${GIT_PAGER:-delta}"; fi
-alias n='nvim'
+if command -v nvim >/dev/null 2>&1; then alias n='nvim'; else alias n='/usr/libexec/tamagi/dev-tool nvim'; fi
 alias g='git'
-alias lg='lazygit'
+if command -v lazygit >/dev/null 2>&1; then alias lg='lazygit'; else alias lg='/usr/libexec/tamagi/dev-tool lazygit'; fi
 alias ff='fastfetch'
 alias db='distrobox'
 alias dev='tamagi-devbox enter'

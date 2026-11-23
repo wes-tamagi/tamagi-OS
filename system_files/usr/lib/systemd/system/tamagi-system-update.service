@@ -1,0 +1,11 @@
+[Unit]
+Description=Tamagi: prepares the new system image for the next boot (bootc)
+Documentation=file:///usr/share/doc/tamagi/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tamagi/system-update
+Nice=10
+IOSchedulingClass=idle

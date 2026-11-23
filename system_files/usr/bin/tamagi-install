@@ -7,6 +7,9 @@
 #   tamagi install              choose from the catalog (space marks, Enter installs)
 #   tamagi install list         the catalog, with what each item is
 #   tamagi install <id>…        installs by id (e.g.: tamagi install steam codex firefox)
+#   tamagi install <name>…      not in the catalog? it is looked up on Flathub and
+#                               installed from there (e.g.: tamagi install wesnoth)
+#   tamagi install search <text>   what Flathub has for a text
 #
 # Each item is installed the way that suits it: Flatpak, native RPM in a
 # reversible layer (asks for the password), a distrobox, or in your user.
@@ -61,6 +64,8 @@ is_installed() {
         run:tamagi-devbox\ create\ *) key=${action##* }
                     podman container exists "$([[ $key == fedora ]] && echo dev || echo "dev-$key")" 2>/dev/null ;;
         run:*tailscale-setup)  command -v tailscale >/dev/null 2>&1 ;;
+        run:tamagi-layer\ add\ *) key=${action#run:tamagi-layer add }
+                    command -v "${key##* }" >/dev/null 2>&1 ;;
         run:*llm-scripts-setup) [[ -x $HOME/.local/bin/llm ]] ;;
         run:*vscode-setup)     command -v code >/dev/null 2>&1 ;;
         run:*lazydocker-setup) [[ -x $HOME/.local/bin/lazydocker ]] ;;
@@ -155,6 +160,80 @@ runtimes_note() { # runtimes_note <remote> <app>…
     return 0
 }
 
+# ── Flathub, for what the catalog does not list ────────────────────────────
+# flathub_search <text>: one match per line, best first:
+#   app id <TAB> name <TAB> summary <TAB> verified (true|false)
+# Flathub's own search (the one of flathub.org) when there is network; the
+# local `flatpak search` otherwise. Only the text typed is sent.
+flathub_search() {
+    local text=$1 out
+    out=$(jq -cn --arg q "$text" '{query: $q, hits_per_page: 12}' \
+        | curl -fsS --max-time 15 -X POST -H 'Content-Type: application/json' --data @- \
+            https://flathub.org/api/v2/search 2>/dev/null \
+        | jq -r '.hits[]? | [.app_id, .name, (.summary // ""), ((.verification_verified // false) | tostring)] | @tsv' 2>/dev/null) || out=""
+    if [[ -z $out ]]; then
+        flathub_remote >/dev/null 2>&1
+        out=$(LC_ALL=C flatpak search --user --columns=application,name,description "$text" 2>/dev/null \
+            | awk -F'\t' 'NF >= 2 && $1 ~ /\./ { print $1 "\t" $2 "\t" $3 "\tfalse" }') || out=""
+    fi
+    [[ -n $out ]] && printf '%s\n' "$out"
+}
+
+cmd_search() {
+    local text="$*" id name summary verified found=0
+    [[ -n $text ]] || { echo "usage: tamagi install search <text>" >&2; return 2; }
+    while IFS=$'\t' read -r id name summary verified; do
+        [[ -n $id ]] || continue
+        found=1
+        printf '  %-44s %s — %s%s\n' "$id" "$name" "$summary" "$([[ $verified == true ]] && echo " ✓")"
+    done < <(flathub_search "$text")
+    if (( ! found )); then echo "$(t "Nothing on Flathub for"): $text"; return 1; fi
+    echo
+    tl "✓ = published by the app's own developer. Install with: tamagi install <app id>"
+}
+
+# flathub_resolve <what>: the Flatpak action of something that is not in the
+# catalog, in FLATHUB_ACTION. A full app id is taken as it is; a name installs
+# when it is the app's name or the last part of its id (wesnoth ->
+# org.wesnoth.Wesnoth), or when Flathub has a single match. Several matches:
+# a list to choose from in a terminal, otherwise the list and nothing installed.
+flathub_resolve() {
+    local want=$1 low=${1,,} id name summary verified exact="" exact_name="" pick
+    local -a hits=() labels=()
+    FLATHUB_ACTION=""
+    # TAMAGI_INSTALL_NO_FLATHUB=1: only the catalog (tests, machines kept offline).
+    [[ ${TAMAGI_INSTALL_NO_FLATHUB:-0} == 1 ]] && return 1
+    if [[ $want =~ ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+){2,}$ ]]; then
+        flathub_remote >/dev/null 2>&1
+        if flatpak remote-info --user flathub "$want" >/dev/null 2>&1; then
+            FLATHUB_ACTION="flatpak:flathub:$want"; return 0
+        fi
+    fi
+    while IFS=$'\t' read -r id name summary verified; do
+        [[ -n $id ]] || continue
+        hits+=("$id"); labels+=("$id  $name — $summary$([[ $verified == true ]] && echo " ✓")")
+        if [[ -z $exact ]]; then
+            pick=${id##*.}
+            if [[ ${name,,} == "$low" || ${pick,,} == "$low" || ${id,,} == "$low" ]]; then exact=$id; exact_name=$name; fi
+        fi
+    done < <(flathub_search "$want")
+    (( ${#hits[@]} )) || return 1
+    if [[ -z $exact && ${#hits[@]} -eq 1 ]]; then exact=${hits[0]}; exact_name=${labels[0]#*  }; exact_name=${exact_name%% — *}; fi
+    if [[ -z $exact ]]; then
+        if [[ -t 0 && -t 1 ]]; then
+            pick=$(printf '%s\n' "${labels[@]}" | gum choose --height 14 --header "$(t "Not in the catalog. On Flathub"): $want") || return 2
+            exact=${pick%%  *}; exact_name=${pick#*  }; exact_name=${exact_name%% — *}
+        else
+            echo "$(t "Not in the catalog. On Flathub"): $want" >&2
+            printf '  %s\n' "${labels[@]}" >&2
+            echo "$(t "Install one with"): tamagi install <app id>" >&2
+            return 2
+        fi
+    fi
+    echo "$(t "From Flathub"): $exact_name ($exact)"
+    FLATHUB_ACTION="flatpak:flathub:$exact"
+}
+
 # Runs the chosen actions: Flatpaks in one transaction per remote, the native
 # gaming packages in one layer, the agents together, then the rest in order.
 run_actions() {
@@ -237,6 +316,7 @@ run_actions() {
 load_catalog
 case "${1:-}" in
     list) cmd_list ;;
+    search) shift; cmd_search "$@" ;;
     ids)  printf '%s\n' "${ids[@]}" ;;
     installed) cmd_installed ;;
     --actions) shift; run_actions "$@" ;;      # used by the first-login assistant
@@ -262,7 +342,13 @@ case "${1:-}" in
             for i in "${!ids[@]}"; do
                 [[ ${ids[$i]} == "$want" ]] && { picked+=("${actions[$i]}"); found=1; break; }
             done
-            (( found )) || { echo "$(t "error"): $(t "is not in the catalog"): $want  (tamagi install list)" >&2; exit 2; }
+            (( found )) && continue
+            # Not in the catalog: Flathub.
+            flathub_resolve "$want"; rc=$?
+            if (( rc == 0 )); then picked+=("$FLATHUB_ACTION"); continue; fi
+            (( rc == 2 )) && exit 2
+            echo "$(t "error"): $(t "not in the catalog and not on Flathub"): $want  (tamagi install list · tamagi install search $want)" >&2
+            exit 2
         done
         run_actions "${picked[@]}" ;;
 esac

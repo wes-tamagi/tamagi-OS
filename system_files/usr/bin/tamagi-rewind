@@ -74,31 +74,38 @@ def sh(*cmd, check=False):
     return subprocess.run(cmd, capture_output=True, text=True, check=check)
 
 
-def image_ref():
-    """ghcr.io/dono/tamagi (sem a tag) e o transporte usado pelo bootc."""
-    r = sh("rpm-ostree", "status", "--json")
+STATUS = os.environ.get("TAMAGI_BOOTC_STATUS", "/run/tamagi/bootc-status.json")
+
+
+def bootc_status():
+    """A cópia do `bootc status` que o sistema publica (o comando exige root)."""
     try:
-        deps = json.loads(r.stdout).get("deployments", [])
-    except ValueError:
-        return None
-    booted = next((d for d in deps if d.get("booted")), {})
-    ref = booted.get("container-image-reference", "")
-    ref = re.sub(r"^ostree-[a-z-]+:(docker://|registry:)?", "", ref)
+        with open(STATUS, encoding="utf-8") as fh:
+            return json.load(fh).get("status", {})
+    except (OSError, ValueError):
+        return {}
+
+
+def image_ref():
+    """ghcr.io/dono/tamagi (sem a tag): a origem das atualizações."""
+    ref = (((bootc_status().get("booted") or {}).get("image") or {}).get("image") or {}).get("image", "")
     return ref.rsplit(":", 1)[0] if ":" in ref.split("/")[-1] else ref or None
 
 
 def system_entries():
     out = []
-    r = sh("rpm-ostree", "status", "--json")
-    try:
-        deps = json.loads(r.stdout).get("deployments", [])
-    except ValueError:
-        deps = []
-    for d in deps:
-        kind = "booted" if d.get("booted") else "staged" if d.get("staged") else "rollback"
-        ts = d.get("timestamp") or 0
-        out.append({"when": datetime.datetime.fromtimestamp(ts), "kind": "system", "sub": kind,
-                    "label": f"{tr(kind)} — {d.get('version', '?')}", "id": d.get("checksum", "")[:12]})
+    st = bootc_status()
+    for kind in ("staged", "booted", "rollback"):
+        d = st.get(kind)
+        if not d or (kind == "staged" and d.get("downloadOnly")):
+            continue
+        img = d.get("image") or {}
+        try:
+            when = datetime.datetime.fromisoformat((img.get("timestamp") or "").replace("Z", "+00:00")[:19])
+        except ValueError:
+            when = datetime.datetime.fromtimestamp(0)
+        out.append({"when": when, "kind": "system", "sub": kind,
+                    "label": f"{tr(kind)} — {img.get('version', '?')}", "id": (img.get("imageDigest") or "")[7:19]})
     ref = image_ref()
     if ref and shutil.which("skopeo"):
         r = sh("skopeo", "list-tags", f"docker://{ref}")

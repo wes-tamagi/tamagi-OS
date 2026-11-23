@@ -8,6 +8,11 @@
 # mariadb, valkey/redis-cli — the databases of `tamagi db` answer on
 # 127.0.0.1 from inside the box), mise for other languages and versions, and
 # opens links in the browser of the host (logins of gh, npm, AI agents).
+#
+# The terminal tools that are not in the image (neovim, lazygit, gh, uv, glow,
+# hyperfine, direnv, yq, shellcheck) are installed in the box and exported to
+# the host when it is created: `nvim` typed on the host runs the one of the
+# box. A tool already exported by another box keeps pointing at that one.
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
@@ -81,6 +86,37 @@ provision() { # provision <box> <distro> <extras>
     distrobox enter "$1" -- sudo "$LIBEXEC/devbox-provision" "$2" "$3"
 }
 
+# The tools of the box that the host uses by name.
+DEV_TOOLS=(nvim lazygit gh uv uvx glow hyperfine direnv yq shellcheck)
+EXPORT_DIR="${TAMAGI_DEVBOX_EXPORT_DIR:-$HOME/.local/bin}"
+
+# export_tools <box>: a launcher in ~/.local/bin for each tool the box has.
+# What is already there (exported by another box, or yours) is left alone.
+export_tools() {
+    local box=$1 tool path exported=()
+    mkdir -p "$EXPORT_DIR"
+    for tool in "${DEV_TOOLS[@]}"; do
+        [[ -e $EXPORT_DIR/$tool ]] && continue
+        path=$(distrobox enter "$box" -- sh -c "command -v $tool" 2>/dev/null | tr -d '\r' | tail -1) || continue
+        [[ $path == /* ]] || continue
+        distrobox enter "$box" -- distrobox-export --bin "$path" --export-path "$EXPORT_DIR" >/dev/null 2>&1 \
+            && exported+=("$tool")
+    done
+    (( ${#exported[@]} )) && echo "$(t "On the host too, from this box"): ${exported[*]}"
+    return 0
+}
+
+# unexport_tools <box>: removes the launchers that point at this box.
+unexport_tools() {
+    local box=$1 tool
+    for tool in "${DEV_TOOLS[@]}"; do
+        # distrobox-export writes "# name: <box>" in the launchers it creates.
+        [[ -f $EXPORT_DIR/$tool ]] && grep -qx "# name: $box" "$EXPORT_DIR/$tool" 2>/dev/null \
+            && rm -f "$EXPORT_DIR/$tool"
+    done
+    return 0
+}
+
 cmd_create() {
     local distro="" name="" minimal=0 extras=""
     while (( $# )); do
@@ -110,6 +146,7 @@ cmd_create() {
     if (( ! minimal )); then
         info "$(t "Installing compilers, languages, database clients and mise…")"
         provision "$name" "$distro" "$extras"
+        export_tools "$name"
     fi
     echo
     echo "$(t "Box ready"): $name"
@@ -129,6 +166,7 @@ cmd_provision() {
     box_exists "$name" || die "$(t "Box does not exist"): $name"
     info "$(t "Provisioning box") '$name' ($(distro_of "$name"))…"
     provision "$name" "$(distro_of "$name")" "$extras"
+    export_tools "$name"
 }
 
 ensure_default_box() { box_exists dev || cmd_create fedora --name dev; }
@@ -239,6 +277,7 @@ cmd_remove() {
         gum confirm "$(t "Delete this box? Files in your home folder stay.") ($name)" \
             --affirmative "$(t "Yes")" --negative "$(t "No")" || exit 0
     fi
+    unexport_tools "$name"
     distrobox rm --force "$name"
     echo "$(t "Box removed"): $name"
 }

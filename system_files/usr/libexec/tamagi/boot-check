@@ -1,0 +1,88 @@
+#!/usr/bin/bash
+# boot-check — health check of every boot, and the automatic way back.
+#
+# bootc with systemd-boot does not count boot attempts and does not go back by
+# itself (its documentation says so). This does it for the boots that reach
+# the system:
+#
+#   1. runs /usr/lib/tamagi/boot-check/required.d/*.sh (what, broken, leaves
+#      the computer unusable) and wanted.d/*.sh (only warns);
+#   2. all good: the image in use is recorded as good;
+#   3. a required check fails on an image that never passed here:
+#        first time   -> the native layers are switched off and it reboots
+#                        once more into the same image (a transient failure,
+#                        or the fault of a layer);
+#        second time  -> report + quarantine of the image (red.d), `bootc
+#                        rollback` and reboot: the previous image comes back;
+#   4. it fails on an image that already passed, or there is no previous
+#      image: only the report. Rebooting would not help.
+#
+# What this does NOT cover: a boot that stops before the system is up (kernel
+# or initramfs). There the previous image is one choice away in the boot menu.
+#
+# For tests: TAMAGI_BOOT_CHECK_DRYRUN=1 does not reboot nor roll back.
+set -uo pipefail
+
+DIR=${TAMAGI_BOOT_CHECK_DIR:-/usr/lib/tamagi/boot-check}
+STATE=${TAMAGI_BOOT_STATE:-/var/lib/tamagi/boot-state}
+STATUS=${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}
+DRY=${TAMAGI_BOOT_CHECK_DRYRUN:-}
+
+log() { echo "boot-check: $*"; }
+run_dir() { # run_dir <dir>: runs every script; 1 if one fails
+    local script rc=0
+    for script in "$1"/*.sh; do
+        [[ -x $script ]] || continue
+        if "$script"; then :; else log "FAILED: ${script##*/}"; rc=1; fi
+    done
+    return $rc
+}
+
+[[ -r $STATUS ]] || /usr/libexec/tamagi/system-update --status || true
+id=${TAMAGI_BOOT_ID:-$(jq -r '.status.booted.composefs.verity // .status.booted.image.imageDigest // empty' "$STATUS" 2>/dev/null)}
+if [[ -n ${TAMAGI_BOOT_HAS_ROLLBACK:-} ]]; then
+    has_rollback=$TAMAGI_BOOT_HAS_ROLLBACK
+else
+    has_rollback=$(jq -r 'if .status.rollback then 1 else 0 end' "$STATUS" 2>/dev/null || echo 0)
+fi
+mkdir -p "$STATE"
+good=$(cat "$STATE/good" 2>/dev/null || true)
+tried_id="" tries=0
+[[ -r $STATE/tries ]] && read -r tried_id tries < "$STATE/tries"
+[[ $tried_id == "$id" ]] || tries=0
+
+run_dir "$DIR/wanted.d" || log "a wanted check failed (the boot goes on)"
+
+if run_dir "$DIR/required.d"; then
+    [[ -n $id ]] && echo "$id" > "$STATE/good"
+    rm -f "$STATE/tries"
+    log "ok"
+    exit 0
+fi
+
+if [[ -z $id || $id == "$good" || $has_rollback != 1 ]]; then
+    log "a required check failed; no automatic way back (image already known as good, or no previous image)"
+    TAMAGI_BOOT_NO_QUARANTINE=1 "$DIR/red.d/50-tamagi-relatorio.sh" || true
+    exit 1
+fi
+
+tries=$(( tries + 1 ))
+echo "$id $tries" > "$STATE/tries"
+if (( tries < 2 )); then
+    log "a required check failed on a new image: switching the native layers off and trying once more"
+    "$DIR/red.d/40-tamagi-camadas.sh" || true
+    [[ -n $DRY ]] && { log "(dry run: would reboot)"; exit 1; }
+    systemctl --no-block reboot
+    exit 1
+fi
+
+log "the new image failed twice: going back to the previous one"
+run_dir "$DIR/red.d" || true
+rm -f "$STATE/tries"
+[[ -n $DRY ]] && { log "(dry run: would roll back and reboot)"; exit 1; }
+if bootc rollback; then
+    systemctl --no-block reboot
+else
+    log "bootc rollback failed: choose the previous entry in the boot menu"
+fi
+exit 1

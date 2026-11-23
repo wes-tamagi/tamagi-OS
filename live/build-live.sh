@@ -60,7 +60,7 @@ for f in /usr/lib/tik/lib/* /etc/tik/modules/pre/10-tamagi; do bash -n "$f"; don
 
 # ── Arquivos da sessão live ─────────────────────────────────────────────
 cp -a "$CTX/files/." /
-chmod 755 /usr/libexec/tamagi-install /usr/libexec/tamagi-installer-launch /usr/libexec/tamagi-installer-splash
+chmod 755 /usr/libexec/tamagi-install /usr/libexec/tamagi-installer-launch /usr/libexec/tamagi-installer-splash /usr/libexec/tamagi-verify-media
 desktop-file-validate /usr/share/applications/tamagi-installer.desktop /etc/xdg/autostart/tamagi-installer.desktop
 cat > /etc/tamagi-live.conf <<CONF
 # De onde o instalador tira o sistema e para onde o sistema instalado olha.
@@ -99,7 +99,7 @@ touch /var/home/live/.config/tamagi/firstrun-done
 chown -R live:live /var/home/live
 
 # ── Serviços que só fazem sentido no sistema instalado ──────────────────
-systemctl disable tamagi-flatpak-setup.service tamagi-firstboot.service 2>/dev/null || true
+systemctl disable tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-combustion.service 2>/dev/null || true
 systemctl mask rpm-ostreed-automatic.timer rpm-ostreed-automatic.service \
     bootc-fetch-apply-updates.timer bootloader-update.service \
     ostree-remount.service systemd-remount-fs.service 2>/dev/null || true

@@ -7,21 +7,10 @@ DIR=${TAMAGI_BOOT_FAILURES:-/var/lib/tamagi/boot-failures}
 QUARANTINE=${TAMAGI_QUARANTINE:-/var/lib/tamagi/quarantine.list}
 mkdir -p "$DIR" "$(dirname "$QUARANTINE")"
 
-failed_digest() {
-    local d=""
-    if command -v bootc >/dev/null 2>&1; then
-        d=$(bootc status --format json 2>/dev/null \
-            | jq -r '.status.booted.image.imageDigest // empty' 2>/dev/null || true)
-    fi
-    if [[ -z $d ]] && command -v rpm-ostree >/dev/null 2>&1; then
-        d=$(rpm-ostree status --json 2>/dev/null \
-            | jq -r '.deployments[] | select(.booted == true) | ."base-commit-meta"."ostree.manifest-digest" // .checksum // empty' 2>/dev/null | head -1 || true)
-    fi
-    echo "$d"
-}
-
-digest=$(failed_digest)
-if [[ -n $digest ]]; then
+STATUS=${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}
+digest=$(jq -r '.status.booted.image.imageDigest // empty' "$STATUS" 2>/dev/null || true)
+# Só a imagem nova que falhou vai para a quarentena (boot-check decide).
+if [[ -n $digest && -z ${TAMAGI_BOOT_NO_QUARANTINE:-} ]]; then
     touch "$QUARANTINE"
     grep -qxF "$digest" "$QUARANTINE" 2>/dev/null || echo "$digest" >> "$QUARANTINE"
     chmod 644 "$QUARANTINE" 2>/dev/null || true
@@ -30,12 +19,12 @@ fi
 report="$DIR/$(date +%Y%m%d-%H%M%S).txt"
 {
     echo "Data: $(date '+%d/%m/%Y %H:%M')"
-    echo "Imagem que falhou: $(rpm-ostree status -b 2>/dev/null | grep -m1 -E 'Digest|ostree-|docker|registry' | sed 's/^ *//')"
-    [[ -n $digest ]] && echo "Digest em quarentena: $digest"
-    echo "Versão: $(rpm-ostree status -b 2>/dev/null | grep -m1 'Version' | sed 's/^ *//')"
+    echo "Imagem que falhou: $(jq -r '.status.booted.image | "\(.image.image) \(.imageDigest)"' "$STATUS" 2>/dev/null)"
+    [[ -n $digest && -z ${TAMAGI_BOOT_NO_QUARANTINE:-} ]] && echo "Digest em quarentena: $digest"
+    echo "Versão: $(jq -r '.status.booted.image | "\(.version) (\(.timestamp))"' "$STATUS" 2>/dev/null)"
     echo
     echo "== Verificações de saúde =="
-    journalctl -b -u greenboot-healthcheck.service --no-pager -o cat 2>/dev/null | grep -E 'FALHOU|ERROR|failed|ok:' | cut -c1-300 | tail -n 20
+    journalctl -b -u tamagi-boot-check.service --no-pager -o cat 2>/dev/null | grep -E 'FALHOU|ERROR|failed|ok:' | cut -c1-300 | tail -n 20
     echo
     echo "== Serviços que falharam =="
     systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}'

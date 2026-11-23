@@ -1,8 +1,9 @@
 #!/usr/bin/bash
-# tamagi-firstrun — first login of a user (runs once). The image is lean, so
-# this is short: a ready-made profile (AI and agents is the suggestion), a
-# browser and, for who wants to choose item by item, the catalog. Themes, wallpaper, bar and tiling are changed
-# the normal way, in COSMIC Settings. Texts in pt/en/es/fr.
+# tamagi-firstrun — first login of a user (runs once), in the terminal: the
+# same choices as the window (tamagi-welcome), for when it cannot open. Like
+# the first boot of openSUSE Aeon: a short list of basics (basics.list) and a
+# browser. Everything else is installed later with `tamagi install`; themes,
+# wallpaper, bar and tiling are changed in COSMIC Settings. Texts in pt/en/es/fr.
 #   tamagi-firstrun --force     runs it again
 set -uo pipefail
 . /usr/libexec/tamagi/i18n
@@ -11,6 +12,7 @@ set -uo pipefail
 MULTI=/usr/libexec/tamagi/gum-multi
 CATALOG=/usr/share/tamagi/catalog.tsv
 FLATPAKS=/usr/share/tamagi/flatpaks.list
+BASICS=${TAMAGI_BASICS:-/usr/share/tamagi/basics.list}
 
 STAMP="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/firstrun-done"
 if [[ ${1:-} != --force && -f $STAMP ]]; then exit 0; fi
@@ -44,50 +46,46 @@ echo "$clock24" > ~/.config/cosmic/com.system76.CosmicAppletTime/v1/military_tim
 # The terminal apps start in step with the COSMIC theme.
 tamagi-theme sync >/dev/null 2>&1 || true
 
-picked=() profile=""
-
-step "Profile"
-tl "A profile installs a ready-made set. You can apply others later: tamagi profiles"
-p_ai="ai      $(t "AI and agents: Claude Code, Codex, opencode and the development box")"
-p_dev="dev     $(t "Development: Fedora box, Node and Python, Zed and opencode")"
-p_gamer="gamer   $(t "Games: native Steam, gamescope with HDR, MangoHud and Heroic")"
-p_office="office  $(t "Office: Firefox, OnlyOffice and Thunderbird")"
-p_pick=$(t "choose item by item from the catalog")
-p_none=$(t "not now")
-choice=$(gum choose --height 9 --header "$(t "Which profile?")" --selected "$p_ai" \
-    "$p_ai" "$p_dev" "$p_gamer" "$p_office" "$p_pick" "$p_none") || choice=$p_none
-case $choice in
-    "$p_pick"|"$p_none") ;;
-    *) profile=${choice%% *} ;;
-esac
+picked=()
 
 step "Browser"
 tl "No browser ships in the image. Choose one (you can install others later)."
 none=$(t "not now")
 browser=$(gum choose --height 8 --header "$(t "Which browser?")" \
-    "firefox   Firefox" "chrome    Google Chrome" "vivaldi   Vivaldi" "chromium  Chromium" "$none") || browser=$none
+    "opera-gx  Opera GX" "chrome    Google Chrome" "chromium  Chromium" "vivaldi   Vivaldi" "$none") || browser=$none
 if [[ $browser != "$none" ]]; then
-    method=$(gum choose --height 6 --header "$(t "Install how?")" \
-        "flatpak  $(t "Flatpak — Flathub app, sandboxed (recommended)")" \
-        "native   $(t "native — RPM in a layer over the image (asks for the password)")" \
-        "box      $(t "box — in a Fedora box, with hardware video decoding")") || method=flatpak
+    method=flatpak
+    # Opera GX exists for Linux only as a Flatpak.
+    if [[ ${browser%% *} != opera-gx ]]; then
+        method=$(gum choose --height 6 --header "$(t "Install how?")" \
+            "flatpak  $(t "Flatpak — Flathub app, sandboxed (recommended)")" \
+            "native   $(t "native — RPM in a layer over the image (asks for the password)")" \
+            "box      $(t "box — in a Fedora box, with hardware video decoding")") || method=flatpak
+    fi
     picked+=("run:tamagi-browser install ${browser%% *} --${method%% *}")
 fi
 
-if [[ $choice == "$p_pick" ]]; then
-    step "What to install"
-    tl "Everything here is optional and stays available later in: tamagi install"
-    # The catalog, minus the browsers (asked above).
-    labels=() actions=()
-    while IFS=$'\t' read -r id cat size action desc; do
-        [[ -z $id || $id == \#* || $cat == Navegadores ]] && continue
-        labels+=("[$(t "$cat")] $(t "$desc") (≈ $size)"); actions+=("$action")
+step "Apps to start with"
+tl "Tick what you want now. Everything else is one command away: tamagi install"
+# The basics: the lines of basics.list, found in the catalog.
+labels=() actions=() preselected=()
+while read -r state want _; do
+    [[ $state == on || $state == off ]] || continue
+    label="" action=""
+    while IFS=$'\t' read -r id cat size act desc; do
+        [[ $id == "$want" && $cat != Browsers ]] && { label="[$(t "$cat")] $(t "$desc") (≈ $size)"; action=$act; break; }
     done < "$CATALOG"
-    while read -r remote app kind cat size desc; do
-        [[ -z $remote || $remote == \#* || $kind != opcional ]] && continue
-        labels+=("[$(t "$cat")] $(t "$desc") (≈ $size)"); actions+=("flatpak:$remote:$app")
-    done < "$FLATPAKS"
-    chosen=$(printf '%s\n' "${labels[@]}" | "$MULTI" --height 18 \
+    if [[ -z $action ]]; then
+        while read -r remote app kind cat size desc; do
+            [[ $app == "$want" && $kind == opcional ]] && { label="[$(t "$cat")] $(t "$desc") (≈ $size)"; action="flatpak:$remote:$app"; break; }
+        done < "$FLATPAKS"
+    fi
+    [[ -n $action ]] || continue
+    labels+=("$label"); actions+=("$action")
+    [[ $state == on ]] && preselected+=(--selected "$label")
+done < "$BASICS"
+if (( ${#labels[@]} )); then
+    chosen=$(printf '%s\n' "${labels[@]}" | "$MULTI" --height 14 "${preselected[@]}" \
         --header "$(t "Space toggles · Enter installs · nothing selected: installs nothing")") || chosen=""
     if [[ -n $chosen ]]; then
         while IFS= read -r line; do
@@ -106,11 +104,10 @@ if lsblk -no TYPE 2>/dev/null | grep -qx crypt && [[ -e /sys/class/tpm/tpm0 ]] \
     fi
 fi
 
-if (( ${#picked[@]} )) || [[ -n $profile ]]; then
+if (( ${#picked[@]} )); then
     step "Installing what you chose"
     tl "You can keep using the computer: this window tells you when it is done."
-    (( ${#picked[@]} )) && { tamagi-install --actions "${picked[@]}" || true; }
-    [[ -n $profile ]] && { tamagi-install prefetch-wait; tamagi apply -y "$profile" || true; }
+    tamagi-install --actions "${picked[@]}" || true
     notify-send -a Tamagi -i system-software-install "$(t "Your apps are ready")" \
         "$(t "What you chose at first login has been installed.")" 2>/dev/null || true
 fi
@@ -121,6 +118,7 @@ touch "$STAMP"
 step "Done"
 tl "Super+Space opens the menu · Super+A the command palette · Super+K the shortcuts."
 tl "Themes and wallpapers: COSMIC Settings (Appearance and Wallpaper)."
-tl "AI agents jailed in the project: tamagi agents run claude (inside the project folder)."
+tl "More apps, by name: tamagi install (what the catalog does not list comes from Flathub)."
+tl "Ready-made sets (AI, development, games, office): tamagi profiles"
 tl "Every command of the system: tamagi"
 read -rsn1 -p "  ($(t "press any key to close"))"

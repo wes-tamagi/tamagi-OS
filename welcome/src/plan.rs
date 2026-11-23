@@ -1,9 +1,9 @@
 //! From the choices to the commands that install them. Nothing is installed
-//! here: the back ends are `tamagi-install`, `tamagi apply` and `tamagi-setup`,
-//! in the same order as the terminal assistant (`tamagi-firstrun`).
+//! here: the back ends are `tamagi-install` and `tamagi-setup`, in the same
+//! order as the terminal assistant (`tamagi-firstrun`).
 
 /// The browsers offered: (id for `tamagi-browser`, name shown).
-pub const BROWSERS: [(&str, &str); 4] = [("firefox", "Firefox"), ("chrome", "Google Chrome"), ("vivaldi", "Vivaldi"), ("chromium", "Chromium")];
+pub const BROWSERS: [(&str, &str); 4] = [("opera-gx", "Opera GX"), ("chrome", "Google Chrome"), ("chromium", "Chromium"), ("vivaldi", "Vivaldi")];
 
 /// How a browser is installed: (flag for `tamagi-browser`, description key).
 pub const BROWSER_METHODS: [(&str, &str); 3] = [
@@ -11,6 +11,16 @@ pub const BROWSER_METHODS: [(&str, &str); 3] = [
     ("native", "native — RPM in a layer over the image (asks for the password)"),
     ("box", "box — in a Fedora box, with hardware video decoding"),
 ];
+
+/// The ways `browser` can be installed: Opera GX exists for Linux only as a
+/// Flatpak; the others in all three.
+pub fn methods_for(browser: &str) -> &'static [(&'static str, &'static str)] {
+    if browser == "opera-gx" {
+        &BROWSER_METHODS[..1]
+    } else {
+        &BROWSER_METHODS
+    }
+}
 
 /// `run:tamagi-browser install <browser> --<method>`
 pub fn browser_action(browser: &str, method: &str) -> String {
@@ -20,19 +30,17 @@ pub fn browser_action(browser: &str, method: &str) -> String {
 /// Everything decided in the pages.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Choices {
-    /// A ready-made profile (ai, dev, gamer, office), if one was chosen.
-    pub profile: Option<String>,
     /// (browser, method), if a browser was chosen.
     pub browser: Option<(String, String)>,
-    /// Catalog actions ticked one by one.
+    /// Catalog actions of the basics ticked.
     pub picked: Vec<String>,
     /// Unlock the encrypted disk with the TPM chip.
     pub tpm: bool,
 }
 
 impl Choices {
-    /// What goes to `tamagi-install --actions`: the browser first, then the
-    /// catalog items, without repeats.
+    /// What goes to `tamagi-install --actions`: the browser first (a web app
+    /// needs it), then the ticked items, without repeats.
     pub fn actions(&self) -> Vec<String> {
         let mut actions: Vec<String> = Vec::new();
         if let Some((browser, method)) = &self.browser {
@@ -47,30 +55,18 @@ impl Choices {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.profile.is_none() && self.browser.is_none() && self.picked.is_empty() && !self.tpm
+        self.browser.is_none() && self.picked.is_empty() && !self.tpm
     }
-}
-
-/// How the output of a command reports its progress.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Stages {
-    /// `── [n/total] title` lines (tamagi-install).
-    Numbered,
-    /// `── title` lines, one per step (tamagi apply).
-    Counted,
-    /// A single step.
-    Single,
 }
 
 /// One command of the installation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Step {
     pub argv: Vec<String>,
-    /// English title shown while it runs (a translation key).
+    /// English title shown while it runs (a translation key). Its output
+    /// reports the stages as `── [n/total] title` lines.
     pub title: &'static str,
-    pub stages: Stages,
     /// Share of the overall progress bar: about how many stages it has.
-    /// 0 = a wait that is not shown as a step.
     pub weight: u32,
 }
 
@@ -83,31 +79,19 @@ pub fn install_stage_count(actions: &[String]) -> u32 {
     has("flatpak:") + has("gaming:") + count("run:") + count("agent:")
 }
 
-/// The commands to run, in order. `profile_items` is how many things the
-/// chosen profile installs (only to size its share of the progress bar).
-pub fn steps(choices: &Choices, profile_items: usize) -> Vec<Step> {
+/// The commands to run, in order.
+pub fn steps(choices: &Choices) -> Vec<Step> {
     let mut steps = Vec::new();
     let argv = |words: &[&str]| words.iter().map(|w| w.to_string()).collect::<Vec<_>>();
     if choices.tpm {
-        steps.push(Step { argv: argv(&["tamagi-setup", "tpm-unlock", "on"]), title: "Encrypted disk", stages: Stages::Single, weight: 1 });
+        steps.push(Step { argv: argv(&["tamagi-setup", "tpm-unlock", "on"]), title: "Encrypted disk", weight: 1 });
     }
     let actions = choices.actions();
     if !actions.is_empty() {
         let weight = install_stage_count(&actions).max(1);
         let mut command = argv(&["tamagi-install", "--actions"]);
         command.extend(actions);
-        steps.push(Step { argv: command, title: "Browser and items you chose", stages: Stages::Numbered, weight });
-    }
-    if let Some(profile) = &choices.profile {
-        // Two Flatpak operations at once would collide: the profile waits for
-        // the runtime that started downloading when the window opened.
-        steps.push(Step { argv: argv(&["tamagi-install", "prefetch-wait"]), title: "Waiting for the shared Flatpak runtime", stages: Stages::Single, weight: 0 });
-        steps.push(Step {
-            argv: argv(&["tamagi", "apply", "-y", profile]),
-            title: "Profile",
-            stages: Stages::Counted,
-            weight: (profile_items as u32).max(1),
-        });
+        steps.push(Step { argv: command, title: "Browser and apps you chose", weight });
     }
     steps
 }
@@ -122,13 +106,13 @@ mod tests {
 
     #[test]
     fn browser_actions() {
-        assert_eq!(browser_action("firefox", "flatpak"), "run:tamagi-browser install firefox --flatpak");
+        assert_eq!(browser_action("opera-gx", "flatpak"), "run:tamagi-browser install opera-gx --flatpak");
         assert_eq!(browser_action("chrome", "native"), "run:tamagi-browser install chrome --native");
         assert_eq!(browser_action("vivaldi", "box"), "run:tamagi-browser install vivaldi --box");
         for (browser, _) in BROWSERS {
-            for (method, _) in BROWSER_METHODS {
+            for (method, _) in methods_for(browser) {
                 let action = browser_action(browser, method);
-                let expected = match method {
+                let expected = match *method {
                     "flatpak" => crate::method::Method::Flatpak,
                     "native" => crate::method::Method::Native,
                     _ => crate::method::Method::Box,
@@ -139,47 +123,52 @@ mod tests {
     }
 
     #[test]
+    fn opera_gx_is_flatpak_only() {
+        assert_eq!(methods_for("opera-gx"), [BROWSER_METHODS[0]]);
+        assert_eq!(methods_for("chrome").len(), 3);
+        assert_eq!(BROWSERS[0].0, "opera-gx");
+    }
+
+    /// Every browser offered is a line of the real catalog (its size comes from there).
+    #[test]
+    fn browsers_are_in_the_catalog() {
+        let Some(share) = crate::test_share_dir() else {
+            return; // built outside the repository
+        };
+        let catalog = crate::catalog::parse_catalog(&std::fs::read_to_string(share.join("catalog.tsv")).unwrap());
+        for (id, _) in BROWSERS {
+            let item = catalog.iter().find(|i| i.id == id).unwrap_or_else(|| panic!("{id} is not in catalog.tsv"));
+            assert_eq!(item.action, browser_action(id, "flatpak"));
+        }
+    }
+
+    #[test]
     fn actions_put_the_browser_first_and_drop_repeats() {
         let choices = Choices {
-            profile: None,
-            browser: Some(("firefox".into(), "flatpak".into())),
-            picked: s(&["gaming:steam", "agent:claude", "gaming:steam", "run:tamagi-browser install firefox --flatpak"]),
+            browser: Some(("chrome".into(), "flatpak".into())),
+            picked: s(&["flatpak:flathub:a.b.C", "run:tamagi-webapp install WhatsApp https://web.whatsapp.com", "flatpak:flathub:a.b.C", "run:tamagi-browser install chrome --flatpak"]),
             tpm: false,
         };
-        assert_eq!(choices.actions(), s(&["run:tamagi-browser install firefox --flatpak", "gaming:steam", "agent:claude"]));
+        assert_eq!(choices.actions(), s(&["run:tamagi-browser install chrome --flatpak", "flatpak:flathub:a.b.C", "run:tamagi-webapp install WhatsApp https://web.whatsapp.com"]));
     }
 
     #[test]
     fn nothing_chosen_runs_nothing() {
         let choices = Choices::default();
         assert!(choices.is_empty());
-        assert!(steps(&choices, 0).is_empty());
-    }
-
-    #[test]
-    fn profile_with_browser_matches_the_terminal_assistant() {
-        let choices = Choices { profile: Some("ai".into()), browser: Some(("chrome".into(), "native".into())), picked: vec![], tpm: false };
-        let commands: Vec<Vec<String>> = steps(&choices, 5).into_iter().map(|s| s.argv).collect();
-        assert_eq!(
-            commands,
-            [
-                s(&["tamagi-install", "--actions", "run:tamagi-browser install chrome --native"]),
-                s(&["tamagi-install", "prefetch-wait"]),
-                s(&["tamagi", "apply", "-y", "ai"]),
-            ]
-        );
+        assert!(steps(&choices).is_empty());
     }
 
     #[test]
     fn tpm_goes_first() {
-        let choices = Choices { profile: None, browser: None, picked: s(&["flatpak:flathub:org.gimp.GIMP"]), tpm: true };
-        let all = steps(&choices, 0);
+        let choices = Choices { browser: None, picked: s(&["flatpak:flathub:org.gimp.GIMP"]), tpm: true };
+        let all = steps(&choices);
         assert_eq!(all[0].argv, s(&["tamagi-setup", "tpm-unlock", "on"]));
         assert_eq!(all[1].argv, s(&["tamagi-install", "--actions", "flatpak:flathub:org.gimp.GIMP"]));
         assert_eq!(all.len(), 2);
         assert!(!choices.is_empty());
         let only_tpm = Choices { tpm: true, ..Choices::default() };
-        assert_eq!(steps(&only_tpm, 0).len(), 1);
+        assert_eq!(steps(&only_tpm).len(), 1);
     }
 
     #[test]
@@ -193,11 +182,9 @@ mod tests {
 
     #[test]
     fn weights() {
-        let choices = Choices { profile: Some("dev".into()), browser: Some(("firefox".into(), "flatpak".into())), picked: s(&["agent:claude", "gaming:steam"]), tpm: true };
-        let all = steps(&choices, 6);
+        let choices = Choices { browser: Some(("chrome".into(), "flatpak".into())), picked: s(&["flatpak:flathub:a.b.C", "flatpak:flathub:d.e.F"]), tpm: true };
+        let all = steps(&choices);
         let weights: Vec<u32> = all.iter().map(|s| s.weight).collect();
-        assert_eq!(weights, [1, 3, 0, 6]);
-        assert_eq!(all[1].stages, Stages::Numbered);
-        assert_eq!(all[3].stages, Stages::Counted);
+        assert_eq!(weights, [1, 2]);
     }
 }

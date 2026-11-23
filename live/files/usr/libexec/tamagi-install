@@ -5,9 +5,21 @@
 #
 #   tamagi-install <disco> <arquivo-de-respostas>
 #
-# O que faz: apaga o disco, cria ESP + /boot + raiz btrfs (com LUKS2 e, se
-# pedido, a chave no TPM) e chama `bootc install to-filesystem` para copiar a imagem do
-# sistema. Depois grava no sistema novo o idioma, o teclado, o fuso e o
+# O que faz: apaga o disco, cria a ESP e um btrfs com os subvolumes "root" e
+# "home" (com LUKS2 e, se pedido, a chave no TPM) e chama
+# `bootc install to-filesystem` para copiar a imagem do sistema.
+#
+# Disco, como no openSUSE Aeon:
+#   1  ESP (FAT32, 8 GiB), em /efi   systemd-boot, e o kernel e o initramfs de
+#                                    cada versão do sistema (não há /boot)
+#   2  btrfs                         subvolume "root" (o sistema: as imagens
+#                                    do bootc, /etc e /var) e subvolume "home"
+#                                    (/var/home), com compressão zstd
+# O carregador de boot é o systemd-boot, que o bootc só instala com o backend
+# composefs (com o ostree seria GRUB + uma partição /boot): por isso a
+# instalação usa --composefs-backend --bootloader systemd.
+# A pasta de cada usuário nasce como subvolume dentro de "home" (primeiro
+# boot), que é o que o snapper usa para os snapshots da pasta pessoal. Depois grava no sistema novo o idioma, o teclado, o fuso e o
 # arquivo que o primeiro boot usa para criar o usuário.
 #
 # Saída: linhas "PROGRESS <0-100> <mensagem>" (o tik mostra numa barra); o
@@ -22,19 +34,19 @@ LIVE_CONF=/etc/tamagi-live.conf
 # Mensagens da barra de progresso, no idioma escolhido no instalador.
 # shellcheck disable=SC2034  # as tabelas são lidas por nome em progress()
 declare -A MSG_pt=([verify]="Conferindo a mídia de instalação" [disk]="Preparando o disco" [format]="Formatando" [luks]="Criptografando o disco (LUKS2)"
-    [tpm]="Guardando a chave do disco no chip TPM" [copy]="Copiando o sistema"
+    [tpm]="Guardando a chave do disco no chip TPM" [copy]="Copiando o sistema" [deploy]="Preparando o sistema instalado"
     [config]="Configurando o sistema novo" [finish]="Finalizando" [end]="Instalação concluída")
 # shellcheck disable=SC2034
 declare -A MSG_en=([verify]="Checking the installation media" [disk]="Preparing the disk" [format]="Formatting" [luks]="Encrypting the disk (LUKS2)"
-    [tpm]="Storing the disk key in the TPM chip" [copy]="Copying the system"
+    [tpm]="Storing the disk key in the TPM chip" [copy]="Copying the system" [deploy]="Preparing the installed system"
     [config]="Configuring the new system" [finish]="Finishing" [end]="Installation complete")
 # shellcheck disable=SC2034
 declare -A MSG_es=([verify]="Comprobando el medio de instalación" [disk]="Preparando el disco" [format]="Formateando" [luks]="Cifrando el disco (LUKS2)"
-    [tpm]="Guardando la clave del disco en el chip TPM" [copy]="Copiando el sistema"
+    [tpm]="Guardando la clave del disco en el chip TPM" [copy]="Copiando el sistema" [deploy]="Preparando el sistema instalado"
     [config]="Configurando el sistema nuevo" [finish]="Finalizando" [end]="Instalación terminada")
 # shellcheck disable=SC2034
 declare -A MSG_fr=([verify]="Vérification du support d'installation" [disk]="Préparation du disque" [format]="Formatage" [luks]="Chiffrement du disque (LUKS2)"
-    [tpm]="Enregistrement de la clé du disque dans la puce TPM" [copy]="Copie du système"
+    [tpm]="Enregistrement de la clé du disque dans la puce TPM" [copy]="Copie du système" [deploy]="Préparation du système installé"
     [config]="Configuration du nouveau système" [finish]="Finalisation" [end]="Installation terminée")
 MSG_LANG=en
 progress() { local -n _m="MSG_${MSG_LANG}"; echo "PROGRESS $1 ${_m[$2]:-$2}"; }
@@ -108,7 +120,7 @@ trap cleanup EXIT
 MIN_BYTES=$(( 24 * 1024 * 1024 * 1024 ))
 disk_bytes=$(blockdev --getsize64 "$DISK")
 (( disk_bytes >= MIN_BYTES )) || die "o disco $DISK tem $(( disk_bytes / 1024 / 1024 / 1024 )) GiB; o Tamagi precisa de pelo menos 24 GiB"
-for tool in sfdisk wipefs mkfs.vfat mkfs.ext4 mkfs.btrfs bootc cryptsetup jq sha256sum; do
+for tool in sfdisk wipefs mkfs.vfat mkfs.btrfs btrfs bootc cryptsetup jq sha256sum; do
     command -v "$tool" >/dev/null || die "ferramenta ausente na mídia: $tool"
 done
 
@@ -116,25 +128,30 @@ done
 # manifesto) ANTES de apagar o disco: mídia com defeito aparece aqui, e não
 # no meio da cópia. A leitura também deixa a imagem no cache de memória, então
 # a cópia seguinte não relê o pendrive.
-verify_payload() {
-    local dir=$1 manifest digest
-    digest=$(jq -r '.manifests[0].digest' "$dir/index.json") || return 1
-    manifest="$dir/blobs/${digest/://}"
-    [[ -f $manifest ]] || { echo "manifesto ausente: $digest" >&2; return 1; }
-    # Índice de vários manifestos: desce para o primeiro.
-    if jq -e '.manifests' "$manifest" >/dev/null 2>&1; then
-        digest=$(jq -r '.manifests[0].digest' "$manifest")
-        manifest="$dir/blobs/${digest/://}"
-    fi
-    { echo "$digest"; jq -r '.config.digest, .layers[].digest' "$manifest"; } \
-        | sed -E 's#^sha256:([0-9a-f]{64})$#\1  blobs/sha256/\1#' \
-        | ( cd "$dir" && xargs -d '\n' -n 8 -P "$(nproc)" sh -c 'printf "%s\n" "$@" | sha256sum --check --quiet --strict' _ )
+# A conferência já começou quando a janela do instalador abriu (VERIFY_STATE,
+# ver tamagi-verify-media): aqui só se espera o que faltar. O resultado vale
+# se o index.json da mídia ainda é o mesmo; sem resultado (instalação sem
+# perguntas, conferência interrompida), confere-se agora.
+payload_verified() {
+    local state=${A[VERIFY_STATE]:-} pid rc
+    [[ -n $state && -d $state ]] || return 1
+    pid=$(cat "$state/pid" 2>/dev/null || true)
+    while [[ -n $pid && ! -e $state/rc ]] && kill -0 "$pid" 2>/dev/null; do sleep 1; done
+    rc=$(cat "$state/rc" 2>/dev/null || true)
+    [[ $rc == bad ]] && return 2
+    [[ $rc == "ok $(sha256sum "$PAYLOAD_DIR/index.json" | cut -d' ' -f1)" ]]
 }
 if [[ $SOURCE == oci:* ]]; then
     progress 1 verify
     start=$SECONDS
-    verify_payload "$PAYLOAD_DIR" >&2 || die "a mídia de instalação está corrompida (a imagem do sistema não confere). O disco NÃO foi alterado. Grave a mídia de novo."
-    echo "imagem embutida conferida em $(( SECONDS - start )) s" >&2
+    corrupt="a mídia de instalação está corrompida (a imagem do sistema não confere). O disco NÃO foi alterado. Grave a mídia de novo."
+    vrc=0; payload_verified || vrc=$?
+    case $vrc in
+        0) echo "imagem embutida já conferida em segundo plano (espera: $(( SECONDS - start )) s)" >&2 ;;
+        2) die "$corrupt" ;;
+        *) /usr/libexec/tamagi-verify-media "$PAYLOAD_DIR" >&2 || die "$corrupt"
+           echo "imagem embutida conferida em $(( SECONDS - start )) s" >&2 ;;
+    esac
 fi
 
 progress 2 disk
@@ -147,22 +164,20 @@ WIPED=1
 wipefs -af "$DISK" >/dev/null
 sfdisk --wipe always --wipe-partitions always "$DISK" >/dev/null <<'PARTS'
 label: gpt
-size=1GiB, type=uefi, name="EFI-SYSTEM", attrs="NoBlockIOProtocol"
-size=2GiB, type=linux, name="boot"
+size=8GiB, type=uefi, name="EFI-SYSTEM", attrs="NoBlockIOProtocol"
 type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name="root"
 PARTS
 udevadm settle
 partprobe "$DISK" 2>/dev/null || true
 udevadm settle
 mapfile -t PARTS < <(lsblk -nrpo NAME,TYPE "$DISK" | awk '$2 == "part" { print $1 }')
-(( ${#PARTS[@]} == 3 )) || die "esperava 3 partições em $DISK, achei ${#PARTS[@]}"
-ESP=${PARTS[0]} BOOT=${PARTS[1]} ROOT=${PARTS[2]}
+(( ${#PARTS[@]} == 2 )) || die "esperava 2 partições em $DISK, achei ${#PARTS[@]}"
+ESP=${PARTS[0]} ROOT=${PARTS[1]}
 
 progress 6 format
 mkfs.vfat -F 32 -n EFI-SYSTEM "$ESP" >/dev/null
-mkfs.ext4 -q -F -L boot "$BOOT"
 
-KARGS=(--karg "rootflags=compress=zstd:1,noatime")
+KARGS=(--karg "rootflags=subvol=root,compress=zstd:1,noatime")
 ROOTDEV=$ROOT
 if [[ -n ${A[LUKS_KEYFILE]:-} ]]; then
     [[ -s ${A[LUKS_KEYFILE]} ]] || die "senha do disco vazia"
@@ -200,22 +215,30 @@ udevadm settle
 
 # As pastas de ponto de montagem são criadas aqui, fora do bootc, então
 # recebem o rótulo SELinux à mão: sem ele ficam "unlabeled_t" e o
-# systemd-logind do sistema instalado é barrado ao olhar para /boot/efi.
+# systemd-logind do sistema instalado é barrado ao olhar para a partição EFI.
 mountpoint_dir() {
     mkdir -p "$1"
     chcon system_u:object_r:boot_t:s0 "$1" 2>/dev/null || true
 }
 mkdir -p "$MNT"
+# Subvolumes: "root" recebe o sistema; "home" é montado em /var/home.
+mount "$ROOTDEV" "$MNT"
+btrfs subvolume create "$MNT/root" >/dev/null
+btrfs subvolume create "$MNT/home" >/dev/null
+chcon system_u:object_r:home_root_t:s0 "$MNT/home" 2>/dev/null || true
+umount "$MNT"
+BTRFS_UUID=$(blkid -s UUID -o value "$ROOTDEV")
+[[ -n $BTRFS_UUID ]] || die "não consegui ler o UUID do btrfs em $ROOTDEV"
 # Só durante a instalação: sem barreiras de escrita (cada fsync do ostree deixa
 # de esperar o disco) e sem atime. Se faltar energia no meio, a instalação
 # recomeça do zero de qualquer forma; o sistema instalado monta com as opções
 # normais (rootflags na linha do kernel).
-mount -o compress=zstd:1,noatime,nobarrier "$ROOTDEV" "$MNT" 2>/dev/null \
-    || mount -o compress=zstd:1,noatime "$ROOTDEV" "$MNT"
-mountpoint_dir "$MNT/boot"
-mount "$BOOT" "$MNT/boot"
-mountpoint_dir "$MNT/boot/efi"
-mount -o umask=0077 "$ESP" "$MNT/boot/efi"
+mount -o subvol=root,compress=zstd:1,noatime,nobarrier "$ROOTDEV" "$MNT" 2>/dev/null \
+    || mount -o subvol=root,compress=zstd:1,noatime "$ROOTDEV" "$MNT"
+mountpoint_dir "$MNT/efi"
+mount -o umask=0077 "$ESP" "$MNT/efi"
+ESP_UUID=$(blkid -s UUID -o value "$ESP")
+[[ -n $ESP_UUID ]] || die "não consegui ler o UUID da partição EFI"
 
 progress 12 copy
 [[ -n ${A[TARGET_IMGREF]:-} ]] && TARGET_IMGREF=${A[TARGET_IMGREF]}
@@ -225,27 +248,46 @@ TARGET=(--target-transport registry --target-imgref "${TARGET_IMGREF:-localhost/
 # não tem de onde se atualizar (`tamagi setup switch-image` resolve depois).
 TARGET+=(--skip-fetch-check)
 [[ -n ${A[EXTRA_KARGS]:-} ]] && for karg in ${A[EXTRA_KARGS]}; do KARGS+=(--karg "$karg"); done
-echo "bootc install to-filesystem --source-imgref $SOURCE ${TARGET[*]} ${KARGS[*]} $MNT" >&2
-# O bootc não informa o andamento sem terminal: a barra acompanha quanto do
-# disco já foi escrito, contra o tamanho da imagem embutida na mídia (com a
-# compressão zstd do btrfs, o sistema instalado ocupa perto de COPY_RATIO/100 (medido: 2,0)
-# do tamanho da imagem comprimida).
-COPY_RATIO=200
+BACKEND=(--composefs-backend --bootloader systemd)
+echo "bootc install to-filesystem ${BACKEND[*]} --source-imgref $SOURCE ${TARGET[*]} ${KARGS[*]} $MNT" >&2
+# O bootc não informa o andamento sem terminal. A barra tem duas fases:
+#   12–70  a cópia das camadas: quanto do disco já foi escrito, contra o
+#          tamanho da imagem embutida na mídia (com a compressão zstd do btrfs
+#          o sistema ocupa perto de COPY_RATIO/100 do tamanho da imagem);
+#   70–88  o bootc monta o sistema a partir das camadas ("Deploying container
+#          image"), sem escrever quase nada: anda pelo relógio, perto de
+#          DEPLOY_SECS, para a barra não parecer travada.
+COPY_RATIO=165
+DEPLOY_SECS=40
+DEPLOY_MARK=/run/tamagi-install/deploying
+rm -f "$DEPLOY_MARK"
 if [[ -d $PAYLOAD_DIR ]]; then
     expected=$(( $(du -sb "$PAYLOAD_DIR" | cut -f1) * COPY_RATIO / 100 ))
     (
-        while sleep 5; do
+        while sleep 3; do
+            if [[ -e $DEPLOY_MARK ]]; then
+                pct=$(( 70 + 18 * ($(date +%s) - $(stat -c %Y "$DEPLOY_MARK")) / DEPLOY_SECS ))
+                (( pct > 88 )) && pct=88
+                progress "$pct" deploy
+                continue
+            fi
             used=$(df --output=used -B1 "$MNT" 2>/dev/null | tail -1)
             [[ $used =~ ^[0-9]+$ ]] || continue
-            pct=$(( 12 + 76 * used / expected ))
-            (( pct > 88 )) && pct=88
+            pct=$(( 12 + 58 * used / expected ))
+            # As camadas estão todas no disco, ou o bootc já criou a pasta do
+            # sistema novo: começou a segunda fase. (A linha "Deploying…" do
+            # bootc só termina quando a fase acaba; não serve de aviso.)
+            if (( pct >= 70 )) || compgen -G "$MNT/state/deploy/*" >/dev/null; then
+                touch "$DEPLOY_MARK"
+                (( pct > 70 )) && pct=70
+            fi
             progress "$pct" copy
         done
     ) &
     WATCHER=$!
 fi
 rc=0
-bootc install to-filesystem --source-imgref "$SOURCE" "${TARGET[@]}" "${KARGS[@]}" "$MNT" >&2 || rc=$?
+bootc install to-filesystem "${BACKEND[@]}" --source-imgref "$SOURCE" "${TARGET[@]}" "${KARGS[@]}" "$MNT" >&2 || rc=$?
 if [[ -n ${WATCHER:-} ]]; then kill "$WATCHER" 2>/dev/null || true; wait "$WATCHER" 2>/dev/null || true; WATCHER=""; fi
 (( rc == 0 )) || die "o bootc install falhou (código $rc)"
 echo "espaço usado no sistema novo: $(df --output=used -B1 "$MNT" | tail -1) bytes" >&2
@@ -254,18 +296,27 @@ progress 90 config
 # Daqui em diante com as barreiras de escrita de volta: o que for gravado e o
 # sync final chegam de fato ao disco.
 mount -o remount,rw,barrier "$MNT" 2>/dev/null || mount -o remount,rw "$MNT"
-# ostree/deploy/<stateroot>/deploy/<commit>.0 é a raiz do sistema novo (ao lado
-# existe backing/<commit>.0, que não é).
+# state/deploy/<id>/etc é o /etc do sistema novo (backend composefs: /usr vem
+# da imagem, somente-leitura; /etc e /var são o estado desta máquina).
 DEPLOY=""
-for candidate in "$MNT"/ostree/deploy/*/deploy/*.0; do
+for candidate in "$MNT"/state/deploy/*; do
     [[ -d $candidate/etc ]] && DEPLOY=$candidate
 done
-[[ -n $DEPLOY ]] || die "não achei o sistema instalado em $MNT/ostree/deploy"
-systemd-firstboot --root="$DEPLOY" --force \
-    --locale="${A[LOCALE]:-en_US.UTF-8}" \
-    --keymap="${A[KEYMAP]:-us}" \
-    --timezone="${A[TIMEZONE]:-UTC}" \
-    --hostname="${A[HOSTNAME]:-tamagi}" >&2
+[[ -n $DEPLOY ]] || die "não achei o sistema instalado em $MNT/state/deploy"
+# Idioma, teclado, fuso e nome do computador, direto nos arquivos (o
+# systemd-firstboot quer uma raiz completa, e aqui só existe o /etc).
+valid() { [[ $1 =~ ^[A-Za-z0-9_.@+/-]+$ && $1 != *..* ]]; }
+locale=${A[LOCALE]:-en_US.UTF-8} keymap=${A[KEYMAP]:-us} zone=${A[TIMEZONE]:-UTC} host=${A[HOSTNAME]:-tamagi}
+for value in "$locale" "$keymap" "$zone" "$host"; do valid "$value" || die "resposta inválida do instalador: $value"; done
+[[ -e /usr/share/zoneinfo/$zone ]] || die "fuso horário desconhecido: $zone"
+echo "LANG=$locale" > "$DEPLOY/etc/locale.conf"
+echo "KEYMAP=$keymap" > "$DEPLOY/etc/vconsole.conf"
+ln -sfn "../usr/share/zoneinfo/$zone" "$DEPLOY/etc/localtime"
+echo "$host" > "$DEPLOY/etc/hostname"
+chcon system_u:object_r:locale_t:s0 "$DEPLOY/etc/locale.conf" "$DEPLOY/etc/vconsole.conf" 2>/dev/null || true
+chcon -h system_u:object_r:locale_t:s0 "$DEPLOY/etc/localtime" 2>/dev/null || true
+chcon system_u:object_r:hostname_etc_t:s0 "$DEPLOY/etc/hostname" 2>/dev/null || true
+echo "idioma $locale, teclado $keymap, fuso $zone, nome $host" >&2
 
 # O usuário é criado no primeiro boot (tamagi-firstboot.service), com o
 # sistema rodando: home em /var/home e rótulos SELinux certos.
@@ -276,13 +327,22 @@ install -d -m 700 "$DEPLOY/etc/tamagi"
     done
 } > "$DEPLOY/etc/tamagi/install.conf"
 chmod 600 "$DEPLOY/etc/tamagi/install.conf"
+# Marca de "primeiro boot de uma instalação nova": é o que deixa o
+# provisionamento por pendrive (tamagi-combustion.service) rodar, uma vez.
+touch "$DEPLOY/etc/tamagi/first-boot"
 if [[ -n ${TPM_SEAL:-} ]]; then echo "$TPM_SEAL" > "$DEPLOY/etc/tamagi/tpm-seal"; fi
+# O subvolume "home" em /var/home (as opções repetem as da raiz) e a partição
+# EFI em /efi (sem esta linha o systemd a montaria sozinho em /boot).
+printf 'UUID=%s /var/home btrfs subvol=home,compress=zstd:1,noatime 0 0\n' "$BTRFS_UUID" >> "$DEPLOY/etc/fstab"
+printf 'UUID=%s /efi vfat umask=0077,shortname=winnt,x-systemd.automount,x-systemd.idle-timeout=2min 0 2\n' "$ESP_UUID" >> "$DEPLOY/etc/fstab"
+grep -q ' /var/home btrfs ' "$DEPLOY/etc/fstab" || die "não consegui registrar o subvolume home em /etc/fstab"
 
 progress 96 finish
 # Só é sucesso se o sistema novo está completo: deployment, entrada de boot e
 # carregador na partição EFI.
-ls "$MNT"/boot/loader/entries/*.conf >/dev/null 2>&1 || die "o sistema novo ficou sem entrada de boot"
-[[ -n $(find "$MNT/boot/efi/EFI" -iname '*.efi' -print -quit 2>/dev/null) ]] || die "o carregador de boot não foi instalado na partição EFI"
+ls "$MNT"/efi/loader/entries/*.conf >/dev/null 2>&1 || die "o sistema novo ficou sem entrada de boot"
+[[ -f $MNT/efi/EFI/BOOT/BOOTX64.EFI ]] || die "o carregador de boot (systemd-boot) não foi instalado na partição EFI"
+[[ -n $(find "$MNT/efi/EFI/Linux" -name vmlinuz -print -quit 2>/dev/null) ]] || die "o kernel não foi copiado para a partição EFI"
 sync
 umount -R "$MNT"
 blockdev --flushbufs "$DISK" 2>/dev/null || true

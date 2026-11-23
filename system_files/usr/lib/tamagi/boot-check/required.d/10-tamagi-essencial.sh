@@ -1,7 +1,7 @@
 #!/usr/bin/bash
-# Verificação de saúde OBRIGATÓRIA do Tamagi (greenboot). Roda a cada boot; se
-# falhar, o computador reinicia e, na terceira falha seguida, o GRUB volta
-# sozinho para a imagem anterior. Por isso só entra aqui o que, quebrado,
+# Verificação de saúde OBRIGATÓRIA do Tamagi (boot-check). Roda a cada boot; se
+# falhar numa imagem nova, o computador reinicia e, na segunda falha seguida,
+# volta sozinho para a imagem anterior (bootc rollback). Por isso só entra aqui o que, quebrado,
 # deixa o sistema inutilizável: nada que dependa de rede ou de hardware opcional.
 set -u
 

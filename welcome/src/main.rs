@@ -1,10 +1,11 @@
 //! tamagi-welcome — the first-login choices of TamagiOS, as a native COSMIC
-//! window: a ready-made profile, a browser and, for who wants to choose item
-//! by item, the catalog. Every item says how it is installed.
+//! window: a short list of basics to tick and a browser, like the first boot
+//! of openSUSE Aeon. Every item says how it is installed; the rest of the
+//! catalog is `tamagi install`.
 //!
 //! It only collects the choices. Installing is done by the same back ends the
-//! terminal assistant (`tamagi-firstrun`) uses: `tamagi-install --actions`,
-//! `tamagi apply -y <profile>` and `tamagi-setup tpm-unlock on`.
+//! terminal assistant (`tamagi-firstrun`) uses: `tamagi-install --actions`
+//! and `tamagi-setup tpm-unlock on`.
 
 mod app;
 mod askpass;
@@ -14,7 +15,6 @@ mod flow;
 mod i18n;
 mod method;
 mod plan;
-mod profile;
 mod progress;
 mod review;
 mod system;

@@ -46,7 +46,6 @@ READ_ONLY_SUB = {
                   "list-unit-files", "list-timers", "show", "cat", "--failed"},
     "journalctl": {None},
     "bootc": {"status"},
-    "rpm-ostree": {"status", "db"},
     "rpm": {"-q", "-qa", "-qi", "-ql", "-qf", "--query"},
     "flatpak": {"list", "info", "remotes", "search", "history"},
     "distrobox": {"list", "ls"},

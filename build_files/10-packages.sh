@@ -30,6 +30,10 @@ sh -n "$DBX"
 # Nenhum navegador vem na imagem: o usuário escolhe (Flatpak, nativo ou caixa)
 # no primeiro login ou com `tamagi browser install`.
 dnf5 -y remove firefox firefox-langpacks 2>/dev/null || true
+# Imagem enxuta: o player de vídeo do COSMIC (vem no grupo cosmic-desktop) é
+# opcional, `tamagi install cosmic-player`; o resto do grupo fica.
+dnf5 -y remove --no-autoremove cosmic-player
+rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover o cosmic-player levou parte do COSMIC junto" >&2; exit 1; }
 # Um comando só: `tamagi`. O `ujust` da base sai; o que ele fazia de útil está
 # em `tamagi setup` e `tamagi update`. O `just` fica: é ferramenta de
 # desenvolvimento (o Justfile deste repositório, entre outros).

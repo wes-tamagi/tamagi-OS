@@ -1,7 +1,7 @@
 //! Reads the output of the installers: the stage lines (`── [2/5] title`),
 //! and the overall progress across the commands of the plan.
 
-use crate::plan::{Stages, Step};
+use crate::plan::Step;
 
 /// The text without ANSI escape sequences (gum colours the stage lines) and
 /// without other control characters.
@@ -57,7 +57,7 @@ pub fn strip_ansi(text: &str) -> String {
 pub enum Line {
     /// `── [n/total] title`
     Stage { n: u32, total: u32, title: String },
-    /// `── title`: a stage without a number (tamagi apply)
+    /// `── title`: a stage without a number
     Heading(String),
     /// Anything else: goes to the log.
     Text(String),
@@ -109,15 +109,12 @@ pub fn split_lines(buffer: &mut String, chunk: &str) -> Vec<String> {
 #[derive(Debug, Clone)]
 pub struct Tracker {
     weights: Vec<u32>,
-    kinds: Vec<Stages>,
     /// The command running (index in the plan), once one has started.
     current: Option<usize>,
     /// Stages finished inside the current command.
     done_in_current: f32,
     /// Stages the current command has (known or estimated).
     total_in_current: f32,
-    /// Stage lines seen in the current command (for `Stages::Counted`).
-    seen: u32,
     finished: bool,
 }
 
@@ -125,11 +122,9 @@ impl Tracker {
     pub fn new(steps: &[Step]) -> Self {
         Self {
             weights: steps.iter().map(|s| s.weight).collect(),
-            kinds: steps.iter().map(|s| s.stages).collect(),
             current: None,
             done_in_current: 0.0,
             total_in_current: 1.0,
-            seen: 0,
             finished: false,
         }
     }
@@ -139,29 +134,19 @@ impl Tracker {
         self.current = Some(index);
         self.done_in_current = 0.0;
         self.total_in_current = self.weights.get(index).copied().unwrap_or(1).max(1) as f32;
-        self.seen = 0;
     }
 
     /// A line of the current command. Returns the stage title to show, when
     /// the line starts a stage.
     pub fn line(&mut self, line: &Line) -> Option<String> {
-        let kind = self.current.and_then(|i| self.kinds.get(i)).copied()?;
-        match (line, kind) {
-            (Line::Stage { n, total, title }, _) => {
+        self.current?;
+        match line {
+            Line::Stage { n, total, title } => {
                 self.total_in_current = *total as f32;
                 self.done_in_current = (*n - 1) as f32;
                 Some(format!("[{n}/{total}] {title}"))
             }
-            (Line::Heading(title), Stages::Counted) => {
-                self.seen += 1;
-                // More stages than expected: the estimate grows with them.
-                if self.seen as f32 > self.total_in_current {
-                    self.total_in_current = self.seen as f32;
-                }
-                self.done_in_current = (self.seen - 1) as f32;
-                Some(title.clone())
-            }
-            (Line::Heading(title), _) => Some(title.clone()),
+            Line::Heading(title) => Some(title.clone()),
             _ => None,
         }
     }
@@ -240,14 +225,9 @@ mod tests {
     }
 
     fn plan() -> Vec<Step> {
-        let choices = Choices {
-            profile: Some("ai".into()),
-            browser: Some(("firefox".into(), "flatpak".into())),
-            picked: vec!["agent:claude".into()],
-            tpm: false,
-        };
-        // tamagi-install (2 stages), prefetch-wait (0), tamagi apply (2 items)
-        steps(&choices, 2)
+        let choices = Choices { browser: Some(("chrome".into(), "flatpak".into())), picked: vec!["flatpak:flathub:a.b.C".into()], tpm: true };
+        // tamagi-setup (1 stage), tamagi-install (2 stages)
+        steps(&choices)
     }
 
     #[test]
@@ -263,25 +243,18 @@ mod tests {
         };
         t.start(0);
         check(&t);
-        assert_eq!(t.line(&parse_line("── [1/2] tamagi-browser install firefox --flatpak")).as_deref(), Some("[1/2] tamagi-browser install firefox --flatpak"));
+        // A heading without a number names the stage and moves nothing.
+        assert_eq!(t.line(&parse_line("── TPM")).as_deref(), Some("TPM"));
         check(&t);
-        assert_eq!(t.line(&parse_line("some output")), None);
-        t.line(&parse_line("── [2/2] AI agent: claude"));
-        check(&t);
-        // 2 of 4 weights, the second stage half done: (1.5/2 * 2) / 4
-        assert!((t.fraction() - 0.375).abs() < 1e-6);
         t.start(1);
         check(&t);
-        t.start(2);
+        assert_eq!(t.line(&parse_line("── [1/2] tamagi-browser install chrome --flatpak")).as_deref(), Some("[1/2] tamagi-browser install chrome --flatpak"));
         check(&t);
-        assert_eq!(t.line(&parse_line("── agent: claude")).as_deref(), Some("agent: claude"));
+        assert_eq!(t.line(&parse_line("some output")), None);
+        t.line(&parse_line("── [2/2] Flatpak: a.b.C"));
         check(&t);
-        t.line(&parse_line("── box: dev"));
-        check(&t);
-        // A third, unexpected stage does not push the bar backwards or past the end.
-        t.line(&parse_line("── services: autoupdate"));
-        let now = t.fraction();
-        assert!(now < 1.0);
+        // 1 of 3 weights done, then the second stage of two half done: (1 + 1.5/2 * 2) / 3
+        assert!((t.fraction() - 2.5 / 3.0).abs() < 1e-6);
         t.finish();
         assert_eq!(t.fraction(), 1.0);
     }
@@ -289,10 +262,10 @@ mod tests {
     #[test]
     fn numbered_total_replaces_the_estimate() {
         let mut t = Tracker::new(&plan());
-        t.start(0);
+        t.start(1);
         // The plan expected 2 stages; the installer says 4.
         t.line(&parse_line("── [1/4] a"));
-        assert!((t.fraction() - (0.5 / 4.0 * 2.0) / 4.0).abs() < 1e-6);
+        assert!((t.fraction() - (1.0 + 0.5 / 4.0 * 2.0) / 3.0).abs() < 1e-6);
     }
 
     #[test]
