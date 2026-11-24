@@ -9,3 +9,5 @@ Type=oneshot
 ExecStart=/usr/libexec/tamagi/system-update
 Nice=10
 IOSchedulingClass=idle
+CPUWeight=20
+IOWeight=20

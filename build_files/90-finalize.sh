@@ -27,6 +27,10 @@ test -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi || { echo "systemd-boot n�
 # (boot-check): o bootc com systemd-boot não conta tentativas de boot.
 systemctl enable tamagi-boot-check.service
 
+# Permissões com prazo (tamagi lease): no boot, retira o que venceu com o
+# computador desligado e reabre o que ainda está valendo.
+systemctl enable tamagi-lease-expire.service
+
 # Snapshots da pasta pessoal (home-snapshots / tamagi-snap): os timers do
 # snapper só agem nas configurações criadas; o serviço faz as conversões
 # agendadas antes do login.
@@ -62,6 +66,9 @@ systemctl enable fstrim.timer
 systemctl enable tamagi-system-update.timer tamagi-system-status.service
 systemctl disable rpm-ostreed-automatic.timer 2>/dev/null || true
 systemctl mask bootc-fetch-apply-updates.timer 2>/dev/null || true
+# Zero Flatpak de sistema (todos são --user): o atualizador de Flatpaks de
+# sistema que a base liga não tem o que atualizar e só atrasa o boot.
+systemctl disable flatpak-system-update.timer 2>/dev/null || true
 
 # Camadas do tamagi-layer (/var/lib/extensions) entram no /usr a cada boot.
 systemctl enable systemd-sysext.service

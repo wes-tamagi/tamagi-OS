@@ -1,0 +1,70 @@
+#!/usr/bin/bash
+# tamagi-status — what Tamagi is doing in the background right now.
+#
+# For the moment the computer feels slow and you want to know why: the first
+# login installing its apps, a new system image being prepared, a layer being
+# rebuilt, the disk maintenance. Also shows what is on lease (tamagi lease) and
+# whether a new system image is waiting for a reboot.
+#
+#   tamagi status            what is running now
+#   tamagi status --json     the same, for programs
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+# unit <TAB> scope <TAB> what it is (English: the key of the translations)
+JOBS=$'tamagi-flatpak-setup.service\tuser\tInstalling the essential apps
+flatpak-user-update.service\tuser\tUpdating your Flatpak apps
+tamagi-autoupdate.service\tuser\tUpdating the boxes and subsystems
+tamagi-system-update.service\tsystem\tPreparing a new system image
+tamagi-layer-rebuild.service\tsystem\tRebuilding the native layers
+tamagi-home-snapshots.service\tsystem\tSetting up the snapshots of the home folder
+snapper-timeline.service\tsystem\tTaking a snapshot of the home folder
+snapper-cleanup.service\tsystem\tCleaning old snapshots
+btrfs-scrub.service\tsystem\tChecking the disk for silent corruption
+btrfs-balance.service\tsystem\tReorganizing the disk (btrfs balance)
+fstrim.service\tsystem\tTrimming the SSD'
+
+STATUS=${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}
+SYSTEMCTL=${TAMAGI_STATUS_SYSTEMCTL:-systemctl}
+
+running() { # running <unit> <scope>
+    local state scope=()
+    [[ $2 == user ]] && scope=(--user)
+    state=$("$SYSTEMCTL" "${scope[@]}" is-active "$1" 2>/dev/null || true)
+    [[ $state == active || $state == activating ]] || return 1
+    # A oneshot that stays "active" after finishing (RemainAfterExit) is not running.
+    [[ $("$SYSTEMCTL" "${scope[@]}" show "$1" -p SubState --value 2>/dev/null) != exited ]]
+}
+
+busy=()
+while IFS=$'\t' read -r unit scope what; do
+    running "$unit" "$scope" && busy+=("$unit"$'\t'"$what")
+done <<<"$JOBS"
+staged=$(jq -r '.status.staged.image.version // empty' "$STATUS" 2>/dev/null || true)
+leases=$(/usr/libexec/tamagi/lease-helper list 2>/dev/null || true)
+
+if [[ ${1:-} == --json ]]; then
+    {
+        for job in "${busy[@]}"; do printf '%s\n' "${job%%$'\t'*}"; done
+    } | jq -R . | jq -s --arg staged "$staged" --arg leases "$leases" \
+        '{running: ., staged_image: (if $staged == "" then null else $staged end), leases: ($leases | split("\n") | map(select(. != "") | split(" ")[0]))}'
+    exit 0
+fi
+case ${1:-} in
+    "") ;;
+    -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
+    *) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' >&2; exit 2 ;;
+esac
+
+if (( ${#busy[@]} )); then
+    tl "Running in the background now:"
+    for job in "${busy[@]}"; do echo "  • $(t "${job#*$'\t'}")"; done
+else
+    tl "Nothing is running in the background."
+fi
+[[ -n $staged ]] && echo "$(t "A new system image is ready; it takes effect on the next reboot"): $staged"
+if [[ -n $leases ]]; then
+    tl "On lease:"
+    while read -r id expiry; do echo "  • ${id/-/ }   $(t "until") $(date -d "@$expiry" '+%H:%M')"; done <<<"$leases"
+fi
+exit 0

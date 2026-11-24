@@ -8,7 +8,10 @@ here=$(cd "$(dirname "$0")/.." && pwd)
 share=${SHARE:-$here/../system_files/usr/share/tamagi}
 {
     # tr("…") and the translation keys held in tables.
-    grep -ohP '\btr\(&?"\K([^"\\]|\\.)*(?=")' "$here"/src/app.rs "$here"/src/askpass.rs "$here"/src/ui.rs
+    grep -ohP '\btr\(&?"\K([^"\\]|\\.)*(?=")' "$here"/src/app.rs "$here"/src/askpass.rs "$here"/src/ui.rs "$here"/src/setup_app.rs
+    # The installer: page names and the user name checks.
+    sed -n '/fn label(self)/,/^    }/p' "$here"/src/setup_app.rs | grep -oP '=> "\K[^"]*'
+    grep -oP 'Err\("\K[^"]*' "$here"/src/setup.rs
     # Badge labels and explanations (method.rs), page names (flow.rs), step
     # titles and browser methods (plan.rs), profile cards and tips (app.rs).
     sed -n '/pub fn label/,/^    }/p; /pub fn explanation/,/^    }/p; /pub fn short/,/^    }/p' "$here"/src/method.rs "$here"/src/flow.rs | grep -oP '=> "\K[^"]*'

@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # tamagi-firstboot — conclui, no primeiro boot, o que foi respondido no
-# instalador (tik). O instalador grava /etc/tamagi/install.conf no sistema
+# instalador. O instalador grava /etc/tamagi/install.conf no sistema
 # novo; aqui o usuário é criado com o sistema já rodando (home em /var/home,
 # rótulos SELinux certos) e o arquivo é apagado.
 #

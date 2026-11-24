@@ -1,0 +1,3 @@
+PATH="/dev/nvme0n1" SIZE="512110190592" MODEL="Samsung SSD 980 PRO" TYPE="disk" TRAN="nvme" RM="0" RO="0"
+PATH="/dev/vda" SIZE="68719476736" MODEL="" TYPE="disk" TRAN="" RM="0" RO="0"
+PATH="/dev/sdb" SIZE="15931539456" MODEL="SanDisk Ultra" TYPE="disk" TRAN="usb" RM="1" RO="0"

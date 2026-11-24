@@ -1,0 +1,15 @@
+#!/usr/bin/bash
+# Stub of /usr/libexec/tamagi-install for the headless screenshots: prints the
+# PROGRESS lines the real one prints and touches no disk. STUB_FAIL=1 fails.
+echo "backend $*" >> "${STUB_LOG:-/dev/null}"
+cp "$2" "${STUB_LOG:-/dev/null}.answers" 2>/dev/null
+for step in "5 Checking the installation media" "15 Preparing the disk" "30 Encrypting the disk (LUKS2)" "45 Copying the system" "80 Preparing the installed system" "92 Configuring the new system"; do
+    echo "PROGRESS $step"
+    echo "log: ${step#* }…" >&2
+    sleep "${STUB_SLEEP:-0.5}"
+done
+if [[ -n ${STUB_FAIL:-} ]]; then
+    echo "ERRO: o bootc install falhou (código 1)" >&2
+    exit 1
+fi
+echo "PROGRESS 100 Installation complete"

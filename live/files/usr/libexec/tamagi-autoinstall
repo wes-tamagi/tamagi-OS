@@ -1,0 +1,115 @@
+#!/usr/bin/bash
+# tamagi-autoinstall — installs with no questions, from the kernel command line
+# (tests and automation). Run by tamagi-autoinstall.service on the live media.
+#
+#   tamagi.autoinstall=/dev/vda                 the disk (erased)
+#   tamagi.autoinstall.lang=en|pt|es|fr         language, keyboard and time zone
+#   tamagi.autoinstall.user=<name>              default: tamagi
+#   tamagi.autoinstall.password=<password>      default: tamagi
+#   tamagi.autoinstall.luks=<disk password>     encrypt the disk (LUKS2)
+#   tamagi.autoinstall.tpm=1                    and keep its key in the TPM
+#   tamagi.autoinstall.preserve_home=1          keep /var/home of the system on the disk
+#   tamagi.autoinstall.kargs=arg1,arg2          extra kernel arguments
+#   tamagi.autoinstall.imgref=<image>           where updates come from (tests)
+#
+# It writes the same answers file the installer window writes, and calls the
+# same back end (/usr/libexec/tamagi-install). On the console it ends with
+# "TAMAGI-AUTOINSTALL: OK" or "TAMAGI-AUTOINSTALL: FALHOU (código N)", and then
+# powers the computer off.
+set -uo pipefail
+
+WORK=/run/tamagi-autoinstall
+ANSWERS=$WORK/answers
+KEY=$WORK/luks.key
+VERIFY=$WORK/verify
+LOG=/var/log/tamagi-autoinstall.log
+
+karg() { sed -nE "s/(^|.* )$1=([^ ]+).*/\2/p" /proc/cmdline; }
+log() { echo "[tamagi-autoinstall] $*" | tee -a "$LOG" >&2; }
+finish() {
+    local rc=$1
+    rm -f "$KEY" "$ANSWERS"
+    if (( rc == 0 )); then echo "TAMAGI-AUTOINSTALL: OK"; else echo "TAMAGI-AUTOINSTALL: FALHOU (código $rc)"; fi
+    sync
+    [[ -n ${TAMAGI_AUTOINSTALL_NO_POWEROFF:-} ]] || systemctl poweroff --no-block
+    exit "$rc"
+}
+
+DISK=$(karg tamagi.autoinstall)
+[[ -n $DISK ]] || { log "no tamagi.autoinstall= on the kernel command line"; exit 0; }
+mkdir -p "$WORK" && chmod 700 "$WORK"
+[[ -d /sys/firmware/efi ]] || { log "not started in UEFI mode"; finish 1; }
+
+# The media check starts now and runs while the answers are written; the back
+# end takes its result if the image is still the same.
+payload=$(sed -n 's/^PAYLOAD_DIR=//p' /etc/tamagi-live.conf 2>/dev/null)
+if [[ -n $payload && -d $payload && -x /usr/libexec/tamagi-verify-media ]]; then
+    rm -rf "$VERIFY"
+    ( setsid /usr/libexec/tamagi-verify-media "$payload" "$VERIFY" >/dev/null 2>&1 & )
+fi
+
+default_lang=$(cat /usr/share/tamagi/default-lang 2>/dev/null || echo en)
+case "$(karg tamagi.autoinstall.lang)" in "") lang=$default_lang ;; *) lang=$(karg tamagi.autoinstall.lang) ;; esac
+case $lang in
+    pt) locale=pt_BR.UTF-8 keymap=br-abnt2 layout=br zone=America/Sao_Paulo ;;
+    es) locale=es_ES.UTF-8 keymap=es layout=es zone=Europe/Madrid ;;
+    fr) locale=fr_FR.UTF-8 keymap=fr layout=fr zone=Europe/Paris ;;
+    *)  locale=en_US.UTF-8 keymap=us layout=us zone=UTC ;;
+esac
+user=$(karg tamagi.autoinstall.user); user=${user:-tamagi}
+[[ $user =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { log "invalid user name: $user"; finish 1; }
+password=$(karg tamagi.autoinstall.password)
+hash=$(printf '%s' "${password:-tamagi}" | openssl passwd -6 -stdin)
+luks=$(karg tamagi.autoinstall.luks)
+rm -f "$KEY"
+[[ -z $luks ]] || ( umask 077; printf '%s' "$luks" > "$KEY" )
+
+( umask 077
+  {
+      echo "LOCALE=$locale"
+      echo "KEYMAP=$keymap"
+      echo "XKB_LAYOUT=$layout"
+      echo "XKB_VARIANT="
+      echo "TIMEZONE=$zone"
+      echo "HOSTNAME=tamagi"
+      echo "USER=$user"
+      echo "FULLNAME=$user"
+      echo "PASSWORD_HASH=$hash"
+      if [[ -s $KEY ]]; then
+          echo "LUKS_KEYFILE=$KEY"
+          [[ $(karg tamagi.autoinstall.tpm) == 1 ]] && echo "LUKS_TPM=1"
+      fi
+      kargs=$(karg tamagi.autoinstall.kargs | tr ',' ' ')
+      [[ -n $kargs ]] && echo "EXTRA_KARGS=$kargs"
+      imgref=$(karg tamagi.autoinstall.imgref)
+      [[ -n $imgref ]] && echo "TARGET_IMGREF=$imgref"
+      echo "VERIFY_STATE=$VERIFY"
+  } > "$ANSWERS" )
+
+if [[ $(karg tamagi.autoinstall.preserve_home) == 1 ]]; then
+    declare -A D=()
+    detect=(/usr/libexec/tamagi-detect-home "$DISK")
+    [[ -s $KEY ]] && detect+=(--key-file "$KEY")
+    while IFS='=' read -r k v; do [[ -n $k ]] && D[$k]=$v; done < <("${detect[@]}" 2>>"$LOG")
+    case ${D[PRESERVABLE]:-} in
+        btrfs-subvol|ostree-home|separate-home)
+            {
+                echo "PRESERVE_HOME=1"
+                echo "PRESERVE_MODE=${D[PRESERVABLE]}"
+                echo "PRESERVE_LUKS=${D[PRESERVE_LUKS]:-0}"
+                echo "HOME_PART=${D[HOME_PART]:-}"
+                echo "HOME_SUBVOL=${D[HOME_SUBVOL]:-}"
+                echo "HOME_RELPATH=${D[HOME_RELPATH]:-}"
+                echo "HOME_FSTYPE=${D[HOME_FSTYPE]:-btrfs}"
+                echo "SYS_PART=${D[SYS_PART]:-}"
+                echo "ESP_PART=${D[ESP_PART]:-}"
+                echo "BOOT_PART=${D[BOOT_PART]:-}"
+            } >> "$ANSWERS"
+            log "keeping /var/home (${D[PRESERVABLE]}, users: ${D[USERS]:-})" ;;
+        *) log "tamagi.autoinstall.preserve_home=1: nothing to keep on $DISK"; finish 1 ;;
+    esac
+fi
+
+log "installing on $DISK"
+/usr/libexec/tamagi-install "$DISK" "$ANSWERS" 2>&1 | tee -a "$LOG"
+finish "${PIPESTATUS[0]}"

@@ -1,6 +1,9 @@
 # Escalonador de E/S por tipo de disco:
-# none em NVMe (filas paralelas em hardware, menor latência/overhead),
-# kyber em SSD SATA/eMMC e bfq em disco rígido.
+# none em NVMe (filas paralelas em hardware, menor latência/overhead) e bfq em
+# SSD SATA/eMMC e disco rígido. O bfq é o único que respeita a prioridade de
+# E/S (IOSchedulingClass=idle, IOWeight) das tarefas de fundo do Tamagi
+# (Flatpaks do primeiro login, atualização da imagem, fstrim): com o kyber
+# elas disputavam o disco de igual para igual com o desktop. No NVMe o freio
+# dessas tarefas é o de CPU (Nice/CPUWeight), que é onde elas pesam.
 ACTION=="add|change", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none"
-ACTION=="add|change", KERNEL=="sd[a-z]*|mmcblk[0-9]*", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="kyber"
-ACTION=="add|change", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
+ACTION=="add|change", KERNEL=="sd[a-z]*|mmcblk[0-9]*", ATTR{queue/scheduler}="bfq"

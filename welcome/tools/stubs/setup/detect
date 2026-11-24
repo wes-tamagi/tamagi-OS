@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+# Stub of /usr/libexec/tamagi-detect-home: /dev/vda has a home folder to keep,
+# /dev/nvme0n1 an encrypted partition (password "oldpassword"), others nothing.
+echo "detect $*" >> "${STUB_LOG:-/dev/null}"
+sleep 0.5
+case $1 in
+    /dev/vda) printf 'PRESERVABLE=btrfs-subvol\nUSERS=ana\nHOME_PART=/dev/vda2\nHOME_SUBVOL=home\nESP_PART=/dev/vda1\n' ;;
+    /dev/nvme0n1)
+        if [[ ${2:-} == --key-file ]]; then
+            [[ $(cat "$3") == oldpassword ]] || exit 2
+            printf 'PRESERVABLE=btrfs-subvol\nPRESERVE_LUKS=1\nUSERS=ana bia\nHOME_PART=/dev/mapper/x\nESP_PART=/dev/nvme0n1p1\n'
+        else
+            printf 'PRESERVABLE=luks\n'
+        fi ;;
+    *) echo "PRESERVABLE=" ;;
+esac

@@ -154,6 +154,50 @@ sudo_dialog() {
     session_end
 }
 
+# The installer of the live media (--install), with stub back ends.
+installer() {
+    echo "installer (--install)"
+    local stubs; stubs="$(dirname "$0")/stubs/setup"
+    export TAMAGI_SETUP_LSBLK="$stubs/lsblk.txt" TAMAGI_SETUP_BACKEND="$stubs/backend" TAMAGI_SETUP_DETECT="$stubs/detect" TAMAGI_SETUP_PRIV= TAMAGI_SETUP_TPM=1
+    STUB_SLEEP=0.6 session_start $W $H
+    STUB_SLEEP=0.6 app --install
+    shot i01-language
+    click 400 "${Y_LANG_PT:-287}"                 # Português
+    shot i01b-language-pt
+    next; shot i02-welcome
+    next; shot i03-keyboard
+    next; shot i04-timezone
+    type_text "sao"; shot i04b-timezone-search
+    next; shot i05-account-empty
+    next; shot i05b-account-error
+    click 400 "${Y_FULLNAME:-291}"; type_text "Ana Lima"
+    click 400 "${Y_PASS1:-448}"; type_text "secret1"
+    click 400 "${Y_PASS2:-523}"; type_text "secret1"
+    shot i05c-account-filled
+    next; shot i06-encryption
+    click 852 "${Y_ENCRYPT:-258}"
+    shot i06b-encryption-on
+    click 400 "${Y_LUKS1:-428}"; type_text "diskpass1"
+    click 400 "${Y_LUKS2:-503}"; type_text "diskpass1"
+    next; shot i07-disk
+    click 400 "${Y_DISK_VDA:-348}"; sleep 1.5
+    shot i07b-disk-keep
+    click 400 "${Y_DISK_NVME:-272}"; sleep 1.5
+    shot i07c-disk-locked
+    click 300 "${Y_OLDPASS:-606}"; type_text "oldpassword"; key Return; sleep 1.5
+    shot i07d-disk-unlocked
+    next; shot i08-review
+    key Return
+    shot i09-installing 1.5
+    sleep 6
+    shot i10-done
+    echo "--- stub log"; cat "$STUB_LOG"
+    echo "--- answers"; sed 's/^PASSWORD_HASH=.*/PASSWORD_HASH=(hash)/' "$STUB_LOG.answers"
+    echo "--- secrets left: $(ls "$XDG_RUNTIME_DIR/tamagi-install" 2>/dev/null | tr '\n' ' ')"
+    session_end
+    unset TAMAGI_SETUP_LSBLK TAMAGI_SETUP_BACKEND TAMAGI_SETUP_DETECT TAMAGI_SETUP_PRIV TAMAGI_SETUP_TPM
+}
+
 [[ $# -gt 0 ]] || set -- pages defaults laptop pt light failure skip askpass
 for scenario in "$@"; do "$scenario"; done
 rm -rf "$WORK"

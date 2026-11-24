@@ -1,0 +1,148 @@
+#!/usr/bin/bash
+# lease-helper — the root side of `tamagi lease`: grants a loosening of the
+# system for a limited time and takes it back when the time is over.
+#
+#   lease-helper grant  <kind> <minutes> [arg]
+#   lease-helper revoke <kind> [arg]
+#   lease-helper expire          takes back every lease whose time is over and
+#                                schedules the others again (boot, and timers)
+#   lease-helper list            one lease per line: <id> <expiry epoch>
+#
+# The kinds are a closed list: nothing here runs a command given by the caller.
+#   vm          VMs run as root and reach USB sticks and external disks
+#               (the same as `tamagi vm access full`; SELinux stays on)
+#   usb         USBGuard lets in the USB devices plugged meanwhile
+#   port <n>    the firewall accepts connections on TCP port <n>
+#
+# Each lease is a file in /var/lib/tamagi/leases with the moment it ends: it
+# survives a reboot, and tamagi-lease-expire.service takes back at boot what
+# ended while the computer was off. The timers follow the clock (not the
+# uptime), so a suspended laptop does not stretch a lease.
+#
+# For tests: TAMAGI_LEASE_DIR (state), TAMAGI_LEASE_DRYRUN=1 (prints what it
+# would do), TAMAGI_LEASE_NOW (the clock, in epoch seconds).
+set -euo pipefail
+
+DIR=${TAMAGI_LEASE_DIR:-/var/lib/tamagi/leases}
+DRY=${TAMAGI_LEASE_DRYRUN:-}
+MAX_MINUTES=1440
+QEMU_CONF=/etc/libvirt/qemu.conf
+VM_BEGIN="# >>> tamagi vm access (managed; change with: tamagi vm access standard|full)"
+VM_END="# <<< tamagi vm access"
+
+die() { echo "lease-helper: $*" >&2; exit 1; }
+now() { echo "${TAMAGI_LEASE_NOW:-$(date +%s)}"; }
+run() { if [[ -n $DRY ]]; then echo "would run: $*"; else "$@"; fi; }
+
+# lease_id <kind> [arg] — also the validation of both.
+lease_id() {
+    case $1 in
+        vm|usb) [[ -z ${2:-} ]] || die "$1 takes no argument"; echo "$1" ;;
+        port)
+            [[ ${2:-} =~ ^[0-9]{1,5}$ ]] && (( 10#$2 >= 1 && 10#$2 <= 65535 )) || die "port: a number from 1 to 65535"
+            echo "port-$((10#$2))" ;;
+        *) die "unknown kind: $1 (vm, usb, port)" ;;
+    esac
+}
+
+vm_set() { # vm_set full|standard
+    [[ -n $DRY ]] && { echo "would run: vm access $1"; return 0; }
+    touch "$QEMU_CONF"
+    sed -i "/^# >>> tamagi vm access/,/^# <<< tamagi vm access/d" "$QEMU_CONF"
+    if [[ $1 == full ]]; then
+        printf '%s\n' "$VM_BEGIN" 'user = "root"' 'group = "root"' 'dynamic_ownership = 0' "$VM_END" >> "$QEMU_CONF"
+    fi
+    systemctl try-restart virtqemud.service 2>/dev/null || true
+}
+
+apply() { # apply grant|revoke <id>
+    local action=$1 id=$2
+    case $id in
+        vm)
+            if [[ $action == grant ]]; then vm_set full; else vm_set standard; fi ;;
+        usb)
+            if [[ $action == grant ]]; then
+                [[ -n $DRY ]] || systemctl is-active --quiet usbguard.service || die "USBGuard is off: nothing to lease (tamagi harden usb on)"
+                run usbguard set-parameter ImplicitPolicyTarget allow
+            else
+                run usbguard set-parameter ImplicitPolicyTarget block || true
+            fi ;;
+        port-*)
+            if [[ $action == grant ]]; then
+                run firewall-cmd --quiet --add-port="${id#port-}/tcp"
+            else
+                run firewall-cmd --quiet --remove-port="${id#port-}/tcp" || true
+            fi ;;
+    esac
+}
+
+schedule() { # schedule <id> <expiry epoch>
+    [[ -n $DRY ]] && { echo "would schedule: $1 at $2"; return 0; }
+    systemctl stop "tamagi-lease-$1.timer" 2>/dev/null || true
+    systemd-run --quiet --collect --unit "tamagi-lease-$1" \
+        --on-calendar="$(date -d "@$2" '+%Y-%m-%d %H:%M:%S')" --timer-property=AccuracySec=1s \
+        /usr/libexec/tamagi/lease-helper expire
+}
+
+cmd_grant() {
+    local id minutes=${2:-} expiry
+    id=$(lease_id "$1" "${3:-}")
+    [[ $minutes =~ ^[0-9]{1,4}$ ]] && (( 10#$minutes >= 1 && 10#$minutes <= MAX_MINUTES )) \
+        || die "minutes: a number from 1 to $MAX_MINUTES"
+    expiry=$(( $(now) + 10#$minutes * 60 ))
+    # A permanent `tamagi vm access full` is not turned into a lease: the user
+    # asked for it to stay.
+    if [[ $id == vm && ! -e $DIR/vm && -z $DRY ]] && grep -qF "$VM_BEGIN" "$QEMU_CONF" 2>/dev/null; then
+        die "VM access is already full, permanently (tamagi vm access standard takes it back)"
+    fi
+    apply grant "$id"
+    mkdir -p "$DIR"
+    echo "$expiry" > "$DIR/$id"
+    schedule "$id" "$expiry"
+    echo "$id $expiry"
+}
+
+cmd_revoke() {
+    local id
+    id=$(lease_id "$1" "${2:-}")
+    [[ -e $DIR/$id ]] || die "no such lease: $id"
+    apply revoke "$id"
+    rm -f "$DIR/$id"
+    [[ -n $DRY ]] || systemctl stop "tamagi-lease-$id.timer" 2>/dev/null || true
+}
+
+cmd_expire() {
+    local file id expiry t
+    t=$(now)
+    for file in "$DIR"/*; do
+        [[ -f $file ]] || continue
+        id=${file##*/}
+        expiry=$(<"$file")
+        if [[ ! $expiry =~ ^[0-9]+$ ]] || (( expiry <= t )); then
+            apply revoke "$id" || true
+            rm -f "$file"
+            echo "expired: $id"
+        else
+            # Still in force: what a reboot undid (firewall, USBGuard) is opened
+            # again, and the timer is set again.
+            apply grant "$id" >/dev/null 2>&1 || true
+            schedule "$id" "$expiry"
+        fi
+    done
+}
+
+cmd_list() {
+    local file
+    for file in "$DIR"/*; do
+        [[ -f $file ]] && echo "${file##*/} $(<"$file")"
+    done
+    return 0
+}
+
+case ${1:-} in
+    grant)  [[ $# -ge 3 ]] || die "usage: grant <kind> <minutes> [arg]"; cmd_grant "$2" "$3" "${4:-}" ;;
+    revoke) [[ $# -ge 2 ]] || die "usage: revoke <kind> [arg]"; cmd_revoke "$2" "${3:-}" ;;
+    expire) cmd_expire ;;
+    list)   cmd_list ;;
+    *)      die "usage: grant|revoke|expire|list" ;;
+esac

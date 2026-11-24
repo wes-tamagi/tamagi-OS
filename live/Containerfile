@@ -1,17 +1,14 @@
-# Tamagi — ambiente live da mídia de instalação (tik + bootc).
+# Tamagi — ambiente live da mídia de instalação (instalador + bootc).
 #
 #   just build-live          (ou: podman build -f live/Containerfile -t tamagi-live .)
 #
-# Parte da imagem do sistema e acrescenta o instalador. `just build-iso`
-# transforma esta imagem numa ISO.
+# Parte da imagem do sistema e acrescenta o instalador: a janela é o
+# tamagi-welcome --install (já na imagem) e o trabalho é o tamagi-install
+# (live/files). `just build-iso` transforma esta imagem numa ISO.
 
 ARG IMAGE=localhost/tamagi:latest
 FROM ${IMAGE}
 
-# tik (Tailored Installation Kit, o instalador do openSUSE Aeon), fixado por
-# tag e por commit.
-ARG TIK_REF=v1.5.3
-ARG TIK_COMMIT=249ecc64fd6fc2aba9f11ecf240bf5844751394a
 # Para onde o sistema instalado olha para se atualizar (ex.:
 # ghcr.io/voce/tamagi:latest). Vazio: fica apontando para a imagem local.
 ARG TARGET_IMGREF=
@@ -19,5 +16,5 @@ ARG TARGET_IMGREF=
 RUN --mount=type=bind,source=live,target=/ctx/live \
     --mount=type=cache,dst=/var/cache/libdnf5 \
     --mount=type=tmpfs,dst=/tmp \
-    TIK_REF=${TIK_REF} TIK_COMMIT=${TIK_COMMIT} TARGET_IMGREF=${TARGET_IMGREF} \
+    TARGET_IMGREF=${TARGET_IMGREF} \
     bash /ctx/live/build-live.sh

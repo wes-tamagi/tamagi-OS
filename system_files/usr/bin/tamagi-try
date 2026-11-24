@@ -43,11 +43,19 @@ case $distro in tumbleweed|opensuse-tumbleweed) distro=opensuse ;; esac
 (( ${#pkgs[@]} )) || { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 2; }
 
 args=(--rm --name "tamagi-try-$$" --hostname try -e TERM -w /root)
-# SELinux confinement stays on unless the container needs your files, screen or GPUs.
-(( here || gui || gpu )) && args+=(--security-opt label=disable)
-if (( gpu )); then mapfile -t -O "${#args[@]}" args < <(/usr/libexec/tamagi/gpu-args | grep -v '^--security-opt'); fi
+# SELinux confinement stays on. The exceptions: --gui (a confined container
+# cannot talk to the Wayland socket of your session) and --gpu with the NVIDIA
+# proprietary driver (gpu-args says so).
+if (( gui )); then args+=(--security-opt label=disable); fi
+if (( gpu )); then mapfile -t -O "${#args[@]}" args < <(/usr/libexec/tamagi/gpu-args); fi
 [[ -t 0 && -t 1 ]] && args+=(-it)
-(( here )) && args+=(-v "$PWD:/work" -w /work)
+if (( here )); then
+    # The folder gets the label containers may use (:z), and keeps it. Never
+    # the whole home or the root: that would relabel everything in them.
+    [[ $PWD != / && $PWD != "$HOME" && $PWD != /var/home && $PWD != /home ]] \
+        || die "--here: $(t "run it inside a project folder, not in your home folder")"
+    args+=(-v "$PWD:/work:z" -w /work)
+fi
 if (( gui )) && [[ -n ${WAYLAND_DISPLAY:-} && -S ${XDG_RUNTIME_DIR:-}/$WAYLAND_DISPLAY ]]; then
     args+=(-e WAYLAND_DISPLAY -e XDG_RUNTIME_DIR=/tmp/run -v "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/run/$WAYLAND_DISPLAY"
            --device /dev/dri)

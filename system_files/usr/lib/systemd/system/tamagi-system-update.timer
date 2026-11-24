@@ -2,9 +2,12 @@
 Description=Tamagi: looks for a new system image every six hours
 
 [Timer]
-OnCalendar=00/6:00
-RandomizedDelaySec=1h
-Persistent=true
+# Counted from the boot, not from the clock: the first check never lands on the
+# first minutes of a session (nor of a fresh installation, when the first
+# login is still installing apps).
+OnBootSec=30min
+OnUnitActiveSec=6h
+RandomizedDelaySec=10min
 
 [Install]
 WantedBy=timers.target

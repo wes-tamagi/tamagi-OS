@@ -18,7 +18,7 @@
 #   tests/iso.sh <iso> --boot-disk     abre numa janela o disco já instalado
 #
 # A instalação automática usa `tamagi.autoinstall=` na linha do kernel (veja
-# live/tik/modules/pre/10-tamagi); o usuário criado é tamagi, senha tamagi.
+# live/files/usr/libexec/tamagi-autoinstall); o usuário criado é tamagi, senha tamagi.
 set -euo pipefail
 
 ISO=${1:?caminho da ISO}
@@ -135,7 +135,7 @@ boot=$(mktemp -d)
 xorriso -osirrox on -indev "$ISO" -extract /boot/vmlinuz "$boot/vmlinuz" \
     -extract /boot/initrd.img "$boot/initrd.img" >/dev/null 2>&1
 chmod u+w "$boot"/*
-append="root=live:CDLABEL=TAMAGI_LIVE rd.live.image rd.live.overlay.overlayfs=1 enforcing=0"
+append="root=live:CDLABEL=TAMAGI_LIVE rd.live.image rd.overlay=1 enforcing=0"
 append+=" console=ttyS0 systemd.unit=multi-user.target"
 append+=" tamagi.autoinstall=/dev/vda tamagi.autoinstall.kargs=console=tty0,console=ttyS0"
 [[ $MODE == --luks || $MODE == --tpm ]] && append+=" tamagi.autoinstall.luks=$LUKS_PASS"

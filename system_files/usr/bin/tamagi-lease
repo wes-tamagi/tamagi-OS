@@ -1,0 +1,48 @@
+#!/usr/bin/bash
+# tamagi-lease — loosen something for a limited time; it goes back by itself.
+#
+# What is opened with a lease closes when the time is over, even if the
+# computer is rebooted or you forget about it. The permanent commands
+# (`tamagi vm access full`, `tamagi harden usb off`) stay as they are: a lease
+# is for the times you need something open only for a while.
+#
+#   tamagi lease                     the leases in force and when they end
+#   tamagi lease vm [minutes]        VMs reach USB sticks and external disks
+#   tamagi lease usb [minutes]       USBGuard lets in the devices plugged meanwhile
+#   tamagi lease port <n> [minutes]  the firewall accepts connections on TCP port <n>
+#   tamagi lease end vm|usb|port <n> takes it back now
+#
+# Without the minutes: 60. The longest lease is 24 hours (1440).
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+HELPER=${TAMAGI_LEASE_HELPER:-/usr/libexec/tamagi/lease-helper}
+root() { if [[ -n ${TAMAGI_LEASE_DRYRUN:-} ]]; then "$HELPER" "$@"; else sudo "$HELPER" "$@"; fi; }
+when() { date -d "@$1" '+%H:%M'; }
+
+show() {
+    local id expiry any=0
+    while read -r id expiry; do
+        [[ -n $id ]] || continue
+        any=1
+        echo "  ${id/-/ }   $(t "until") $(when "$expiry")"
+    done < <("$HELPER" list)
+    (( any )) || tl "Nothing is on lease."
+}
+
+grant() { # grant <kind> <minutes> [arg]
+    local out
+    out=$(root grant "$@" | tail -1)
+    echo "$(t "On lease until") $(when "${out##* }"). $(t "It goes back by itself.")"
+}
+
+case ${1:-list} in
+    list) show ;;
+    vm|usb) grant "$1" "${2:-60}" ;;
+    port) [[ -n ${2:-} ]] || { echo "$(t "usage"): tamagi lease port <n> [minutes]" >&2; exit 2; }
+          grant port "${3:-60}" "$2" ;;
+    end)  [[ -n ${2:-} ]] || { echo "$(t "usage"): tamagi lease end vm|usb|port <n>" >&2; exit 2; }
+          root revoke "$2" "${3:-}" && tl "Taken back." ;;
+    -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' >&2; exit 2 ;;
+esac

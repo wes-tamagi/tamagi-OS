@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::RwLock;
 
 pub const DEFAULT_DIR: &str = "/usr/share/tamagi/i18n";
 
@@ -100,21 +100,34 @@ impl Catalog {
     }
 }
 
-static CURRENT: OnceLock<Catalog> = OnceLock::new();
+/// The catalog in use. The installer changes it when a language is picked
+/// (`set_lang`); everything else reads it once.
+static CURRENT: RwLock<Option<Catalog>> = RwLock::new(None);
 
-fn current() -> &'static Catalog {
-    CURRENT.get_or_init(Catalog::from_env)
+fn with_current<R>(f: impl FnOnce(&Catalog) -> R) -> R {
+    if let Some(catalog) = CURRENT.read().unwrap_or_else(|e| e.into_inner()).as_ref() {
+        return f(catalog);
+    }
+    let mut slot = CURRENT.write().unwrap_or_else(|e| e.into_inner());
+    f(slot.get_or_insert_with(Catalog::from_env))
 }
 
 /// The language of this run ("en", "pt", "es" or "fr").
 pub fn lang() -> &'static str {
-    current().lang
+    with_current(|c| c.lang)
+}
+
+/// Switches the interface to `lang` (a code from `lang_code`).
+pub fn set_lang(lang: &str) {
+    let dir = std::env::var_os("TAMAGI_I18N_DIR").filter(|v| !v.is_empty()).map(PathBuf::from).unwrap_or_else(|| PathBuf::from(DEFAULT_DIR));
+    let catalog = Catalog::load(lang_code(lang), &dir);
+    *CURRENT.write().unwrap_or_else(|e| e.into_inner()) = Some(catalog);
 }
 
 /// Translates a message of the interface. The literal strings passed here are
 /// the ones collected in NEW_STRINGS.txt (see tools/new-strings.sh).
 pub fn tr(text: &str) -> String {
-    current().t(text).to_string()
+    with_current(|c| c.t(text).to_string())
 }
 
 /// First letter in upper case ("not now" -> "Not now"): some keys shared with

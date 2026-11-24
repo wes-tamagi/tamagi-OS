@@ -39,7 +39,7 @@ mm=$(find /live/usr/lib/efi/shim -name mmx64.efi | head -1)
 grub=$(find /live/usr/lib/efi/grub2 -name grubx64.efi | head -1)
 [[ -f $shim && -f $grub ]] || { echo "shim/GRUB não encontrados em /live/usr/lib/efi" >&2; exit 1; }
 
-BASE="root=live:CDLABEL=$LABEL rd.live.image rd.live.overlay.overlayfs=1 rd.luks=0 rd.lvm=0 rd.md=0 rd.multipath=0 enforcing=0 rootdelay=5"
+BASE="root=live:CDLABEL=$LABEL rd.live.image rd.overlay=1 rd.luks=0 rd.lvm=0 rd.md=0 rd.multipath=0 enforcing=0 rootdelay=5"
 cat > /tmp/grub.cfg <<CFG
 set default=0
 set timeout=5

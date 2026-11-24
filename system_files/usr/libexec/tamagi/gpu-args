@@ -20,4 +20,8 @@ if [[ -e /proc/driver/nvidia/version ]]; then
 fi
 # The container's user keeps the groups that own the devices (video, render).
 echo "--group-add=keep-groups"
-echo "--security-opt=label=disable"
+# SELinux confinement stays on: the policy lets a confined container use the
+# DRM devices (container_use_dri_devices) and /dev/kfd. Only the NVIDIA
+# proprietary driver still needs the label off (its devices are refused to
+# container_t while container_use_devices is off).
+if [[ -e /proc/driver/nvidia/version ]]; then echo "--security-opt=label=disable"; fi

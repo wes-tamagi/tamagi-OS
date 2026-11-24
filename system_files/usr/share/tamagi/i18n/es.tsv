@@ -25,7 +25,6 @@ Development box (distrobox)	Caja de desarrollo (distrobox)
 The host takes no packages: command-line tools live in a box.	El host no recibe paquetes: las herramientas de línea de comandos viven en una caja.
 not now	ahora no
 Which distro for the 'dev' box?	¿Con qué distro crear la caja 'dev'?
-Could not create it now (no network?). Later: ujust devbox	No se pudo crear ahora (¿sin red?). Después: ujust devbox
 Languages and tools (mise)	Lenguajes y herramientas (mise)
 mise is the default manager for languages and development tools:	mise es el gestor predeterminado de lenguajes y herramientas de desarrollo:
 it installs into your user account, switches versions per project folder and updates itself.	se instala en su cuenta, cambia de versión por carpeta de proyecto y se actualiza solo.
@@ -33,12 +32,10 @@ Install now? (space selects, Enter confirms; may be left empty)	¿Instalar ahora
 That didn't work (no network?). Later: mise use -g node@lts	No se pudo ahora (¿sin red?). Después: mise use -g node@lts
 Later: mise use -g node@lts python@latest   ·   mise ls	Después: mise use -g node@lts python@latest   ·   mise ls
 Encrypted disk	Disco cifrado
-Later: ujust setup-luks-tpm-unlock	Después: ujust setup-luks-tpm-unlock
 Local AI (llama.cpp)	IA local (llama.cpp)
 Later: tamagi-ai setup	Después: tamagi-ai setup
 Done	Listo
 Super+K shows the shortcuts · Super+A quick actions · Super+Alt+Space opens the menu.	Super+K muestra los atajos · Super+A acciones rápidas · Super+Alt+Espacio abre el menú.
-Games: ujust setup-gaming · Security: tamagi-harden status · Language: tamagi-lang pick	Juegos: ujust setup-gaming · Seguridad: tamagi-harden status · Idioma: tamagi-lang pick
 press any key to close	cualquier tecla cierra
 Set up Chrome now?	¿Preparar Chrome ahora?
 Unlock the disk with the TPM chip at boot, without typing the password?	¿Desbloquear el disco con el chip TPM al arrancar, sin escribir la contraseña?
@@ -129,7 +126,6 @@ System (atomic image)	Sistema (imagen atómica)
 New image staged: takes effect on next boot.	Nueva imagen lista: se aplicará en el próximo arranque.
 Could not update the image. If installed from a local build, publish it first	No se pudo actualizar la imagen. Si se instaló desde un build local, publíquela primero
 Image layers (tamagi-layer)	Capas sobre la imagen (tamagi-layer)
-No Arch box found. Create one with: tamagi-pkg install --arch <pkg>  or  ujust devbox arch	Sin caja Arch. Cree una con: tamagi-pkg install --arch <paquete>  o  ujust devbox arch
 On battery: deferring until next run.	Con batería: se pospone para la próxima vez.
 Box	Caja
 Runtimes (mise)	Runtimes (mise)
@@ -138,7 +134,6 @@ It will take effect the next time you reboot.	Se aplicará cuando reinicie el eq
 next	próxima
 missing	ausente
 System (image, applied on boot)	Sistema (imagen, se aplica al arrancar)
-System Flatpaks	Flatpaks del sistema
 User Flatpaks	Flatpaks del usuario
 Subsystems and mise	Subsistemas y mise
 Quarantined digests	Digests en cuarentena
@@ -809,7 +804,6 @@ AI agents: Claude Code, Codex, Qwen Code, opencode…	agentes de IA: Claude Code
 local AI (llama.cpp): models and server	IA local (llama.cpp): modelos y servidor
 chat with the local AI agent	conversa con el agente de IA local
 native games (like on Bazzite) or Flatpak	juegos nativos (como en Bazzite) o Flatpak
-virtual machines (native virt-manager)	máquinas virtuales (virt-manager nativo)
 deb, rpm and Arch packages in subsystems	paquetes deb, rpm y Arch en subsistemas
 turns a website into an app	convierte un sitio web en app
 tries a package in a disposable box	prueba un paquete en una caja desechable
@@ -880,9 +874,9 @@ the box has no complete Perl; run	la caja no tiene el Perl completo; ejecuta
 llm-scripts — works out the best launch profile of a local model for your GPU	llm-scripts — calcula el mejor perfil de ejecución de un modelo local para tu tarjeta gráfica
 stays	se conserva
 VS Code with Dev Containers (Podman), native (asks for the password)	VS Code con Dev Containers (Podman), nativo (pide contraseña)
-Full access on: VMs run as root, unconfined, and reach USB sticks and external disks.	Acceso total activado: las VMs se ejecutan como root, sin confinamiento, y alcanzan memorias USB y discos externos.
+Full access on: VMs run as root (SELinux stays on) and reach USB sticks and external disks.	Acceso total activado: las VM se ejecutan como root (SELinux sigue activo) y alcanzan memorias USB y discos externos.
 Log out and back in for the new groups to count.	Cierra la sesión y vuelve a entrar para que los grupos nuevos cuenten.
-Standard access: VMs run confined again.	Acceso estándar: las VMs vuelven a ejecutarse confinadas.
+Standard access: VMs run as the qemu user again.	Acceso estándar: las VM vuelven a ejecutarse como el usuario qemu.
 VM access	Acceso de las VMs
 what the box sees of the GPUs (Vulkan, video, OpenCL)	lo que la caja ve de las GPU (Vulkan, vídeo, OpenCL)
 Your settings.json already exists; to use Podman add	Tu settings.json ya existe; para usar Podman añade
@@ -1031,3 +1025,100 @@ built in	integrado
 Virtualization is built into the DX image. Use 'tamagi vm access standard' to keep VMs confined.	La virtualización forma parte de la imagen DX. Usa 'tamagi vm access standard' para mantener las VMs confinadas.
 Search Flathub online…	Buscar en Flathub en línea…
 App name or Flathub ID…	Nombre de la app o ID de Flathub…
+Installing the essential apps in the background	Instalando las aplicaciones esenciales en segundo plano
+run it inside a project folder, not in your home folder	ejecútalo dentro de una carpeta de proyecto, no en tu carpeta personal
+until	hasta
+Nothing is on lease.	No hay nada liberado por plazo.
+On lease until	Liberado hasta
+It goes back by itself.	Vuelve solo.
+Taken back.	Retirado.
+Installing the essential apps	Instalando las aplicaciones esenciales
+Updating your Flatpak apps	Actualizando tus aplicaciones Flatpak
+Updating the boxes and subsystems	Actualizando las cajas y los subsistemas
+Preparing a new system image	Preparando una nueva imagen del sistema
+Rebuilding the native layers	Rehaciendo las capas nativas
+Setting up the snapshots of the home folder	Configurando las instantáneas de la carpeta personal
+Taking a snapshot of the home folder	Tomando una instantánea de la carpeta personal
+Cleaning old snapshots	Limpiando instantáneas antiguas
+Checking the disk for silent corruption	Buscando corrupción silenciosa en el disco
+Reorganizing the disk (btrfs balance)	Reorganizando el disco (btrfs balance)
+Trimming the SSD	Haciendo TRIM del SSD
+Running in the background now:	En segundo plano ahora:
+Nothing is running in the background.	No hay nada en segundo plano.
+A new system image is ready; it takes effect on the next reboot	Hay una nueva imagen del sistema lista; se aplica en el próximo reinicio
+On lease:	Liberado por plazo:
+what is running in the background right now	lo que se ejecuta en segundo plano ahora
+opens something for a limited time; it closes by itself	abre algo por tiempo limitado; se cierra solo
+virtual machines (Cockpit Machines, QEMU/KVM)	máquinas virtuales (Cockpit Machines, QEMU/KVM)
+your own commands, as recipes in a Markdown file	tus propios comandos, como recetas en un archivo Markdown
+Your recipes	Tus recetas
+Tamagi recipes	Recetas de Tamagi
+Write your own with	Escribe las tuyas con
+no such recipe	receta no encontrada
+Choose a disk.	Elija un disco.
+Choose the disk where Tamagi will be installed. Everything on it will be erased, unless you keep your files below.	Elija el disco donde se instalará Tamagi. Todo lo que contiene se borrará, salvo que conserve sus archivos más abajo.
+Chosen	Elegido
+Could not prepare the disk password.	No se pudo preparar la contraseña del disco.
+Could not prepare the password (openssl).	No se pudo preparar la contraseña (openssl).
+Could not write the answers of the installation.	No se pudieron guardar las respuestas de la instalación.
+Current disk password	Contraseña actual del disco
+Disk	Disco
+Disk password	Contraseña del disco
+Disk password (at least 8 characters)	Contraseña del disco (mínimo 8 caracteres)
+Encryption	Cifrado
+Encrypt the disk (LUKS2)	Cifrar el disco (LUKS2)
+Erase the disk and install	Borrar el disco e instalar
+Everything on this disk will be erased. Once it starts there is no way to undo it.	Todo lo que hay en este disco se borrará. Una vez iniciada no se puede deshacer.
+Full name	Nombre completo
+Incorrect password for the encrypted partition.	Contraseña incorrecta para la partición cifrada.
+Installing Tamagi	Instalando Tamagi
+Install now	Instalar ahora
+Install Tamagi	Instalar Tamagi
+Just try it	Solo probar
+Keep my files (/var/home) and reinstall only the system	Conservar mis archivos (/var/home) y reinstalar solo el sistema
+Keyboard	Teclado
+Language	Idioma
+Log	Registro
+Looking at the disk…	Examinando el disco…
+Looking at the disk… one moment.	Examinando el disco… un momento.
+No disk found for the installation.	No se encontró ningún disco para la instalación.
+Nothing found.	No se encontró nada.
+Preparing…	Preparando…
+Reinstall, keeping my files	Reinstalar conservando mis archivos
+removable	extraíble
+Remove the installation media when the computer restarts.	Retire el medio de instalación cuando el equipo se reinicie.
+Repeat the password	Repita la contraseña
+Restart now	Reiniciar ahora
+Search a city or zone	Busque una ciudad o zona
+Stay in live mode	Seguir en modo live
+Tamagi has been installed	Tamagi fue instalado
+Tamagi needs a computer started in UEFI mode. Check the firmware (BIOS) options.	Tamagi necesita un equipo iniciado en modo UEFI. Revise las opciones del firmware (BIOS).
+That username is reserved by the system. Choose another one.	Ese nombre de usuario está reservado por el sistema. Elija otro.
+The disk only starts Tamagi at the very last step. If anything stops halfway, it is not left with a half-installed system.	El disco solo arranca Tamagi en el último paso. Si algo se detiene a la mitad, no queda con un sistema a medias.
+The disk password needs at least 8 characters.	La contraseña del disco necesita al menos 8 caracteres.
+The installation did not finish. You can try again from the launcher: Install Tamagi.	La instalación no terminó. Puede intentarlo de nuevo desde el lanzador: Instalar Tamagi.
+The installation failed	La instalación falló
+The installation is atomic	La instalación es atómica
+The password cannot be empty.	La contraseña no puede quedar vacía.
+The password stays as a fallback (motherboard replacement, firmware update).	La contraseña queda de reserva (cambio de placa base, actualización de firmware).
+The system on this disk is replaced and your home folder is kept	El sistema de este disco se reemplaza y su carpeta personal se conserva
+The two passwords are not the same.	Las dos contraseñas no son iguales.
+The username must start with a lowercase letter and contain only lowercase letters, digits, hyphen or underscore.	El nombre de usuario debe empezar con letra minúscula y tener solo letras minúsculas, números, guion o guion bajo.
+This assistant installs Tamagi on this computer. Just a few questions: keyboard, time zone, your account and the disk.	Este asistente instala Tamagi en este equipo. Son pocas preguntas: teclado, zona horaria, su cuenta y el disco.
+This disk has an encrypted partition	Este disco tiene una partición cifrada
+This disk is too small: Tamagi needs at least 24 GB.	Este disco es demasiado pequeño: Tamagi necesita al menos 24 GB.
+This takes a few minutes. Do not turn the computer off.	Tarda unos minutos. No apague el equipo.
+This will be the administrator account of the computer.	Esta será la cuenta de administrador del equipo.
+Time zone	Zona horaria
+To only try the system, choose Just try it. The installer stays in the launcher: Install Tamagi.	Para solo probar el sistema, elija Solo probar. El instalador sigue en el lanzador: Instalar Tamagi.
+too small	demasiado pequeño
+Type its current password to look for your files and keep them. Or go on: the disk is erased.	Escriba su contraseña actual para buscar sus archivos y conservarlos. O siga: el disco se borrará.
+Unlock	Desbloquear
+Unlock it by itself at startup, with the TPM chip	Desbloquearlo solo al encender, con el chip TPM
+Unlock with the TPM chip	Desbloqueo con el chip TPM
+Username	Nombre de usuario
+Users found	Usuarios encontrados
+Which keyboard does this computer have?	¿Qué teclado tiene este equipo?
+With encryption, nobody can read your files if the computer is lost or stolen.	Con cifrado, nadie lee sus archivos si el equipo se pierde o lo roban.
+Without the disk password there is no way to recover the files.	Sin la contraseña del disco no hay forma de recuperar los archivos.
+Your account	Su cuenta

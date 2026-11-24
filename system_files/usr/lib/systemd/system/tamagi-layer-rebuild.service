@@ -9,6 +9,8 @@ ConditionDirectoryNotEmpty=/var/lib/extensions
 Type=oneshot
 Nice=10
 IOSchedulingClass=idle
+CPUWeight=20
+IOWeight=20
 ExecStart=/usr/libexec/tamagi/layer-autorebuild
 
 [Install]

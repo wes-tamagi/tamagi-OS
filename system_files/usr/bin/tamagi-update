@@ -148,7 +148,6 @@ timer_line() { # timer_line <rótulo> [--user] <unit>
 status_auto() {
     echo "$(t "Automatic updates"):"
     timer_line "System (image, applied on boot)" tamagi-system-update.timer
-    timer_line "System Flatpaks" flatpak-system-update.timer
     timer_line "User Flatpaks" --user flatpak-user-update.timer
     timer_line "Distrobox boxes" --user tamagi-autoupdate.timer
     if [[ -r $STATUS ]]; then
@@ -256,7 +255,7 @@ maybe_apply_reboot() {
 set_auto() { # set_auto on|off
     local verb=enable
     [[ $1 == off ]] && verb=disable
-    sudo systemctl "$verb" --now tamagi-system-update.timer flatpak-system-update.timer
+    sudo systemctl "$verb" --now tamagi-system-update.timer
     systemctl --user "$verb" --now flatpak-user-update.timer tamagi-autoupdate.timer
     status_auto
 }

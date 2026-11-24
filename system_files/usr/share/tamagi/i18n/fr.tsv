@@ -25,7 +25,6 @@ Development box (distrobox)	Boîte de développement (distrobox)
 The host takes no packages: command-line tools live in a box.	L'hôte ne reçoit pas de paquets : les outils en ligne de commande vivent dans une boîte.
 not now	pas maintenant
 Which distro for the 'dev' box?	Créer la boîte « dev » avec quelle distribution ?
-Could not create it now (no network?). Later: ujust devbox	Création impossible pour l'instant (pas de réseau ?). Plus tard : ujust devbox
 Languages and tools (mise)	Langages et outils (mise)
 mise is the default manager for languages and development tools:	mise est le gestionnaire par défaut des langages et outils de développement :
 it installs into your user account, switches versions per project folder and updates itself.	il installe les outils dans votre compte, change de version par dossier de projet et se met à jour tout seul.
@@ -33,12 +32,10 @@ Install now? (space selects, Enter confirms; may be left empty)	Installer mainte
 That didn't work (no network?). Later: mise use -g node@lts	Impossible pour l'instant (pas de réseau ?). Plus tard : mise use -g node@lts
 Later: mise use -g node@lts python@latest   ·   mise ls	Plus tard : mise use -g node@lts python@latest   ·   mise ls
 Encrypted disk	Disque chiffré
-Later: ujust setup-luks-tpm-unlock	Plus tard : ujust setup-luks-tpm-unlock
 Local AI (llama.cpp)	IA locale (llama.cpp)
 Later: tamagi-ai setup	Plus tard : tamagi-ai setup
 Done	Terminé
 Super+K shows the shortcuts · Super+A quick actions · Super+Alt+Space opens the menu.	Super+K affiche les raccourcis · Super+A actions rapides · Super+Alt+Espace ouvre le menu.
-Games: ujust setup-gaming · Security: tamagi-harden status · Language: tamagi-lang pick	Jeux : ujust setup-gaming · Sécurité : tamagi-harden status · Langue : tamagi-lang pick
 press any key to close	une touche pour fermer
 Set up Chrome now?	Préparer Chrome maintenant ?
 Unlock the disk with the TPM chip at boot, without typing the password?	Déverrouiller le disque avec la puce TPM au démarrage, sans saisir le mot de passe ?
@@ -129,7 +126,6 @@ System (atomic image)	Système (image atomique)
 New image staged: takes effect on next boot.	Nouvelle image prête : active au prochain démarrage.
 Could not update the image. If installed from a local build, publish it first	Impossible de mettre à jour l'image. Si installée depuis un build local, publiez-la d'abord
 Image layers (tamagi-layer)	Couches sur l'image (tamagi-layer)
-No Arch box found. Create one with: tamagi-pkg install --arch <pkg>  or  ujust devbox arch	Aucune boîte Arch. Créez-en une avec : tamagi-pkg install --arch <paquet>  ou  ujust devbox arch
 On battery: deferring until next run.	Sur batterie : reporté à la prochaine exécution.
 Box	Boîte
 Runtimes (mise)	Runtimes (mise)
@@ -138,7 +134,6 @@ It will take effect the next time you reboot.	Elle prendra effet au prochain red
 next	prochaine
 missing	absente
 System (image, applied on boot)	Système (image, appliquée au démarrage)
-System Flatpaks	Flatpaks du système
 User Flatpaks	Flatpaks de l'utilisateur
 Subsystems and mise	Sous-systèmes et mise
 Quarantined digests	Digests en quarantaine
@@ -809,7 +804,6 @@ AI agents: Claude Code, Codex, Qwen Code, opencode…	agents d'IA : Claude Code,
 local AI (llama.cpp): models and server	IA locale (llama.cpp) : modèles et serveur
 chat with the local AI agent	discuter avec l'agent d'IA local
 native games (like on Bazzite) or Flatpak	jeux natifs (comme sur Bazzite) ou Flatpak
-virtual machines (native virt-manager)	machines virtuelles (virt-manager natif)
 deb, rpm and Arch packages in subsystems	paquets deb, rpm et Arch dans des sous-systèmes
 turns a website into an app	transforme un site en application
 tries a package in a disposable box	essaie un paquet dans une boîte jetable
@@ -880,9 +874,9 @@ the box has no complete Perl; run	la boîte n'a pas le Perl complet ; lancez
 llm-scripts — works out the best launch profile of a local model for your GPU	llm-scripts — calcule le meilleur profil de lancement d'un modèle local pour votre carte graphique
 stays	est conservé
 VS Code with Dev Containers (Podman), native (asks for the password)	VS Code avec Dev Containers (Podman), natif (demande le mot de passe)
-Full access on: VMs run as root, unconfined, and reach USB sticks and external disks.	Accès total activé : les VM s'exécutent en root, sans confinement, et atteignent les clés USB et les disques externes.
+Full access on: VMs run as root (SELinux stays on) and reach USB sticks and external disks.	Accès complet activé : les VM tournent en root (SELinux reste actif) et atteignent les clés USB et les disques externes.
 Log out and back in for the new groups to count.	Déconnectez-vous puis reconnectez-vous pour que les nouveaux groupes comptent.
-Standard access: VMs run confined again.	Accès standard : les VM s'exécutent de nouveau confinées.
+Standard access: VMs run as the qemu user again.	Accès standard : les VM tournent de nouveau avec l’utilisateur qemu.
 VM access	Accès des VM
 what the box sees of the GPUs (Vulkan, video, OpenCL)	ce que la boîte voit des GPU (Vulkan, vidéo, OpenCL)
 Your settings.json already exists; to use Podman add	Votre settings.json existe déjà ; pour utiliser Podman ajoutez
@@ -1031,3 +1025,100 @@ built in	intégré
 Virtualization is built into the DX image. Use 'tamagi vm access standard' to keep VMs confined.	La virtualisation fait partie de l'image DX. Utilisez 'tamagi vm access standard' pour garder les VMs confinées.
 Search Flathub online…	Rechercher sur Flathub en ligne…
 App name or Flathub ID…	Nom de l'application ou ID Flathub…
+Installing the essential apps in the background	Installation des applications essentielles en arrière-plan
+run it inside a project folder, not in your home folder	lancez-le dans un dossier de projet, pas dans votre dossier personnel
+until	jusqu’à
+Nothing is on lease.	Rien n’est ouvert temporairement.
+On lease until	Ouvert jusqu’à
+It goes back by itself.	Cela se referme tout seul.
+Taken back.	Retiré.
+Installing the essential apps	Installation des applications essentielles
+Updating your Flatpak apps	Mise à jour de vos applications Flatpak
+Updating the boxes and subsystems	Mise à jour des boîtes et des sous-systèmes
+Preparing a new system image	Préparation d’une nouvelle image du système
+Rebuilding the native layers	Reconstruction des couches natives
+Setting up the snapshots of the home folder	Configuration des instantanés du dossier personnel
+Taking a snapshot of the home folder	Création d’un instantané du dossier personnel
+Cleaning old snapshots	Nettoyage des anciens instantanés
+Checking the disk for silent corruption	Recherche de corruption silencieuse sur le disque
+Reorganizing the disk (btrfs balance)	Réorganisation du disque (btrfs balance)
+Trimming the SSD	TRIM du SSD
+Running in the background now:	En arrière-plan en ce moment :
+Nothing is running in the background.	Rien ne tourne en arrière-plan.
+A new system image is ready; it takes effect on the next reboot	Une nouvelle image du système est prête ; elle s’applique au prochain redémarrage
+On lease:	Ouvert temporairement :
+what is running in the background right now	ce qui tourne en arrière-plan en ce moment
+opens something for a limited time; it closes by itself	ouvre quelque chose pour un temps limité ; se referme tout seul
+virtual machines (Cockpit Machines, QEMU/KVM)	machines virtuelles (Cockpit Machines, QEMU/KVM)
+your own commands, as recipes in a Markdown file	vos propres commandes, en recettes dans un fichier Markdown
+Your recipes	Vos recettes
+Tamagi recipes	Recettes de Tamagi
+Write your own with	Écrivez les vôtres avec
+no such recipe	recette introuvable
+Choose a disk.	Choisissez un disque.
+Choose the disk where Tamagi will be installed. Everything on it will be erased, unless you keep your files below.	Choisissez le disque où Tamagi sera installé. Tout ce qu’il contient sera effacé, sauf si vous conservez vos fichiers ci-dessous.
+Chosen	Choisi
+Could not prepare the disk password.	Impossible de préparer le mot de passe du disque.
+Could not prepare the password (openssl).	Impossible de préparer le mot de passe (openssl).
+Could not write the answers of the installation.	Impossible d’enregistrer les réponses de l’installation.
+Current disk password	Mot de passe actuel du disque
+Disk	Disque
+Disk password	Mot de passe du disque
+Disk password (at least 8 characters)	Mot de passe du disque (8 caractères au minimum)
+Encryption	Chiffrement
+Encrypt the disk (LUKS2)	Chiffrer le disque (LUKS2)
+Erase the disk and install	Effacer le disque et installer
+Everything on this disk will be erased. Once it starts there is no way to undo it.	Tout ce que contient ce disque sera effacé. Une fois commencée, l’installation ne peut pas être annulée.
+Full name	Nom complet
+Incorrect password for the encrypted partition.	Mot de passe incorrect pour la partition chiffrée.
+Installing Tamagi	Installation de Tamagi
+Install now	Installer maintenant
+Install Tamagi	Installer Tamagi
+Just try it	Seulement essayer
+Keep my files (/var/home) and reinstall only the system	Conserver mes fichiers (/var/home) et réinstaller seulement le système
+Keyboard	Clavier
+Language	Langue
+Log	Journal
+Looking at the disk…	Analyse du disque…
+Looking at the disk… one moment.	Analyse du disque… un instant.
+No disk found for the installation.	Aucun disque trouvé pour l’installation.
+Nothing found.	Aucun résultat.
+Preparing…	Préparation…
+Reinstall, keeping my files	Réinstaller en conservant mes fichiers
+removable	amovible
+Remove the installation media when the computer restarts.	Retirez le support d’installation au redémarrage de l’ordinateur.
+Repeat the password	Répétez le mot de passe
+Restart now	Redémarrer maintenant
+Search a city or zone	Cherchez une ville ou un fuseau
+Stay in live mode	Rester en mode live
+Tamagi has been installed	Tamagi a été installé
+Tamagi needs a computer started in UEFI mode. Check the firmware (BIOS) options.	Tamagi a besoin d’un ordinateur démarré en mode UEFI. Vérifiez les options du firmware (BIOS).
+That username is reserved by the system. Choose another one.	Ce nom d’utilisateur est réservé par le système. Choisissez-en un autre.
+The disk only starts Tamagi at the very last step. If anything stops halfway, it is not left with a half-installed system.	Le disque ne démarre Tamagi qu’à la toute dernière étape. Si quelque chose s’arrête en cours de route, il ne reste pas avec un système à moitié installé.
+The disk password needs at least 8 characters.	Le mot de passe du disque doit avoir au moins 8 caractères.
+The installation did not finish. You can try again from the launcher: Install Tamagi.	L’installation ne s’est pas terminée. Vous pouvez réessayer depuis le lanceur : Installer Tamagi.
+The installation failed	L’installation a échoué
+The installation is atomic	L’installation est atomique
+The password cannot be empty.	Le mot de passe ne peut pas être vide.
+The password stays as a fallback (motherboard replacement, firmware update).	Le mot de passe reste en secours (changement de carte mère, mise à jour du firmware).
+The system on this disk is replaced and your home folder is kept	Le système de ce disque est remplacé et votre dossier personnel est conservé
+The two passwords are not the same.	Les deux mots de passe ne sont pas identiques.
+The username must start with a lowercase letter and contain only lowercase letters, digits, hyphen or underscore.	Le nom d’utilisateur doit commencer par une lettre minuscule et ne contenir que des lettres minuscules, des chiffres, un tiret ou un tiret bas.
+This assistant installs Tamagi on this computer. Just a few questions: keyboard, time zone, your account and the disk.	Cet assistant installe Tamagi sur cet ordinateur. Quelques questions seulement : clavier, fuseau horaire, votre compte et le disque.
+This disk has an encrypted partition	Ce disque contient une partition chiffrée
+This disk is too small: Tamagi needs at least 24 GB.	Ce disque est trop petit : Tamagi a besoin d’au moins 24 Go.
+This takes a few minutes. Do not turn the computer off.	Cela prend quelques minutes. N’éteignez pas l’ordinateur.
+This will be the administrator account of the computer.	Ce sera le compte administrateur de l’ordinateur.
+Time zone	Fuseau horaire
+To only try the system, choose Just try it. The installer stays in the launcher: Install Tamagi.	Pour seulement essayer le système, choisissez Seulement essayer. L’installateur reste dans le lanceur : Installer Tamagi.
+too small	trop petit
+Type its current password to look for your files and keep them. Or go on: the disk is erased.	Saisissez son mot de passe actuel pour retrouver vos fichiers et les conserver. Ou continuez : le disque sera effacé.
+Unlock	Déverrouiller
+Unlock it by itself at startup, with the TPM chip	Le déverrouiller tout seul au démarrage, avec la puce TPM
+Unlock with the TPM chip	Déverrouillage par la puce TPM
+Username	Nom d’utilisateur
+Users found	Utilisateurs trouvés
+Which keyboard does this computer have?	Quel est le clavier de cet ordinateur ?
+With encryption, nobody can read your files if the computer is lost or stolen.	Avec le chiffrement, personne ne lit vos fichiers si l’ordinateur est perdu ou volé.
+Without the disk password there is no way to recover the files.	Sans le mot de passe du disque, il est impossible de récupérer les fichiers.
+Your account	Votre compte

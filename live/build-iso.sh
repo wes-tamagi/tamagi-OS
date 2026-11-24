@@ -5,7 +5,7 @@
 #   (normalmente: just build-iso)
 #
 # A ISO tem três partes:
-#   LiveOS/squashfs.img   o ambiente live (o sistema + tik), em squashfs
+#   LiveOS/squashfs.img   o ambiente live (o sistema + o instalador), em squashfs
 #   tamagi-oci/           a imagem do sistema em formato OCI: é dela que o
 #                         `bootc install` copia, sem precisar de rede
 #   boot/ + partição EFI  kernel, initramfs live e GRUB (só UEFI)

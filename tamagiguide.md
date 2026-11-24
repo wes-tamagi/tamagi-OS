@@ -148,7 +148,7 @@ To give up for good after a few days, point back:
   starts databases; `tamagi try` opens a disposable box.
 - **Containers:** Podman is the default. Docker and lazydocker are optional.
 - **Virtual machines:** `tamagi vm` installs native virt-manager;
-  `tamagi vm access full` lets VMs use USB drives and external disks.
+  `tamagi vm access full` lets VMs use USB drives and external disks (SELinux stays on).
   `tamagi windows` runs Windows 11 in a container.
 - **Games:** `tamagi gaming` installs Steam and tools natively, with a gaming
   session on gamescope and HDR on displays that announce it.
@@ -214,7 +214,7 @@ They come **on** in a fresh install. There are four of them:
 | What | How it works |
 |---|---|
 | System image | Downloaded and prepared in the background; **applied only at the next boot**. The computer never reboots by itself. |
-| System Flatpaks | Updated in the background. |
+| System Flatpaks | None: every app is a user Flatpak (no system-wide updater runs). |
 | User Flatpaks | Updated in the background. |
 | Distrobox boxes | Updated in the background. |
 

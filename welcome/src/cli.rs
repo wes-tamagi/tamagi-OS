@@ -3,6 +3,7 @@
 //!   tamagi-welcome                    the first-login choices (once)
 //!   tamagi-welcome --force            shows them again
 //!   tamagi-welcome --askpass PROMPT   password dialog; prints it to stdout
+//!   tamagi-welcome --install          the installer of the live media
 //!
 //! `sudo` runs its askpass helper as `$SUDO_ASKPASS "<prompt>"`, with no room
 //! for a flag. The installers are started with SUDO_ASKPASS pointing at this
@@ -12,12 +13,13 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mode {
     Welcome { force: bool },
+    Install,
     Askpass(String),
     Help,
     Version,
 }
 
-pub const USAGE: &str = "tamagi-welcome [--force] | --askpass <prompt> | --help | --version";
+pub const USAGE: &str = "tamagi-welcome [--force] | --install | --askpass <prompt> | --help | --version";
 
 /// `args` without the program name; `askpass_env` is whether
 /// TAMAGI_WELCOME_ASKPASS is set.
@@ -28,6 +30,7 @@ pub fn parse(args: &[String], askpass_env: bool) -> Result<Mode, String> {
         match arg.as_str() {
             "--askpass" => return Ok(Mode::Askpass(iter.next().cloned().unwrap_or_default())),
             "--force" => force = true,
+            "--install" => return Ok(Mode::Install),
             "-h" | "--help" => return Ok(Mode::Help),
             "-V" | "--version" => return Ok(Mode::Version),
             prompt if askpass_env && !prompt.starts_with("--") => return Ok(Mode::Askpass(prompt.to_string())),
@@ -102,6 +105,7 @@ mod tests {
 
     #[test]
     fn others() {
+        assert_eq!(parse(&args(&["--install"]), false), Ok(Mode::Install));
         assert_eq!(parse(&args(&["--help"]), false), Ok(Mode::Help));
         assert_eq!(parse(&args(&["--version"]), false), Ok(Mode::Version));
         assert!(parse(&args(&["--nope"]), true).is_err());

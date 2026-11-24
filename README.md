@@ -190,8 +190,13 @@ configured, summarizes it in the user's language.
 
 ## Install
 
-Tamagi uses [tik](https://github.com/sysrich/tik) (openSUSE Aeon's installer)
-with a custom module that calls `bootc install`. The ISO builds rootless:
+Tamagi has its own installer: a native COSMIC window (`tamagi-welcome
+--install`, the same libcosmic program as the first-login choices) in front of
+a shell back end that calls `bootc install`. The flow follows openSUSE Aeon's
+installer — language, keyboard, time zone, account, encryption, disk, review —
+and nothing is written before the review is confirmed. Until 1.1 Tamagi used
+[tik](https://github.com/sysrich/tik), Aeon's installer, with a module of its
+own. The ISO builds rootless:
 
 ```bash
 just build-iso      # output/tamagi.iso (about 5 GiB: fits an 8 GB USB drive)
@@ -225,9 +230,13 @@ The UEFI-only ISO boots a live COSMIC session and launches the installer.
 <details>
 <summary>Internal installer flow</summary>
 
-1. `live/Containerfile` layers tik (pinned by tag and commit),
-   `live/tik/modules/pre/10-tamagi`, a live initramfs and the live user onto
-   the base image.
+1. `live/Containerfile` layers the back end (`live/files`), a live initramfs
+   and the live user onto the base image. The window (`welcome/src/setup_app.rs`)
+   asks the questions and writes an answers file (`KEY=value`, see
+   `welcome/src/setup.rs`); `tamagi-autoinstall` writes the same file from the
+   kernel command line for unattended installs (`tamagi.autoinstall=/dev/vda`).
+   An existing home folder is found by `tamagi-detect-home` (also inside an
+   encrypted partition, once its password is typed) and can be kept.
 2. `/usr/libexec/tamagi-install` partitions the disk and runs
    `bootc install to-filesystem --source-imgref oci:...`. The layout follows
    openSUSE Aeon: an 8 GiB ESP mounted at `/efi` (UEFI only), booted by
@@ -582,6 +591,31 @@ tamagi harden malloc on            # hardened_malloc globally
 tamagi setup tpm-unlock on         # unlock the encrypted disk with the TPM
 ```
 
+**Your own commands.** `tamagi recipe` runs recipes written in a Markdown
+file: a few lines of shell with a name, inside ```` ```just ```` blocks, with
+the explanation written around them. Yours live in
+`~/.config/tamagi/recipes.md` (`tamagi recipe edit` creates it with an
+example); Tamagi ships a few (`clean`, `space`, `boots`, `errors`, `ip`) in
+`/usr/share/tamagi/recipes.md`. A recipe of yours with the same name wins.
+
+**What is it doing?** `tamagi status` says what Tamagi is running in the
+background right now (the first login installing its apps, a new system image
+being prepared, a layer being rebuilt, disk maintenance), whether an update is
+waiting for a reboot, and what is on lease. `--json` for programs.
+
+**Leases: what is opened closes by itself.** `tamagi lease` loosens something
+for a limited time (60 minutes by default, 24 hours at most) and takes it back
+when the time is over — also after a reboot, and a suspended laptop does not
+stretch it. The permanent commands stay as they are.
+
+```bash
+tamagi lease                       # what is on lease, and until when
+tamagi lease vm 30                 # VMs reach USB sticks and external disks for 30 minutes
+tamagi lease usb 10                # USBGuard lets in the devices plugged in the next 10 minutes
+tamagi lease port 8080             # the firewall accepts TCP 8080 for an hour
+tamagi lease end port 8080         # takes it back now
+```
+
 **Landlock sandbox of the local agent.** Unattended commands run by
 `tamagi agent` are restricted in the kernel by Landlock
 (`/usr/libexec/tamagi/sandbox`), without root or containers:
@@ -695,7 +729,7 @@ system_files/            files overlaid onto the image root
   usr/bin/tamagi-*       update, setup, install, browser, harden, ai, agents…
   usr/libexec/tamagi/    container provisioners, firstboot, popups
   usr/share/backgrounds/tamagi/art/   illustrated wallpapers
-live/                    ISO: Containerfile, tik module, tamagi-install, build-iso.sh
+live/                    ISO: Containerfile, tamagi-install, tamagi-autoinstall, build-iso.sh
 tests/                   image.sh, desktop.sh, agent.sh, browser.sh, iso.sh, vm_check.py
 tools/                   development helpers (art-wallpapers.py)
 cosign.pub, cosign-2.pub public keys the installed system accepts
@@ -771,8 +805,8 @@ See [CONTRIBUTORS.md](CONTRIBUTORS.md).
 
 Upstream projects: Universal Blue (`base-main`, Fedora 45 packages), Open
 Gaming Collective (kernel), Bazzite (kernel, tuning, gaming stack), Omarchy
-(keyboard workflow, themes, web apps), COSMIC (System76), tik and the
-base-only install model (openSUSE Aeon), GrapheneOS / secureblue
+(keyboard workflow, themes, web apps), COSMIC (System76), the installer flow and the
+base-only install model (openSUSE Aeon, tik), GrapheneOS / secureblue
 (hardened_malloc and security model), bootc, distrobox, llama.cpp, mise and
 Rust for Linux. None of these projects endorse Tamagi. Forks and the
 contribution plan: [UPSTREAMS.md](UPSTREAMS.md).

@@ -1,0 +1,12 @@
+[Unit]
+Description=Tamagi: takes back the leases that ended while the computer was off (tamagi lease)
+Documentation=file:///usr/share/doc/tamagi/README.md
+ConditionDirectoryNotEmpty=/var/lib/tamagi/leases
+After=local-fs.target firewalld.service usbguard.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tamagi/lease-helper expire
+
+[Install]
+WantedBy=multi-user.target

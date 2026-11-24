@@ -43,7 +43,7 @@ LLM_BACKEND=vulkan
 LLM_MODEL_DIR=$MODELS
 LLM_BUILD_DIR=$BUILD
 LLM_HOST=127.0.0.1
-LLM_PORT=9090
+LLM_PORT=9932
 CONFIG
         fi
         # Launcher: the model folder and the engines are given in the environment

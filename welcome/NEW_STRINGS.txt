@@ -1,33 +1,65 @@
 Approximate download
 Apps to start with
-Asks for the password
 asks for the password
+Asks for the password
+Back
 Browser and apps you chose
 Cancel
+Choose a disk.
+Choose the disk where Tamagi will be installed. Everything on it will be erased, unless you keep your files below.
+Chosen
+Chromium ships pre-installed with Google Account sign-in. Optionally install another browser, or keep Chromium.
 Close
 Command
 Container
 Continue
+Could not prepare the disk password.
+Could not prepare the password (openssl).
+Could not write the answers of the installation.
+Current disk password
+Disk
+Disk password
+Disk password (at least 8 characters)
 distrobox
+Done
+Encryption
+Encrypt the disk (LUKS2)
+Erase the disk and install
 Every item says how it is installed
+Everything on this disk will be erased. Once it starts there is no way to undo it.
 Finish
 Finished, but not everything was installed
 Flathub app
 Flatpak
+Full name
 Good to know
 Hide details
 home folder
+Incorrect password for the encrypted partition.
+inside a distrobox
+Installing
+Installing native items changes the system: type your password to continue.
+Installing Tamagi
+Install now
+Install Tamagi
 in your home folder
 In your user
-inside a distrobox
-Installing native items changes the system: type your password to continue.
 its own Podman container
+Just try it
+Keep Chromium (default)
+Keeping pre-installed Chromium. Install another browser anytime: tamagi browser install
+Keep my files (/var/home) and reinstall only the system
+Keyboard
+Language
+Log
+Looking at the disk…
+Looking at the disk… one moment.
 More apps, by name: tamagi install (what the catalog does not list comes from Flathub).
 Native
 Next
-Keep Chromium (default)
-Keeping pre-installed Chromium. Install another browser anytime: tamagi browser install
-Chromium ships pre-installed with Google Account sign-in. Optionally install another browser, or keep Chromium.
+no
+No disk found for the installation.
+Nothing found.
 Nothing here asks for the password.
 Nothing selected
 Nothing selected: nothing will be installed.
@@ -35,20 +67,61 @@ Nothing to offer here. Later: tamagi install
 Password
 Password needed
 Podman
+Preparing…
 Ready-made sets (AI, development, games, office): tamagi profiles
+Reinstall, keeping my files
+removable
+Remove the installation media when the computer restarts.
+Repeat the password
+Restart now
 Review
 runs a setup command
 sandboxed app from Flathub
+Search a city or zone
 selected
 setup command
 Show details
 Skip for now
 Start
+Stay in live mode
 Step
 system layer, asks for the password
+Tamagi has been installed
+Tamagi needs a computer started in UEFI mode. Check the firmware (BIOS) options.
+That username is reserved by the system. Choose another one.
+The disk only starts Tamagi at the very last step. If anything stops halfway, it is not left with a half-installed system.
+The disk password needs at least 8 characters.
+The installation did not finish. You can try again from the launcher: Install Tamagi.
+The installation failed
+The installation is atomic
+The password cannot be empty.
 The password is asked for when this is set up.
+The password stays as a fallback (motherboard replacement, firmware update).
+The system on this disk is replaced and your home folder is kept
+The two passwords are not the same.
+The username must start with a lowercase letter and contain only lowercase letters, digits, hyphen or underscore.
+This assistant installs Tamagi on this computer. Just a few questions: keyboard, time zone, your account and the disk.
 This browser exists for Linux only as a Flatpak.
+This disk has an encrypted partition
+This disk is too small: Tamagi needs at least 24 GB.
+This takes a few minutes. Do not turn the computer off.
+This will be the administrator account of the computer.
 Tick the basics and pick a browser, then review. Nothing is installed before you confirm.
 Tick what you want now. Everything else is one command away: tamagi install
+Time zone
+To only try the system, choose Just try it. The installer stays in the launcher: Install Tamagi.
+too small
+Type its current password to look for your files and keep them. Or go on: the disk is erased.
+Unlock
+Unlock it by itself at startup, with the TPM chip
 Unlock the disk with the TPM chip at boot
+Unlock with the TPM chip
+Username
+Users found
 Welcome
+Welcome to Tamagi
+Which keyboard does this computer have?
+With encryption, nobody can read your files if the computer is lost or stolen.
+Without the disk password there is no way to recover the files.
+yes
+Your account

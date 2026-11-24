@@ -1,9 +1,0 @@
-# /etc/tamagi/system.toml — Declarative host configuration (FreeBSD rc.conf style)
-# Apply changes with: sudo tamagi-config apply
-
-[system]
-lang = "en"
-harden = "balanced"
-vm_access = "standard"
-auto_update = true
-zram_max_mb = 32768

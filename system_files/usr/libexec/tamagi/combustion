@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # tamagi-combustion — provisionamento no primeiro boot, no formato do
 # Combustion do openSUSE (https://github.com/openSUSE/combustion), que é o que
-# o Aeon usa junto com o tik.
+# o Aeon usa junto com o seu instalador.
 #
 # Um pendrive (ou disco de VM) com um sistema de arquivos de rótulo
 # "combustion" (ou "ignition", como no Aeon) e, dentro dele:

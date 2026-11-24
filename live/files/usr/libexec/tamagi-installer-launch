@@ -1,8 +1,7 @@
 #!/usr/bin/bash
-# Abre o instalador (tik) na sessão live. Um por vez.
+# Abre o instalador (tamagi-welcome --install) na sessão live. Um por vez.
 # Instalação sem perguntas em andamento (tamagi.autoinstall= na linha do
 # kernel): quem instala é o tamagi-autoinstall.service, não esta janela.
 grep -qE '(^| )tamagi\.autoinstall=' /proc/cmdline && exit 0
 [[ ${1:-} == --autostart ]] && sleep 3
-export GSK_RENDERER=cairo
-exec flock -n "${XDG_RUNTIME_DIR:-/tmp}/tamagi-installer.lock" /usr/bin/tik
+exec flock -n "${XDG_RUNTIME_DIR:-/tmp}/tamagi-installer.lock" /usr/bin/tamagi-welcome --install

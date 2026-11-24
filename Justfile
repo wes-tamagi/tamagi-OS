@@ -58,7 +58,7 @@ shell:
 lint:
     podman run --rm -v .:/src:ro,Z -w /src quay.io/fedora/fedora:{{ fedora }} bash -c '\
         dnf -y -q install --setopt=install_weak_deps=False ShellCheck python3 >/dev/null && \
-        shellcheck -x -S warning build_files/*.sh tests/*.sh live/*.sh live/tik/modules/*/* \
+        shellcheck -x -S warning build_files/*.sh tests/*.sh live/*.sh welcome/tools/stubs/setup/backend welcome/tools/stubs/setup/detect \
             system_files/etc/profile.d/tamagi.sh \
             $(grep -lE "^#!/usr/bin/(env )?bash" system_files/usr/bin/* system_files/usr/libexec/tamagi/* live/files/usr/libexec/*) \
         && python3 -c "import ast, sys; [ast.parse(open(p).read()) for p in sys.argv[1:]]" \
@@ -66,13 +66,13 @@ lint:
             system_files/usr/bin/tamagi-snap system_files/usr/bin/tamagi-capture system_files/usr/bin/tamagi-rewind \
             system_files/usr/bin/tamagi-workspace \
             system_files/usr/libexec/tamagi/tamagi_i18n.py system_files/usr/libexec/tamagi/gum-multi \
-            system_files/usr/libexec/tamagi/update-changes live/files/usr/libexec/tamagi-installer-splash \
+            system_files/usr/libexec/tamagi/update-changes \
         && python3 tests/i18n-strings.py system_files --check \
         && echo "lint ok"'
 
-# ── Instalador: ISO live com o tik + bootc (tudo rootless, sem sudo) ──────
+# ── Instalador: ISO live com o instalador do Tamagi + bootc (tudo rootless, sem sudo) ──
 
-# Constrói a imagem do ambiente live (o sistema + tik + initramfs live)
+# Constrói a imagem do ambiente live (o sistema + instalador + initramfs live)
 build-live *ARGS:
     podman build --build-arg IMAGE={{ image }}:{{ tag }} \
         --build-arg TARGET_IMGREF={{ target }} \

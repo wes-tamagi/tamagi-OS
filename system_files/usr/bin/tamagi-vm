@@ -10,7 +10,7 @@
 #   tamagi vm status      shows KVM, libvirt, Cockpit and VM access status
 #   tamagi vm access [standard|full]
 #                         standard: VMs run confined (libvirt's default).
-#                         full: VMs run as root without SELinux confinement
+#                         full: VMs run as root, still confined by SELinux
 #                           (access USB sticks and external disks).
 #   tamagi vm open        alias for `tamagi vm`
 set -euo pipefail
@@ -35,9 +35,11 @@ ensure_sockets() {
 
 open_console() {
     ensure_sockets
-    local url="https://localhost:9090/machines"
+    # Plain HTTP: the socket only listens on localhost (cockpit.socket.d), and
+    # Cockpit serves localhost without TLS. No certificate check is switched off.
+    local url="http://localhost:9090/machines"
     if command -v chromium-browser >/dev/null 2>&1; then
-        setsid -f chromium-browser --app="$url" --class=tamagi-vm --ignore-certificate-errors >/dev/null 2>&1
+        setsid -f chromium-browser --app="$url" --class=tamagi-vm >/dev/null 2>&1
     elif command -v xdg-open >/dev/null 2>&1; then
         setsid -f xdg-open "$url" >/dev/null 2>&1
     else
@@ -57,16 +59,18 @@ set_access() {
     sudo touch "$QEMU_CONF"
     sudo sed -i "/^# >>> tamagi vm access/,/^# <<< tamagi vm access/d" "$QEMU_CONF"
     if [[ $mode == full ]]; then
+        # SELinux (sVirt) stays on: libvirt labels each disk and USB device
+        # handed to a VM, and only those.
         printf '%s\n' "$MARK_BEGIN" 'user = "root"' 'group = "root"' 'dynamic_ownership = 0' \
-            'security_driver = "none"' "$MARK_END" | sudo tee -a "$QEMU_CONF" >/dev/null
+            "$MARK_END" | sudo tee -a "$QEMU_CONF" >/dev/null
         local g
         for g in libvirt kvm disk; do
             getent group "$g" >/dev/null && sudo usermod -aG "$g" "$USER"
         done
-        echo "$(t "Full access on: VMs run as root, unconfined, and reach USB sticks and external disks.")"
+        echo "$(t "Full access on: VMs run as root (SELinux stays on) and reach USB sticks and external disks.")"
         echo "$(t "Log out and back in for the new groups to count.")"
     else
-        echo "$(t "Standard access: VMs run confined again.")"
+        echo "$(t "Standard access: VMs run as the qemu user again.")"
     fi
     sudo systemctl try-restart virtqemud.service 2>/dev/null || true
 }

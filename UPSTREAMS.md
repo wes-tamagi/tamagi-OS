@@ -19,7 +19,7 @@ a change we need that upstream has not merged.
 | [cosmic-edit](https://github.com/wes-tamagi/cosmic-edit) | pop-os/cosmic-edit | GPL-3.0 | Text editor; improvements to send upstream |
 | [cosmic-term](https://github.com/wes-tamagi/cosmic-term) | pop-os/cosmic-term | GPL-3.0 | Terminal; bring over what Ptyxis does with containers (see "Terminal") |
 | [cosmic-ext-classic-menu](https://github.com/wes-tamagi/cosmic-ext-classic-menu) | championpeak87/cosmic-ext-classic-menu | GPL-3.0 | The start menu, compiled into the image |
-| [tik](https://github.com/wes-tamagi/tik) | sysrich/tik | MIT | The installer (Tamagi's module lives in `live/tik`) |
+| [tik](https://github.com/wes-tamagi/tik) | sysrich/tik | MIT | The installer until 1.1; replaced by Tamagi's own (`tamagi-welcome --install`), which keeps tik's flow |
 | [llama.cpp](https://github.com/wes-tamagi/llama.cpp) | ggml-org/llama.cpp | MIT | Local AI, compiled into the image with Vulkan |
 | [distrobox](https://github.com/wes-tamagi/distrobox) | 89luca89/distrobox | GPL-3.0 | Dev boxes; the image patches `distrobox-create` for podman 6 |
 | [CLIO](https://github.com/wes-tamagi/CLIO) | SyntheticAutonomicMind/CLIO | GPL-3.0 | Coding agent offered in the catalog |

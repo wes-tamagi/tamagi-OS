@@ -1,7 +1,8 @@
 #!/usr/bin/bash
-# tamagi-install — a parte privilegiada da instalação. Quem chama é o módulo
-# do tik (/etc/tik/modules/pre/10-tamagi), via pkexec, depois que você
-# escolheu o disco e respondeu às perguntas.
+# tamagi-install — a parte privilegiada da instalação. Quem chama é a janela
+# do instalador (tamagi-welcome --install), via pkexec, depois que você
+# escolheu o disco e respondeu às perguntas; ou o tamagi-autoinstall, numa
+# instalação sem perguntas.
 #
 #   tamagi-install <disco> <arquivo-de-respostas>
 #
@@ -22,7 +23,7 @@
 # boot), que é o que o snapper usa para os snapshots da pasta pessoal. Depois grava no sistema novo o idioma, o teclado, o fuso e o
 # arquivo que o primeiro boot usa para criar o usuário.
 #
-# Saída: linhas "PROGRESS <0-100> <mensagem>" (o tik mostra numa barra); o
+# Saída: linhas "PROGRESS <0-100> <mensagem>" (a janela mostra numa barra); o
 # resto vai para o log.
 set -euo pipefail
 

@@ -13,10 +13,14 @@ mod catalog;
 mod cli;
 mod flow;
 mod i18n;
+mod m3;
 mod method;
 mod plan;
 mod progress;
 mod review;
+mod setup;
+mod setup_app;
+mod setup_system;
 mod system;
 mod ui;
 
@@ -53,6 +57,13 @@ fn main() -> std::process::ExitCode {
             println!("{}", cli::USAGE);
             ExitCode::SUCCESS
         }
+        cli::Mode::Install => match setup_app::run() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("tamagi-welcome: {error}");
+                ExitCode::FAILURE
+            }
+        },
         cli::Mode::Version => {
             println!("tamagi-welcome {}", env!("CARGO_PKG_VERSION"));
             ExitCode::SUCCESS
