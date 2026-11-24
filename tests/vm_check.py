@@ -81,6 +81,7 @@ def main():
     ap.add_argument("--password", required=True)
     ap.add_argument("--luks")
     ap.add_argument("--tpm", action="store_true", help="disco criptografado que abre sozinho pelo TPM")
+    ap.add_argument("--tpm-pin", help="disco criptografado com TPM + PIN: o boot pede este PIN")
     ap.add_argument("--lang", default="en")
     ap.add_argument("--screenshot")
     ap.add_argument("--preserved-file", help="arquivo esperado vindo de /var/home preservada")
@@ -93,6 +94,15 @@ def main():
         print(f"   pedido da senha do disco apareceu em {time.time() - start:.0f}s")
         time.sleep(1)
         con.send(args.luks + "\n")
+    if args.tpm_pin:
+        # O boot pede o PIN do TPM, não a senha longa do disco.
+        i, _ = con.read_until([rb"PIN[^\n]*: ?", rb"[Pp]lease enter passphrase[^\n]*:"], 240)
+        print(f"   pedido do {'PIN' if i == 0 else 'senha (errado)'} apareceu em {time.time() - start:.0f}s")
+        if i != 0:
+            print("FALHA: o boot pediu a senha do disco em vez do PIN do TPM")
+            sys.exit(1)
+        time.sleep(1)
+        con.send(args.tpm_pin + "\n")
     con.read_until([rb"login: $"], 420)
     print(f"   tela de login no console em {time.time() - start:.0f}s")
     con.send(args.user + "\n")
@@ -144,17 +154,19 @@ def main():
     check("raiz no subvolume root", "subvol=/root" in out, out)
     out, _ = run("findmnt -rno FSTYPE,OPTIONS /var/home")
     check("/var/home é o subvolume home, com compressão zstd", out.startswith("btrfs") and "subvol=/home" in out and "compress=zstd" in out, out)
-    out, _ = run("for d in /var/lib/containers /var/lib/flatpak /var/cache /var/log; do findmnt -rno TARGET,OPTIONS \"$d\"; done | tr '\\n' ';'")
-    check("subvolumes de estado (/var/lib/containers, flatpak, cache, log) isolados da raiz",
-          all(s in out for s in ("subvol=/var-containers", "subvol=/var-flatpak", "subvol=/var-cache", "subvol=/var-log")), out)
+    out, _ = run("for d in /var/lib/containers /var/cache /var/log /var/lib/libvirt/images /var/lib/flatpak; do findmnt -rno TARGET,OPTIONS \"$d\"; done | tr '\\n' ';'")
+    check("subvolumes de estado (/var/lib/containers, cache, log, imagens de VM) isolados da raiz; sem var-flatpak",
+          all(s in out for s in ("subvol=/var-containers", "subvol=/var-cache", "subvol=/var-log", "subvol=/var-libvirt")) and "var-flatpak" not in out, out)
     out, _ = run("stat -c %i \"$HOME\"; ls -Zd /var/home | cut -d' ' -f1")
     check("a pasta do usuário nasceu como subvolume btrfs (snapshots)", out.split()[0] == "256", out)
     check("rótulo SELinux de /var/home", "home_root_t" in out, out)
     out, _ = sudo("sh -c 'snapper list-configs 2>&1 | tail -n +3 | tr -s \" \" | tr \"\\n\" \";\"'")
     check("snapper: snapshots da pasta pessoal ligados no primeiro boot", "/var/home/" in out, out)
     out, _ = sudo("sh -c 'ls /efi/loader/entries >/dev/null 2>&1; findmnt -rno FSTYPE,SIZE /efi; lsblk -rno PARTLABEL,FSTYPE | grep -c ext4; bootctl is-installed 2>&1; bootctl status 2>/dev/null | grep -m1 -i \"Product:\"'")
-    efi_ok = ("vfat " if args.preserved_file else "vfat 8G") in out and "\n0\n" in out + "\n" and "yes" in out and "systemd-boot" in out
-    efi_label = "partição EFI unificada em /efi (sem /boot ext4), com systemd-boot" if args.preserved_file else "partição EFI de 8 GiB em /efi, sem partição /boot, com systemd-boot"
+    # ESP de 2 GiB em discos menores que 80 GiB (o disco de teste tem 64 GiB), 4 GiB nos maiores.
+    efi_size = re.search(r"^vfat (\S+)$", out, re.M)
+    efi_ok = (bool(efi_size) if args.preserved_file else bool(efi_size) and efi_size.group(1) in ("2G", "2.0G", "1.9G", "1.99G")) and "\n0\n" in out + "\n" and "yes" in out and "systemd-boot" in out
+    efi_label = "partição EFI unificada em /efi (sem /boot ext4), com systemd-boot" if args.preserved_file else "partição EFI de 2 GiB (disco < 80 GiB) em /efi, sem partição /boot, com systemd-boot"
     check(efi_label, efi_ok, out)
     if args.preserved_file:
         out, _ = sudo(f"sh -c 'cat {args.preserved_file!r}; echo; stat -c \"%U:%G %C\" {args.preserved_file!r}'")
@@ -170,7 +182,7 @@ def main():
         check("combustion/script do disco de rótulo combustion rodou como root, com os arquivos ao lado",
               "uid=0" in teste and "dado=arquivo ao lado do script" in teste and "usr=somente-leitura" in teste, teste + " | " + out)
     out, _ = run("lsblk -rno TYPE,FSTYPE | sort -u | tr '\\n' ' '")
-    if args.luks or args.tpm:
+    if args.luks or args.tpm or args.tpm_pin:
         check("disco criptografado (LUKS)", "crypt btrfs" in out and "crypto_LUKS" in out, out)
     else:
         check("disco sem criptografia (como pedido)", "crypt" not in out, out)
@@ -186,10 +198,25 @@ def main():
                 break
             time.sleep(3)
         detail, _ = sudo("journalctl -b -u tamagi-tpm-seal -o cat --no-pager | tail -5")
-        check("chave do TPM amarrada ao PCR 7 no primeiro boot", seal.endswith("feito") and "failed" not in seal, seal + " | " + detail)
-        out, _ = sudo("sh -c 'cryptsetup luksDump $(blkid -t TYPE=crypto_LUKS -o device | head -1) | grep -A12 systemd-tpm2 | grep -i pcrs | tr -s \" \"'")
-        check("o registro no TPM usa o PCR 7", bool(re.search(r"tpm2-hash-pcrs:\s*7\b", out)), out)
-    for karg in ("init_on_alloc=1", "slab_nomerge", "vsyscall=none"):
+        sb, _ = run("mokutil --sb-state 2>&1 | head -1")
+        check("primeiro boot decide o PCR do TPM (modo automático)", seal.endswith("feito") and "failed" not in seal, seal + " | " + detail)
+        out, _ = sudo("sh -c 'cryptsetup luksDump --dump-json-metadata $(blkid -t TYPE=crypto_LUKS -o device | head -1)'")
+        pcrs = re.findall(r'"tpm2-pcrs"\s*:\s*\[([^\]]*)\]', out)
+        if "SecureBoot enabled" in sb:
+            check("Secure Boot ligado: chave do TPM amarrada ao PCR 7", [p.strip() for p in pcrs] == ["7"], f"{sb} | {pcrs}")
+        else:
+            # Secure Boot desligado: o PCR 7 não protege nada e só travaria o
+            # disco depois de mudar firmware, shim ou MOK (o erro do Aeon).
+            check("Secure Boot desligado: chave do TPM sem PCR (não trava após atualizações)", [p.strip() for p in pcrs] == [""], f"{sb} | {pcrs}")
+    if args.tpm_pin:
+        out, _ = sudo("sh -c 'cryptsetup luksDump --dump-json-metadata $(blkid -t TYPE=crypto_LUKS -o device | head -1)'")
+        pcrs = re.findall(r'"tpm2-pcrs"\s*:\s*\[([^\]]*)\]', out)
+        check("TPM + PIN: chave com PIN e sem PCR (não trava depois de atualizações)", '"tpm2-pin":true' in out.replace(" ", "") and [p.strip() for p in pcrs] == [""], out[-400:])
+        seal, _ = run("test -e /etc/tamagi/tpm-seal && echo pendente || echo nada")
+        check("TPM + PIN: nada a selar no primeiro boot", seal.endswith("nada"), seal)
+    out, _ = sudo("cat /efi/loader/loader.conf")
+    check("menu de boot sem edição da linha do kernel (editor no)", re.search(r"^\s*editor\s+no\b", out, re.M) is not None, out)
+    for karg in ("init_on_alloc=1", "slab_nomerge", "vsyscall=none", "plymouth.use-simpledrm=1"):
         check(f"argumento do kernel {karg}", karg in cmdline.split(), cmdline)
     # O instalador acrescenta opções depois da compressão (",noatime"): vale o começo.
     check("argumento do kernel rootflags com subvol=root e compress=zstd:1",
@@ -252,7 +279,7 @@ def main():
     check("atualização automática: os três timers ligados", out.split() == ["enabled"] * 3, out)
     out, _ = run("systemctl --user list-timers --all --no-legend 2>/dev/null | grep -c tamagi-autoupdate")
     check("timer de atualização do usuário agendado", out == "1", out)
-    out, _ = run("grep -c 'tokyo-night-mon.png' /usr/share/cosmic/com.system76.CosmicBackground/v1/all")
+    out, _ = run("grep -c 'ipe-mon.png' /usr/share/cosmic/com.system76.CosmicBackground/v1/all")
     check("papel de parede padrão é o brasão", out == "1", out)
     out, _ = run("tamagi-harden status | head -1")
     check("tamagi-harden: modo equilibrado", "equilibrado" in out or "balanced" in out, out)
@@ -278,7 +305,7 @@ def main():
         con.send(f"echo '{args.password}' | sudo -S -p '' systemctl reboot\n")
         time.sleep(8)
         i, _ = con.read_until([rb"login: $", rb"[Pp]lease enter passphrase[^\n]*:"], 420)
-        check("segundo boot abre o disco pelo TPM (PCR 7), sem senha", i == 0)
+        check("segundo boot abre o disco pelo TPM, sem senha", i == 0)
 
     qmp(args.qmp, {"execute": "quit"})
     print()

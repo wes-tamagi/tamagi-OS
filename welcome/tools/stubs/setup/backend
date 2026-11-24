@@ -1,9 +1,15 @@
 #!/usr/bin/bash
 # Stub of /usr/libexec/tamagi-install for the headless screenshots: prints the
-# PROGRESS lines the real one prints and touches no disk. STUB_FAIL=1 fails.
+# PROGRESS lines the real one prints, in the language of the answers (LOCALE),
+# and touches no disk. STUB_FAIL=1 fails.
 echo "backend $*" >> "${STUB_LOG:-/dev/null}"
 cp "$2" "${STUB_LOG:-/dev/null}.answers" 2>/dev/null
-for step in "5 Checking the installation media" "15 Preparing the disk" "30 Encrypting the disk (LUKS2)" "45 Copying the system" "80 Preparing the installed system" "92 Configuring the new system"; do
+locale=$(sed -n 's/^LOCALE=//p' "$2" 2>/dev/null)
+case $locale in
+    pt*) steps=("5 Conferindo a mídia de instalação" "15 Preparando o disco" "30 Criptografando o disco (LUKS2)" "45 Copiando o sistema" "80 Preparando o sistema instalado" "92 Configurando o sistema novo"); done_msg="Instalação concluída" ;;
+    *)   steps=("5 Checking the installation media" "15 Preparing the disk" "30 Encrypting the disk (LUKS2)" "45 Copying the system" "80 Preparing the installed system" "92 Configuring the new system"); done_msg="Installation complete" ;;
+esac
+for step in "${steps[@]}"; do
     echo "PROGRESS $step"
     echo "log: ${step#* }…" >&2
     sleep "${STUB_SLEEP:-0.5}"
@@ -12,4 +18,4 @@ if [[ -n ${STUB_FAIL:-} ]]; then
     echo "ERRO: o bootc install falhou (código 1)" >&2
     exit 1
 fi
-echo "PROGRESS 100 Installation complete"
+echo "PROGRESS 100 $done_msg"

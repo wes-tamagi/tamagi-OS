@@ -21,8 +21,9 @@
 # dobro), confere e troca os nomes; a pasta original fica como
 # /var/home/.<usuário>.antes-snapshots até `limpar`.
 # ~/.cache, ~/.local/share/containers, Flatpaks do usuário, jogos (Steam/Lutris)
-# e os discos de VM (tamagi-windows, libvirt) viram subvolumes à parte: ficam
-# fora dos snapshots (mudam o tempo todo e só ocupariam espaço).
+# os discos de VM (tamagi-windows, libvirt) e os modelos de IA viram subvolumes
+# à parte: ficam fora dos snapshots (mudam o tempo todo ou são enormes, e só
+# ocupariam espaço).
 # O snapper NUNCA é ligado na raiz (/): a imagem do sistema já é atômica pelo
 # bootc (composefs), e snapshots da raiz prenderiam camadas antigas no btrfs.
 set -euo pipefail
@@ -37,7 +38,23 @@ EXCLUDE=(
     .local/share/lutris
     .local/share/tamagi-windows
     .local/share/libvirt/images
+    .local/share/tamagi/models
 )
+
+# Atributos de cada subvolume fora dos snapshots:
+#   - discos de VM: sem CoW (+C), que só vale enquanto a pasta está vazia;
+#   - modelos de IA (GGUF, 3-68 GB): sem compressão (os pesos quantizados não
+#     comprimem) e COM CoW: o checksum do btrfs acusa um modelo corrompido,
+#     que de outro jeito só daria respostas erradas. Fora dos snapshots, um
+#     modelo apagado libera o espaço na hora.
+sub_attrs() { # sub_attrs <path> <relative>
+    case $2 in
+        .local/share/tamagi-windows|.local/share/libvirt/images)
+            [[ -z $(ls -A "$1" 2>/dev/null) ]] && chattr +C "$1" 2>/dev/null || true ;;
+        .local/share/tamagi/models)
+            btrfs property set "$1" compression none 2>/dev/null || true ;;
+    esac
+}
 
 die() { echo "home-snapshots: $*" >&2; exit 1; }
 [[ $(id -u) -eq 0 ]] || die "precisa de root (use: tamagi-snap enable)"
@@ -127,6 +144,7 @@ convert_home() {
         else
             to_subvol "$p"
         fi
+        sub_attrs "$p" "$sub"
     done
 }
 

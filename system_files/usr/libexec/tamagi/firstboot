@@ -101,5 +101,12 @@ RON
     command -v restorecon >/dev/null && restorecon -R "$(getent passwd "${user:-root}" | cut -d: -f6)/.config" 2>/dev/null || true
 fi
 
+# VMs mantidas na reinstalação (tamagi-install, restore_vm_state): os arquivos
+# voltaram copiados da mídia; aqui recebem os rótulos SELinux deste sistema.
+if [[ -e /etc/tamagi/relabel-libvirt ]]; then
+    command -v restorecon >/dev/null && restorecon -R /etc/libvirt/qemu /var/lib/libvirt 2>/dev/null || true
+    rm -f /etc/tamagi/relabel-libvirt
+fi
+
 rm -f "$CONF"
 rmdir --ignore-fail-on-non-empty "$(dirname "$CONF")" 2>/dev/null || true

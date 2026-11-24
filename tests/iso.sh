@@ -8,6 +8,7 @@
 #                                      (sem opção, instala em inglês, o idioma padrão)
 #   tests/iso.sh <iso> --tpm           disco criptografado com a chave no TPM (um TPM virtual,
 #                                      swtpm): o sistema tem de iniciar sem pedir a senha
+#   tests/iso.sh <iso> --tpm-pin       o mesmo com TPM + PIN: o boot pede o PIN (não a senha)
 #   tests/iso.sh <iso> --upgrade       atualização automática de ponta a ponta: instala apontando
 #                                      para um registry local com uma imagem nova, dispara o serviço
 #                                      do timer diário, reinicia na imagem nova e faz rollback
@@ -28,6 +29,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 DISK="$OUT/vm-test.qcow2"
 VARS="$OUT/vm-test-vars.fd"
 LUKS_PASS="disco-de-teste-123"
+TPM_PIN="246810"
 RAM=${TAMAGI_VM_RAM:-8G}
 CPUS=${TAMAGI_VM_CPUS:-8}
 
@@ -81,7 +83,7 @@ case "$MODE" in
         [[ -f $DISK ]] || { echo "sem disco instalado: rode antes just test-iso" >&2; exit 1; }
         qemu "${disk_args[@]}" "${window[@]}"
         exit ;;
-    auto|--luks|--tpm|--upgrade|--preserve-home|--pt|--en|--es|--fr|--verify|--verify-luks|--verify-tpm|--rollback) ;;
+    auto|--luks|--tpm|--tpm-pin|--upgrade|--preserve-home|--pt|--en|--es|--fr|--verify|--verify-luks|--verify-tpm|--rollback) ;;
     *) echo "modo desconhecido: $MODE" >&2; exit 2 ;;
 esac
 
@@ -123,7 +125,7 @@ GPT
 if [[ $MODE != --verify* && $MODE != --rollback ]]; then
 echo "── 1/2  Instalação sem perguntas (${MODE#--})"
 rm -f -- "$DISK" "$VARS" "$OUT/vm-install.log" "$OUT/vm-serial.sock" "$OUT/vm-qmp.sock"
-if [[ $MODE == --tpm ]]; then podman rm -f tamagi-swtpm >/dev/null 2>&1 || true; rm -rf "$TPM_DIR"; start_tpm; fi
+if [[ $MODE == --tpm || $MODE == --tpm-pin ]]; then podman rm -f tamagi-swtpm >/dev/null 2>&1 || true; rm -rf "$TPM_DIR"; start_tpm; fi
 if [[ $MODE == --preserve-home ]]; then
     build_preserve_disk "$DISK"
 else
@@ -138,8 +140,9 @@ chmod u+w "$boot"/*
 append="root=live:CDLABEL=TAMAGI_LIVE rd.live.image rd.overlay=1 enforcing=0"
 append+=" console=ttyS0 systemd.unit=multi-user.target"
 append+=" tamagi.autoinstall=/dev/vda tamagi.autoinstall.kargs=console=tty0,console=ttyS0"
-[[ $MODE == --luks || $MODE == --tpm ]] && append+=" tamagi.autoinstall.luks=$LUKS_PASS"
+[[ $MODE == --luks || $MODE == --tpm || $MODE == --tpm-pin ]] && append+=" tamagi.autoinstall.luks=$LUKS_PASS"
 [[ $MODE == --tpm ]] && append+=" tamagi.autoinstall.tpm=1"
+[[ $MODE == --tpm-pin ]] && append+=" tamagi.autoinstall.tpm=pin tamagi.autoinstall.tpmpin=$TPM_PIN"
 [[ $MODE == --preserve-home ]] && append+=" tamagi.autoinstall.preserve_home=1"
 if [[ $MODE == --upgrade ]]; then
     # Registry local (sem TLS) com a "v2": a imagem do Tamagi + um arquivo. Da VM,
@@ -204,7 +207,7 @@ SCRIPT
 fi
 
 echo "── 2/2  Primeiro boot do sistema instalado"
-[[ $MODE == *tpm ]] && start_tpm
+[[ $MODE == *tpm || $MODE == --tpm-pin ]] && start_tpm
 qemu "${disk_args[@]}" "${combustion_args[@]}" "${tpm_args[@]}" -device virtio-vga -display none \
     -serial "unix:$OUT/vm-serial.sock,server=on,wait=off" \
     -qmp "unix:$OUT/vm-qmp.sock,server=on,wait=off" &
@@ -223,6 +226,7 @@ fi
 luks=()
 [[ $MODE == *luks ]] && luks=(--luks "$LUKS_PASS")
 [[ $MODE == *tpm ]] && luks=(--tpm)
+[[ $MODE == --tpm-pin ]] && luks=(--tpm-pin "$TPM_PIN")
 [[ $MODE == --preserve-home ]] && luks+=(--preserved-file /var/home/tamagi/preserved-marker.txt)
 [[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] && luks+=(--lang "${MODE#--}")
 # Sem opção de idioma, a ISO instala no idioma padrão da imagem (en; pt na variante :ptbr).

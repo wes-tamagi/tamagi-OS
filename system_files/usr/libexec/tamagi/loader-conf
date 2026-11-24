@@ -1,0 +1,16 @@
+#!/usr/bin/bash
+# loader-conf — "editor no" in the systemd-boot configuration of the EFI
+# partition. bootc copies /usr/lib/bootc/install/systemd-boot/loader.conf only
+# at install time; machines installed before it get the line here (once per
+# image). With the editor on, anyone at the keyboard could add init=/bin/sh to
+# the kernel line and skip the disk unlock checks.
+set -euo pipefail
+ESP=${TAMAGI_ESP:-/efi}
+conf=$ESP/loader/loader.conf
+[[ -d $ESP/loader ]] || exit 0
+if [[ -f $conf ]] && grep -qE '^\s*editor\s+(no|false|0)\b' "$conf"; then exit 0; fi
+tmp=$(mktemp "$conf.XXXXXX")
+{ [[ -f $conf ]] && grep -vE '^\s*editor\b' "$conf"; echo "editor no"; } > "$tmp"
+mv -f "$tmp" "$conf"
+sync -f "$ESP" 2>/dev/null || true
+echo "systemd-boot: editor no"

@@ -159,10 +159,17 @@ APP_PATH = "/org/tamagi/Menu"
 
 
 def current_theme():
+    """The theme tamagi-theme uses: a saved theme the image no longer has
+    falls back to the default (Ipê), as in `tamagi-theme current`."""
     try:
-        return (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip() or "tokyo-night"
+        name = (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip()
     except OSError:
-        return "tokyo-night"
+        name = ""
+    if name and (pathlib.Path("/usr/share/tamagi/themes") / f"{name}.conf").is_file():
+        return name
+    if name and (CONFIG_DIR / "themes" / f"{name}.conf").is_file():
+        return name
+    return "ipe"
 
 
 def gvariant_str(value):

@@ -26,7 +26,13 @@ USER_THEMES="$CONFIG/tamagi/themes"      # "cosmic.conf": made from a COSMIC the
 COSMIC_SYS=${TAMAGI_COSMIC_DEFAULTS:-/usr/share/cosmic}
 
 list() { find "$THEMES" -name '*.conf' -printf '%f\n' | sed 's/\.conf$//' | sort; }
-current() { cat "$STATE" 2>/dev/null || echo tokyo-night; }
+# The default themes: Ipê (dark) and Ipê Claro (light). A saved theme that
+# the image no longer has falls back to the default.
+DEFAULT_DARK=ipe DEFAULT_LIGHT=ipe-light
+current() {
+    local name; name=$(cat "$STATE" 2>/dev/null || true)
+    if [[ -n $name && ( -f $THEMES/$name.conf || -f $USER_THEMES/$name.conf ) ]]; then echo "$name"; else echo "$DEFAULT_DARK"; fi
+}
 
 # The wallpaper belongs to COSMIC. When the one in use is a Tamagi wallpaper
 # (one style drawn in the colours of each theme), changing theme keeps the
@@ -170,15 +176,8 @@ nvim_spec() { # plugin de cores do LazyVim para o tema (os mesmos do Omarchy)
     local theme=$1 plugin="" scheme="" extra=""
     case $theme in
         tokyo-night) plugin='"folke/tokyonight.nvim"'; scheme=tokyonight-night ;;
-        catppuccin)  plugin='"catppuccin/nvim", name = "catppuccin"'; scheme=catppuccin-mocha ;;
-        latte)       plugin='"catppuccin/nvim", name = "catppuccin"'; scheme=catppuccin-latte ;;
         gruvbox)     plugin='"ellisonleao/gruvbox.nvim"'; scheme=gruvbox ;;
         nord)        plugin='"gbprod/nord.nvim"'; scheme=nord ;;
-        everforest)  plugin='"neanias/everforest-nvim", main = "everforest"'; scheme=everforest ;;
-        rose-pine)   plugin='"rose-pine/neovim", name = "rose-pine"'; scheme=rose-pine ;;
-        kanagawa)    plugin='"rebelot/kanagawa.nvim"'; scheme=kanagawa ;;
-        matte-black) plugin='"tahayvr/matteblack.nvim"'; scheme=matteblack ;;
-        ristretto)   plugin='"loctvl842/monokai-pro.nvim"'; scheme=monokai-pro; extra=', opts = { filter = "ristretto" }' ;;
     esac
     echo "-- Gerado por tamagi-theme ($NAME). Enquanto esta linha existir, trocar de tema"
     echo "-- reescreve este arquivo; para escolher outro colorscheme, apague-a."
@@ -187,7 +186,7 @@ nvim_spec() { # plugin de cores do LazyVim para o tema (os mesmos do Omarchy)
         echo "  { $plugin, priority = 1000, lazy = false$extra },"
         echo "  { \"LazyVim/LazyVim\", opts = { colorscheme = \"$scheme\" } },"
     else
-        # Tema sem plugin próprio (o Ipê): base16 com as cores do tema.
+        # Tema sem plugin próprio (os Ipê): base16 com as cores do tema.
         local b=("$BG" "${WALL[0]}" "${PALETTE[8]}" "${PALETTE[8]}" "${PALETTE[7]}" "$FG" "$FG" "${PALETTE[15]}"
                  "${PALETTE[1]}" "${PALETTE[11]}" "${PALETTE[3]}" "${PALETTE[2]}" "${PALETTE[6]}" "${PALETTE[4]}"
                  "${PALETTE[5]}" "${PALETTE[9]}")
@@ -308,8 +307,8 @@ sync() { # the terminal apps follow whatever theme COSMIC has now
     if [[ -z $target && $bg != - ]]; then
         # A COSMIC theme that is not a Tamagi one: its background and accent
         # over the terminal palette of the default theme of that mode.
-        local base=tokyo-night new="$USER_THEMES/cosmic.conf.new"
-        [[ $mode == light ]] && base=latte
+        local base=$DEFAULT_DARK new="$USER_THEMES/cosmic.conf.new"
+        [[ $mode == light ]] && base=$DEFAULT_LIGHT
         [[ $accent == - ]] && accent=$(load "$base"; echo "${WALL[2]}")
         mkdir -p "$USER_THEMES"
         sed -e 's/^NAME=.*/NAME="COSMIC"/' -e "s/^BG=.*/BG=\"$bg\"/" \
@@ -325,7 +324,7 @@ sync() { # the terminal apps follow whatever theme COSMIC has now
     if [[ -z $target ]]; then
         # COSMIC's own default theme: only light/dark has to agree.
         [[ $(load "$cur" 2>/dev/null; echo "${SCHEME:-}") == "$mode" ]] && return 0
-        target=tokyo-night; [[ $mode == light ]] && target=latte
+        target=$DEFAULT_DARK; [[ $mode == light ]] && target=$DEFAULT_LIGHT
     fi
     [[ $target == "$cur" ]] && return 0
     apply_terminal "$target"
@@ -347,8 +346,8 @@ case "${1:-}" in
     wallpaper) setsid -f cosmic-settings wallpaper >/dev/null 2>&1 ;;
     apps)    # re-applies the current theme to the terminal apps only
              apply_terminal "$(current)" ;;
-    nvim)    load "${2:-tokyo-night}"; nvim_spec "${2:-tokyo-night}" ;;
-    foot)    load "${2:-tokyo-night}"; foot_config ;;
+    nvim)    load "${2:-$DEFAULT_DARK}"; nvim_spec "${2:-$DEFAULT_DARK}" ;;
+    foot)    load "${2:-$DEFAULT_DARK}"; foot_config ;;
     -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
     *)       echo "usage: tamagi theme [list|current|set <theme>|next|pick|sync|settings|wallpaper]" >&2; exit 2 ;;
 esac

@@ -1,0 +1,14 @@
+[Unit]
+Description=Tamagi: menu de boot sem edição da linha do kernel (editor no)
+ConditionPathExists=/efi/loader
+RequiresMountsFor=/efi
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecCondition=/usr/libexec/tamagi/once-per-image check loader-conf
+ExecStart=/usr/libexec/tamagi/loader-conf
+ExecStartPost=/usr/libexec/tamagi/once-per-image done loader-conf
+
+[Install]
+WantedBy=multi-user.target

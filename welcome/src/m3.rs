@@ -4,14 +4,19 @@
 //! containers, error container) are derived from the COSMIC theme of the
 //! session: the accent is the primary colour, so the window follows light and
 //! dark mode and the accent the user picked. Shapes and sizes follow the M3
-//! guidelines: 16 px cards, 56 px list items with a tonal selected state,
-//! headline type for page titles, a 4 px rounded progress track.
+//! guidelines: 16 px cards, segmented lists (large outer corners, 4 px inner
+//! corners) with a tonal selected state, headline type for page titles, an
+//! 8 px rounded progress track while installing.
 
 use cosmic::iced::{Alignment, Background, Border, Color, Length};
 use cosmic::{theme, widget, Element};
 
-/// Corner radius of cards and list items (M3 "large").
+/// Corner radius of cards and of the outer corners of a list (M3 "large").
 pub const RADIUS: f32 = 16.0;
+/// Inner corners between the items of a segmented list (M3 "extra small").
+const INNER: f32 = 4.0;
+/// Opacity of a disabled item (M3: 38 % content).
+const DISABLED: f32 = 0.38;
 /// The tonal circle behind a page icon.
 const HERO_SIZE: f32 = 56.0;
 /// M3 headline-medium.
@@ -117,6 +122,22 @@ pub fn warning_card<'a, M: 'a>(icon: &'static str, content: impl Into<String>) -
         .into()
 }
 
+/// A card in secondaryContainer, for what is important but safe.
+pub fn notice_card<'a, M: 'a>(icon: &'static str, content: impl Into<String>) -> Element<'a, M> {
+    let row = widget::row::with_capacity(2).spacing(12).align_y(Alignment::Center).push(widget::icon::from_name(icon).size(24).icon()).push(body(content).width(Length::Fill));
+    widget::container(row)
+        .padding(16)
+        .width(Length::Fill)
+        .class(theme::Container::custom(|t| widget::container::Style {
+            background: Some(Background::Color(secondary_container(t))),
+            text_color: Some(on_surface(t)),
+            icon_color: Some(primary(t)),
+            border: Border { radius: RADIUS.into(), ..Default::default() },
+            ..Default::default()
+        }))
+        .into()
+}
+
 /// The top of a page: the icon in a primaryContainer circle beside the title
 /// in headline type, with the supporting text under the title.
 pub fn hero<'a, M: 'a>(icon: &'static str, title: String, text: String) -> Element<'a, M> {
@@ -168,45 +189,77 @@ pub fn radio<'a, M: 'a>(selected: bool) -> Element<'a, M> {
         .into()
 }
 
-fn item_style(selected: bool, state: f32) -> impl Fn(bool, &cosmic::Theme) -> widget::button::Style {
+/// Where an item sits in its list: the outer corners of the list are large,
+/// the corners between two items are small.
+fn corners(index: usize, count: usize) -> [f32; 4] {
+    let top = if index == 0 { RADIUS } else { INNER };
+    let bottom = if index + 1 == count { RADIUS } else { INNER };
+    [top, top, bottom, bottom]
+}
+
+fn item_style(selected: bool, enabled: bool, state: f32, radius: [f32; 4]) -> impl Fn(bool, &cosmic::Theme) -> widget::button::Style {
     move |_focused, t| {
         let base = if selected { secondary_container(t) } else { surface_container(t) };
         // M3 state layers: 8 % of onSurface when hovered, 12 % when pressed.
         let background = mix(base, on_surface(t), state);
+        let content = if enabled { on_surface(t) } else { Color { a: DISABLED, ..on_surface(t) } };
         let mut style = widget::button::Style::new();
         style.background = Some(Background::Color(background));
-        style.border_radius = RADIUS.into();
-        style.text_color = Some(on_surface(t));
-        style.icon_color = Some(on_surface(t));
+        style.border_radius = radius.into();
+        style.text_color = Some(content);
+        style.icon_color = Some(content);
         style
     }
 }
 
 /// An M3 list item: leading control, headline and supporting text, trailing
-/// text; the whole item is the control, tonal when selected.
-pub fn list_item<'a, M: Clone + 'a>(selected: bool, headline: String, supporting_text: Option<String>, trailing: Option<String>, on_press: M) -> Element<'a, M> {
+/// text; the whole item is the control, tonal when selected. It is drawn by
+/// [`list`], which knows where it sits.
+pub struct Item<M> {
+    selected: bool,
+    enabled: bool,
+    headline: String,
+    supporting: Option<String>,
+    trailing: Option<String>,
+    on_press: M,
+}
+
+impl<M> Item<M> {
+    /// Shown dimmed and not selectable (e.g. a disk too small).
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.enabled = !disabled;
+        self
+    }
+}
+
+pub fn list_item<M>(selected: bool, headline: String, supporting_text: Option<String>, trailing: Option<String>, on_press: M) -> Item<M> {
+    Item { selected, enabled: true, headline, supporting: supporting_text.filter(|t| !t.is_empty()), trailing, on_press }
+}
+
+fn draw_item<'a, M: Clone + 'a>(item: Item<M>, radius: [f32; 4]) -> Element<'a, M> {
+    let Item { selected, enabled, headline, supporting: supporting_text, trailing, on_press } = item;
     let mut words = widget::column::with_capacity(2).spacing(2).width(Length::Fill).push(body(headline));
-    if let Some(text) = supporting_text.filter(|t| !t.is_empty()) {
+    if let Some(text) = supporting_text {
         words = words.push(supporting(text));
     }
-    let mut row = widget::row::with_capacity(3).spacing(16).align_y(Alignment::Center).push(radio(selected)).push(words);
+    let mut row = widget::row::with_capacity(3).spacing(16).align_y(Alignment::Center).push(radio(selected && enabled)).push(words);
     if let Some(text) = trailing {
         row = row.push(widget::text::body(text).size(LABEL).class(theme::Text::Custom(variant_text)));
     }
-    widget::button::custom(widget::container(row).padding([10, 16]).width(Length::Fill).height(Length::Shrink))
-        .width(Length::Fill)
-        .class(theme::Button::Custom {
-            active: Box::new(item_style(selected, 0.0)),
-            disabled: Box::new(move |t| item_style(selected, 0.0)(false, t)),
-            hovered: Box::new(item_style(selected, 0.08)),
-            pressed: Box::new(item_style(selected, 0.12)),
-        })
-        .on_press(on_press)
-        .into()
+    let button = widget::button::custom(widget::container(row).padding([10, 16]).width(Length::Fill).height(Length::Shrink)).width(Length::Fill).class(theme::Button::Custom {
+        active: Box::new(item_style(selected, enabled, 0.0, radius)),
+        disabled: Box::new(move |t| item_style(selected, false, 0.0, radius)(false, t)),
+        hovered: Box::new(item_style(selected, enabled, 0.08, radius)),
+        pressed: Box::new(item_style(selected, enabled, 0.12, radius)),
+    });
+    if enabled { button.on_press(on_press).into() } else { button.into() }
 }
 
-/// List items with the 2 px gap M3 uses between items of a segmented list.
-pub fn list<'a, M: 'a>(items: Vec<Element<'a, M>>) -> Element<'a, M> {
+/// A segmented list: the items 2 px apart, the group with large outer corners
+/// and small corners between items (M3 Expressive).
+pub fn list<'a, M: Clone + 'a>(items: Vec<Item<M>>) -> Element<'a, M> {
+    let count = items.len();
+    let items: Vec<Element<'a, M>> = items.into_iter().enumerate().map(|(index, item)| draw_item(item, corners(index, count))).collect();
     widget::column::with_children(items).spacing(2).width(Length::Fill).into()
 }
 
@@ -219,9 +272,20 @@ pub fn switch_row<'a, M: Clone + 'static>(headline: String, supporting_text: Opt
     widget::row::with_capacity(2).spacing(16).align_y(Alignment::Center).push(words).push(widget::toggler(on).on_toggle(message)).into()
 }
 
-/// A line of the review: the label in onSurfaceVariant over the value.
+/// A line of the review: the label in onSurfaceVariant on the left, the
+/// value beside it (one line per answer, so the whole review fits).
 pub fn info_row<'a, M: 'a>(label_text: String, value: String) -> Element<'a, M> {
-    widget::column::with_capacity(2).spacing(2).push(supporting(label_text)).push(body(value)).into()
+    widget::row::with_capacity(2)
+        .spacing(16)
+        .align_y(Alignment::Center)
+        .push(supporting(label_text).width(Length::FillPortion(2)))
+        .push(body(value).width(Length::FillPortion(5)))
+        .into()
+}
+
+/// The progress of the installation: an 8 px rounded track.
+pub fn progress<'a, M: Clone + 'a>(fraction: f32) -> Element<'a, M> {
+    widget::progress_bar::linear::Linear::new().girth(8.0).progress(fraction).width(Length::Fill).into()
 }
 
 /// Where the installation is: "Step 3 of 10 · Keyboard" over a rounded
@@ -236,4 +300,17 @@ pub fn step_header<'a, M: Clone + 'a>(step: usize, total: usize, step_word: Stri
         .push(title)
         .push(widget::progress_bar::linear::Linear::new().girth(4.0).progress(step as f32 / total as f32).width(Length::Fill))
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn segmented_list_corners() {
+        assert_eq!(corners(0, 1), [RADIUS; 4]);
+        assert_eq!(corners(0, 3), [RADIUS, RADIUS, INNER, INNER]);
+        assert_eq!(corners(1, 3), [INNER; 4]);
+        assert_eq!(corners(2, 3), [INNER, INNER, RADIUS, RADIUS]);
+    }
 }

@@ -1,13 +1,15 @@
-//! The installer window of the live media (`tamagi-welcome --install`):
-//! Language → Welcome → Keyboard → Time zone → Account → Encryption → Disk →
-//! Review → Installing → Done.
+//! The installer window of the live media (`tamagi-welcome --install`), in
+//! eight steps: Welcome (with the language) → Region (keyboard and time zone)
+//! → Account → Disk → Encryption → Review → Installing → Done. The disk comes
+//! before the encryption: an encrypted home folder kept on it already has its
+//! password, and then only how it opens at startup is asked.
 //!
 //! Like the installer of openSUSE Aeon: a few questions, then the disk, and
 //! nothing is touched before the review is confirmed. The work is done by
 //! `/usr/libexec/tamagi-install` (see `setup` for the answers it gets).
 
 use crate::i18n::{self, tr};
-use crate::setup::{self, check_username, default_keyboard, default_timezone, filter_zones, format_bytes, suggest_username, Answers, Disk, Found, KEYBOARDS, LANGS, MIN_DISK_PASSWORD};
+use crate::setup::{self, check_username, default_keyboard, default_timezone, filter_zones, format_bytes, suggest_username, Answers, Disk, Found, TpmMode, KEYBOARDS, LANGS, MIN_DISK_PASSWORD, MIN_TPM_PIN};
 use crate::setup_system::{self as sys, Event};
 use crate::m3;
 use crate::ui::SMALL;
@@ -29,10 +31,8 @@ pub fn run() -> cosmic::iced::Result {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
-    Language,
     Welcome,
-    Keyboard,
-    TimeZone,
+    Region,
     Account,
     Encryption,
     Disk,
@@ -41,15 +41,13 @@ pub enum Page {
     Done,
 }
 
-const PAGES: [Page; 10] = [Page::Language, Page::Welcome, Page::Keyboard, Page::TimeZone, Page::Account, Page::Encryption, Page::Disk, Page::Review, Page::Installing, Page::Done];
+const PAGES: [Page; 8] = [Page::Welcome, Page::Region, Page::Account, Page::Disk, Page::Encryption, Page::Review, Page::Installing, Page::Done];
 
 impl Page {
     fn label(self) -> &'static str {
         match self {
-            Page::Language => "Language",
             Page::Welcome => "Welcome",
-            Page::Keyboard => "Keyboard",
-            Page::TimeZone => "Time zone",
+            Page::Region => "Keyboard and time zone",
             Page::Account => "Your account",
             Page::Encryption => "Encryption",
             Page::Disk => "Disk",
@@ -77,7 +75,9 @@ pub enum Message {
     Encrypt(bool),
     Luks1(String),
     Luks2(String),
-    Tpm(bool),
+    Tpm(TpmMode),
+    Pin1(String),
+    Pin2(String),
     Disk(usize),
     Detected(String, Found, i32),
     OldLuks(String),
@@ -108,7 +108,9 @@ pub struct Setup {
     luks1: String,
     luks2: String,
     tpm_present: bool,
-    tpm: bool,
+    tpm: TpmMode,
+    pin1: String,
+    pin2: String,
     disks: Vec<Disk>,
     disk: Option<usize>,
     detecting: bool,
@@ -151,9 +153,13 @@ impl Application for Setup {
         let zones = sys::timezones();
         let zone = zones.iter().position(|z| z == default_timezone(LANGS[lang].0)).unwrap_or(0);
         sys::start_media_check(&sys::work_dir().join("verify"));
+        // Secrets left by a window that was killed: never reused.
+        for name in ["luks.key", "existing-luks.key", "tpm.pin", "answers"] {
+            let _ = std::fs::remove_file(sys::work_dir().join(name));
+        }
         let mut app = Setup {
             core,
-            page: Page::Language,
+            page: Page::Welcome,
             lang,
             keyboard: default_keyboard(LANGS[lang].0),
             keyboard_touched: false,
@@ -171,7 +177,9 @@ impl Application for Setup {
             luks1: String::new(),
             luks2: String::new(),
             tpm_present: sys::has_tpm2(),
-            tpm: false,
+            tpm: TpmMode::Pin,
+            pin1: String::new(),
+            pin2: String::new(),
             disks: sys::disks(),
             disk: None,
             detecting: false,
@@ -271,7 +279,9 @@ impl Application for Setup {
             Message::Encrypt(on) => self.encrypt = on,
             Message::Luks1(p) => self.luks1 = p,
             Message::Luks2(p) => self.luks2 = p,
-            Message::Tpm(on) => self.tpm = on,
+            Message::Tpm(mode) => self.tpm = mode,
+            Message::Pin1(p) => self.pin1 = p,
+            Message::Pin2(p) => self.pin2 = p,
             Message::Disk(index) => return self.select_disk(index),
             Message::Detected(path, found, code) => {
                 if self.disk.and_then(|i| self.disks.get(i)).is_some_and(|d| d.path == path) {
@@ -323,10 +333,8 @@ impl Application for Setup {
     fn view(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
         let page = match self.page {
-            Page::Language => self.view_language(),
             Page::Welcome => self.view_welcome(),
-            Page::Keyboard => self.view_keyboard(),
-            Page::TimeZone => self.view_timezone(),
+            Page::Region => self.view_region(),
             Page::Account => self.view_account(),
             Page::Encryption => self.view_encryption(),
             Page::Disk => self.view_disk(),
@@ -375,8 +383,10 @@ impl Setup {
         self.luks1.clear();
         self.luks2.clear();
         self.old_luks.clear();
+        self.pin1.clear();
+        self.pin2.clear();
         let dir = sys::work_dir();
-        for name in ["luks.key", "existing-luks.key", "answers"] {
+        for name in ["luks.key", "existing-luks.key", "tpm.pin", "answers"] {
             let _ = std::fs::remove_file(dir.join(name));
         }
     }
@@ -399,6 +409,8 @@ impl Setup {
         self.found = None;
         self.keep = false;
         self.old_luks.clear();
+        // The password of another disk's encrypted partition goes too.
+        let _ = std::fs::remove_file(sys::work_dir().join("existing-luks.key"));
         self.unlock_error = false;
         self.error = None;
         if !disk.big_enough() {
@@ -413,7 +425,7 @@ impl Setup {
         self.error = None;
         let problem: Option<String> = match self.page {
             Page::Welcome if !sys::uefi() => Some(tr("Tamagi needs a computer started in UEFI mode. Check the firmware (BIOS) options.")),
-            Page::Keyboard => {
+            Page::Region => {
                 sys::apply_keyboard(&KEYBOARDS[self.keyboard]);
                 None
             }
@@ -430,11 +442,15 @@ impl Setup {
                     None
                 }
             }
-            Page::Encryption if self.encrypt => {
-                if self.luks1.chars().count() < MIN_DISK_PASSWORD {
+            Page::Encryption => {
+                if self.new_encryption() && self.luks1.chars().count() < MIN_DISK_PASSWORD {
                     Some(tr("The disk password needs at least 8 characters."))
-                } else if self.luks1 != self.luks2 {
+                } else if self.new_encryption() && self.luks1 != self.luks2 {
                     Some(tr("The two passwords are not the same."))
+                } else if self.tpm_mode() == TpmMode::Pin && self.pin1.chars().count() < MIN_TPM_PIN {
+                    Some(tr("The PIN needs at least 6 characters."))
+                } else if self.tpm_mode() == TpmMode::Pin && self.pin1 != self.pin2 {
+                    Some(tr("The two PINs are not the same."))
                 } else {
                     None
                 }
@@ -460,9 +476,6 @@ impl Setup {
             self.error = Some(problem);
             return Task::none();
         }
-        if self.page == Page::Encryption && !self.encrypt {
-            self.tpm = false;
-        }
         match PAGES.iter().position(|p| *p == self.page) {
             Some(pos) if pos + 1 < PAGES.len() => self.show(PAGES[pos + 1]),
             _ => Task::none(),
@@ -473,12 +486,29 @@ impl Setup {
         self.found.as_ref().filter(|f| self.keep && f.preservable())
     }
 
+    /// An encrypted home folder is kept: it keeps its own password.
+    fn keeping_luks(&self) -> bool {
+        self.keeping().is_some_and(|f| f.get("PRESERVE_LUKS") == "1")
+    }
+
+    /// A home folder without encryption is kept: encrypting would erase it.
+    fn keeping_plain(&self) -> bool {
+        self.keeping().is_some() && !self.keeping_luks()
+    }
+
+    /// A new disk password is asked (the disk is erased and encrypted).
+    fn new_encryption(&self) -> bool {
+        self.encrypt && self.keeping().is_none()
+    }
+
     /// The disk ends up encrypted: a new password, or an encrypted home kept.
     fn encrypted(&self) -> bool {
-        match self.keeping() {
-            Some(f) if f.get("PRESERVE_LUKS") == "1" => true,
-            _ => self.encrypt,
-        }
+        self.keeping_luks() || self.new_encryption()
+    }
+
+    /// How the disk will open: no TPM chip or no encryption, the password.
+    fn tpm_mode(&self) -> TpmMode {
+        if self.tpm_present && self.encrypted() { self.tpm } else { TpmMode::Off }
     }
 
     fn start(&mut self) -> Task<Message> {
@@ -495,12 +525,12 @@ impl Setup {
             user: self.user.clone(),
             fullname: self.fullname.clone(),
             password_hash: hash,
-            tpm: self.tpm_present && self.tpm,
+            tpm: self.tpm_mode(),
             keep: self.keeping().cloned(),
             verify_state: dir.join("verify").to_string_lossy().into_owned(),
             ..Answers::default()
         };
-        if self.encrypt {
+        if self.new_encryption() {
             let file = dir.join("luks.key");
             if !sys::write_secret(&file, &self.luks1) {
                 self.error = Some(tr("Could not prepare the disk password."));
@@ -508,9 +538,20 @@ impl Setup {
             }
             answers.luks_keyfile = Some(file.to_string_lossy().into_owned());
         }
+        // The password of the encrypted partition kept, only when it is kept.
         let existing = dir.join("existing-luks.key");
-        if existing.is_file() {
+        if self.keeping_luks() && existing.is_file() {
             answers.existing_keyfile = Some(existing.to_string_lossy().into_owned());
+        } else {
+            let _ = std::fs::remove_file(&existing);
+        }
+        if self.tpm_mode() == TpmMode::Pin {
+            let file = dir.join("tpm.pin");
+            if !sys::write_secret(&file, &self.pin1) {
+                self.error = Some(tr("Could not prepare the disk password."));
+                return Task::none();
+            }
+            answers.tpm_pinfile = Some(file.to_string_lossy().into_owned());
         }
         let answers_path = dir.join("answers");
         if !sys::write_secret(&answers_path, &answers.to_text()) {
@@ -542,19 +583,17 @@ impl Setup {
         let spacing = theme::spacing();
         let mut row = widget::row::with_capacity(4).spacing(spacing.space_xs).align_y(Alignment::Center);
         match self.page {
-            Page::Language => {
-                row = row.push(widget::space::horizontal()).push(widget::button::suggested(tr("Next")).on_press(Message::Next));
-            }
             Page::Welcome => {
                 row = row
-                    .push(widget::button::text(tr("Back")).on_press(Message::Back))
                     .push(widget::space::horizontal())
                     .push(widget::button::standard(tr("Just try it")).on_press(Message::Close))
                     .push(widget::button::suggested(tr("Install now")).on_press(Message::Next));
             }
             Page::Review => {
                 let label = if self.keeping().is_some() { tr("Reinstall, keeping my files") } else { tr("Erase the disk and install") };
-                row = row.push(widget::button::text(tr("Back")).on_press(Message::Back)).push(widget::space::horizontal()).push(widget::button::destructive(label).on_press(Message::Next));
+                // Red only for what erases everything; keeping the home folder is the safe path.
+                let go = if self.keeping().is_some() { widget::button::suggested(label) } else { widget::button::destructive(label) };
+                row = row.push(widget::button::text(tr("Back")).on_press(Message::Back)).push(widget::space::horizontal()).push(go.on_press(Message::Next));
             }
             Page::Installing => {}
             Page::Done => {
@@ -580,36 +619,33 @@ impl Setup {
         scrolling(widget::column::with_capacity(2).spacing(theme::spacing().space_l).push(hero).push(body))
     }
 
-    fn view_language(&self) -> Element<'_, Message> {
-        let items = LANGS.iter().enumerate().map(|(index, (_, name, _))| m3::list_item(index == self.lang, name.to_string(), None, None, Message::Lang(index))).collect();
-        Self::page(m3::hero("preferences-desktop-locale-symbolic", "Language · Idioma · Langue".into(), String::new()), m3::list(items))
-    }
-
+    /// The first page: the language (asked in every language) and what the
+    /// installer does.
     fn view_welcome(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
-        let atomic = m3::card(
-            widget::column::with_capacity(2)
-                .spacing(spacing.space_xxs)
-                .push(m3::label(tr("The installation is atomic")))
-                .push(m3::supporting(tr("The disk only starts Tamagi at the very last step. If anything stops halfway, it is not left with a half-installed system."))),
-        );
-        let body = widget::column::with_capacity(2).spacing(spacing.space_m).push(atomic).push(m3::supporting(tr("To only try the system, choose Just try it. The installer stays in the launcher: Install Tamagi.")));
+        let items = LANGS.iter().enumerate().map(|(index, (_, name, _))| m3::list_item(index == self.lang, name.to_string(), None, None, Message::Lang(index))).collect();
+        let body = widget::column::with_capacity(4)
+            .spacing(spacing.space_s)
+            .push(m3::label("Language · Idioma · Langue"))
+            .push(m3::list(items))
+            .push(widget::space::vertical().height(Length::Fixed(spacing.space_xxs.into())))
+            .push(m3::supporting(format!(
+                "{} {}",
+                tr("The disk only starts Tamagi at the very last step. If anything stops halfway, it is not left with a half-installed system."),
+                tr("To only try the system, choose Just try it. The installer stays in the launcher: Install Tamagi.")
+            )));
         Self::page(
             m3::hero("tamagi-menu", tr("Welcome to Tamagi"), tr("This assistant installs Tamagi on this computer. Just a few questions: keyboard, time zone, your account and the disk.")),
             body,
         )
     }
 
-    fn view_keyboard(&self) -> Element<'_, Message> {
-        let items = KEYBOARDS.iter().enumerate().map(|(index, kb)| m3::list_item(index == self.keyboard, kb.name.to_string(), None, None, Message::Keyboard(index))).collect();
-        Self::page(m3::hero("input-keyboard-symbolic", tr("Keyboard"), tr("Which keyboard does this computer have?")), m3::list(items))
-    }
-
-    fn view_timezone(&self) -> Element<'_, Message> {
+    /// Keyboard (a drop-down: it already follows the language) and time zone.
+    fn view_region(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
         let chosen = self.zones.get(self.zone).cloned().unwrap_or_default().replace('_', " ");
         let matches = filter_zones(&self.zones, &self.zone_query);
-        let items: Vec<Element<'_, Message>> = matches
+        let items: Vec<m3::Item<Message>> = matches
             .iter()
             .take(ZONES_SHOWN)
             .map(|zone| {
@@ -619,9 +655,19 @@ impl Setup {
             })
             .collect();
         let search = widget::search_input(tr("Search a city or zone"), &self.zone_query).on_input(Message::ZoneQuery).on_clear(Message::ZoneQuery(String::new()));
-        let mut column = widget::column::with_capacity(4)
+        let names: Vec<&'static str> = KEYBOARDS.iter().map(|kb| kb.name).collect();
+        let keyboard = m3::card(
+            widget::row::with_capacity(2)
+                .spacing(spacing.space_s)
+                .align_y(Alignment::Center)
+                .push(widget::column::with_capacity(2).spacing(2).width(Length::Fill).push(m3::body(tr("Keyboard"))).push(m3::supporting(tr("Which keyboard does this computer have?"))))
+                .push(widget::dropdown(names, Some(self.keyboard), Message::Keyboard)),
+        );
+        let mut column = widget::column::with_capacity(6)
             .spacing(spacing.space_m)
-            .push(m3::hero("preferences-system-time-symbolic", tr("Time zone"), format!("{}: {}", tr("Chosen"), chosen)))
+            .push(m3::hero("input-keyboard-symbolic", tr("Keyboard and time zone"), String::new()))
+            .push(keyboard)
+            .push(widget::row::with_capacity(2).spacing(spacing.space_s).push(m3::body(tr("Time zone"))).push(m3::supporting(format!("{}: {}", tr("Chosen"), chosen))))
             .push(search);
         if matches.is_empty() {
             column = column.push(m3::supporting(tr("Nothing found.")));
@@ -642,27 +688,45 @@ impl Setup {
 
     fn view_encryption(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
-        let mut switches = widget::column::with_capacity(3).spacing(spacing.space_s).push(m3::switch_row(tr("Encrypt the disk (LUKS2)"), None, self.encrypt, Message::Encrypt));
-        if self.encrypt && self.tpm_present {
-            switches = switches.push(widget::divider::horizontal::light()).push(m3::switch_row(tr("Unlock it by itself at startup, with the TPM chip"), None, self.tpm, Message::Tpm));
-        }
-        let mut body = widget::column::with_capacity(3).spacing(spacing.space_m).push(m3::card(switches));
-        if self.encrypt {
-            let warning = if self.tpm { tr("The password stays as a fallback (motherboard replacement, firmware update).") } else { tr("Without the disk password there is no way to recover the files.") };
-            body = body.push(m3::card(
-                widget::column::with_capacity(3)
-                    .spacing(spacing.space_s)
+        let mut body = widget::column::with_capacity(4).spacing(spacing.space_m);
+        if self.keeping_luks() {
+            // Said in the title line, to leave room for the PIN.
+        } else if self.keeping_plain() {
+            body = body.push(m3::notice_card("dialog-information-symbolic", tr("The files kept on this disk are not encrypted. Encrypting needs erasing the disk.")));
+        } else {
+            let mut card = widget::column::with_capacity(4).spacing(spacing.space_s).push(m3::switch_row(tr("Encrypt the disk (LUKS2)"), None, self.encrypt, Message::Encrypt));
+            if self.encrypt {
+                let warning = tr("Without the disk password there is no way to recover the files.");
+                card = card
                     .push(widget::secure_input(tr("Disk password"), &self.luks1, Some(Message::ShowPass), !self.show_pass).label(tr("Disk password (at least 8 characters)")).on_input(Message::Luks1))
                     .push(widget::secure_input(tr("Repeat the password"), &self.luks2, Some(Message::ShowPass), !self.show_pass).label(tr("Repeat the password")).on_input(Message::Luks2))
-                    .push(m3::supporting(warning)),
-            ));
+                    .push(m3::supporting(warning));
+            }
+            body = body.push(m3::card(card));
         }
-        Self::page(m3::hero("system-lock-screen-symbolic", tr("Encryption"), tr("With encryption, nobody can read your files if the computer is lost or stolen.")), body)
+        if self.encrypted() && self.tpm_present {
+            let modes = [
+                (TpmMode::Pin, tr("TPM chip + PIN (recommended)"), tr("A short PIN at startup. Safe if the computer is stolen, and updates never lock the disk.")),
+                (TpmMode::Auto, tr("TPM chip, automatic"), tr("Opens by itself. Protects a disk taken out of the computer, not a stolen computer.")),
+                (TpmMode::Off, tr("Disk password only"), tr("The long password at every startup.")),
+            ];
+            let items = modes.into_iter().map(|(mode, name, text)| m3::list_item(self.tpm == mode, name, Some(text), None, Message::Tpm(mode))).collect();
+            body = body.push(widget::column::with_capacity(2).spacing(spacing.space_s).push(m3::label(tr("Unlock at startup"))).push(m3::list(items)));
+            if self.tpm == TpmMode::Pin {
+                let fields = widget::row::with_capacity(2)
+                    .spacing(spacing.space_s)
+                    .push(widget::secure_input(tr("PIN (at least 6 characters)"), &self.pin1, Some(Message::ShowPass), !self.show_pass).on_input(Message::Pin1).width(Length::Fill))
+                    .push(widget::secure_input(tr("Repeat the PIN"), &self.pin2, Some(Message::ShowPass), !self.show_pass).on_input(Message::Pin2).width(Length::Fill));
+                body = body.push(m3::card(widget::column::with_capacity(2).spacing(spacing.space_xs).push(fields).push(m3::supporting(tr("The disk password stays as the recovery key.")))));
+            }
+        }
+        let subtitle = if self.keeping_luks() { tr("This disk is already encrypted and keeps its current password.") } else { tr("With encryption, nobody can read your files if the computer is lost or stolen.") };
+        Self::page(m3::hero("system-lock-screen-symbolic", tr("Encryption"), subtitle), body)
     }
 
     fn view_disk(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
-        let items: Vec<Element<'_, Message>> = self
+        let items: Vec<m3::Item<Message>> = self
             .disks
             .iter()
             .enumerate()
@@ -678,17 +742,20 @@ impl Setup {
                     detail.push(tr("too small"));
                 }
                 let name = if disk.model.is_empty() { disk.path.clone() } else { disk.model.clone() };
-                m3::list_item(self.disk == Some(index), name, Some(detail.join(" · ")), Some(format_bytes(disk.bytes)), Message::Disk(index))
+                m3::list_item(self.disk == Some(index), name, Some(detail.join(" · ")), Some(format_bytes(disk.bytes)), Message::Disk(index)).disabled(!disk.big_enough())
             })
             .collect();
+        // The cards below are about the selected disk: they say its name.
+        let selected_name = self.disk.and_then(|i| self.disks.get(i)).map(|d| if d.model.is_empty() { d.path.clone() } else { format!("{} · {}", d.model, d.path) }).unwrap_or_default();
         let mut body = widget::column::with_capacity(3).spacing(spacing.space_m);
         body = if self.disks.is_empty() { body.push(m3::card(m3::body(tr("No disk found for the installation.")))) } else { body.push(m3::list(items)) };
         if self.detecting {
             body = body.push(widget::row::with_capacity(2).spacing(spacing.space_s).align_y(Alignment::Center).push(widget::progress_bar::circular::Circular::new().size(18.0)).push(m3::supporting(tr("Looking at the disk…"))));
         } else if let Some(found) = &self.found {
             if found.locked() {
-                let mut unlock = widget::column::with_capacity(4)
+                let mut unlock = widget::column::with_capacity(5)
                     .spacing(spacing.space_s)
+                    .push(m3::supporting(selected_name.clone()))
                     .push(m3::label(tr("This disk has an encrypted partition")))
                     .push(m3::supporting(tr("Type its current password to look for your files and keep them. Or go on: the disk is erased.")))
                     .push(
@@ -705,7 +772,7 @@ impl Setup {
             } else if found.preservable() {
                 body = body.push(m3::card(m3::switch_row(
                     tr("Keep my files (/var/home) and reinstall only the system"),
-                    Some(format!("{}: {}", tr("Users found"), found.users())),
+                    Some(format!("{} · {}: {}", selected_name, tr("Users found"), found.users())),
                     self.keep,
                     Message::Keep,
                 )));
@@ -719,27 +786,36 @@ impl Setup {
         let disk = self.disk.and_then(|i| self.disks.get(i));
         let disk_name = disk.map(|d| format!("{} · {} · {}", if d.model.is_empty() { &d.path } else { &d.model }, d.path, format_bytes(d.bytes))).unwrap_or_default();
         let yes_no = |on: bool| if on { tr("yes") } else { tr("no") };
-        let rows: Vec<(String, String)> = vec![
+        let mut rows: Vec<(String, String)> = vec![
             (tr("Disk"), disk_name),
             (tr("Language"), LANGS[self.lang].1.to_string()),
             (tr("Keyboard"), KEYBOARDS[self.keyboard].name.to_string()),
             (tr("Time zone"), self.zones.get(self.zone).cloned().unwrap_or_default().replace('_', " ")),
             (tr("Your account"), if self.fullname.is_empty() { self.user.clone() } else { format!("{} ({})", setup::clean_fullname(&self.fullname), self.user) }),
             (tr("Encryption"), yes_no(self.encrypted())),
-            (tr("Unlock with the TPM chip"), yes_no(self.encrypted() && self.tpm_present && self.tpm)),
         ];
-        let mut grid = widget::column::with_capacity(rows.len() * 2).spacing(spacing.space_s);
+        if self.encrypted() {
+            let unlock = match self.tpm_mode() {
+                TpmMode::Pin => tr("TPM chip + PIN"),
+                TpmMode::Auto => tr("TPM chip, automatic"),
+                TpmMode::Off => tr("Disk password only"),
+            };
+            rows.push((tr("Unlock at startup"), unlock));
+        }
+        let mut grid = widget::column::with_capacity(rows.len() * 2).spacing(spacing.space_xs);
         for (index, (label, value)) in rows.into_iter().enumerate() {
             if index > 0 {
                 grid = grid.push(widget::divider::horizontal::light());
             }
             grid = grid.push(m3::info_row(label, value));
         }
+        // Erasing is an error-coloured warning; keeping the home folder is a notice.
         let warning = match self.keeping() {
-            Some(found) => format!("{} ({}: {})", tr("The system on this disk is replaced and your home folder is kept"), tr("Users found"), found.users()),
-            None => tr("Everything on this disk will be erased. Once it starts there is no way to undo it."),
+            Some(found) => m3::notice_card("dialog-information-symbolic", format!("{} ({}: {})", tr("The system on this disk is replaced and your home folder is kept"), tr("Users found"), found.users())),
+            None => m3::warning_card("dialog-warning-symbolic", tr("Everything on this disk will be erased. Once it starts there is no way to undo it.")),
         };
-        let body = widget::column::with_capacity(2).spacing(spacing.space_m).push(m3::card(grid)).push(m3::warning_card("dialog-warning-symbolic", warning));
+        // The warning first: what cannot be undone is read before the summary.
+        let body = widget::column::with_capacity(2).spacing(spacing.space_m).push(warning).push(m3::card(grid));
         Self::page(m3::hero("emblem-documents-symbolic", tr("Review"), String::new()), body)
     }
 
@@ -750,7 +826,7 @@ impl Setup {
             widget::column::with_capacity(2)
                 .spacing(spacing.space_s)
                 .push(widget::row::with_capacity(2).align_y(Alignment::Center).push(m3::body(self.stage.clone()).width(Length::Fill)).push(m3::label(format!("{}%", self.progress))))
-                .push(widget::progress_bar::linear::Linear::new().girth(4.0).progress(fraction).width(Length::Fill)),
+                .push(m3::progress(fraction)),
         );
         let details = if self.show_log { tr("Hide details") } else { tr("Show details") };
         let mut column = widget::column::with_capacity(4)

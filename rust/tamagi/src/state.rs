@@ -303,7 +303,7 @@ pub fn current_state() -> State {
     let theme = out(&["tamagi-theme", "current"]);
     let flatpak: BTreeSet<String> = out(&["flatpak", "list", "--app", "--columns=application"]).split_whitespace().map(String::from).collect();
     State {
-        theme: if theme.is_empty() { "tokyo-night".into() } else { theme },
+        theme: if theme.is_empty() { "ipe".into() } else { theme },
         tiling: tiling(),
         browsers: browsers_installed(),
         default_browser: default_browser(),

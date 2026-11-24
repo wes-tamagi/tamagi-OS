@@ -837,7 +837,6 @@ Inside COSMIC	Dentro do COSMIC
 gamescope asks for HDR; it only comes out in HDR once COSMIC supports it	o gamescope pede HDR; só sai em HDR quando o COSMIC tiver suporte
 gamescope is not installed	gamescope não está instalado
 gamescope, MangoHud and GameMode, native, with the HDR gaming session (asks for the password)	gamescope, MangoHud e GameMode, nativos, com a sessão de jogos em HDR (pede senha)
-full virt-manager — KVM, UEFI, TPM, 3D, SPICE and virtiofs, native (asks for the password)	virt-manager completo — KVM, UEFI, TPM, 3D, SPICE e virtiofs, nativo (pede senha)
 catalog items (tamagi install list): steam, gaming-tools, virt-manager, windows, tailscale…	itens do catálogo (tamagi install list): steam, gaming-tools, virt-manager, windows, tailscale…
 warning	aviso
 no longer exists (use a box: tamagi devbox); ignored	não existe mais (use uma caixa: tamagi devbox); ignorado
@@ -1122,3 +1121,25 @@ Which keyboard does this computer have?	Qual é o teclado deste computador?
 With encryption, nobody can read your files if the computer is lost or stolen.	Com criptografia, ninguém lê os seus arquivos se o computador for perdido ou roubado.
 Without the disk password there is no way to recover the files.	Sem a senha do disco não há como recuperar os arquivos.
 Your account	Sua conta
+Keyboard and time zone	Teclado e fuso horário
+Extra VPNs — L2TP, PPTP, SSTP, strongSwan, Libreswan and SSH in the network settings, native (asks for the password)	VPNs extras — L2TP, PPTP, SSTP, strongSwan, Libreswan e SSH nas configurações de rede, nativo (pede a senha)
+Virtual machines — Cockpit Machines with KVM, UEFI, TPM and SPICE, built into the image (turns on its services)	Máquinas virtuais — Cockpit Machines com KVM, UEFI, TPM e SPICE, já na imagem (liga os serviços)
+The PIN needs at least 6 characters.	O PIN precisa de pelo menos 6 caracteres.
+The two PINs are not the same.	Os dois PINs não são iguais.
+TPM chip + PIN	Chip TPM + PIN
+TPM chip, automatic	Chip TPM, automático
+Disk password only	Só a senha do disco
+Unlock at startup	Desbloqueio ao ligar
+This disk is already encrypted and keeps its current password.	Este disco já é criptografado e mantém a senha atual.
+The files kept on this disk are not encrypted. Encrypting needs erasing the disk.	Os arquivos mantidos neste disco não são criptografados. Para criptografar é preciso apagar o disco.
+TPM chip + PIN (recommended)	Chip TPM + PIN (recomendado)
+A short PIN at startup. Safe if the computer is stolen, and updates never lock the disk.	Um PIN curto ao ligar. Seguro se o computador for roubado, e atualizações nunca travam o disco.
+The long password at every startup.	A senha longa toda vez que ligar.
+PIN (at least 6 characters)	PIN (pelo menos 6 caracteres)
+Repeat the PIN	Repita o PIN
+The disk password stays as the recovery key.	A senha do disco fica como chave de recuperação.
+Unlock the disk with the TPM chip and a short PIN at boot, instead of the long password?	Desbloquear o disco pelo chip TPM e um PIN curto ao ligar, em vez da senha longa?
+Unlock the disk with the TPM chip and a PIN	Desbloquear o disco pelo chip TPM e um PIN
+Later: tamagi setup tpm-unlock pin	Depois: tamagi setup tpm-unlock pin
+The TPM disk unlock is sealed to Secure Boot: after the blue screen the disk asks for its password once. Then run: tamagi setup tpm-unlock reseal	O desbloqueio pelo TPM está amarrado ao Secure Boot: depois da tela azul, o disco pede a senha uma vez. Depois rode: tamagi setup tpm-unlock reseal
+Opens by itself. Protects a disk taken out of the computer, not a stolen computer.	Abre sozinho. Protege o disco tirado do computador, não o computador roubado.

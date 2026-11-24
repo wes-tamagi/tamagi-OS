@@ -1,0 +1,15 @@
+[Unit]
+Description=Tamagi: remove os remotes Flatpak de sistema (fedora, fedora-testing)
+ConditionPathExists=/var/lib/flatpak/repo
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecCondition=/usr/libexec/tamagi/once-per-image check flatpak-cleanup
+ExecStart=-/usr/bin/flatpak remote-delete --system --force fedora
+ExecStart=-/usr/bin/flatpak remote-delete --system --force fedora-testing
+ExecStartPost=/usr/libexec/tamagi/once-per-image done flatpak-cleanup
+Nice=19
+
+[Install]
+WantedBy=multi-user.target

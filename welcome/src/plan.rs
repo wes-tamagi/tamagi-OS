@@ -84,7 +84,9 @@ pub fn steps(choices: &Choices) -> Vec<Step> {
     let mut steps = Vec::new();
     let argv = |words: &[&str]| words.iter().map(|w| w.to_string()).collect::<Vec<_>>();
     if choices.tpm {
-        steps.push(Step { argv: argv(&["tamagi-setup", "tpm-unlock", "on"]), title: "Encrypted disk", weight: 1 });
+        // TPM + PIN: the disk password and the new PIN are typed in a terminal
+        // (systemd-cryptenroll asks there; nothing goes through this window).
+        steps.push(Step { argv: argv(&["foot", "--title", "Tamagi", "--", "tamagi-setup", "tpm-unlock", "pin"]), title: "Encrypted disk", weight: 1 });
     }
     let actions = choices.actions();
     if !actions.is_empty() {
@@ -163,7 +165,7 @@ mod tests {
     fn tpm_goes_first() {
         let choices = Choices { browser: None, picked: s(&["flatpak:flathub:org.gimp.GIMP"]), tpm: true };
         let all = steps(&choices);
-        assert_eq!(all[0].argv, s(&["tamagi-setup", "tpm-unlock", "on"]));
+        assert_eq!(all[0].argv, s(&["foot", "--title", "Tamagi", "--", "tamagi-setup", "tpm-unlock", "pin"]));
         assert_eq!(all[1].argv, s(&["tamagi-install", "--actions", "flatpak:flathub:org.gimp.GIMP"]));
         assert_eq!(all.len(), 2);
         assert!(!choices.is_empty());

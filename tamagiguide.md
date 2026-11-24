@@ -6,7 +6,8 @@ migration from Bluefin/Aurora), what it offers, and how to keep it up to date.
 ## 1. Fresh install or migration?
 
 > **Clean install required (Tamagi installed before 2026-11-23).** Tamagi now
-> boots with systemd-boot on bootc's composefs backend: an 8 GiB EFI partition
+> boots with systemd-boot on bootc's composefs backend: a 2–4 GiB EFI partition
+> (installs from 2026-11-23 to 2026-11-24 keep their 8 GiB one)
 > at `/efi`, one Btrfs with subvolumes, no `/boot` partition and no GRUB. bootc
 > cannot convert an existing GRUB installation in place. A machine installed
 > from an older ISO keeps booting and keeps receiving updates, but it stays on

@@ -46,6 +46,10 @@ test-desktop:
     mkdir -p output
     podman run --rm -v ./tests:/tests:ro,Z -v ./output:/out:Z {{ image }}:{{ tag }} bash /tests/desktop.sh
 
+# Percorre o instalador sem monitor (tema escuro e claro): todas as telas e as respostas; PNGs em output/installer-shots
+test-installer-ui:
+    bash welcome/tools/test-installer-ui.sh {{ image }}:{{ tag }}
+
 # Testa a caixa de navegadores de verdade neste computador (distrobox): Chrome, VA-API, Vulkan
 test-browser:
     bash tests/browser.sh
@@ -58,7 +62,7 @@ shell:
 lint:
     podman run --rm -v .:/src:ro,Z -w /src quay.io/fedora/fedora:{{ fedora }} bash -c '\
         dnf -y -q install --setopt=install_weak_deps=False ShellCheck python3 >/dev/null && \
-        shellcheck -x -S warning build_files/*.sh tests/*.sh live/*.sh welcome/tools/stubs/setup/backend welcome/tools/stubs/setup/detect \
+        shellcheck -x -S warning build_files/*.sh tests/*.sh live/*.sh welcome/tools/test-installer-ui.sh welcome/tools/stubs/setup/backend welcome/tools/stubs/setup/detect \
             system_files/etc/profile.d/tamagi.sh \
             $(grep -lE "^#!/usr/bin/(env )?bash" system_files/usr/bin/* system_files/usr/libexec/tamagi/* live/files/usr/libexec/*) \
         && python3 -c "import ast, sys; [ast.parse(open(p).read()) for p in sys.argv[1:]]" \

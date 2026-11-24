@@ -3,7 +3,10 @@
 # what the recipe runner of the base image used to do lives here.
 #
 #   tamagi-setup secure-boot-key      enroll the kernel-module key for Secure Boot
-#   tamagi-setup tpm-unlock on|off    unlock the encrypted disk with the TPM chip at boot
+#   tamagi-setup tpm-unlock pin|auto|off|reseal|status
+#                                     how the encrypted disk opens with the TPM chip:
+#                                     pin = TPM + short PIN (recommended), auto = no
+#                                     PIN (Secure Boot on: PCR 7), off = password only
 #   tamagi-setup firmware             update device firmware (fwupd)
 #   tamagi-setup bios                 restart into the firmware (BIOS/UEFI) screen
 #   tamagi-setup clean                free space: unused images, Flatpak runtimes, old deployments
@@ -14,7 +17,7 @@ set -euo pipefail
 
 KEY=/etc/pki/akmods/certs/akmods-ublue.der
 die() { echo "$(t "error"): $*" >&2; exit 1; }
-usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; }
 
 case "${1:-}" in
     secure-boot-key)
@@ -24,12 +27,16 @@ case "${1:-}" in
         fi
         # The password is asked again by the blue MOK screen on the next restart.
         printf 'universalblue\nuniversalblue\n' | sudo mokutil --import "$KEY"
-        tl "Restart. On the blue screen choose Enroll MOK, Continue, Yes and type the password: universalblue" ;;
+        tl "Restart. On the blue screen choose Enroll MOK, Continue, Yes and type the password: universalblue"
+        # A new MOK changes PCR 7: a TPM key sealed to it would stop opening
+        # the disk. The automatic mode is sealed again on the next boots.
+        if sudo /usr/libexec/tamagi/tpm-unlock status 2>/dev/null | grep -q "auto (PCR 7"; then
+            tl "The TPM disk unlock is sealed to Secure Boot: after the blue screen the disk asks for its password once. Then run: tamagi setup tpm-unlock reseal"
+        fi ;;
     tpm-unlock)
         case "${2:-}" in
-            on)  sudo /usr/libexec/luks-enable-tpm2-autounlock ;;
-            off) sudo /usr/libexec/luks-disable-tpm2-autounlock ;;
-            *)   echo "usage: tamagi-setup tpm-unlock on|off" >&2; exit 2 ;;
+            pin|auto|on|off|reseal|status) sudo /usr/libexec/tamagi/tpm-unlock "$2" ;;
+            *) echo "usage: tamagi-setup tpm-unlock pin|auto|off|reseal|status" >&2; exit 2 ;;
         esac ;;
     firmware)
         fwupdmgr refresh --force || true

@@ -124,6 +124,21 @@ pub fn suggest_username(fullname: &str) -> String {
 pub const MIN_DISK_BYTES: u64 = 24 * 1024 * 1024 * 1024;
 /// Shortest disk password.
 pub const MIN_DISK_PASSWORD: usize = 8;
+/// The TPM PIN: short, because the chip stops guessing after a few tries.
+pub const MIN_TPM_PIN: usize = 6;
+
+/// How the encrypted disk opens at startup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TpmMode {
+    /// TPM chip + a short PIN, bound to no PCR (the default when there is a
+    /// TPM): safe against a stolen computer, and updates never lock the disk.
+    #[default]
+    Pin,
+    /// TPM chip with no PIN (PCR 7 only while Secure Boot is on).
+    Auto,
+    /// The disk password at every startup.
+    Off,
+}
 
 /// A disk offered for the installation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -252,7 +267,10 @@ pub struct Answers {
     pub password_hash: String,
     /// The file with the new disk password, when the disk is encrypted.
     pub luks_keyfile: Option<String>,
-    pub tpm: bool,
+    /// How the disk opens with the TPM chip (Off when there is none).
+    pub tpm: TpmMode,
+    /// The file with the TPM PIN (TpmMode::Pin).
+    pub tpm_pinfile: Option<String>,
     /// Keep the home folder found on the disk.
     pub keep: Option<Found>,
     /// The file with the password of the existing encrypted partition kept.
@@ -282,8 +300,13 @@ impl Answers {
         let keyfile = if kept_luks { self.existing_keyfile.clone() } else { self.luks_keyfile.clone() };
         if let Some(file) = keyfile {
             lines.push(("LUKS_KEYFILE".into(), file));
-            if self.tpm {
-                lines.push(("LUKS_TPM".into(), "1".into()));
+            match (self.tpm, &self.tpm_pinfile) {
+                (TpmMode::Pin, Some(pin)) => {
+                    lines.push(("LUKS_TPM".into(), "pin".into()));
+                    lines.push(("LUKS_TPM_PINFILE".into(), pin.clone()));
+                }
+                (TpmMode::Auto, _) => lines.push(("LUKS_TPM".into(), "auto".into())),
+                _ => {}
             }
         }
         lines.push(("VERIFY_STATE".into(), self.verify_state.clone()));
@@ -416,9 +439,15 @@ mod tests {
         );
         let mut a = base();
         a.luks_keyfile = Some("/run/k".into());
-        a.tpm = true;
-        assert!(a.to_text().contains("LUKS_KEYFILE=/run/k\nLUKS_TPM=1\n"));
-        a.tpm = false;
+        a.tpm = TpmMode::Auto;
+        assert!(a.to_text().contains("LUKS_KEYFILE=/run/k\nLUKS_TPM=auto\n"));
+        a.tpm = TpmMode::Pin;
+        a.tpm_pinfile = Some("/run/pin".into());
+        assert!(a.to_text().contains("LUKS_KEYFILE=/run/k\nLUKS_TPM=pin\nLUKS_TPM_PINFILE=/run/pin\n"));
+        // PIN mode without a PIN file: no TPM at all, never a TPM without PIN.
+        a.tpm_pinfile = None;
+        assert!(!a.to_text().contains("LUKS_TPM"));
+        a.tpm = TpmMode::Off;
         assert!(!a.to_text().contains("LUKS_TPM"));
     }
 
@@ -433,9 +462,9 @@ mod tests {
         // An encrypted home kept: its own password, not a new one.
         a.keep = Some(Found::parse("PRESERVABLE=btrfs-subvol\nPRESERVE_LUKS=1\n"));
         a.existing_keyfile = Some("/run/old".into());
-        a.tpm = true;
+        a.tpm = TpmMode::Auto;
         let text = a.to_text();
-        assert!(text.contains("LUKS_KEYFILE=/run/old\nLUKS_TPM=1\n"));
+        assert!(text.contains("LUKS_KEYFILE=/run/old\nLUKS_TPM=auto\n"));
         assert!(!text.contains("/run/new"));
     }
 

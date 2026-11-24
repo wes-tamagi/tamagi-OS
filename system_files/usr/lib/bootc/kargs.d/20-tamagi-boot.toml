@@ -1,4 +1,11 @@
 # Tela de boot gráfica (Plymouth, tema tamagi) em vez das mensagens do kernel.
 # Esc durante o boot mostra os detalhes. Vale também para instalações já
 # existentes: o bootc aplica a diferença no próximo update.
-kargs = ["rhgb", "quiet"]
+#
+# plymouth.use-simpledrm=1: o Plymouth desenha já no framebuffer do firmware
+# (simpledrm) em vez de esperar o driver da placa de vídeo, que pode só chegar
+# depois de o disco estar aberto (NVIDIA, cujo módulo não vai no initramfs).
+# Sem isso, quando o TPM não abre o disco, o pedido de senha/PIN fica numa tela
+# preta e parece que o computador não ligou. (Mesmo ajuste do Bluefin Dakota,
+# commit 2f84bd7.)
+kargs = ["rhgb", "quiet", "plymouth.use-simpledrm=1"]

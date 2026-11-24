@@ -50,6 +50,20 @@ echo "$(cat starship-x86_64-unknown-linux-gnu.tar.gz.sha256)  starship-x86_64-un
 tar -xzf starship-x86_64-unknown-linux-gnu.tar.gz starship
 install -Dm755 starship /usr/bin/starship
 
+# Roboto Flex (fonte da interface, Material 3): não tem pacote no Fedora. Vem do
+# repositório oficial do Google, presa a um commit (tag 3.200) e conferida por
+# sha256; licença OFL-1.1. Trocar de versão = trocar o commit e os dois hashes.
+ROBOTO_FLEX_COMMIT=739e06dc46ebb14cddd88b9768a6c1504d4677f6
+ROBOTO_FLEX_URL="https://raw.githubusercontent.com/googlefonts/roboto-flex/$ROBOTO_FLEX_COMMIT"
+curl -fsSL -o RobotoFlex.ttf "$ROBOTO_FLEX_URL/fonts/RobotoFlex%5BGRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC,opsz,slnt,wdth,wght%5D.ttf"
+curl -fsSL -o OFL.txt "$ROBOTO_FLEX_URL/OFL.txt"
+sha256sum -c - <<'SUMS'
+94a7ea95ccee28c54885a507e3cc0a534ce41ec61d413935df0e07261a7ffe63  RobotoFlex.ttf
+454ec26838f2b8f2e2588e759dd3742577e0d305d3359a7b81c86641fcab7d21  OFL.txt
+SUMS
+install -Dm644 RobotoFlex.ttf /usr/share/fonts/roboto-flex/RobotoFlex.ttf
+install -Dm644 OFL.txt /usr/share/licenses/roboto-flex/OFL.txt
+
 # O mise (linguagens e ferramentas de desenvolvimento) não vive mais no host:
 # é instalado dentro da caixa de desenvolvimento (devbox-provision), onde há
 # compiladores e bibliotecas. O host imutável fica sem runtimes.

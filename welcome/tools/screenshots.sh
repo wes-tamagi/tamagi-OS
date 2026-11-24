@@ -155,42 +155,42 @@ sudo_dialog() {
 }
 
 # The installer of the live media (--install), with stub back ends.
+# THEME=light renders it in the light theme.
 installer() {
-    echo "installer (--install)"
+    echo "installer (--install, ${THEME:-dark})"
     local stubs; stubs="$(dirname "$0")/stubs/setup"
     export TAMAGI_SETUP_LSBLK="$stubs/lsblk.txt" TAMAGI_SETUP_BACKEND="$stubs/backend" TAMAGI_SETUP_DETECT="$stubs/detect" TAMAGI_SETUP_PRIV= TAMAGI_SETUP_TPM=1
-    STUB_SLEEP=0.6 session_start $W $H
+    STUB_SLEEP=0.6 session_start $W $H "${THEME:-dark}"
     STUB_SLEEP=0.6 app --install
-    shot i01-language
-    click 400 "${Y_LANG_PT:-287}"                 # Português
-    shot i01b-language-pt
-    next; shot i02-welcome
-    next; shot i03-keyboard
-    next; shot i04-timezone
-    type_text "sao"; shot i04b-timezone-search
-    next; shot i05-account-empty
-    next; shot i05b-account-error
+    shot i01-welcome
+    click 400 "${Y_LANG_PT:-366}"                 # Português
+    shot i01b-welcome-pt
+    next; shot i02-region
+    click 835 "${Y_KEYBOARD:-238}"; sleep 0.5; shot i02c-keyboard-menu
+    click 835 "${Y_KEYBOARD:-238}"; sleep 0.5
+    click 400 "${Y_ZONE_SEARCH:-361}"; type_text "sao"; shot i02b-region-search
+    next; shot i03-account-empty
+    next; shot i03b-account-error
     click 400 "${Y_FULLNAME:-291}"; type_text "Ana Lima"
     click 400 "${Y_PASS1:-448}"; type_text "secret1"
     click 400 "${Y_PASS2:-523}"; type_text "secret1"
-    shot i05c-account-filled
-    next; shot i06-encryption
-    click 852 "${Y_ENCRYPT:-258}"
-    shot i06b-encryption-on
-    click 400 "${Y_LUKS1:-428}"; type_text "diskpass1"
-    click 400 "${Y_LUKS2:-503}"; type_text "diskpass1"
-    next; shot i07-disk
+    shot i03c-account-filled
+    next; shot i04-disk
     click 400 "${Y_DISK_VDA:-348}"; sleep 1.5
-    shot i07b-disk-keep
+    shot i04b-disk-keep
     click 400 "${Y_DISK_NVME:-272}"; sleep 1.5
-    shot i07c-disk-locked
-    click 300 "${Y_OLDPASS:-606}"; type_text "oldpassword"; key Return; sleep 1.5
-    shot i07d-disk-unlocked
-    next; shot i08-review
+    shot i04c-disk-locked
+    click 300 "${Y_OLDPASS:-643}"; type_text "oldpassword"; key Return; sleep 1.5
+    shot i04d-disk-unlocked
+    next; shot i05-encryption                     # encrypted home kept: only how it opens
+    click 250 "${Y_PIN1:-549}"; type_text "246810"
+    click 700 "${Y_PIN2:-549}"; type_text "246810"
+    shot i05b-encryption-pin
+    next; shot i06-review
     key Return
-    shot i09-installing 1.5
+    shot i07-installing 1.5
     sleep 6
-    shot i10-done
+    shot i08-done
     echo "--- stub log"; cat "$STUB_LOG"
     echo "--- answers"; sed 's/^PASSWORD_HASH=.*/PASSWORD_HASH=(hash)/' "$STUB_LOG.answers"
     echo "--- secrets left: $(ls "$XDG_RUNTIME_DIR/tamagi-install" 2>/dev/null | tr '\n' ' ')"

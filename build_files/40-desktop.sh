@@ -29,7 +29,7 @@ done
 cat > "$C/com.system76.CosmicBackground/v1/all" <<'RON'
 (
     output: "all",
-    source: Path("/usr/share/backgrounds/tamagi/tokyo-night-mon.png"),
+    source: Path("/usr/share/backgrounds/tamagi/ipe-mon.png"),
     filter_by_theme: false,
     rotation_frequency: 3600,
     filter_method: Lanczos,
@@ -51,23 +51,26 @@ for conf in /usr/share/tamagi/themes/*.conf; do
     name=$(basename "$conf" .conf)
     rsvg-convert -w 768 -h 432 "$WALL_SVG/$name-mon.svg" -o "/usr/share/cosmic-themes/tamagi-$name.png"
 done
-# O tema padrão da imagem é o Tokyo Night do Tamagi, também para o COSMIC
-# (janelas, barra e apps): o import escreve o tema completo numa pasta
-# temporária, que vira o padrão do sistema. O que o usuário escolher depois
-# fica em ~/.config/cosmic e tem prioridade.
+# O tema padrão da imagem é o Ipê do Tamagi (escuro) com o Ipê Claro para o
+# modo claro, também para o COSMIC (janelas, barra e apps): cada import
+# escreve o tema completo numa pasta temporária, que vira o padrão do sistema.
+# O claro entra primeiro; o escuro por último deixa o sistema no modo escuro.
+# O que o usuário escolher depois fica em ~/.config/cosmic e tem prioridade.
 THEME_TMP=$(mktemp -d)
-if XDG_CONFIG_HOME="$THEME_TMP" HOME="$THEME_TMP" timeout 60 \
-        cosmic-settings appearance import /usr/share/cosmic-themes/tamagi-tokyo-night.ron >/dev/null 2>&1 \
-        && compgen -G "$THEME_TMP/cosmic/com.system76.CosmicTheme.Dark.Builder/v*/bg_color" >/dev/null; then
-    for d in "$THEME_TMP"/cosmic/com.system76.CosmicTheme.*; do
-        [[ -n $(find "$d" -type f -print -quit) ]] || continue
-        mkdir -p "$C/$(basename "$d")"
-        cp -a "$d/." "$C/$(basename "$d")/"
-    done
-    echo "tema padrão do COSMIC: Tamagi Tokyo Night"
-else
-    echo "aviso: não deu para gravar o tema padrão do COSMIC (o cosmic-settings mudou?); fica o tema do COSMIC" >&2
-fi
+for theme in ipe-light ipe; do
+    XDG_CONFIG_HOME="$THEME_TMP" HOME="$THEME_TMP" timeout 60 \
+        cosmic-settings appearance import "/usr/share/cosmic-themes/tamagi-$theme.ron" >/dev/null 2>&1 \
+        || { echo "cosmic-settings não importou tamagi-$theme.ron" >&2; exit 1; }
+done
+compgen -G "$THEME_TMP/cosmic/com.system76.CosmicTheme.Dark.Builder/v*/bg_color" >/dev/null \
+    && compgen -G "$THEME_TMP/cosmic/com.system76.CosmicTheme.Light.Builder/v*/bg_color" >/dev/null \
+    || { echo "o import do tema não gravou os modos claro e escuro (o cosmic-settings mudou?)" >&2; exit 1; }
+for d in "$THEME_TMP"/cosmic/com.system76.CosmicTheme.*; do
+    [[ -n $(find "$d" -type f -print -quit) ]] || continue
+    mkdir -p "$C/$(basename "$d")"
+    cp -a "$d/." "$C/$(basename "$d")/"
+done
+echo "tema padrão do COSMIC: Tamagi Ipê (escuro) e Ipê Claro"
 
 # ── Janelas ──
 # Tiling automático ligado em todos os workspaces (Super+Y alterna).
@@ -115,13 +118,13 @@ open(path, "w", encoding="utf-8").write(text)
 PY
 
 # Paleta padrão das janelas do Tamagi (o tamagi-theme gera a do usuário).
-tamagi-theme foot tokyo-night > /usr/share/tamagi/foot.ini
+tamagi-theme foot ipe > /usr/share/tamagi/foot.ini
 foot --config=/usr/share/tamagi/foot.ini --check-config >/dev/null || { echo "foot.ini das janelas do Tamagi é inválido" >&2; exit 1; }
 
 # ── Terminal padrão: foot (o cosmic-term continua instalado, no lançador) ──
 # Configuração do sistema com a fonte e as cores do tema padrão; o
 # tamagi-theme grava a do usuário em ~/.config/foot/foot.ini.
-tamagi-theme foot tokyo-night > /etc/xdg/foot/foot.ini
+tamagi-theme foot ipe > /etc/xdg/foot/foot.ini
 foot --check-config >/dev/null || { echo "foot.ini gerado pelo tamagi-theme é inválido" >&2; exit 1; }
 # O atalho System(Terminal) do COSMIC (Super+Enter) roda o que estiver aqui.
 sed -i 's|^\(\s*Terminal: \)"cosmic-term",|\1"/usr/libexec/tamagi/term",|' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions"
@@ -147,11 +150,14 @@ cat > "$F/tab" <<'RON'
 )
 RON
 
-# ── Fontes: Noto Sans na interface do COSMIC (libcosmic) e nos apps GTK ──
-# Roboto Slab é a fonte com serifa do sistema (fontconfig, 55-tamagi-fonts.conf).
+# ── Fontes: Roboto Flex na interface do COSMIC (libcosmic) e nos apps GTK ──
+# É a fonte do Material 3 (docs/estilo-m3.md), variável, num arquivo só. A Noto
+# Sans fica logo atrás no fontconfig: cobre os alfabetos que a Roboto Flex não
+# tem (CJK, árabe, devanágari…). Roboto Slab é a fonte com serifa
+# (55-tamagi-fonts.conf).
 install -d "$C/com.system76.CosmicTk/v1"
 rm -f "$C/com.system76.CosmicTk/v1/interface_font" "$C/com.system76.CosmicTk/v1/monospace_font"
-echo '(family: "Noto Sans", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/interface_font"
+echo '(family: "Roboto Flex", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/interface_font"
 echo '(family: "JetBrains Mono", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/monospace_font"
 # cosmic-term e cosmic-edit guardam a fonte na configuração do próprio app.
 for app in CosmicTerm CosmicEdit; do
@@ -165,7 +171,7 @@ done
 grep -aq interface_font /usr/bin/cosmic-settings || { echo "o libcosmic desta versão não lê mais CosmicTk/interface_font: ajuste 40-desktop.sh" >&2; exit 1; }
 install -Dm644 /dev/stdin /etc/dconf/db/local.d/10-tamagi-fonts <<'DCONF'
 [org/gnome/desktop/interface]
-font-name='Noto Sans 11'
+font-name='Roboto Flex 11'
 document-font-name='Roboto Slab 11'
 monospace-font-name='JetBrains Mono 11'
 DCONF
@@ -176,7 +182,10 @@ dconf update
 # sumir ou trocar de peso em apps do COSMIC.
 rpm -q google-noto-sans-fonts >/dev/null 2>&1 && { echo "google-noto-sans-fonts (estática) duplicaria a Noto Sans variável" >&2; exit 1; }
 fc-cache -f >/dev/null
-[[ $(fc-match -f '%{family}' sans-serif) == "Noto Sans" ]] || { echo "sans-serif não é Noto Sans" >&2; exit 1; }
+[[ $(fc-match -f '%{family}' sans-serif) == "Roboto Flex" ]] || { echo "sans-serif não é Roboto Flex" >&2; exit 1; }
+[[ $(fc-list 'Roboto Flex' family | sort -u) == "Roboto Flex" ]] || { echo "Roboto Flex ausente ou duplicada" >&2; exit 1; }
+# Texto em japonês continua com uma fonte que tem os caracteres.
+[[ $(fc-match -f '%{family}' 'sans-serif:lang=ja') != "Roboto Flex" ]] || { echo "sem fonte de reserva para japonês" >&2; exit 1; }
 [[ $(fc-match -f '%{family}' serif) == "Roboto Slab" ]] || { echo "serif não é Roboto Slab" >&2; exit 1; }
 
 # ── Barra: uma só, embaixo, com os apps no centro ──

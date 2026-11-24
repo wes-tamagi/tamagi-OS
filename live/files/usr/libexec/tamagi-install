@@ -11,7 +11,7 @@
 # `bootc install to-filesystem` para copiar a imagem do sistema.
 #
 # Disco, como no openSUSE Aeon:
-#   1  ESP (FAT32, 8 GiB), em /efi   systemd-boot, e o kernel e o initramfs de
+#   1  ESP (FAT32, 2 ou 4 GiB), /efi systemd-boot, e o kernel e o initramfs de
 #                                    cada versão do sistema (não há /boot)
 #   2  btrfs                         subvolume "root" (o sistema: as imagens
 #                                    do bootc, /etc e /var) e subvolume "home"
@@ -258,16 +258,95 @@ mountpoint_dir() {
     chcon system_u:object_r:boot_t:s0 "$1" 2>/dev/null || true
 }
 
+# Reinstalar mantendo os arquivos: as VMs do sistema também ficam. Os discos
+# já moram no subvolume var-libvirt (preservado); a definição de cada VM
+# (/etc/libvirt/qemu), a NVRAM UEFI e o TPM virtual moram no sistema antigo
+# (subvolume root, que é apagado). Vão para var-libvirt/.tamagi-preserved antes
+# e voltam para o sistema novo depois (restore_vm_state).
+save_vm_state() {
+    local old=$MNT/root keep=$MNT/var-libvirt/.tamagi-preserved etc var d
+    [[ -d $MNT/var-libvirt && -d $old/state/deploy ]] || return 0
+    etc=$(ls -1dt "$old"/state/deploy/*/etc 2>/dev/null | head -1 || true)
+    var=$old/state/os/default/var
+    rm -rf "$keep"
+    mkdir -p "$keep"
+    if [[ -n $etc && -d $etc/libvirt/qemu ]]; then cp -a "$etc/libvirt/qemu" "$keep/etc-libvirt-qemu"; fi
+    for d in lib/libvirt/qemu/nvram lib/libvirt/swtpm; do
+        if [[ -d $var/$d ]]; then mkdir -p "$keep/var/${d%/*}"; cp -a "$var/$d" "$keep/var/$d"; fi
+    done
+    if [[ -z $(ls -A "$keep") ]]; then
+        rmdir "$keep"
+    else
+        echo "VMs: definições, NVRAM e TPM virtual guardados para o sistema novo" >&2
+    fi
+}
+
+restore_vm_state() {
+    local tmp keep
+    tmp=$(mktemp -d)
+    if ! mount -o subvol=var-libvirt "$ROOTDEV" "$tmp" 2>/dev/null; then rmdir "$tmp"; return 0; fi
+    keep=$tmp/.tamagi-preserved
+    if [[ -d $keep ]]; then
+        if [[ -d $keep/etc-libvirt-qemu ]]; then
+            mkdir -p "$DEPLOY/etc/libvirt/qemu"
+            cp -a "$keep/etc-libvirt-qemu/." "$DEPLOY/etc/libvirt/qemu/"
+        fi
+        if [[ -d $keep/var ]]; then
+            mkdir -p "$MNT/state/os/default/var"
+            cp -a "$keep/var/." "$MNT/state/os/default/var/"
+        fi
+        rm -rf "$keep"
+        # Os rótulos SELinux certos são postos no primeiro boot (firstboot).
+        touch "$DEPLOY/etc/tamagi/relabel-libvirt"
+        echo "VMs: definições, NVRAM e TPM virtual devolvidos ao sistema novo" >&2
+    fi
+    umount "$tmp"
+    rmdir "$tmp"
+}
+
 label_subvols() {
     local home_sv=$1
     [[ -n $home_sv && -e $MNT/$home_sv ]] && chcon system_u:object_r:home_root_t:s0 "$MNT/$home_sv" 2>/dev/null || true
     chcon system_u:object_r:container_var_lib_t:s0 "$MNT/var-containers" 2>/dev/null || true
-    chcon system_u:object_r:var_lib_t:s0 "$MNT/var-flatpak" 2>/dev/null || true
     chcon system_u:object_r:var_t:s0 "$MNT/var-cache" 2>/dev/null || true
     chcon system_u:object_r:var_log_t:s0 "$MNT/var-log" 2>/dev/null || true
     if [[ -e $MNT/var-libvirt ]]; then
         chattr +C "$MNT/var-libvirt" 2>/dev/null || true
         chcon system_u:object_r:virt_image_t:s0 "$MNT/var-libvirt" 2>/dev/null || true
+    fi
+}
+
+# Desbloqueio pelo chip TPM 2.0 (LUKS_TPM). A senha do disco fica sempre como
+# reserva; sem TPM, ou se o registro falhar, a instalação segue só com ela.
+#   pin   TPM + PIN curto, sem PCR: o PIN e a trava contra tentativas do chip
+#         protegem contra o roubo do computador; atualização de firmware, do
+#         shim ou uma MOK nova nunca travam o boot (o erro visto no Aeon).
+#   auto  sem PIN (1 = auto, respostas antigas). Registrado aqui sem PCR: as
+#         medições do boot pela mídia diferem das do boot pelo disco. No
+#         primeiro boot o tamagi-tpm-seal amarra ao PCR 7 só se o Secure Boot
+#         estiver ligado.
+tpm_mode() { case ${A[LUKS_TPM]:-} in pin) echo pin ;; auto|1) echo auto ;; esac; }
+enroll_tpm() {
+    local part=$1 mode
+    mode=$(tpm_mode)
+    [[ -n $mode ]] || return 0
+    progress 10 tpm
+    systemd-cryptenroll --unlock-key-file="${A[LUKS_KEYFILE]}" --wipe-slot=tpm2 "$part" >/dev/null 2>&1 || true
+    local args=(--unlock-key-file="${A[LUKS_KEYFILE]}" --tpm2-device=auto --tpm2-pcrs= --tpm2-pcrlock=)
+    if [[ $mode == pin ]]; then
+        [[ -s ${A[LUKS_TPM_PINFILE]:-} ]] || { echo "TPM: PIN ausente; o disco fica só com a senha" >&2; return 0; }
+        if NEWPIN=$(<"${A[LUKS_TPM_PINFILE]}") systemd-cryptenroll "${args[@]}" --tpm2-with-pin=yes "$part" >&2; then
+            LUKS_OPTS+=,tpm2-device=auto
+            echo "TPM: chave do disco registrada com PIN (sem PCR)" >&2
+        else
+            echo "TPM: não foi possível registrar a chave; o disco fica só com a senha" >&2
+        fi
+    elif systemd-cryptenroll "${args[@]}" "$part" >&2; then
+        LUKS_OPTS+=,tpm2-device=auto
+        TPM_SEAL=$LUKS_UUID
+        echo "TPM: chave do disco registrada (PCR 7 no primeiro boot, se o Secure Boot estiver ligado)" >&2
+    else
+        echo "TPM: não foi possível registrar a chave; o disco fica só com a senha" >&2
     fi
 }
 
@@ -282,25 +361,7 @@ enroll_luks_fresh() {
     cryptsetup open --key-file "${A[LUKS_KEYFILE]}" "$target_part" "$MAPPER"
     ROOTDEV=/dev/mapper/$MAPPER
     LUKS_OPTS=discard
-    # Desbloqueio sem senha: a chave do disco fica selada no chip TPM 2.0 deste
-    # computador. Aqui ela NÃO é amarrada a nenhuma medição (PCR): as medições
-    # do boot pela mídia de instalação diferem das do boot pelo disco, e o
-    # primeiro boot pediria a senha. Quem amarra ao PCR 7 (estado do Secure
-    # Boot) é o tamagi-tpm-seal.service, no primeiro boot. A senha continua valendo como
-    # reserva: se o TPM recusar (firmware atualizado, disco em outra máquina),
-    # o boot volta a pedir a senha. Sem TPM, ou se o registro falhar, a
-    # instalação segue só com a senha.
-    if [[ ${A[LUKS_TPM]:-0} == 1 ]]; then
-        progress 10 tpm
-        if systemd-cryptenroll --unlock-key-file="${A[LUKS_KEYFILE]}" \
-                --tpm2-device=auto --tpm2-pcrs= "$target_part" >&2; then
-            LUKS_OPTS+=,tpm2-device=auto
-            TPM_SEAL=$LUKS_UUID
-            echo "TPM: chave do disco registrada (o PCR 7 entra no primeiro boot)" >&2
-        else
-            echo "TPM: não foi possível registrar a chave; o disco fica só com a senha" >&2
-        fi
-    fi
+    enroll_tpm "$target_part"
     KARGS+=(--karg "rd.luks.uuid=$LUKS_UUID" --karg "rd.luks.options=$LUKS_OPTS")
 }
 
@@ -362,18 +423,7 @@ if [[ $PRESERVE_HOME == 1 ]]; then
             cryptsetup open --key-file "${A[LUKS_KEYFILE]}" "$HOME_PART" "$MAPPER"
             ROOTDEV=/dev/mapper/$MAPPER
             LUKS_OPTS=discard
-            if [[ ${A[LUKS_TPM]:-0} == 1 ]]; then
-                progress 10 tpm
-                systemd-cryptenroll --unlock-key-file="${A[LUKS_KEYFILE]}" --wipe-slot=tpm2 "$HOME_PART" >/dev/null 2>&1 || true
-                if systemd-cryptenroll --unlock-key-file="${A[LUKS_KEYFILE]}" \
-                        --tpm2-device=auto --tpm2-pcrs= "$HOME_PART" >&2; then
-                    LUKS_OPTS+=,tpm2-device=auto
-                    TPM_SEAL=$LUKS_UUID
-                    echo "TPM: chave do disco registrada (o PCR 7 entra no primeiro boot)" >&2
-                else
-                    echo "TPM: não foi possível registrar a chave; o disco fica só com a senha" >&2
-                fi
-            fi
+            enroll_tpm "$HOME_PART"
             KARGS+=(--karg "rd.luks.uuid=$LUKS_UUID" --karg "rd.luks.options=$LUKS_OPTS")
         fi
 
@@ -390,10 +440,17 @@ if [[ $PRESERVE_HOME == 1 ]]; then
             [[ -d $MNT/$HOME_SUBVOL ]] || die "subvolume $HOME_SUBVOL não encontrado em $ROOTDEV"
         fi
 
-        for sv in root var-containers var-flatpak var-cache var-log var-libvirt; do
+        # As VMs ficam: os discos (subvolume var-libvirt) e, guardados nele, a
+        # definição, a NVRAM (UEFI) e o TPM virtual de cada uma, que moram no
+        # sistema antigo (apagado logo abaixo) e voltam depois da instalação.
+        save_vm_state
+        for sv in root var-containers var-cache var-log; do
             [[ -e $MNT/$sv ]] && delete_subvol_tree "$MNT/$sv"
             btrfs subvolume create "$MNT/$sv" >/dev/null
         done
+        # Sem Flatpak de sistema (todos são do usuário): o subvolume antigo sai.
+        [[ -e $MNT/var-flatpak ]] && delete_subvol_tree "$MNT/var-flatpak"
+        [[ -e $MNT/var-libvirt ]] || btrfs subvolume create "$MNT/var-libvirt" >/dev/null
         avail_bytes=$(df --output=avail -B1 "$MNT" | tail -1 | tr -d ' ')
         (( avail_bytes >= 16 * 1024 * 1024 * 1024 )) || die "espaço livre insuficiente em $ROOTDEV ($(( avail_bytes / 1024 / 1024 / 1024 )) GiB < 16 GiB)"
         label_subvols "$HOME_SUBVOL"
@@ -410,7 +467,7 @@ if [[ $PRESERVE_HOME == 1 ]]; then
         udevadm settle
         mkdir -p "$MNT"
         mount "$ROOTDEV" "$MNT"
-        for sv in root var-containers var-flatpak var-cache var-log var-libvirt; do
+        for sv in root var-containers var-cache var-log var-libvirt; do
             btrfs subvolume create "$MNT/$sv" >/dev/null
         done
         label_subvols ""
@@ -435,9 +492,14 @@ if [[ $PRESERVE_HOME == 1 ]]; then
 else
     WIPED=1
     wipefs -af "$DISK" >/dev/null
-    sfdisk --wipe always --wipe-partitions always "$DISK" >/dev/null <<'PARTS'
+    # ESP: o kernel e o initramfs de cada versão do sistema (a atual, a anterior
+    # e a preparada; ~265 MiB cada). 4 GiB em discos de 80 GiB ou mais, 2 GiB
+    # nos menores (o Pop!_OS também usa 4 GB).
+    ESP_SIZE=2GiB
+    (( disk_bytes >= 80 * 1024 * 1024 * 1024 )) && ESP_SIZE=4GiB
+    sfdisk --wipe always --wipe-partitions always "$DISK" >/dev/null <<PARTS
 label: gpt
-size=8GiB, type=uefi, name="EFI-SYSTEM", attrs="NoBlockIOProtocol"
+size=$ESP_SIZE, type=uefi, name="EFI-SYSTEM", attrs="NoBlockIOProtocol"
 type=4F68BCE3-E8CD-4DB1-96E7-FBCAF984B709, name="root"
 PARTS
     udevadm settle
@@ -457,10 +519,10 @@ PARTS
 
     mkdir -p "$MNT"
     # Subvolumes: "root" recebe o sistema; "home" é montado em /var/home;
-    # "var-containers", "var-flatpak", "var-cache" e "var-log" isolam os dados
+    # "var-containers", "var-cache", "var-log" e "var-libvirt" isolam os dados
     # mutáveis pesados da raiz.
     mount "$ROOTDEV" "$MNT"
-    for sv in root home var-containers var-flatpak var-cache var-log var-libvirt; do
+    for sv in root home var-containers var-cache var-log var-libvirt; do
         btrfs subvolume create "$MNT/$sv" >/dev/null
     done
     label_subvols home
@@ -572,16 +634,17 @@ chmod 600 "$DEPLOY/etc/tamagi/install.conf"
 # provisionamento por pendrive (tamagi-combustion.service) rodar, uma vez.
 touch "$DEPLOY/etc/tamagi/first-boot"
 if [[ -n ${TPM_SEAL:-} ]]; then echo "$TPM_SEAL" > "$DEPLOY/etc/tamagi/tpm-seal"; fi
+(( PRESERVE_HOME )) && restore_vm_state
 # O subvolume "home" em /var/home, os subvolumes de estado pesado (/var/lib/containers,
-# /var/lib/flatpak, /var/cache, /var/log) e a partição EFI em /efi (sem esta linha o
-# systemd a montaria sozinho em /boot).
+# /var/cache, /var/log, /var/lib/libvirt/images) e a partição EFI em /efi (sem esta
+# linha o systemd a montaria sozinho em /boot). As imagens de VM não usam CoW pelo
+# atributo +C do subvolume (a opção nodatacow do btrfs não vale por subvolume).
 cat >> "$DEPLOY/etc/fstab" <<FSTAB
 $HOME_FSTAB_LINE
 UUID=$BTRFS_UUID /var/lib/containers btrfs subvol=var-containers,compress=zstd:1,noatime 0 0
-UUID=$BTRFS_UUID /var/lib/flatpak btrfs subvol=var-flatpak,compress=zstd:1,noatime 0 0
 UUID=$BTRFS_UUID /var/cache btrfs subvol=var-cache,compress=zstd:1,noatime 0 0
 UUID=$BTRFS_UUID /var/log btrfs subvol=var-log,compress=zstd:1,noatime 0 0
-UUID=$BTRFS_UUID /var/lib/libvirt/images btrfs subvol=var-libvirt,nodatacow,noatime 0 0
+UUID=$BTRFS_UUID /var/lib/libvirt/images btrfs subvol=var-libvirt,noatime 0 0
 UUID=$ESP_UUID /efi vfat umask=0077,shortname=winnt,x-systemd.automount,x-systemd.idle-timeout=2min 0 2
 FSTAB
 grep -q ' /var/home btrfs ' "$DEPLOY/etc/fstab" || die "não consegui registrar o subvolume home em /etc/fstab"

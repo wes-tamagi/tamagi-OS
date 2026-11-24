@@ -69,6 +69,16 @@ systemctl mask bootc-fetch-apply-updates.timer 2>/dev/null || true
 # Zero Flatpak de sistema (todos são --user): o atualizador de Flatpaks de
 # sistema que a base liga não tem o que atualizar e só atrasa o boot.
 systemctl disable flatpak-system-update.timer 2>/dev/null || true
+# A base (flatpak do Universal Blue) liga um serviço que, no primeiro boot,
+# cria o Flathub de sistema e os remotes "Fedora Flatpaks" (fedora e
+# fedora-testing). Aqui os remotes são só do usuário (Flathub e COSMIC, pelo
+# tamagi-flatpak-setup): o serviço fica mascarado.
+systemctl mask flatpak-add-fedora-repos.service
+# Máquinas instaladas antes disso: o tamagi-flatpak-cleanup apaga os dois.
+systemctl enable tamagi-flatpak-cleanup.service
+# Menu de boot sem edição da linha do kernel nas instalações anteriores (as novas
+# já recebem /usr/lib/bootc/install/systemd-boot/loader.conf do bootc).
+systemctl enable tamagi-loader-conf.service
 
 # Camadas do tamagi-layer (/var/lib/extensions) entram no /usr a cada boot.
 systemctl enable systemd-sysext.service

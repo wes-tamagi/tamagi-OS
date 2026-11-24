@@ -48,6 +48,10 @@ done
   build; `just test` reads `tests/`; `just build-iso` reads `live/`. An edit in
   the middle gives an ISO that is not the tree you tested. Wait, or state
   exactly which step had already finished reading.
+- **Do not run another `just` recipe while the chain runs, not even `just lint`.**
+  `lint`, `test` and `build-iso` mount the repository (or `output/`) with `:Z`,
+  which relabels it for their own container: a `just lint` during `build-iso`
+  makes `mksquashfs` fail with "Permission denied" / "Probably out of space".
 - **A new check in `tests/image.sh` needs an image that has the feature.**
   Add the check, then rebuild; do not add it while an older image is being
   tested.

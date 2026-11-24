@@ -1,0 +1,128 @@
+#!/usr/bin/bash
+# tpm-unlock — how the encrypted disk opens with the TPM chip (runs as root;
+# `tamagi setup tpm-unlock` calls it).
+#
+#   tpm-unlock pin      TPM + PIN, bound to no PCR: a short PIN at boot; the
+#                       chip's lockout stops guessing. Firmware, shim or MOK
+#                       updates never lock the disk.
+#   tpm-unlock auto     no PIN. Bound to PCR 7 only while Secure Boot is on
+#                       (with it off, PCR 7 says nothing and only breaks).
+#                       Protects a disk taken out of the computer, not a
+#                       stolen computer.
+#   tpm-unlock off      only the disk password.
+#   tpm-unlock reseal   the TPM stopped opening the disk (asks for the
+#                       password once): seals again to the current state.
+#   tpm-unlock status   what each encrypted disk uses.
+#
+# The disk password always stays as the fallback. Keys with a signed policy
+# or pcrlock are left alone. Idea of the suspend/reseal flow: Bluefin Dakota
+# (files/secure-boot/dakota-secure-boot, MIT).
+set -euo pipefail
+export LC_ALL=C
+
+die() { echo "tpm-unlock: $*" >&2; exit 1; }
+
+# Only the disk the system boots from (rd.luks.uuid= on the kernel command
+# line): an encrypted USB drive or a second disk plugged in is never bound to
+# this computer's TPM, nor has its TPM key wiped.
+volumes() {
+    if [[ -n ${TAMAGI_TPM_DEVICE:-} ]]; then echo "$TAMAGI_TPM_DEVICE"; return; fi
+    local uuid dev
+    for uuid in $(grep -o 'rd\.luks\.uuid=[^ ]*' /proc/cmdline | cut -d= -f2-); do
+        uuid=${uuid#luks-}
+        dev=/dev/disk/by-uuid/$uuid
+        [[ -b $dev ]] && readlink -f "$dev"
+    done
+}
+
+# Secure Boot state from the firmware variable itself (the 5th byte is 1 when
+# on): no dependency on mokutil's wording. A firmware without the variable has
+# no Secure Boot (0); 2 = the variables cannot be read.
+sb_state() {
+    local vars=/sys/firmware/efi/efivars
+    local var=$vars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
+    if [[ -e $var ]]; then
+        od -An -t u1 -j4 -N1 "$var" 2>/dev/null | tr -d ' ' || echo 2
+    elif [[ -n $(ls -A "$vars" 2>/dev/null) ]]; then
+        echo 0
+    else
+        echo 2
+    fi
+}
+sb_enabled() { [[ $(sb_state) == 1 ]]; }
+
+# The TPM2 tokens of a volume, one per line: "<pcrs> <pin true|false>".
+tokens() {
+    cryptsetup luksDump --dump-json-metadata "$1" 2>/dev/null | jq -r '
+        .tokens[] | select(.type == "systemd-tpm2")
+        | "\((.["tpm2-pcrs"] // []) | map(tostring) | join("+") | if . == "" then "-" else . end) \(.["tpm2-pin"] // false)"'
+}
+
+mode_of() {
+    local t; t=$(tokens "$1" | head -1)
+    case $t in
+        "") echo off ;;
+        *" true") echo pin ;;
+        *) echo "auto (PCR ${t%% *})" ;;
+    esac
+}
+
+# enroll <device> <pin|auto>: replaces the TPM2 key. Unlocks with the current
+# TPM key when it still opens; otherwise systemd-cryptenroll asks for the
+# disk password.
+enroll() {
+    local dev=$1 mode=$2 pcrs='' unlock=()
+    [[ $mode == auto ]] && sb_enabled && pcrs=7
+    # A TPM key without PIN can open the disk for the change; one with a PIN
+    # would ask for it, so then the disk password is asked instead.
+    [[ $(mode_of "$dev") == auto* ]] && unlock=(--unlock-tpm2-device=auto)
+    local args=(--tpm2-device=auto --tpm2-pcrs="$pcrs" --tpm2-pcrlock= --wipe-slot=tpm2)
+    [[ $mode == pin ]] && args+=(--tpm2-with-pin=yes)
+    if (( ${#unlock[@]} )) && systemd-cryptenroll "${unlock[@]}" "${args[@]}" "$dev"; then
+        :
+    else
+        [[ -t 0 || -n ${PASSWORD:-} ]] || die "the TPM does not open $dev; run this in a terminal"
+        systemd-cryptenroll "${args[@]}" "$dev"
+    fi
+}
+
+cmd=${1:-status}
+case $cmd in
+    pin|auto|on)
+        [[ $cmd == on ]] && cmd=auto
+        [[ -e /sys/class/tpm/tpm0 ]] || die "this computer has no TPM 2.0 chip"
+        found=0
+        while read -r dev <&3; do
+            [[ -n $dev ]] || continue
+            found=1
+            enroll "$dev" "$cmd"
+            echo "$dev: $(mode_of "$dev")"
+        done 3< <(volumes)
+        (( found )) || die "no encrypted disk"
+        /usr/libexec/tamagi/kargs --delete-if-present=rd.luks.options=discard \
+            --append-if-missing=rd.luks.options=discard,tpm2-device=auto 2>/dev/null || true
+        rm -f /etc/tamagi/tpm-seal ;;
+    off)
+        while read -r dev <&3; do
+            [[ -n $dev && -n $(tokens "$dev") ]] || continue
+            systemd-cryptenroll --wipe-slot=tpm2 "$dev"
+            echo "$dev: off"
+        done 3< <(volumes)
+        /usr/libexec/tamagi/kargs --delete-if-present=rd.luks.options=discard,tpm2-device=auto \
+            --append-if-missing=rd.luks.options=discard 2>/dev/null || true
+        rm -f /etc/tamagi/tpm-seal ;;
+    reseal)
+        while read -r dev <&3; do
+            [[ -n $dev ]] || continue
+            case $(mode_of "$dev") in
+                pin) echo "$dev: TPM + PIN is bound to no PCR; nothing to reseal" ;;
+                auto*) enroll "$dev" auto; echo "$dev: $(mode_of "$dev")" ;;
+                off) ;;
+            esac
+        done 3< <(volumes) ;;
+    status)
+        while read -r dev; do
+            [[ -n $dev ]] && echo "$dev: $(mode_of "$dev")"
+        done < <(volumes) ;;
+    *) echo "usage: tpm-unlock pin|auto|off|reseal|status" >&2; exit 2 ;;
+esac

@@ -51,6 +51,13 @@ Fedora's and Universal Blue's packages keep their licenses (see
 - cosmic-ext-classic-menu — GPL-3.0
 - libcosmic (linked into tamagi-welcome) — MPL-2.0
 - starship — ISC
+- Roboto Flex (googlefonts/roboto-flex, pinned commit) — OFL-1.1
+
+Ideas adapted from other projects
+---------------------------------
+- Project Bluefin's Dakota (MIT): the TPM reseal flow of tpm-unlock and
+  plymouth.use-simpledrm=1 (files/secure-boot/dakota-secure-boot,
+  elements/bluefin-nvidia/nvidia-kargs.bst), and the model of AGENTS.md.
 
 Tamagi's code
 -------------

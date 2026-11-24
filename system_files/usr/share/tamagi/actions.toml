@@ -528,7 +528,7 @@ terminal = true
 confirm = false
 agent = false
 command = "tamagi-theme pick"
-keywords = "theme tema colors cores cosmic tokyo catppuccin gruvbox nord ipe latte"
+keywords = "theme tema colors cores cosmic ipe ipê claro light tokyo gruvbox nord"
 [action.title]
 pt = "Escolher tema do desktop"
 en = "Choose desktop theme"

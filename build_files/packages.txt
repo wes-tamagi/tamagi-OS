@@ -106,16 +106,11 @@ usbguard
 hardened_malloc
 
 # ── Redes e conectividade (o que a base ainda não traz) ──
-# VPNs no NetworkManager. (vpnc e fortisslvpn foram aposentados no Fedora 45;
-# Cisco/Fortinet: use openconnect.)
+# VPNs no NetworkManager: OpenVPN e OpenConnect (Cisco, Fortinet, Palo Alto…).
+# L2TP, PPTP, SSTP, strongSwan, Libreswan e SSH são opcionais
+# (`tamagi install vpn-extra`). vpnc e fortisslvpn saíram do Fedora 45.
 NetworkManager-openvpn-gnome
 NetworkManager-openconnect-gnome
-NetworkManager-l2tp-gnome
-NetworkManager-pptp-gnome
-NetworkManager-sstp-gnome
-NetworkManager-strongswan-gnome
-NetworkManager-libreswan-gnome
-NetworkManager-ssh-gnome
 NetworkManager-tui
 # Tailscale não vem na imagem: é opcional (`tamagi install tailscale`).
 # Celulares, pastas remotas e nuvem
@@ -158,11 +153,10 @@ swtpm-tools
 virtiofsd
 passt
 guestfs-tools
+# Só o que o `tamagi vm` usa: discos e rede do host ficam nas Configurações.
 cockpit
 cockpit-machines
 cockpit-podman
-cockpit-storaged
-cockpit-networkmanager
 
 # ── IA local ──
 vulkan-tools

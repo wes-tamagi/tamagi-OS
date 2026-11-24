@@ -156,6 +156,7 @@ out = run("systemctl is-active tamagi-boot-check.service; sudo cat /var/lib/tama
 check("verificação de saúde do boot passou e marcou a imagem como boa", out.split()[0] == "active" and len(out.split()) == 3 and out.split()[1] == out.split()[2], out)
 check("nenhum serviço falhou", run("systemctl --failed --no-legend --plain | awk '{print $1}' | tr '\\n' ' '") == "")
 check("parâmetro do kernel desta máquina passou para a imagem nova", run("grep -c 'tamagi.teste=1' /proc/cmdline").endswith("1"))
+check("menu de boot continua sem edição depois da atualização (editor no)", run("sudo grep -c '^editor no' /efi/loader/loader.conf").endswith("1"))
 check("/usr continua somente-leitura", "recusado" in run("sudo touch /usr/teste-escrita 2>/dev/null && echo gravou || echo recusado"))
 check("dados do usuário preservados (/var/home)", run(f"test -d /var/home/{user} && echo sim").endswith("sim"))
 print("   info  " + run("systemd-analyze | head -1"), flush=True)

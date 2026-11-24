@@ -7,7 +7,11 @@ O tema do COSMIC é o arquivo que "Aparência > Importar" (ou
 `cosmic-settings appearance import`) lê. A paleta-base, os espaçamentos e os
 cantos vêm de um tema que o próprio COSMIC distribui (o modelo); do tema do
 Tamagi entram o fundo (BG), o destaque (WALL[2]), o tom do texto (FG) e as
-cores de sucesso, aviso e erro (verde, amarelo e vermelho da PALETTE)."""
+cores de sucesso, aviso e erro (verde, amarelo e vermelho da PALETTE).
+
+Os cantos seguem a escala do Material 3 Expressive (docs/estilo-m3.md):
+4 px (extra pequeno), 8 px (pequeno), 12 px (médio), 28 px (extra grande,
+diálogos) e pílula nos botões (o radius_xl do COSMIC)."""
 import pathlib
 import re
 import sys
@@ -38,6 +42,20 @@ def replace(text, key, value):
     return pattern.sub(f"    {key}: {value},", text)
 
 
+# radius_0, xs, s, m, l, xl do COSMIC <- None, ExtraSmall, Small, Medium,
+# ExtraLarge e Full do Material 3.
+M3_RADII = {"radius_0": 0, "radius_xs": 4, "radius_s": 8, "radius_m": 12, "radius_l": 28, "radius_xl": 160}
+
+
+def corner_radii(text):
+    for key, value in M3_RADII.items():
+        pattern = re.compile(rf"^        {key}: \([^)]*\),$", re.M)
+        assert len(pattern.findall(text)) == 1, f"o modelo mudou de formato: {key}"
+        v = f"{value:.1f}"
+        text = pattern.sub(f"        {key}: ({v}, {v}, {v}, {v}),", text)
+    return text
+
+
 def main():
     themes, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
     templates = dict(TEMPLATES)
@@ -55,6 +73,7 @@ def main():
         text = replace(text, "success", rgb(t["palette"][2]))
         text = replace(text, "warning", rgb(t["palette"][3]))
         text = replace(text, "destructive", rgb(t["palette"][1]))
+        text = corner_radii(text)
         (out / f"tamagi-{path.stem}.ron").write_text(text, encoding="utf-8")
         count += 1
     print(f"temas do COSMIC gerados: {count} em {out}")

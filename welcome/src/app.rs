@@ -16,7 +16,7 @@ use crate::ui::{badge, legend, note, panel, radio_mark, small, text, LOCK_ICON, 
 use cosmic::app::{Core, Settings, Task};
 use cosmic::iced::futures::channel::mpsc;
 use cosmic::iced::futures::StreamExt;
-use cosmic::iced::{keyboard, Alignment, Color, Length, Size, Subscription};
+use cosmic::iced::{keyboard, Alignment, Length, Size, Subscription};
 use cosmic::{executor, theme, widget, Application, ApplicationExt, Element};
 use std::collections::BTreeSet;
 
@@ -238,17 +238,16 @@ const TEXT_HEADING: f32 = 17.0;
 
 /// Text a little dimmer than the body, for what is secondary.
 fn dim(theme: &cosmic::Theme) -> cosmic::iced::widget::text::Style {
-    let on: Color = theme.cosmic().on_bg_color().into();
-    cosmic::iced::widget::text::Style { color: Some(Color { a: 0.7, ..on }), ..Default::default() }
+    cosmic::iced::widget::text::Style { color: Some(crate::m3::on_surface_variant(theme)), ..Default::default() }
 }
 
 fn dim_class() -> theme::Text {
     theme::Text::Custom(dim)
 }
 
-/// The heading of a page.
+/// The heading of a page, in Material 3 headline type (as in the installer).
 fn heading<'a>(title: String, subtitle: String) -> Element<'a, Message> {
-    let mut column = widget::column::with_capacity(2).spacing(theme::spacing().space_xxs).push(widget::text::title3(title));
+    let mut column = widget::column::with_capacity(2).spacing(theme::spacing().space_xxs).push(widget::text::title1(title).size(crate::m3::HEADLINE));
     if !subtitle.is_empty() {
         column = column.push(note(subtitle).class(dim_class()));
     }
@@ -399,32 +398,12 @@ impl Welcome {
 
     // ── Pieces around the page ─────────────────────────────────────────────
 
-    /// Where we are: "Welcome › Profile › Browser › Review › Installing › Done".
+    /// Where we are: "Step 2/6 · Apps" over the progress track (the
+    /// Material 3 step header of the installer).
     fn view_steps(&self) -> Element<'_, Message> {
-        let spacing = theme::spacing();
         let pages = self.pages();
         let current = pages.iter().position(|p| *p == self.page).unwrap_or(0);
-        let mut row = widget::row::with_capacity(pages.len() * 2 + 2).spacing(spacing.space_xxs).align_y(Alignment::Center);
-        for (index, page) in pages.iter().enumerate() {
-            if index > 0 {
-                row = row.push(small("›").class(dim_class()));
-            }
-            let label = tr(page.label());
-            row = row.push(if index == current {
-                widget::text::heading(label).size(SMALL).class(theme::Text::Accent)
-            } else if index < current {
-                small(label)
-            } else {
-                small(label).class(dim_class())
-            });
-        }
-        row = row.push(widget::space::horizontal());
-        row = row.push(small(format!("{} {}/{}", tr("Step"), current + 1, pages.len())).class(dim_class()));
-        widget::column::with_capacity(2)
-            .spacing(spacing.space_xxs)
-            .push(row)
-            .push(widget::progress_bar::linear::Linear::new().girth(5.0).progress((current + 1) as f32 / pages.len() as f32).width(Length::Fill))
-            .into()
+        crate::m3::step_header(current + 1, pages.len(), tr("Step"), tr(self.page.label()))
     }
 
     /// Back on the left, the way forward on the right.
@@ -477,13 +456,11 @@ impl Welcome {
         let column = widget::column::with_capacity(6)
             .spacing(spacing.space_m)
             .push(widget::space::vertical().height(Length::Fixed(f32::from(spacing.space_xxs))))
-            .push(widget::text::title1(tr("Welcome to Tamagi")))
-            .push(
-                widget::column::with_capacity(2)
-                    .spacing(spacing.space_xxs)
-                    .push(text(tr("Atomic, lean system: the host is read-only and updates itself.")))
-                    .push(text(tr("Almost nothing comes installed: you choose what you want, now or later."))),
-            )
+            .push(crate::m3::hero(
+                "tamagi-menu",
+                tr("Welcome to Tamagi"),
+                format!("{} {}", tr("Atomic, lean system: the host is read-only and updates itself."), tr("Almost nothing comes installed: you choose what you want, now or later.")),
+            ))
             .push(panel(methods).padding(spacing.space_m))
             .push(note(tr("Tick the basics and pick a browser, then review. Nothing is installed before you confirm.")).class(dim_class()));
         scrolling(column)
@@ -581,7 +558,7 @@ impl Welcome {
     fn view_disk(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
         let question = widget::settings::section().add(
-            widget::settings::item::builder(tr("Unlock the disk with the TPM chip at boot, without typing the password?"))
+            widget::settings::item::builder(tr("Unlock the disk with the TPM chip and a short PIN at boot, instead of the long password?"))
                 .icon(widget::icon::from_name(LOCK_ICON).size(24).icon())
                 .toggler(self.tpm, Message::Tpm),
         );
@@ -637,7 +614,7 @@ impl Welcome {
                     widget::row::with_capacity(2)
                         .spacing(spacing.space_xs)
                         .align_y(Alignment::Center)
-                        .push(text(tr("Unlock the disk with the TPM chip at boot")).width(Length::Fill))
+                        .push(text(tr("Unlock the disk with the TPM chip and a PIN")).width(Length::Fill))
                         .push(widget::icon::from_name(LOCK_ICON).size(16).icon()),
                 ),
             );

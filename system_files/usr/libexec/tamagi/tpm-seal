@@ -1,18 +1,47 @@
 #!/usr/bin/bash
-# Amarra a chave do disco ao estado do Secure Boot (PCR 7).
+# tpm-seal — first boot of an install in the "auto" TPM mode (no PIN).
 #
-# O instalador guarda a chave no chip TPM sem amarrar a nenhuma medição: as
-# medições feitas no boot pela mídia de instalação não são as mesmas do boot
-# pelo disco, e uma chave amarrada a elas não abriria no primeiro boot. Aqui,
-# já no sistema instalado, a chave é registrada de novo, agora presa ao PCR 7,
-# e o registro provisório é apagado. Se falhar, o registro provisório continua
-# valendo (o disco abre sozinho) e a tentativa se repete no próximo boot.
+# The installer registers the TPM key bound to no measurement (PCR): the
+# boot from the installation media measures differently from the boot from
+# the disk. Here, already on the installed system:
+#   - Secure Boot on: the key is sealed again to PCR 7 (Secure Boot state and
+#     the keys that verified the boot), and the unbound key is removed;
+#   - Secure Boot off: PCR 7 would protect nothing and would only lock the
+#     disk after a firmware, shim or MOK change (the error seen on Aeon), so
+#     the key stays unbound.
+# TPM + PIN installs never get here: that key is bound to no PCR on purpose.
+# If sealing fails, the unbound key keeps working and this runs again on the
+# next boot.
 set -euo pipefail
+export LC_ALL=C
 FLAG=/etc/tamagi/tpm-seal
 uuid=$(<"$FLAG")
 dev=/dev/disk/by-uuid/$uuid
-[[ -b $dev ]] || { echo "disco $uuid não encontrado" >&2; exit 1; }
+[[ -b $dev ]] || { echo "disk $uuid not found" >&2; exit 1; }
+# Secure Boot state from the firmware variable (5th byte: 1 on, 0 off). A
+# firmware without the variable has no Secure Boot: off. When the variables
+# cannot be read at all, nothing is decided: the flag stays and this runs again
+# on the next boot (the unbound key keeps opening the disk meanwhile).
+vars=/sys/firmware/efi/efivars
+var=$vars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
+if [[ -e $var ]]; then
+    sb=$(od -An -t u1 -j4 -N1 "$var" 2>/dev/null | tr -d ' ' || true)
+elif [[ -n $(ls -A "$vars" 2>/dev/null) ]]; then
+    sb=0
+else
+    sb=unknown
+fi
+case $sb in
+    0)
+        rm -f "$FLAG"
+        echo "Secure Boot off: the TPM key stays bound to no PCR"
+        exit 0 ;;
+    1) ;;
+    *)
+        echo "could not read the Secure Boot state; trying again on the next boot" >&2
+        exit 1 ;;
+esac
 systemd-cryptenroll --unlock-tpm2-device=auto --wipe-slot=tpm2 \
-    --tpm2-device=auto --tpm2-pcrs=7 "$dev"
+    --tpm2-device=auto --tpm2-pcrs=7 --tpm2-pcrlock= "$dev"
 rm -f "$FLAG"
-echo "chave do disco amarrada ao PCR 7"
+echo "disk key sealed to PCR 7 (Secure Boot on)"

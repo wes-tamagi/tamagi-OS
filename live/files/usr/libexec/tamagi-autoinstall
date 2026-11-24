@@ -7,7 +7,10 @@
 #   tamagi.autoinstall.user=<name>              default: tamagi
 #   tamagi.autoinstall.password=<password>      default: tamagi
 #   tamagi.autoinstall.luks=<disk password>     encrypt the disk (LUKS2)
-#   tamagi.autoinstall.tpm=1                    and keep its key in the TPM
+#   tamagi.autoinstall.tpm=1                    and keep its key in the TPM (no PIN)
+#   tamagi.autoinstall.tpm=pin tamagi.autoinstall.tpmpin=<pin>
+#                                               TPM + PIN (tests only: the PIN is
+#                                               visible on the kernel command line)
 #   tamagi.autoinstall.preserve_home=1          keep /var/home of the system on the disk
 #   tamagi.autoinstall.kargs=arg1,arg2          extra kernel arguments
 #   tamagi.autoinstall.imgref=<image>           where updates come from (tests)
@@ -77,7 +80,13 @@ rm -f "$KEY"
       echo "PASSWORD_HASH=$hash"
       if [[ -s $KEY ]]; then
           echo "LUKS_KEYFILE=$KEY"
-          [[ $(karg tamagi.autoinstall.tpm) == 1 ]] && echo "LUKS_TPM=1"
+          case $(karg tamagi.autoinstall.tpm) in
+              1|auto) echo "LUKS_TPM=auto" ;;
+              pin)
+                  ( umask 077; printf '%s' "$(karg tamagi.autoinstall.tpmpin)" > "$KEY.pin" )
+                  echo "LUKS_TPM=pin"
+                  echo "LUKS_TPM_PINFILE=$KEY.pin" ;;
+          esac
       fi
       kargs=$(karg tamagi.autoinstall.kargs | tr ',' ' ')
       [[ -n $kargs ]] && echo "EXTRA_KARGS=$kargs"

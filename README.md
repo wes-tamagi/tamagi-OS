@@ -21,7 +21,7 @@ The whole OS is an OCI container: `podman build` builds the image, updates
 switch atomically, and the previous deployment stays on disk for rollback.
 
 > **Clean install required (Tamagi installed before 2026-11-23).** Tamagi now
-> boots with systemd-boot on bootc's composefs backend: an 8 GiB EFI partition
+> boots with systemd-boot on bootc's composefs backend: a 2–4 GiB EFI partition
 > at `/efi`, one Btrfs with subvolumes, no `/boot` partition and no GRUB. bootc
 > cannot convert an existing GRUB installation in place. A machine installed
 > from an older ISO keeps booting and keeps receiving updates, but it stays on
@@ -193,7 +193,9 @@ configured, summarizes it in the user's language.
 Tamagi has its own installer: a native COSMIC window (`tamagi-welcome
 --install`, the same libcosmic program as the first-login choices) in front of
 a shell back end that calls `bootc install`. The flow follows openSUSE Aeon's
-installer — language, keyboard, time zone, account, encryption, disk, review —
+installer in eight steps — welcome with the language, keyboard and time zone,
+account, disk, encryption (with how the disk unlocks: TPM + PIN, automatic or
+password), review —
 and nothing is written before the review is confirmed. Until 1.1 Tamagi used
 [tik](https://github.com/sysrich/tik), Aeon's installer, with a module of its
 own. The ISO builds rootless:
@@ -222,10 +224,22 @@ The UEFI-only ISO boots a live COSMIC session and launches the installer.
   `NoBlockIOProtocol` flag so firmware ignores it during copying or a power
   loss; the flag is cleared in one final partition-table write after full
   verification. Failed installs clean up the partitions they created.
-- **TPM 2.0 disk encryption:** with a TPM 2.0 chip the installer offers
-  `systemd-cryptenroll`. On first boot `tamagi-tpm-seal.service` seals the key
-  to PCR 7 (Secure Boot state). The recovery passphrase keeps working if
-  hardware or firmware changes. Tested with `just test-iso --tpm`.
+- **TPM 2.0 disk encryption:** with a TPM 2.0 chip the installer asks how
+  the disk opens at startup:
+  - **TPM + PIN (recommended, default):** a short PIN, bound to no PCR. The
+    chip's lockout stops guessing, so it is safe against a stolen computer,
+    and firmware, shim or MOK updates never lock the disk.
+  - **TPM, automatic:** no PIN. Sealed to PCR 7 on first boot only while
+    Secure Boot is on (with it off, PCR 7 protects nothing and would only lock
+    the disk after updates). It protects a disk taken out of the computer, not
+    a stolen computer.
+  - **Disk password only.**
+
+  The disk password always stays as the recovery key. Change it later with
+  `tamagi setup tpm-unlock pin|auto|off`; `reseal` seals the automatic mode
+  again after a Secure Boot or MOK change. The boot menu's kernel-line editor
+  is off (`editor no`), and Plymouth draws on simpledrm so the password or PIN
+  prompt shows at once. Tested with `just test-iso --tpm`.
 
 <details>
 <summary>Internal installer flow</summary>
@@ -239,9 +253,13 @@ The UEFI-only ISO boots a live COSMIC session and launches the installer.
    encrypted partition, once its password is typed) and can be kept.
 2. `/usr/libexec/tamagi-install` partitions the disk and runs
    `bootc install to-filesystem --source-imgref oci:...`. The layout follows
-   openSUSE Aeon: an 8 GiB ESP mounted at `/efi` (UEFI only), booted by
-   systemd-boot, and one zstd-compressed Btrfs (optional LUKS2 + TPM) with the
-   subvolumes `root` (the system) and `home` (`/var/home`). There is no
+   openSUSE Aeon: an ESP mounted at `/efi` (4 GiB on disks of 80 GiB or more,
+   2 GiB on smaller ones; UEFI only), booted by systemd-boot, and one
+   zstd-compressed Btrfs (optional LUKS2 + TPM) with the subvolumes `root`
+   (the system), `home` (`/var/home`) and `var-containers`, `var-cache`,
+   `var-log`, `var-libvirt` (VM disks, no copy-on-write). Reinstalling while
+   keeping the files also keeps the VMs: their disks, definitions, UEFI NVRAM
+   and virtual TPM. There is no
    `/boot` partition and no GRUB: kernels and initramfs live on the ESP
    (about 265 MiB per image). systemd-boot needs bootc's composefs backend
    (`--composefs-backend --bootloader systemd`), where `rpm-ostree` does not
@@ -432,15 +450,16 @@ databases and tasks (`tamagi workspace init | status | up | enter | run <task>`)
 
 ### Virtual machines
 
-`tamagi vm install` installs Fedora's native virt-manager in a reversible
-layer: QEMU/KVM, UEFI + Secure Boot (edk2-ovmf), virtual TPM (swtpm), virgl 3D,
+Virtualization is built into the image and starts on demand by socket
+(`tamagi vm` opens Cockpit Machines; `tamagi vm install` only checks and
+enables the sockets): QEMU/KVM, UEFI + Secure Boot (edk2-ovmf), virtual TPM (swtpm), virgl 3D,
 SPICE (clipboard, audio, USB passthrough), virtiofs, NAT and rootless
 networking (passt), libvirt-nss, virt-viewer, virt-install, virsh, virt-top and
 guestfs-tools. Libvirt daemons are socket-activated.
 
 ```bash
-tamagi vm                              # launch virt-manager (installs on first run)
-tamagi vm install | status | remove    # removing drops the layer; VMs and disks stay
+tamagi vm                              # open Cockpit Machines (built in)
+tamagi vm install | status             # check and turn on the virtualization sockets
 tamagi vm access full                  # let VMs use USB drives and external disks
 ```
 
@@ -550,7 +569,7 @@ tamagi agents install claude antigravity codex clio qwen opencode gemini opencla
 | `tamagi rewind` | one timeline of OS deployments, dated registry images (`tamagi:45.YYYYMMDD`) and home snapshots; restore a file, reapply a past `tamagi.toml`, or roll the OS back. The current deployment stays in the boot menu; `tamagi rewind follow` resumes updates |
 | `tamagi snap` | history of `$HOME`: hourly Btrfs snapshots (24 hourly, 7 daily, 4 weekly), excluding `~/.cache` and container storage |
 | `tamagi perf` | CPU/EPP profiles (`eco`, `balanced`, `performance`, `latency`) coordinated with `scx_rusty`; `tamagi perf status`, `tamagi perf bench` |
-| `tamagi setup` | machine chores: `secure-boot-key`, `tpm-unlock on|off`, `firmware`, `bios`, `clean`, `lazyvim`, `switch-image <ref>` |
+| `tamagi setup` | machine chores: `secure-boot-key`, `tpm-unlock pin|auto|off|reseal`, `firmware`, `bios`, `clean`, `lazyvim`, `switch-image <ref>` |
 | `tamagi isolate <file>` | runs an untrusted script, AppImage or binary in a disposable jail: no network, empty `$HOME`, read-only OS, no D-Bus; display, audio and GPU kept. `--keep` keeps the jail, `--net` allows networking. Also in COSMIC Files → Open With → "Run Isolated" |
 | `tamagi guest on` | passwordless "Guest" account whose home lives in RAM and resets on logout; no sudo, polkit blocks disks, VMs and package installs. Off by default |
 | `tamagi privacy` | one-touch privacy mode (`Super+Ctrl+P`): camera drivers unbound, microphones muted, Bluetooth blocked, mDNS off, firewall zone `drop`, random Wi-Fi MAC, optional Tailscale exit node, Do Not Disturb |
@@ -588,7 +607,7 @@ tamagi harden strict               # no SMT on vulnerable CPUs, kernel lockdown,
 tamagi harden balanced             # back to the default
 tamagi harden usb on               # USBGuard allowlist of the devices attached now
 tamagi harden malloc on            # hardened_malloc globally
-tamagi setup tpm-unlock on         # unlock the encrypted disk with the TPM
+tamagi setup tpm-unlock pin        # unlock the encrypted disk with the TPM + a PIN
 ```
 
 **Your own commands.** `tamagi recipe` runs recipes written in a Markdown
@@ -641,13 +660,14 @@ and always ask for confirmation.
   theme-synced); foot runs Tamagi's own windows; cosmic-term stays installed.
 - **Start menu:** `cosmic-ext-classic-menu` 1.1.0, compiled in the image, on
   `Super+Space`. Command palette on `Super+A`; COSMIC launcher on `Super+Alt+Space`.
-- **Themes:** choose themes and wallpapers in COSMIC Settings. Tamagi's 11
-  themes are in `/usr/share/cosmic-themes`; a user unit
+- **Themes:** choose themes and wallpapers in COSMIC Settings. Tamagi's 5
+  themes (Ipê, the default, with Ipê Claro for light mode; Tokyo Night, Nord
+  and Gruvbox) are in `/usr/share/cosmic-themes`, with Material 3 corners; a user unit
   (`tamagi-theme-sync.path`) keeps foot, Ptyxis, btop, Neovim and Tamagi's
   windows in step with any COSMIC theme.
 - **Wallpapers:** in Settings › Wallpaper.
   - *Generated at build time*, 8 Edo-period motifs (mon, seigaiha, asanoha,
-    byobu, shippo, hinode, uroko, ondas) for each of the 11 themes, in
+    byobu, shippo, hinode, uroko, ondas) for each of the 5 themes, in
     `/usr/share/backgrounds/tamagi/`.
   - *Illustrated*, ten pictures in `/usr/share/backgrounds/tamagi/art/`
     (source in `system_files/usr/share/backgrounds/tamagi/art/`, produced by
@@ -655,7 +675,8 @@ and always ask for confirmation.
 - **Crest and boot splash:** the Tamagi crest is a *tamaki* (環) ring with
   three *tama* (玉) jewels; the Plymouth splash is drawn by
   `build_files/make-plymouth.py`.
-- **Fonts and locales:** Noto Sans (UI), Roboto Slab (serif), JetBrains Mono
+- **Fonts and locales:** Roboto Flex (UI, Material 3; pinned upstream release,
+  OFL-1.1) with Noto Sans as fallback for other scripts, Roboto Slab (serif), JetBrains Mono
   (terminal). Locales: en-US, pt-BR, es, fr (`tamagi lang pick`).
 - **Minimal apps:** only Flatseal, Warehouse, Loupe, Papers and three COSMIC
   applets are installed automatically.
@@ -783,8 +804,10 @@ daily work do not conflict.
   ([pop-os/cosmic-comp#1384](https://github.com/pop-os/cosmic-comp/issues/1384));
   use the Tamagi Gaming session for HDR.
 - **Login screen:** uses COSMIC's default wallpaper.
-- **TPM unlock:** bound to PCR 7; toggling Secure Boot or updating its keys
-  falls back to the passphrase (expected).
+- **TPM unlock, automatic mode:** with Secure Boot on it is sealed to PCR 7;
+  toggling Secure Boot or enrolling a MOK asks for the password once, then
+  `tamagi setup tpm-unlock reseal`. The PIN mode is bound to no PCR and is
+  not affected.
 - **FIDO2 in boxed browsers:** works when the key is plugged in before the
   browser starts; hot-plugging fails inside distrobox's user namespace.
 - **Layers:** package scriptlets do not run (see [Layers](#layers-fedora-packages-on-top-of-the-image)).

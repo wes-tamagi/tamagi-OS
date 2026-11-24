@@ -1,9 +1,10 @@
 //! Small pieces shared by the pages: the type sizes, the install-method
-//! badge, the legend. Colours come from the COSMIC theme only.
+//! badge, the legend. Colours come from the COSMIC theme only; the shapes
+//! are the Material 3 ones of `m3` (the same as the installer).
 
 use crate::i18n::tr;
 use crate::method::Method;
-use cosmic::iced::{Alignment, Background, Border, Color, Length};
+use cosmic::iced::{Alignment, Background, Border, Color};
 use cosmic::{theme, widget, Element};
 
 /// Type sizes. COSMIC's "caption" is 10 px and its "body" 14 px: too small
@@ -88,53 +89,15 @@ pub fn legend<'a, M: Clone + 'static>() -> Element<'a, M> {
     widget::flex_row(items).row_spacing(spacing.space_xxs).column_spacing(spacing.space_s).into()
 }
 
-/// The mark of a single-choice row: a ring, filled with the accent colour
-/// when chosen. Only a picture: the row around it is the control, so a click
+/// The mark of a single-choice row: the Material 3 radio button of
+/// `m3::radio`. Only a picture: the row around it is the control, so a click
 /// anywhere on the row and Tab + Enter behave the same.
 pub fn radio_mark<'a, M: 'a>(selected: bool) -> Element<'a, M> {
-    const SIZE: f32 = 20.0;
-    const DOT: f32 = 8.0;
-    let dot: Element<'a, M> = if selected {
-        widget::container(widget::space::horizontal().width(Length::Fixed(DOT)))
-            .width(Length::Fixed(DOT))
-            .height(Length::Fixed(DOT))
-            .class(theme::Container::custom(|theme| widget::container::Style {
-                background: Some(Background::Color(theme.cosmic().on_accent_color().into())),
-                border: Border { radius: (DOT / 2.0).into(), ..Default::default() },
-                ..Default::default()
-            }))
-            .into()
-    } else {
-        widget::space::horizontal().width(Length::Fixed(DOT)).into()
-    };
-    widget::container(dot)
-        .width(Length::Fixed(SIZE))
-        .height(Length::Fixed(SIZE))
-        .align_x(Alignment::Center)
-        .align_y(Alignment::Center)
-        .class(theme::Container::custom(move |theme| {
-            let c = theme.cosmic();
-            let accent: Color = c.accent_color().into();
-            let on: Color = c.on_bg_color().into();
-            widget::container::Style {
-                background: selected.then_some(Background::Color(accent)),
-                border: Border { radius: (SIZE / 2.0).into(), width: if selected { 0.0 } else { 1.0 }, color: with_alpha(on, 0.8) },
-                ..Default::default()
-            }
-        }))
-        .into()
+    crate::m3::radio(selected)
 }
 
-/// A panel for secondary content (the log, a note).
+/// A panel for secondary content (the log, a note): the Material 3 card of
+/// `m3::card` (surfaceContainerLow, 16 px corners).
 pub fn panel<'a, M: 'a>(content: impl Into<Element<'a, M>>) -> widget::Container<'a, M, cosmic::Theme> {
-    widget::container(content).padding(theme::spacing().space_s).width(Length::Fill).class(theme::Container::custom(|theme| {
-        let c = theme.cosmic();
-        widget::container::Style {
-            text_color: Some(c.background(false).component.on.into()),
-            icon_color: Some(c.background(false).component.on.into()),
-            background: Some(Background::Color(c.background(false).component.base.into())),
-            border: Border { radius: c.corner_radii.radius_s.into(), width: 1.0, color: c.bg_divider().into() },
-            ..Default::default()
-        }
-    }))
+    crate::m3::card(content).padding(theme::spacing().space_s)
 }
