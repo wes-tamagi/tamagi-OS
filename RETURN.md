@@ -1,62 +1,86 @@
 # RETURN.md — Estado do Projeto Tamagi OS
 
-Última atualização: 2026-11-24 (ISO da v1.4 fechada, branch `feat/v1.4-immutable-launch`).
+Última atualização: 2026-11-25 (v1.5 fechada na branch `feat/v1.5-dxai-skl`, commit `1e3b8db`).
 
-ISO local: `output/imagens_iso/tamagi.iso` (5,6 GiB; 5.965.824.000 bytes)
-SHA-256: `764f4f53ba68ffd89b75caa9d463921a6b5c2d061839c98338de8e588eb3ca5d`
-(também em `output/imagens_iso/tamagi.iso.sha256`). Imagem do sistema (`rechunk`): 7,39 GB.
+## Artefatos da v1.5 (ISO Multi-Edição `Tamagi-DxAI` + `Tamagi-SKL`)
 
-> **Instale com o Secure Boot desligado no firmware.** O instalador agora detecta
-> automaticamente na 1ª tela se o Secure Boot está ativo e bloqueia o avanço antes
-> de tocar no disco (permitindo apenas experimentar o modo Live), pois o sistema
-> instalado usa `systemd-boot` ainda sem assinatura.
+- **ISO local:** `output/imagens_iso/tamagi_nova.iso` (**7,1 GB** — duas edições completas deduplicadas em OCI)
+- **Cópia verificada no SSD externo:** `/run/media/wesdt/Extreme SSD/tamagi_nova.iso` (`sha256sum -c`: **OK**)
+- **SHA-256:** `3f72f002df2fad1de45a808d81a1dd26b44d55b268b8ac28dee914ab28feec27` (também em `output/imagens_iso/tamagi_nova.iso.sha256`)
+- **Imagens OCI (`rechunk`):**
+  - `localhost/tamagi:latest` (**Tamagi-DxAI**): **7,8 GB**
+  - `localhost/tamagi-skl:latest` (**Tamagi-SKL**): **6,7 GB**
 
-### Validação (cadeia completa, 0 falhas)
+> **Instale com o Secure Boot desligado no firmware.** O instalador detecta automaticamente
+> na 1ª tela se o Secure Boot está ativo e bloqueia o avanço antes de tocar no disco, pois
+> o sistema instalado usa `systemd-boot` sem assinatura (Secure Boot ponta a ponta está no
+> [ROADMAP-2.0.md](./ROADMAP-2.0.md)).
+
+### Validação executada (cadeia completa pós-correções, 0 falhas)
+
 | Passo | Resultado |
 |---|---|
-| `just lint` | ok (`865 textos + actions.toml, 0 problema(s)`) |
-| `just build` (+ `rechunk.sh` + testes unitários Rust) | ok (`localhost/tamagi:latest` 7,39 GB) |
-| `just test` | **422 ok, 0 falhas** |
-| `just test-desktop` | ok (`output/desktop.png`, todos os 6 daemons COSMIC ativos) |
-| `just test-installer-ui` | ok: **19 telas** no tema escuro e no claro (`output/installer-shots/`, incluindo alerta e bloqueio de Secure Boot) |
-| `just build-iso` | ok (`output/imagens_iso/tamagi.iso` + `.sha256`) |
-| `just test-iso` | ok: 0 execuções de `ldconfig`/`hwdb` na mídia live, `/etc/ld.so.cache` íntegro no host instalado, `tamagi-mcp` e `egress-guard` ativos |
-| `tests/iso.sh output/imagens_iso/tamagi.iso --tpm` | ok: Secure Boot desligado → chave do TPM sem PCR; 2º boot abre sozinho |
-| `tests/iso.sh output/imagens_iso/tamagi.iso --tpm-pin` | ok: o boot pede o **PIN** (não a senha); chave com PIN e sem PCR |
-| `just test-preserve-home` | ok: `/var/home` e snapshot `#1` preservados de layout anterior |
-| `just test-upgrade` | ok: atualização atômica + rollback automático em 85 s + quarentena |
+| `just lint` (ShellCheck + AST Python + i18n pt/es/fr) | ok (`864 textos + actions.toml, 0 problema(s)`) |
+| `just build` (`Tamagi-DxAI` + testes unitários Rust + `bootc container lint` + `rechunk`) | ok (`Checks passed: 14`, `localhost/tamagi:latest` 7,8 GB) |
+| `just test` (`tests/image.sh` em `Tamagi-DxAI`) | **428 ok, 0 falhas** |
+| `just build-skl` (`Tamagi-SKL` + `bootc container lint` + `rechunk`) | ok (`Checks passed: 14`, `localhost/tamagi-skl:latest` 6,7 GB) |
+| `just test-skl` (`tests/image.sh` em `Tamagi-SKL`) | **393 ok, 0 falhas** |
+| `tests/desktop.sh` (sessão COSMIC headless em Xvfb) | ok (6/6 processos COSMIC ativos) |
+| `just test-installer-ui` (`tamagi-welcome --install`) | ok: **19 telas** no tema escuro e no claro + respostas conferidas |
+| `just build-iso` (`output/imagens_iso/tamagi_nova.iso`) | ok (7,1 GB multi-edição: 4,1 GB OCI deduplicado + 2,9 GB squashfs) |
+| `just test-iso` (QEMU/KVM unattended `Tamagi-DxAI`) | ok: 0 falhas (instalação 1 min, 6,1 GiB em disco, boot 22s / 2º boot 11s, SELinux Enforcing, 0 units falhando) |
+| `just test-iso-skl` (QEMU/KVM unattended `Tamagi-SKL`) | ok: 0 falhas (instalação 1 min, 5,4 GiB em disco, boot 19s, conta `aluno` autologin sem sudo, painel travado `chattr +i`, homepage `https://escola.tamagi.test`, política 15d=360h, SSH + Cockpit ativos) |
+| Cópia + `sha256sum -c` em `/run/media/wesdt/Extreme SSD/` | ok (`tamagi_nova.iso: OK`) |
 
-> **Hardware real ainda pendente:** toda a cadeia acima foi validada em contêineres e VMs QEMU/KVM (`swtpm` + OVMF). Falta exercitar em máquina física real (pendrive USB real, TPM físico, Wi-Fi/GPU).
-
-### Teste em máquina real (para o Wes)
-1. Grave a ISO (`sudo bash live/write-usb.sh /dev/disk/by-id/usb-<seu-pendrive> --yes` — já aponta por padrão para `output/imagens_iso/tamagi.iso`) e confira o SHA-256 acima.
-2. No firmware: **Secure Boot desligado**, modo UEFI (se deixar ligado, a 1ª tela do instalador deve exibir o cartão de aviso Material 3 e impedir a formatação).
-3. Confirme que o boot do pendrive passa direto sem travar nem exibir job de `ldconfig.service`.
-4. Instale escolhendo **criptografia** e **Chip TPM + PIN** (PIN de 6+ caracteres).
-5. Reinicie 2–3 vezes e rode `systemd-analyze`, `systemctl --failed`, `tamagi doctor`, `tamagi mcp list` e `tamagi agents shadow list`.
+> **Período de testes em máquina real (soak test):** toda a validação acima rodou em
+> contêineres e VMs QEMU/KVM. A fase atual é **testar a v1.5 em hardware físico real**
+> durante uso diário e coletar achados para alimentar o ciclo da **v2.0 (Tachico B)** —
+> veja [ROADMAP-2.0.md](./ROADMAP-2.0.md).
 
 ---
 
-## O que mudou nesta versão (`feat/v1.4-immutable-launch`)
+## Checklist de Testes em Máquina Real (v1.5 Soak Test)
 
-### 1. Fim do travamento em `ldconfig.service` + Pipeline Live ISO dedicado
-- **Mídia Live sem reconstrução de cache no pendrive (`live/build-live.sh`):** `/etc/ld.so.cache`, `/etc/udev/hwdb.bin` e o catálogo do journal são pré-gerados no build da ISO; na sessão live ficam mascarados `ldconfig.service`, `systemd-hwdb-update.service`, `systemd-journal-catalog-update.service`, `appstream`, `mandb`, Plymouth pós-switch-root e ~30 unidades/sockets exclusivos de sistema instalado (Cockpit, libvirt, Snapper, `boot-check`, timers Btrfs).
-- **`squashfs` Live otimizado (`live/mkiso-inner.sh`):** `zstd` nível 15 para descompressão rápida em USB e exclusão de ROMs/binários de VM (`edk2`/`qemu`) apenas do `LiveOS/squashfs.img` (100% mantidos em `tamagi-oci/` para o sistema instalado).
-- **Correção no sistema instalado (`ldconfig.service.d/10-tamagi.conf` + `90-finalize.sh`):** limpa também `ConditionFileNotEmpty=` (que impedia `once-per-image` de rodar após o 1º boot), adiciona `ConditionPathExists=!/run/tamagi-live`, sobe o timeout para `180s` e já entrega `/etc/ld.so.cache` pré-gerado na imagem.
-- **Saída padronizada em `output/imagens_iso/`:** `Justfile`, `live/build-iso.sh` (gera `.sha256` automaticamente), `live/write-usb.sh` e `tests/iso.sh` usam `output/imagens_iso/tamagi.iso`.
+### A. Instalação e Boot (Pendrive Real)
+1. Grave a ISO:
+   ```bash
+   sudo bash live/write-usb.sh /dev/disk/by-id/usb-<seu-pendrive> --yes
+   ```
+   (ou grave a partir de `/run/media/wesdt/Extreme SSD/tamagi_nova.iso`).
+2. Confirme no menu GRUB do pendrive as duas opções: **Tamagi-DxAI** e **Tamagi-SKL**.
+3. Verifique boot rápido no modo Live sem travar em `ldconfig.service`, Wi-Fi/áudio/vídeo funcionando e aviso de Secure Boot caso esteja ligado.
+4. Instale com **LUKS2 + Chip TPM + PIN** (ou sem criptografia em máquina de teste) e meça o tempo de boot com `systemd-analyze`.
 
-### 2. Instalador mais seguro e inteligente (`welcome/` + `tamagi-install`)
-- **Guarda de Secure Boot na abertura:** tanto a interface gráfica (`Page::Welcome`) quanto o motor `/usr/libexec/tamagi-install` detectam `SecureBoot=1` via efivar UEFI, exibem alerta claro em Material 3 e bloqueiam a instalação antes de tocar no disco (coberto em `just test-installer-ui`).
-- **Reconexão automática de usuário:** ao detectar `/var/home` preservável num disco, o instalador já sugere automaticamente o usuário encontrado se o campo ainda estiver em branco.
+### B. Rotina `Tamagi-DxAI` (Uso Diário, IA, Armazenamento e Jogos)
+- [ ] **Sistema e saúde:** `systemctl --failed` vazio, `tamagi sys doctor` verde, `tamagi sys perf status` (testar perfil `ai` com `scx_rustland` e `latency` com `scx_rusty`).
+- [ ] **CLI 10 comandos + novidades:** testar `tamagi why /usr/bin/bash`, `tamagi why 9090`, `tamagi ai run --shadow claude` (ou outro agente) e `tamagi ai flights list`.
+- [ ] **First Login (`tamagi-welcome`):** multi-seleção dos apps Rust (`Papers`, `Cedilla`, `Chronos`, `Rnote`, `Key Rack`, `Snapshot`, `Warp`, `Impression`, `Kooha`, `Authenticator`, `Sniffnet`).
+- [ ] **Armazenamento e rede:** abrir `COSMIC Storage` (`cosmic-ext-storage`) + `rclone`, `btm` (`Super+Shift+T`), `tamagi shield tailscale on|off`, e WebApp **Lark Suite**.
+- [ ] **`tamagi install` expandido:** testar busca unificada (catálogo + Flathub), `tamagi install --native <pkg>`, e instalar opcionalmente `steam`, `rocm` ou driver de vídeo conforme a GPU da máquina.
+- [ ] **Hardware real:** suspensão/retorno (suspend/resume), múltiplos monitores, escala fracionária, Bluetooth, áudio PipeWire, aceleração de vídeo no Chromium e temperatura/fan.
 
-### 3. Cortes pragmáticos e unificação em Rust estático
-- **Fim do estágio Go (`go/` removido):** `tamagi-doctor` e `tamagi-install` foram reescritos como binários estáticos Rust dentro do workspace `rust/tamagi`, eliminando o compilador Go do `Containerfile` com paridade total de CLI, JSON e testes unitários.
-- **Remoção de comandos e pacotes periféricos do host:** saíram da base `tamagi-remind`, `tamagi-recipe`, `tamagi-guest`, `emoji`, `tesseract*` (agora opcional em `tamagi install ocr`), `android-tools` (`tamagi install android-tools`), `iperf3`/`nmap-ncat`/`wol` (`tamagi install net-tools`), `ifuse`/`gvfs-afc`/`gvfs-goa`, os kmods `xone`/`xpadneo`, o sabor Rawhide `ark`, o script legado `luks-enable-tpm2-autounlock` e aliases TOML antigos em português; `foot.desktop` fica oculto no menu (`NoDisplay=true`), deixando apenas **Ptyxis** e **COSMIC Terminal** visíveis.
+### C. Rotina `Tamagi-SKL` (Piloto Escolar / Laboratório)
+- [ ] No boot do pendrive, escolher **Tamagi-SKL**; no instalador, configurar conta `admin`, conta `aluno` e URL inicial personalizada da escola.
+- [ ] Confirmar após reiniciar: **login automático em `aluno` sem senha**, sem `sudo`, painel COSMIC minimalista **travado** (aluno não consegue mover/editar), sem `cosmic-store`.
+- [ ] Confirmar abertura automática do Chromium na página da escola + atalhos **Google Docs, Planilhas, Apresentações e Gemini** + reprodução de vídeo/áudio (YouTube/Meet/Classroom).
+- [ ] Testar política de privacidade: logar em um site, fechar o Chromium, reabrir → **login destruído e senha não salva**, mas **histórico mantido** (expiração configurada em 15 dias / 360h).
+- [ ] De outro computador na mesma rede, testar monitoramento remoto:
+  - `ssh <admin>@<ip>` → `sudo tamagi-skl status`, `sudo tamagi-skl history 15`, `sudo tamagi-skl homepage <url>`, `sudo tamagi-skl open <url>`, `sudo tamagi-skl reset-session`.
+  - Cockpit web em `https://<ip>:9090` com a conta `admin`.
 
-### 4. Recurso Extra: `tamagi mcp` sobre Podman Quadlets
-- Novo comando `tamagi mcp` (`list|installed|add|remove|sync|status`) + seção declarativa `[mcp]` no `tamagi.toml` (`tamagi export|diff|apply`) e integração com `podman auto-update` no `tamagi update`.
-- Servidores curados (`fetch`, `memory`, `git`, `postgres`, `playwright`, `filesystem`) geridos por unidades Quadlet `.image` em `~/.config/containers/systemd/` e executados sob demanda via `podman run --rm -i --cap-drop=ALL --security-opt=no-new-privileges`: **0 MB de RAM em repouso**, sem acesso à sua `$HOME`, e sincronizados automaticamente para **Claude Code**, **Antigravity / Gemini CLI**, **Codex** e **opencode**.
+---
 
-### 5. Inovação: Shadow Workspaces CoW + Egress Guard (`agent-jail` + `tamagi agents`)
-- **`tamagi agents run --shadow <agente>` e `tamagi agents shadow list|run|diff|apply|drop`:** clona instantaneamente o projeto (incluindo `target/`, `node_modules/` e `.venv/`) via Copy-on-Write (`cp -a --reflink=auto` no Btrfs, 0 bytes extras iniciais) e o `agent-jail` monta a sombra sobre o **mesmo caminho canônico** do projeto — permitindo rodar múltiplos agentes em paralelo com caches de compilação quentes sem tocar um único arquivo da árvore real até `tamagi agents shadow apply <id>`.
-- **Egress Guard (`/usr/libexec/tamagi/egress-guard` + `--egress-sock` no `agent-jail`):** isola a rede no kernel (`bwrap --unshare-net`) e faz ponte exclusivamente por socket Unix para um proxy com *allowlist* estrita (APIs de IA, registries de pacotes open-source e `llama.cpp` local em `127.0.0.1:9931`), bloqueando IPs crus e exfiltração de código.
+## Resumo do que entrou na v1.5 (`feat/v1.5-dxai-skl`)
+
+1. **Duas edições na mesma ISO (`Tamagi-DxAI` e `Tamagi-SKL`):** construídas pelo mesmo `Containerfile` (`ARG TAMAGI_EDITION=dxai|skl`) e deduplicadas no `tamagi-oci/` da ISO.
+2. **CLI `tamagi` reduzida para 10 comandos (sem aliases legados):** `ai`, `dev`, `install`, `update`, `rewind`, `layer`, `vm`, `shield`, `sys`, `why`.
+3. **2 recursos únicos na CLI:** `tamagi why` (inspetor estático de proveniência em Rust) e `tamagi ai flights` (caixa-preta de auditoria para agentes em Shadow CoW + Egress Guard).
+4. **Dieta + upgrades nativos no `Tamagi-DxAI`:** `cosmic-ext-storage` + `rclone` nativos no lugar de `gnome-disks`, `bottom` (`btm`) no lugar de `btop`, `tailscale` pré-instalado (desligado por padrão), base gaming Bazzite (`steam-devices`, `gamescope`, `mangohud`, `gamemode`, Mesa/Vulkan 64+32-bit), `scx_rustland` (perfil `ai`), Lark Suite WebApp pré-instalado e wallpapers enxutos (9 PNGs 2560px).
+5. **Edição escolar `Tamagi-SKL`:** 2 contas (`admin` + `aluno` autologin sem sudo), painel minimalista travado (`chattr +i`), Chromium gerenciado (sem OAuth2/ChromeDriver, sem salvar senhas, limpa cookies ao fechar, histórico 15 dias), WebApps Google Docs/Planilhas/Apresentações/Gemini, SSH restrito ao grupo `wheel` + Cockpit + `tamagi-skl`.
+6. **Correção crítica pega em VM real:** `HOME` indefinido sob systemd em `/usr/libexec/tamagi/i18n` e `/usr/libexec/tamagi/firstboot` (que abortava `tamagi-skl homepage` e `panel-lock` no 1º boot).
+
+---
+
+## Próximo Ciclo
+
+O planejamento completo da próxima versão — **Tamagi 2.0 ("Tachico B")**, unindo foco em IA (Bluefin AI + inovação Tamagi), estabilidade/supply-chain nível TunaOS e evolução do COSMIC (Epoch 2 & 3) — está em **[ROADMAP-2.0.md](./ROADMAP-2.0.md)**.
