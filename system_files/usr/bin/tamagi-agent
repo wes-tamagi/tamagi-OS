@@ -602,6 +602,15 @@ def system_prompt():
 
 
 def main():
+    # Unifica a entrada: se chamarem subcomandos de gerenciamento de agentes
+    # (`tamagi-agent install qwen`, `run`, `shadow`, `flights`…), encaminha
+    # direto para `tamagi-agents` para evitar confusão entre singular e plural.
+    if len(sys.argv) > 1 and sys.argv[1] in {
+        "list", "installed", "install", "remove", "update",
+        "run", "jail", "shadow", "shadows", "flights",
+    }:
+        os.execvp("tamagi-agents", ["tamagi-agents", *sys.argv[1:]])
+
     env = load_env_file(CONFIG_ENV)
     parser = argparse.ArgumentParser(
         prog="tamagi-agent", description="Tamagi local AI agent (llama.cpp).")

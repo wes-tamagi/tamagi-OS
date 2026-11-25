@@ -204,6 +204,19 @@ fn build(o: &Options, place: &Place, root: &Path, cwd: &Path, shadow: Option<&Pa
             p.push(&path);
             path = p;
         }
+    } else {
+        let data = home.join(".local/share/mise");
+        if data.is_dir() {
+            push(&mut a, &[&"--ro-bind", &data, &data]);
+            let cfg = home.join(".config/mise");
+            if cfg.is_dir() {
+                push(&mut a, &[&"--ro-bind", &cfg, &cfg]);
+            }
+            let mut p = data.join("shims").into_os_string();
+            p.push(":");
+            p.push(&path);
+            path = p;
+        }
     }
 
     for rel in &o.state {

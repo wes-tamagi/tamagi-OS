@@ -6,8 +6,8 @@ tag := env("TAMAGI_TAG", "latest")
 fedora := env("FEDORA_VERSION", "45")
 kernel := env("KERNEL_FLAVOR", "ogc")
 akmods := kernel
-target := env("TAMAGI_TARGET_IMGREF", "")
-skl_target := env("TAMAGI_SKL_TARGET_IMGREF", "")
+target := env("TAMAGI_TARGET_IMGREF", "ghcr.io/wes-tamagi/tamagi:latest")
+skl_target := env("TAMAGI_SKL_TARGET_IMGREF", "ghcr.io/wes-tamagi/tamagi-skl:latest")
 iso := "output/imagens_iso/tamagi_nova.iso"
 bib := "quay.io/centos-bootc/bootc-image-builder:latest"
 

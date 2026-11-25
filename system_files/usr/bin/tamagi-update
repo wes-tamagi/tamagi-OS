@@ -62,8 +62,10 @@ update_system() {
             fi
         fi
     else
+        local edition_img="tamagi"
+        [[ $(cat /usr/share/tamagi/edition 2>/dev/null || true) == skl ]] && edition_img="tamagi-skl"
         tl "Could not update the image. If installed from a local build, publish it first"
-        echo "  sudo bootc switch <registry>/tamagi:latest"
+        echo "  sudo bootc switch ghcr.io/wes-tamagi/${edition_img}:latest"
         failed+=(sistema)
     fi
 }
@@ -276,6 +278,14 @@ run_all() {
     if [[ -n $(tamagi-agents installed 2>/dev/null) ]]; then
         step "AI agents"
         tamagi-agents update || failed+=(agents)
+    fi
+    if command -v mise >/dev/null 2>&1 && [[ -s "${XDG_CONFIG_HOME:-$HOME/.config}/mise/config.toml" ]]; then
+        step "Runtimes (mise)"
+        mise upgrade || failed+=(mise)
+    fi
+    if [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+        step "Homebrew"
+        /home/linuxbrew/.linuxbrew/bin/brew upgrade || failed+=(brew)
     fi
     if compgen -G "${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd/*.image" >/dev/null || compgen -G "${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd/*.container" >/dev/null; then
         step "Podman Quadlets (MCP & containers)"

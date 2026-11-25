@@ -16,6 +16,25 @@ use std::time::Duration;
 use i18n::t;
 
 const FLATHUB_SEARCH_URL: &str = "https://flathub.org/api/v2/search";
+const DUAL_BROWSERS: &[&str] = &["chrome", "firefox", "vivaldi", "chromium"];
+const ALL_BROWSERS: &[&str] = &["chrome", "firefox", "vivaldi", "chromium", "opera-gx"];
+
+fn is_dual_browser(id: &str) -> bool {
+    DUAL_BROWSERS.contains(&id)
+}
+
+fn native_layer_name(pkg: &str) -> String {
+    let layer_name: String = pkg
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .take(32)
+        .collect();
+    if layer_name.starts_with(|c: char| c.is_ascii_lowercase()) {
+        format!("pkg-{layer_name}")
+    } else {
+        "pkg-custom".into()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CatalogItem {
@@ -432,7 +451,13 @@ fn cmd_search(items: &[CatalogItem], query: &str) -> i32 {
     if !local.is_empty() {
         println!("{}:", t("In the Tamagi catalog (native, drivers, Bazzite, AI, Flatpak)"));
         for it in &local {
-            let kind = if it.action.starts_with("flatpak:") { "Flatpak" } else { "Native/System" };
+            let kind = if is_dual_browser(&it.id) {
+                "Native / Flatpak"
+            } else if it.action.starts_with("flatpak:") {
+                "Flatpak"
+            } else {
+                "Native/System"
+            };
             println!("  {:<22} [{}] {}", it.id, kind, it.label());
         }
         println!();
@@ -454,60 +479,253 @@ fn cmd_search(items: &[CatalogItem], query: &str) -> i32 {
     0
 }
 
-fn cmd_native_install(pkgs: &[String]) -> i32 {
+fn choose_browser_action(id: &str) -> String {
+    if is_dual_browser(id) && io::stdin().is_terminal() && io::stdout().is_terminal() && which("gum") {
+        let opt_fp = format!("flatpak  {}", t("Flatpak — Flathub app, sandboxed (recommended)"));
+        let opt_nat = format!("native   {}", t("native — RPM in a layer over the image (asks for the password)"));
+        let opt_box = format!("box      {}", t("box — in a Fedora box, with hardware video decoding"));
+        let header = format!("{id} — {}", t("Install how?"));
+        if let Ok(mut child) = Command::new("gum")
+            .args(["choose", "--height", "6", "--header", &header, &opt_fp, &opt_nat, &opt_box])
+            .stdout(Stdio::piped())
+            .spawn()
+        {
+            if let Ok(out) = child.wait_with_output() {
+                if out.status.success() {
+                    let pick = String::from_utf8_lossy(&out.stdout);
+                    let method = pick.split_whitespace().next().unwrap_or("flatpak");
+                    if matches!(method, "flatpak" | "native" | "box") {
+                        return format!("run:tamagi-browser install {id} --{method}");
+                    }
+                }
+            }
+        }
+    }
+    format!("run:tamagi-browser install {id} --flatpak")
+}
+
+fn cmd_native_install(items: &[CatalogItem], pkgs: &[String]) -> i32 {
     if pkgs.is_empty() {
-        eprintln!("usage: tamagi install --native <package>…");
+        eprintln!("usage: tamagi install --native <package|id>…");
         return 2;
     }
-    let layer_name: String = pkgs[0]
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
-        .take(32)
-        .collect();
-    let layer = if layer_name.starts_with(|c: char| c.is_ascii_lowercase()) {
-        format!("pkg-{layer_name}")
-    } else {
-        "pkg-custom".into()
+    let mut actions = Vec::new();
+    let mut raw_pkgs = Vec::new();
+    for p in pkgs {
+        if is_dual_browser(p) {
+            actions.push(format!("run:tamagi-browser install {p} --native"));
+        } else if let Some(it) = items.iter().find(|i| &i.id == p && !i.action.starts_with("flatpak:") && !i.action.starts_with("run:tamagi-browser ")) {
+            actions.push(it.action.clone());
+        } else {
+            raw_pkgs.push(p.clone());
+        }
+    }
+    let mut rc = 0;
+    if !actions.is_empty() {
+        rc = run_actions(&actions);
+    }
+    if !raw_pkgs.is_empty() {
+        let layer = native_layer_name(&raw_pkgs[0]);
+        let mut cmd = Command::new("tamagi-layer");
+        cmd.arg("add").arg(&layer).args(&raw_pkgs);
+        if !cmd.status().is_ok_and(|s| s.success()) {
+            rc = 1;
+        }
+    }
+    rc
+}
+
+fn cmd_flatpak_install(items: &[CatalogItem], pkgs: &[String]) -> i32 {
+    if pkgs.is_empty() {
+        eprintln!("usage: tamagi install --flatpak <app|id>…");
+        return 2;
+    }
+    let mut picked = Vec::new();
+    for want in pkgs {
+        if ALL_BROWSERS.contains(&want.as_str()) {
+            picked.push(format!("run:tamagi-browser install {want} --flatpak"));
+            continue;
+        }
+        if let Some(it) = items.iter().find(|i| &i.id == want && i.action.starts_with("flatpak:")) {
+            picked.push(it.action.clone());
+            continue;
+        }
+        let (act, rc) = flathub_resolve(want);
+        if rc == 0 {
+            picked.push(act);
+            continue;
+        }
+        if rc == 2 {
+            return 2;
+        }
+        eprintln!("{}: {}: {want}", t("error"), t("not in the catalog and not on Flathub"));
+        return 2;
+    }
+    run_actions(&picked)
+}
+
+fn resolve_layer_target(target: &str, layers_dir: &Path, ext_dir: &Path) -> String {
+    if layers_dir.join(format!("{target}.request")).is_file() || ext_dir.join(format!("{target}.raw")).is_file() {
+        return target.to_string();
+    }
+    let prefixed = native_layer_name(target);
+    if layers_dir.join(format!("{prefixed}.request")).is_file() || ext_dir.join(format!("{prefixed}.raw")).is_file() {
+        return prefixed;
+    }
+    target.to_string()
+}
+
+fn remove_one(items: &[CatalogItem], target: &str) -> bool {
+    if let Some(it) = items.iter().find(|i| i.id == target) {
+        if let Some(rest) = it.action.strip_prefix("flatpak:") {
+            let app = rest.rsplit(':').next().unwrap_or(target);
+            return Command::new("flatpak").args(["uninstall", "--user", "-y", app]).status().is_ok_and(|s| s.success());
+        }
+        if let Some(rest) = it.action.strip_prefix("run:tamagi-browser install ") {
+            let key = rest.split_whitespace().next().unwrap_or(target);
+            return Command::new("tamagi-browser").args(["remove", key]).status().is_ok_and(|s| s.success());
+        }
+        if it.action.starts_with("run:tamagi-layer add ") {
+            let layer = it.action.split_whitespace().nth(2).unwrap_or(target);
+            return Command::new("tamagi-layer").args(["remove", layer]).status().is_ok_and(|s| s.success());
+        }
+        if let Some(rest) = it.action.strip_prefix("run:tamagi-devbox create ") {
+            let distro = rest.split_whitespace().next().unwrap_or("");
+            let cname = if distro == "fedora" { "dev".to_string() } else { format!("dev-{distro}") };
+            return Command::new("tamagi-devbox").args(["remove", &cname]).status().is_ok_and(|s| s.success());
+        }
+        if it.action.starts_with("run:tamagi-windows ") {
+            return Command::new("tamagi-windows").arg("remove").status().is_ok_and(|s| s.success());
+        }
+        if let Some(rest) = it.action.strip_prefix("run:tamagi-webapp install ") {
+            let name = rest.split_whitespace().next().unwrap_or(target);
+            return Command::new("tamagi-webapp").args(["remove", name]).status().is_ok_and(|s| s.success());
+        }
+        if let Some(script) = it.action.strip_prefix("run:/usr/libexec/tamagi/") {
+            let bin = format!("/usr/libexec/tamagi/{}", script.split_whitespace().next().unwrap_or(""));
+            return Command::new(bin).arg("remove").status().is_ok_and(|s| s.success());
+        }
+        if it.action.starts_with("gaming:") {
+            return Command::new("tamagi-gaming").arg("remove").status().is_ok_and(|s| s.success());
+        }
+        if let Some(agent) = it.action.strip_prefix("agent:") {
+            return Command::new("tamagi-agents").args(["remove", agent]).status().is_ok_and(|s| s.success());
+        }
+    }
+    if ALL_BROWSERS.contains(&target) {
+        return Command::new("tamagi-browser").args(["remove", target]).status().is_ok_and(|s| s.success());
+    }
+    if is_app_id(target) {
+        return Command::new("flatpak").args(["uninstall", "--user", "-y", target]).status().is_ok_and(|s| s.success());
+    }
+    let layer = resolve_layer_target(target, Path::new("/var/lib/tamagi/layers"), Path::new("/var/lib/extensions"));
+    Command::new("tamagi-layer").args(["remove", &layer]).status().is_ok_and(|s| s.success())
+}
+
+fn interactive_remove(items: &[CatalogItem]) -> i32 {
+    let mut entries: Vec<(String, String)> = Vec::new();
+    let mut seen_ids: Vec<String> = Vec::new();
+
+    for it in items {
+        if is_installed(it) {
+            let kind = if it.action.starts_with("flatpak:") { "Flatpak" } else { "Native/System" };
+            entries.push((format!("[{kind}] {} — {}", it.id, t(&it.desc)), it.id.clone()));
+            seen_ids.push(it.id.clone());
+            if let Some(rest) = it.action.strip_prefix("flatpak:") {
+                if let Some(app) = rest.rsplit(':').next() {
+                    seen_ids.push(app.to_string());
+                }
+            }
+            if it.action.starts_with("run:tamagi-layer add ") {
+                if let Some(layer) = it.action.split_whitespace().nth(2) {
+                    seen_ids.push(layer.to_string());
+                }
+            }
+        }
+    }
+
+    if let Ok(rd) = fs::read_dir("/var/lib/tamagi/layers") {
+        let mut layers: Vec<String> = rd
+            .flatten()
+            .filter_map(|e| {
+                let p = e.path();
+                (p.extension().and_then(|s| s.to_str()) == Some("request"))
+                    .then(|| p.file_stem().and_then(|s| s.to_str()).map(String::from))
+                    .flatten()
+            })
+            .collect();
+        layers.sort();
+        for l in layers {
+            if !seen_ids.contains(&l) && !l.starts_with("browser-") {
+                let pkgs = fs::read_to_string(format!("/var/lib/tamagi/layers/{l}.request"))
+                    .unwrap_or_default()
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                entries.push((format!("[Native layer] {l} ({pkgs})"), l));
+            }
+        }
+    }
+
+    let (rc_fp, out_fp) = run_out(&[], "flatpak", &["list", "--user", "--app", "--columns=application,name"]);
+    if rc_fp == 0 {
+        for ln in out_fp.lines() {
+            let mut cols = ln.splitn(2, '\t');
+            let app = cols.next().unwrap_or("").trim();
+            let name = cols.next().unwrap_or(app).trim();
+            if !app.is_empty() && !seen_ids.iter().any(|s| s == app) {
+                entries.push((format!("[Flatpak] {name} ({app})"), app.to_string()));
+            }
+        }
+    }
+
+    if entries.is_empty() {
+        tl("Nothing installed to remove.");
+        return 0;
+    }
+
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        for (lbl, id) in &entries {
+            println!("  {:<22} {lbl}", id);
+        }
+        return 0;
+    }
+
+    let labels: Vec<String> = entries.iter().map(|(l, _)| l.clone()).collect();
+    let Ok(mut child) = Command::new("/usr/libexec/tamagi/gum-multi")
+        .args(["--height", "20", "--header", &t("Space toggles · Enter removes · nothing selected: removes nothing")])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+    else {
+        return 1;
     };
-    let mut cmd = Command::new("tamagi-layer");
-    cmd.arg("add").arg(&layer).args(pkgs);
-    cmd.status().map(|s| s.code().unwrap_or(1)).unwrap_or(1)
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(format!("{}\n", labels.join("\n")).as_bytes());
+    }
+    let Ok(out) = child.wait_with_output() else { return 1 };
+    if !out.status.success() {
+        return 0;
+    }
+    let chosen = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if chosen.is_empty() {
+        tl("Nothing selected.");
+        return 0;
+    }
+    let targets: Vec<String> = chosen
+        .lines()
+        .filter_map(|line| entries.iter().find(|(l, _)| l == line).map(|(_, id)| id.clone()))
+        .collect();
+    cmd_remove(items, &targets)
 }
 
 fn cmd_remove(items: &[CatalogItem], targets: &[String]) -> i32 {
     if targets.is_empty() {
-        eprintln!("usage: tamagi install remove <id|app-id>…");
-        return 2;
+        return interactive_remove(items);
     }
     let mut rc = 0;
     for target in targets {
-        if let Some(it) = items.iter().find(|i| &i.id == target) {
-            if let Some(rest) = it.action.strip_prefix("flatpak:") {
-                let app = rest.rsplit(':').next().unwrap_or(target);
-                if !Command::new("flatpak").args(["uninstall", "--user", "-y", app]).status().is_ok_and(|s| s.success()) {
-                    rc = 1;
-                }
-                continue;
-            }
-            if it.action.starts_with("run:tamagi-layer add ") {
-                let layer = it.action.split_whitespace().nth(2).unwrap_or(target);
-                if !Command::new("tamagi-layer").args(["remove", layer]).status().is_ok_and(|s| s.success()) {
-                    rc = 1;
-                }
-                continue;
-            }
-            if it.action.starts_with("gaming:") {
-                if !Command::new("tamagi-gaming").arg("remove").status().is_ok_and(|s| s.success()) {
-                    rc = 1;
-                }
-                continue;
-            }
-        }
-        if is_app_id(target) {
-            if !Command::new("flatpak").args(["uninstall", "--user", "-y", target]).status().is_ok_and(|s| s.success()) {
-                rc = 1;
-            }
-        } else if !Command::new("tamagi-layer").args(["remove", target]).status().is_ok_and(|s| s.success()) {
+        if !remove_one(items, target) {
             rc = 1;
         }
     }
@@ -772,9 +990,10 @@ fn print_help() {
   tamagi install                 interactive catalog (Flathub + native layers + drivers + gaming)
   tamagi install list            list everything in the curated catalog
   tamagi install search <text>   search both the curated catalog and Flathub
-  tamagi install <id|name>…      install from catalog or Flathub (--user)
-  tamagi install --native <pkg>… install essential Fedora RPM(s) natively via systemd-sysext
-  tamagi install remove <id>…    remove a Flatpak app or native layer
+  tamagi install <id|name>…      install from catalog (asks Flatpak/native for browsers) or Flathub
+  tamagi install --native <pkg>… install browser/catalog app or Fedora RPM(s) natively (sysext)
+  tamagi install --flatpak <app>… install app or browser as a sandboxed Flatpak (--user)
+  tamagi remove [id|pkg|app]…    remove any installed Flatpak, browser, agent, or native layer
   tamagi install browser|webapp|gaming|windows […]
 "
     );
@@ -838,14 +1057,18 @@ fn main() {
                         let q = String::from_utf8_lossy(&q_out.stdout).trim().to_string();
                         let pkgs: Vec<String> = q.split_whitespace().map(str::to_string).collect();
                         if !pkgs.is_empty() {
-                            exit(cmd_native_install(&pkgs));
+                            exit(cmd_native_install(&items, &pkgs));
                         }
                     }
                 }
                 continue;
             }
             if let Some(it) = items.iter().find(|it| it.label() == line) {
-                picked.push(it.action.clone());
+                if is_dual_browser(&it.id) {
+                    picked.push(choose_browser_action(&it.id));
+                } else {
+                    picked.push(it.action.clone());
+                }
             }
         }
         if picked.is_empty() {
@@ -858,8 +1081,9 @@ fn main() {
     match args[0].as_str() {
         "list" => cmd_list(&items),
         "search" => exit(cmd_search(&items, &args[1..].join(" "))),
-        "--native" | "native" => exit(cmd_native_install(&args[1..])),
-        "remove" | "rm" => exit(cmd_remove(&items, &args[1..])),
+        "--native" | "native" => exit(cmd_native_install(&items, &args[1..])),
+        "--flatpak" | "flatpak" => exit(cmd_flatpak_install(&items, &args[1..])),
+        "remove" | "uninstall" | "rm" => exit(cmd_remove(&items, &args[1..])),
         "ids" => {
             for it in &items {
                 println!("{}", it.id);
@@ -880,6 +1104,10 @@ fn main() {
         _ => {
             let mut picked = Vec::new();
             for want in &args {
+                if is_dual_browser(want) {
+                    picked.push(choose_browser_action(want));
+                    continue;
+                }
                 if let Some(it) = items.iter().find(|it| &it.id == want) {
                     picked.push(it.action.clone());
                     continue;
@@ -922,5 +1150,28 @@ mod tests {
         assert!(!is_app_id("vlc"));
         assert!(!is_app_id("a.b"));
         assert!(!is_app_id("org.bad/slash.App"));
+    }
+
+    #[test]
+    fn native_layer_and_dual_browsers() {
+        assert!(is_dual_browser("chrome"));
+        assert!(is_dual_browser("firefox"));
+        assert!(!is_dual_browser("opera-gx"));
+        assert_eq!(native_layer_name("htop"), "pkg-htop");
+        assert_eq!(native_layer_name("ImageMagick"), "pkg-imagemagick");
+        assert_eq!(native_layer_name("123bad"), "pkg-custom");
+    }
+
+    #[test]
+    fn resolves_prefixed_native_layers() {
+        let dir = env::temp_dir().join("tamagi-test-layers");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("pkg-htop.request"), "htop\n").unwrap();
+        fs::write(dir.join("rocm.request"), "rocm-hip\n").unwrap();
+        assert_eq!(resolve_layer_target("htop", &dir, &dir), "pkg-htop");
+        assert_eq!(resolve_layer_target("rocm", &dir, &dir), "rocm");
+        assert_eq!(resolve_layer_target("missing", &dir, &dir), "missing");
+        let _ = fs::remove_dir_all(&dir);
     }
 }

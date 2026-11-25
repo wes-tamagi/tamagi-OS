@@ -1,13 +1,15 @@
 ---
-# Constrói o Tamagi, testa e publica no GHCR. É de lá que as máquinas
-# instaladas puxam atualizações (bootc switch ghcr.io/<dono>/tamagi:latest).
+# Constrói o Tamagi (Tamagi-DxAI e Tamagi-SKL), testa e publica no GHCR.
+# É de lá que as máquinas instaladas puxam atualizações:
+#   sudo bootc switch ghcr.io/<dono>/tamagi:latest      (Tamagi-DxAI)
+#   sudo bootc switch ghcr.io/<dono>/tamagi-skl:latest  (Tamagi-SKL)
 #
 # Fluxo e ações fixadas por commit seguem o ublue-os/image-template. Diferenças
-# do Tamagi: os argumentos de build do Containerfile e a etapa de testes
-# (tests/image.sh), que roda antes de qualquer publicação.
+# do Tamagi: matriz multi-edição (dxai + skl) e a etapa de testes (tests/image.sh),
+# que roda antes de qualquer publicação.
 #
-# A imagem não contém o Chrome (é baixado na máquina do usuário), então pode
-# ser pública.
+# As imagens não contêm o Chrome (baixado na máquina do usuário), então podem
+# ser públicas.
 name: build
 
 on:
@@ -24,7 +26,6 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: tamagi
   FEDORA_VERSION: "45"
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
 
@@ -34,8 +35,16 @@ concurrency:
 
 jobs:
   build:
-    name: Construir, testar e publicar
+    name: Construir, testar e publicar (${{ matrix.edition }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - edition: dxai
+            image_name: tamagi
+          - edition: skl
+            image_name: tamagi-skl
     permissions:
       contents: read
       packages: write
@@ -52,12 +61,16 @@ jobs:
         run: |
           # O GHCR só aceita o dono em minúsculas.
           echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${{ matrix.image_name }}" >> "$GITHUB_ENV"
+          echo "TAMAGI_EDITION=${{ matrix.edition }}" >> "$GITHUB_ENV"
           echo "BUILD_DATE=$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
 
       - name: Construir
         run: |
           sudo podman build \
             --build-arg FEDORA_VERSION=${FEDORA_VERSION} \
+            --build-arg TAMAGI_EDITION=${TAMAGI_EDITION} \
+            --build-arg IMAGE_NAME=${IMAGE_NAME} \
             --build-arg KERNEL_FLAVOR=ogc \
             --build-arg AKMODS_FLAVOR=ogc \
             --build-arg IMAGE_VENDOR=${GITHUB_REPOSITORY_OWNER,,} \
@@ -66,7 +79,7 @@ jobs:
             .
           # Rechunk: a imagem refeita só com o conteúdo real, em camadas por
           # conteúdo (veja rechunk.sh). É esta que é testada e publicada.
-          sudo bash rechunk.sh ${IMAGE_NAME}:layers ${IMAGE_NAME}:build "$PWD/output/rechunk"
+          sudo bash rechunk.sh ${IMAGE_NAME}:layers ${IMAGE_NAME}:build "$PWD/output/rechunk-${TAMAGI_EDITION}"
 
       - name: Testar
         run: sudo podman run --rm -v ./tests:/tests:ro ${IMAGE_NAME}:build bash /tests/image.sh

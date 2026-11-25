@@ -1261,5 +1261,11 @@ reversible systemd-sysext native Fedora packages over /usr	paquets Fedora natifs
 security hardening, time-limited leases, privacy mode, Tailscale	sécurité, baux temporaires (leases), mode privé et Tailscale
 doctor, status, setup, perf, desktop, skl, and declarative state (init/diff/apply)	doctor, status, setup, perf, desktop, skl et état déclaratif (init/diff/apply)
 create tamagi.toml from the current state	crée tamagi.toml à partir de l'état actuel
+remove installed apps, browsers, native layers, or AI agents	supprime les applis installées, navigateurs, couches natives ou agents IA
+Nothing installed to remove.	Rien d'installé à supprimer.
+Space toggles · Enter removes · nothing selected: removes nothing	Espace coche · Entrée supprime · rien coché : ne supprime rien
+Runtimes (mise)	Environnements d'exécution (mise)
+Homebrew	Homebrew
+host (mise)	hôte (mise)
 
 optional	optionnel

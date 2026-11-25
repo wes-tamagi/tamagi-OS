@@ -1,0 +1,14 @@
+#!/usr/bin/bash
+# tamagi-fboot — Tamagi first-boot assistant (opens the graphical welcome window
+# when a desktop session is active, or falls back to the terminal assistant).
+#   tamagi-fboot              run the first-boot assistant
+#   tamagi-fboot --terminal   force the terminal assistant
+set -euo pipefail
+if [[ ${1:-} == --terminal ]]; then
+    shift
+    exec /usr/bin/tamagi-firstrun --force "$@"
+fi
+if [[ -n ${WAYLAND_DISPLAY:-}${DISPLAY:-} ]] && command -v tamagi-welcome >/dev/null 2>&1; then
+    exec /usr/bin/tamagi-welcome --force "$@"
+fi
+exec /usr/bin/tamagi-firstrun --force "$@"

@@ -1,0 +1,5 @@
+#!/usr/bin/bash
+# tamagi-remove — remove installed apps, browsers, native layers, or AI agents.
+#   tamagi-remove                  interactive picker of installed items
+#   tamagi-remove <id|pkg|app>…    remove directly (Flatpak, browser, agent, or sysext layer)
+exec /usr/bin/tamagi-install remove "$@"

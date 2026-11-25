@@ -32,21 +32,21 @@ section "Ferramentas na imagem"
 COMMON_CMDS=(distrobox podman flatpak bootc foot cosmic-term cosmic-files git fd \
              btm gum starship jq tailscale \
              tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-keys tamagi-panel tamagi-lang \
-             tamagi-firstrun tamagi-update tamagi-webapp \
+             tamagi-firstrun tamagi-fboot tamagi-update tamagi-webapp \
              chromium-browser \
-             tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper tamagi-windows tamagi-db tamagi-capture tamagi-devbox tamagi-font tamagi-antigravity tamagi-isolate bwrap tamagi-rewind tamagi-privacy tamagi-perf tamagi-workspace tamagi-doctor tamagi-gaming tamagi-install tamagi-agents tamagi-mcp tamagi-vm tamagi-try tamagi-why tamagi-skl)
+             tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper tamagi-windows tamagi-db tamagi-capture tamagi-devbox tamagi-font tamagi-antigravity tamagi-isolate bwrap tamagi-rewind tamagi-privacy tamagi-perf tamagi-workspace tamagi-doctor tamagi-gaming tamagi-install tamagi-remove tamagi-agents tamagi-mcp tamagi-vm tamagi-try tamagi-why tamagi-skl)
 for cmd in "${COMMON_CMDS[@]}"; do
     check "comando $cmd" command -v "$cmd"
 done
 if [[ $EDITION == skl ]]; then
-    check "Tamagi-SKL enxuto: sem cosmic-store, chromedriver, llama-server, libvirt, gamescope ou cosmic-ext-storage" bash -c 'for c in cosmic-store chromedriver llama-server llama-cli claude virsh qemu-kvm gamescope mangohud cosmic-ext-storage; do ! command -v "$c" >/dev/null 2>&1 || { echo "ainda presente: $c"; exit 1; }; done'
+    check "Tamagi-SKL enxuto: sem cosmic-store, chromedriver, llama-server, mise, libvirt, gamescope ou cosmic-ext-storage" bash -c 'for c in cosmic-store chromedriver llama-server llama-cli claude mise virsh qemu-kvm gamescope mangohud cosmic-ext-storage; do ! command -v "$c" >/dev/null 2>&1 || { echo "ainda presente: $c"; exit 1; }; done'
 else
-    for cmd in rg bat eza zoxide scx_rusty scx_rustland llama-server llama-cli claude chromedriver rclone cosmic-ext-storage gamescope mangohud gamemoderun virsh qemu-kvm cockpit-bridge; do
+    for cmd in rg bat eza zoxide mise scx_rusty scx_rustland llama-server llama-cli claude chromedriver rclone cosmic-ext-storage gamescope mangohud gamemoderun virsh qemu-kvm cockpit-bridge; do
         check "comando DxAI $cmd" command -v "$cmd"
     done
-    check "imagem DxAI enxuta: Steam/compiladores/guestfs/btop/fastfetch/dust/delta/usbguard/gnome-disks fora; base Bazzite + QEMU/libvirt/Cockpit sim" bash -c 'for c in steam clang go mise opencode google-chrome-stable firefox tesseract adb iperf3 ncat btop fastfetch dust delta usbguard gnome-disks tamagi-remind tamagi-recipe tamagi-guest; do ! command -v "$c" >/dev/null 2>&1 || { echo "ainda presente: $c"; exit 1; }; done; ! rpm -q guestfs-tools nm-connection-editor google-roboto-slab-fonts cascadia-code-nf-fonts adw-gtk3-theme hardened_malloc >/dev/null 2>&1 && rpm -q steam-devices gamescope mangohud gamemode mesa-vulkan-drivers.i686 cockpit-machines libvirt-daemon-kvm >/dev/null 2>&1'
+    check "imagem DxAI enxuta: Steam/compiladores/guestfs/btop/fastfetch/dust/delta/usbguard/gnome-disks fora; base Bazzite + QEMU/libvirt/Cockpit + mise sim" bash -c 'for c in steam clang go opencode google-chrome-stable firefox tesseract adb iperf3 ncat btop fastfetch dust delta usbguard gnome-disks tamagi-remind tamagi-recipe tamagi-guest; do ! command -v "$c" >/dev/null 2>&1 || { echo "ainda presente: $c"; exit 1; }; done; ! rpm -q guestfs-tools nm-connection-editor google-roboto-slab-fonts cascadia-code-nf-fonts adw-gtk3-theme hardened_malloc >/dev/null 2>&1 && rpm -q steam-devices gamescope mangohud gamemode mesa-vulkan-drivers.i686 cockpit-machines libvirt-daemon-kvm >/dev/null 2>&1'
 fi
-check "CLI enxuta (10 comandos, sem aliases legados): tamagi why, tamagi ai flights, tamagi sys doctor" bash -c 'o=$(TAMAGI_LANG=en tamagi); [[ $(grep -c "^  tamagi " <<<"$o") -eq 10 ]] && grep -q "tamagi why" <<<"$o" && tamagi sys doctor --help | grep -qi diagn && tamagi sys desktop tiling status | grep -q "^tiling:" && ! tamagi doctor 2>/dev/null && ! tamagi inexistente 2>/dev/null && tamagi why /usr/bin/bash | grep -qiE "base|image|rpm" && tamagi ai flights list >/dev/null'
+check "CLI enxuta (11 comandos, sem aliases legados): tamagi remove, tamagi why, tamagi ai flights, tamagi sys doctor" bash -c 'o=$(TAMAGI_LANG=en tamagi); [[ $(grep -c "^  tamagi " <<<"$o") -eq 11 ]] && grep -q "tamagi remove" <<<"$o" && grep -q "tamagi why" <<<"$o" && tamagi sys doctor --help | grep -qi diagn && tamagi sys desktop tiling status | grep -q "^tiling:" && ! tamagi doctor 2>/dev/null && ! tamagi inexistente 2>/dev/null && tamagi why /usr/bin/bash | grep -qiE "base|image|rpm" && tamagi ai flights list >/dev/null && tamagi-agent list | grep -q "qwen"'
 check "comandos e subcomandos em inglês (sem apelidos em português)" bash -c '! ls /usr/bin | grep -qE "^tamagi-(convidado|voltar|privacidade|lembrete|isolar|popos|dev|assist)$" && ! grep -lE "^\s+[a-z|-]*\b(instalar|remover|abrir|ligar|desligar|ajuda|estado|lista)\)" /usr/bin/tamagi-* 2>/dev/null | grep -q .'
 
 section "Base e kernel"
@@ -236,7 +236,22 @@ check "só as verificações do Tamagi (nenhuma exige rede)" bash -c '[[ $(ls /u
 check "imagem nova que falha: tenta de novo, depois volta; imagem já aprovada não volta" bash -c 'D=$(mktemp -d); mkdir -p $D/c/required.d $D/c/wanted.d $D/c/red.d $D/s; printf "#!/bin/sh\nexit 1\n" > $D/c/required.d/1.sh; printf "#!/bin/sh\necho red >> $D/red\n" > $D/c/red.d/40-tamagi-camadas.sh; cp $D/c/red.d/40-tamagi-camadas.sh $D/c/red.d/50-tamagi-relatorio.sh; chmod +x $D/c/*/*.sh; B="env TAMAGI_BOOT_CHECK_DRYRUN=1 TAMAGI_BOOT_CHECK_DIR=$D/c TAMAGI_BOOT_STATE=$D/s TAMAGI_BOOT_ID=novo TAMAGI_BOOT_HAS_ROLLBACK=1 /usr/libexec/tamagi/boot-check"; $B | grep -q "trying once more" && $B | grep -q "going back" && [[ ! -e $D/s/good ]] && echo novo > $D/s/good && $B | grep -q "no automatic way back" && printf "#!/bin/sh\nexit 0\n" > $D/c/required.d/1.sh && rm $D/s/good && $B | grep -qx "boot-check: ok" && [[ $(cat $D/s/good) == novo ]]'
 check "relatório de falha é gravado"       bash -c 'mkdir -p /var/lib/tamagi && bash /usr/lib/tamagi/boot-check/red.d/50-tamagi-relatorio.sh && ls /var/lib/tamagi/boot-failures/*.txt >/dev/null && grep -q "Verificações de saúde" /var/lib/tamagi/boot-failures/*.txt'
 check "tamagi-boot-report mostra o pendente e marca como visto" bash -c 'chmod a+r /var/lib/tamagi/boot-failures/*.txt; a=$(tamagi-boot-report show </dev/null); b=$(tamagi-boot-report show </dev/null); grep -q "voltou para a imagem anterior" <<<"$a" && grep -q "Nenhuma falha de boot pendente" <<<"$b"'
-check "mise fora do host: vive na caixa de desenvolvimento (por caixa)" bash -c '! command -v mise && [[ ! -e /etc/mise && ! -e /etc/profile.d/tamagi-mise.sh ]] && ! grep -q mise /usr/lib/environment.d/50-tamagi-path.conf && grep -q "install_mise" /usr/libexec/tamagi/devbox-provision && grep -q "MISE_DATA_DIR=.*mise-\$_box" /usr/libexec/tamagi/devbox-provision && grep -q "sha256sum -c" /usr/libexec/tamagi/devbox-provision'
+if [[ $EDITION == skl ]]; then
+    check "SKL: mise omitido da imagem escolar" bash -c '! command -v mise >/dev/null 2>&1'
+else
+    check "DxAI: mise nativo no host (shims no PATH) e isolado por caixa nas devboxes" bash -c 'command -v mise >/dev/null && mise --version | grep -qE "^[0-9]+\." && grep -q "mise/shims" /usr/lib/environment.d/50-tamagi-path.conf && grep -q "mise activate bash" /etc/profile.d/tamagi.sh && grep -q "install_mise" /usr/libexec/tamagi/devbox-provision && grep -q "MISE_DATA_DIR=.*mise-\$_box" /usr/libexec/tamagi/devbox-provision && grep -q "ensure_host_node" /usr/bin/tamagi-agents'
+fi
+check "tamagi install --native chrome e tamagi remove (navegador + camada + agentes)" bash -c '
+    D=/tmp/inst-nat; rm -rf "$D"; mkdir -p "$D/bin"
+    printf "%s\n" "#!/bin/bash" "echo browser:\$*" >> "$D/bin/tamagi-browser"
+    printf "%s\n" "#!/bin/bash" "echo layer:\$*" >> "$D/bin/tamagi-layer"
+    chmod +x "$D/bin/"*
+    PATH="$D/bin:$PATH" TAMAGI_INSTALL_NO_FLATHUB=1 TAMAGI_LANG=en tamagi-install search chrome | grep -q "\[Native / Flatpak\]"
+    PATH="$D/bin:$PATH" TAMAGI_LANG=en tamagi-install --native chrome | grep -q "browser:install chrome --native"
+    PATH="$D/bin:$PATH" TAMAGI_LANG=en tamagi-remove chrome | grep -q "browser:remove chrome"
+    PATH="$D/bin:$PATH" TAMAGI_LANG=en tamagi remove chrome | grep -q "browser:remove chrome"
+    rm -rf "$D"
+'
 check ".local/bin do usuário no PATH de toda sessão (agentes instalados no usuário)" bash -lc 'case ":$PATH:" in *"/.local/bin:"*) exit 0 ;; *) exit 1 ;; esac'
 
 

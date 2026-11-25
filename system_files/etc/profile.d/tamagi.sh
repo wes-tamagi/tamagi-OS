@@ -10,6 +10,15 @@
 # in the user: claude, codex, opencode, launchers of the development box).
 # Graphical sessions get it from /usr/lib/environment.d/50-tamagi-path.conf.
 case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; export PATH ;; esac
+# mise shims on the host (devboxes manage their own per-box MISE_DATA_DIR).
+if [ ! -e /run/.containerenv ] && command -v mise >/dev/null 2>&1; then
+    _mise_shims="${XDG_DATA_HOME:-$HOME/.local/share}/mise/shims"
+    case ":$PATH:" in *":$_mise_shims:"*) ;; *) PATH="$_mise_shims:$PATH"; export PATH ;; esac
+    unset _mise_shims
+fi
+if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+    case ":$PATH:" in *":/home/linuxbrew/.linuxbrew/bin:"*) ;; *) PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH"; export PATH ;; esac
+fi
 
 [ -n "${BASH_VERSION:-}" ] || return 0
 case $- in *i*) ;; *) return 0 ;; esac
@@ -43,6 +52,9 @@ fi
 _tamagi_eval_cached zoxide zoxide zoxide init bash
 _tamagi_eval_cached fzf fzf fzf --bash
 _tamagi_eval_cached starship starship starship init bash
+if [ ! -e /run/.containerenv ] && command -v mise >/dev/null 2>&1; then
+    _tamagi_eval_cached mise mise mise activate bash
+fi
 unset -f _tamagi_eval_cached
 unset _tamagi_shell_cache
 

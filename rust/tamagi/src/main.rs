@@ -33,11 +33,12 @@ const PROFILES: &[(&str, &str)] = &[
     ("office", "Office: Firefox, OnlyOffice and Thunderbird"),
 ];
 
-/// The 10 primary commands shown by `tamagi` (no legacy aliases).
+/// The 11 primary commands shown by `tamagi` (no legacy aliases).
 const COMMANDS: &[(&str, &str)] = &[
     ("ai", "AI agents, Shadow CoW, Egress Guard, flights, MCP Quadlets, local llama.cpp"),
     ("dev", "development boxes, local databases, workspaces, disposable try and isolate"),
     ("install", "catalog + Flathub + native layers (drivers, ROCm, Bazzite), browsers, webapps"),
+    ("remove", "remove installed apps, browsers, native layers, or AI agents"),
     ("update", "atomic updates: OS image, layers, Flatpaks, boxes, agents, rollback"),
     ("rewind", "unified timeline: home snapshots (snap) and OS deployments"),
     ("layer", "reversible systemd-sysext native Fedora packages over /usr"),
@@ -512,6 +513,12 @@ fn main() {
         "ai" => route_ai(rest),
         "dev" => route_dev(rest),
         "install" => route_install(rest),
+        "remove" | "uninstall" | "rm" => {
+            let mut forwarded = Vec::with_capacity(rest.len() + 1);
+            forwarded.push("remove".into());
+            forwarded.extend_from_slice(rest);
+            exec_helper("tamagi-install", &forwarded)
+        }
         "update" => exec_helper("tamagi-update", rest),
         "rewind" => route_rewind(rest),
         "layer" => exec_helper("tamagi-layer", rest),
@@ -528,8 +535,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn command_count_is_ten_and_valid() {
-        assert_eq!(COMMANDS.len(), 10);
+    fn command_count_is_eleven_and_valid() {
+        assert_eq!(COMMANDS.len(), 11);
         for (name, _) in COMMANDS {
             assert!(is_command_name(name), "{name}");
         }

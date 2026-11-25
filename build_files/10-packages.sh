@@ -75,6 +75,15 @@ echo "${BOTTOM_SHA256}  bottom_x86_64-unknown-linux-gnu.tar.gz" | sha256sum -c -
 tar -xzf bottom_x86_64-unknown-linux-gnu.tar.gz btm
 install -Dm755 btm /usr/bin/btm
 
+# mise (somente Tamagi-DxAI): gerenciador de runtimes em ~/.local/share/mise
+# (sem root e sem tocar em /usr) para agentes Node/Python, MCPs e projetos.
+if [[ $EDITION != skl ]]; then
+    curl -fsSLO "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64"
+    curl -fsSLO "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/SHASUMS256.txt"
+    grep -E " (\./)?mise-${MISE_VERSION}-linux-x64\$" SHASUMS256.txt | sha256sum -c -
+    install -Dm755 "mise-${MISE_VERSION}-linux-x64" /usr/bin/mise
+fi
+
 # Roboto Flex (fonte da interface Material 3; commit pinado + SHA-256; OFL-1.1).
 ROBOTO_FLEX_COMMIT=739e06dc46ebb14cddd88b9768a6c1504d4677f6
 ROBOTO_FLEX_URL="https://raw.githubusercontent.com/googlefonts/roboto-flex/$ROBOTO_FLEX_COMMIT"
