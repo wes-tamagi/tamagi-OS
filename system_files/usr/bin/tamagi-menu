@@ -38,7 +38,7 @@ CATEGORY_ALIASES = {
     "all": "all", "tudo": "all", "todo": "all", "tout": "all",
     "ai": "ai", "ia": "ai",
     "install": "install", "instalar": "install", "installer": "install",
-    "appearance": "appearance", "aparencia": "appearance", "tema": "appearance",
+    "appearance": "appearance", "tema": "appearance",
     "system": "system", "sistema": "system", "systeme": "system",
     "power": "power", "energia": "power", "alimentation": "power",
 }
@@ -110,7 +110,7 @@ INTERACTIVE_NO_PAUSE = {
     "tamagi-agent", "claude", "agy", "tamagi-ai code", "tamagi-firstrun --force",
     "tamagi-keys", "tamagi-theme pick", "tamagi-panel pick", "tamagi-lang pick",
     "tamagi-devbox", "tamagi-perf pick", "tamagi-gaming", "tamagi-install", "tamagi-agents",
-    "tamagi-browser install", "tamagi-devbox lang", "tamagi-remind",
+    "tamagi-browser install", "tamagi-devbox lang", "tamagi-mcp",
 }
 
 

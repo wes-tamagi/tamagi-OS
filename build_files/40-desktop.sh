@@ -287,8 +287,6 @@ ours = [
     ("[Super, Shift]", "o", 'Spawn("/usr/libexec/tamagi/open-or-install org.onlyoffice.desktopeditors")'),
     ("[Super, Shift]", "m", 'Spawn("/usr/libexec/tamagi/open-or-install io.missioncenter.MissionCenter")'),
     ("[Super, Shift]", "w", 'Spawn("tamagi-windows open")'),
-    ("[Super, Ctrl]", "e", 'Spawn("/usr/libexec/tamagi/emoji")'),
-    ("[Super, Ctrl]", "r", f'Spawn("{popup} tamagi-remind")'),
     ("[Super, Ctrl]", "p", 'Spawn("tamagi-privacy")'),
 ]
 
@@ -318,9 +316,9 @@ org.gnome.Ptyxis.desktop
 foot.desktop
 com.system76.CosmicTerm.desktop
 LIST
-# O foot instala também o modo servidor (foot-server/footclient); no lançador
-# basta o foot.
-for f in foot-server footclient; do
+# O foot é só o motor leve das janelas flutuantes do Tamagi (org.tamagi.Menu):
+# no lançador ficam apenas o Ptyxis (contêineres) e o COSMIC Terminal.
+for f in foot foot-server footclient; do
     [[ -f /usr/share/applications/$f.desktop ]] && \
         desktop-file-edit --set-key=NoDisplay --set-value=true /usr/share/applications/$f.desktop
 done

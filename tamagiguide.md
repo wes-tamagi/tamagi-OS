@@ -48,20 +48,21 @@ Why a fresh install is the recommendation for who comes from another system:
    erases the chosen disk completely.
 2. Note what you want to reinstall: `flatpak list --app --columns=application`
    lists your Flatpak apps.
-3. Write the Tamagi ISO to a USB drive and boot from it.
-4. With **Secure Boot** on, the first start asks to enroll Universal Blue's
-   key (the same one Bluefin and Aurora use): password `universalblue`. A
-   machine that already runs Bluefin/Aurora usually has it enrolled.
-5. Follow the installer: language (English is the default; Brazilian
-   Portuguese comes next), keyboard, time zone, account, disk encryption and
-   the disk.
-6. At first login a window offers the basics to tick and optional extra browsers
+3. Write `output/imagens_iso/tamagi.iso` to a USB drive and boot from it in UEFI
+   mode with **Secure Boot turned off** in firmware (the installer warns on the
+   first screen if Secure Boot is still enabled, because the installed system
+   uses unsigned `systemd-boot`).
+4. Follow the installer: language (English is the default; Brazilian
+   Portuguese comes next), keyboard and time zone, account, disk (with
+   automatic `/var/home` preservation when an existing install is found) and
+   disk encryption (`TPM + PIN` recommended).
+5. At first login a window offers the basics to tick and optional extra browsers
    (Chromium ships pre-installed natively with ChromeDriver and Google Account
    sign-in; Opera GX, Chrome, Firefox and Vivaldi stay optional). Each item
    says how it is installed. Nothing is mandatory; everything else, including
    the ready-made profiles, can be installed later with `tamagi install` (a
    name that is not in the catalog is looked up on Flathub).
-7. Copy your files back and reinstall your Flatpaks.
+6. Copy your files back and reinstall your Flatpaks.
 
 ## 3. Migrating from Bluefin or Aurora, without formatting
 

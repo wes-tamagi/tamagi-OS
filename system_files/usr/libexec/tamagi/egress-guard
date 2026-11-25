@@ -1,0 +1,338 @@
+#!/usr/bin/python3
+"""egress-guard — strict domain allowlist proxy for jailed AI agents.
+
+Runs in two halves so an unprivileged `bwrap --unshare-net` jail has zero raw
+network access while still reaching approved AI APIs and package registries:
+
+  1. Outer proxy (outside --unshare-net):
+       egress-guard --daemon <unix_sock> [--allow d1,d2] [--log <file>]
+     Listens on a 0600 Unix-domain socket and forwards HTTP / HTTPS CONNECT
+     requests ONLY when the target hostname matches the allowlist.
+
+  2. Inner TCP-to-Unix bridge (inside --unshare-net):
+       egress-guard --bridge <unix_sock> <port> -- <command> [args...]
+     Binds 127.0.0.1:<port> on the airgapped loopback interface, pipes every
+     connection to <unix_sock>, and executes <command>.
+
+  3. Self-test:
+       egress-guard --check-host <host[:port]> [--allow d1,d2]
+"""
+
+import ipaddress
+import os
+import pathlib
+import select
+import socket
+import subprocess
+import sys
+import threading
+
+DEFAULT_ALLOW = (
+    # AI agent APIs
+    "api.anthropic.com",
+    "claude.ai",
+    "platform.claude.com",
+    "api.openai.com",
+    "chatgpt.com",
+    "auth.openai.com",
+    "generativelanguage.googleapis.com",
+    "oauth2.googleapis.com",
+    "www.googleapis.com",
+    "antigravity.google",
+    "openrouter.ai",
+    "dashscope.aliyuncs.com",
+    "api.mistral.ai",
+    "huggingface.co",
+    "cdn-lfs.hf.co",
+    "cas-bridge.xethub.hf.co",
+    # Open-source package registries & git hosting (read/fetch deps)
+    "crates.io",
+    "static.crates.io",
+    "index.crates.io",
+    "registry.npmjs.org",
+    "pypi.org",
+    "files.pythonhosted.org",
+    "proxy.golang.org",
+    "sum.golang.org",
+    "github.com",
+    "api.github.com",
+    "codeload.github.com",
+    "objects.githubusercontent.com",
+    "raw.githubusercontent.com",
+)
+
+ALLOWED_PORTS = {80, 443, 9931}
+
+
+def build_allowlist(extra_csv: str) -> tuple[str, ...]:
+    extra = [d.strip().lower().lstrip(".") for d in extra_csv.split(",") if d.strip()]
+    env_extra = [
+        d.strip().lower().lstrip(".")
+        for d in os.environ.get("TAMAGI_EGRESS_ALLOW", "").split(",")
+        if d.strip()
+    ]
+    seen = []
+    for d in (*DEFAULT_ALLOW, *env_extra, *extra):
+        if d and d not in seen:
+            seen.append(d)
+    return tuple(seen)
+
+
+def parse_host_port(target: str, default_port: int = 443) -> tuple[str, int] | None:
+    target = target.strip()
+    if "://" in target:
+        scheme, _, rest = target.partition("://")
+        default_port = 80 if scheme.lower() == "http" else 443
+        target = rest.split("/", 1)[0]
+    if target.startswith("["):
+        return None
+    if ":" in target:
+        host, _, p = target.rpartition(":")
+        try:
+            port = int(p)
+        except ValueError:
+            return None
+    else:
+        host, port = target, default_port
+    host = host.strip().lower().rstrip(".")
+    if not host or port <= 0 or port > 65535:
+        return None
+    return host, port
+
+
+def is_allowed(target: str, allowlist: tuple[str, ...]) -> bool:
+    parsed = parse_host_port(target)
+    if not parsed:
+        return False
+    host, port = parsed
+    # Local llama.cpp router on loopback port 9931 is safe and local-only.
+    if host in ("127.0.0.1", "localhost") and port == 9931:
+        return True
+    if port not in ALLOWED_PORTS or port == 9931:
+        return False
+    # Never allow raw IP literals on the internet (blocks IP-based exfiltration).
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    for pat in allowlist:
+        if host == pat or host.endswith("." + pat):
+            return True
+    return False
+
+
+def relay_bidirectional(a: socket.socket, b: socket.socket) -> None:
+    sockets = [a, b]
+    try:
+        while True:
+            r, _, _ = select.select(sockets, [], [], 60.0)
+            if not r:
+                break
+            for s in r:
+                data = s.recv(65536)
+                if not data:
+                    return
+                other = b if s is a else a
+                other.sendall(data)
+    except OSError:
+        pass
+    finally:
+        for s in sockets:
+            try:
+                s.close()
+            except OSError:
+                pass
+
+
+def handle_proxy_client(conn: socket.socket, allowlist: tuple[str, ...], log_path: str | None) -> None:
+    def log(msg: str) -> None:
+        if not log_path:
+            return
+        try:
+            with open(log_path, "a", encoding="utf-8") as fh:
+                fh.write(msg + "\n")
+        except OSError:
+            pass
+
+    try:
+        conn.settimeout(15.0)
+        buf = b""
+        while b"\r\n\r\n" not in buf and len(buf) < 16384:
+            chunk = conn.recv(4096)
+            if not chunk:
+                conn.close()
+                return
+            buf += chunk
+        header_end = buf.find(b"\r\n\r\n")
+        if header_end < 0:
+            conn.close()
+            return
+        head = buf[:header_end].decode("latin-1", errors="replace")
+        body_rem = buf[header_end + 4 :]
+        lines = head.split("\r\n")
+        parts = lines[0].split(" ")
+        if len(parts) < 3:
+            conn.close()
+            return
+        method, target, proto = parts[0].upper(), parts[1], parts[2]
+
+        if method == "CONNECT":
+            hp = parse_host_port(target, 443)
+            if not hp or not is_allowed(f"{hp[0]}:{hp[1]}", allowlist):
+                log(f"BLOCK CONNECT {target}")
+                conn.sendall(
+                    b"HTTP/1.1 403 Forbidden\r\nX-Tamagi-Egress-Guard: blocked\r\nContent-Type: text/plain\r\n\r\n"
+                    + f"Blocked by Tamagi Egress Guard: {target}\n".encode("utf-8")
+                )
+                conn.close()
+                return
+            log(f"ALLOW CONNECT {hp[0]}:{hp[1]}")
+            upstream = socket.create_connection(hp, timeout=15.0)
+            conn.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            if body_rem:
+                upstream.sendall(body_rem)
+            conn.settimeout(None)
+            upstream.settimeout(None)
+            relay_bidirectional(conn, upstream)
+            return
+
+        # Plain HTTP request (e.g., local llama.cpp 127.0.0.1:9931 or HTTP registry redirect)
+        host_hdr = ""
+        for ln in lines[1:]:
+            if ln.lower().startswith("host:"):
+                host_hdr = ln.split(":", 1)[1].strip()
+                break
+        check_target = target if "://" in target else (host_hdr or target)
+        hp = parse_host_port(check_target, 80)
+        if not hp or not is_allowed(f"{hp[0]}:{hp[1]}", allowlist):
+            log(f"BLOCK {method} {check_target}")
+            conn.sendall(
+                b"HTTP/1.1 403 Forbidden\r\nX-Tamagi-Egress-Guard: blocked\r\nContent-Type: text/plain\r\n\r\n"
+                + f"Blocked by Tamagi Egress Guard: {check_target}\n".encode("utf-8")
+            )
+            conn.close()
+            return
+        log(f"ALLOW {method} {hp[0]}:{hp[1]}")
+        path_only = "/" + target.split("://", 1)[1].split("/", 1)[1] if "://" in target and "/" in target.split("://", 1)[1] else (target if target.startswith("/") else "/")
+        rebuilt = f"{method} {path_only} {proto}\r\n" + "\r\n".join(
+            ln for ln in lines[1:] if not ln.lower().startswith("proxy-connection:")
+        ) + "\r\n\r\n"
+        upstream = socket.create_connection(hp, timeout=15.0)
+        upstream.sendall(rebuilt.encode("latin-1") + body_rem)
+        conn.settimeout(None)
+        upstream.settimeout(None)
+        relay_bidirectional(conn, upstream)
+    except OSError:
+        try:
+            conn.close()
+        except OSError:
+            pass
+
+
+def run_daemon(sock_path: str, allow_csv: str, log_path: str | None) -> int:
+    allowlist = build_allowlist(allow_csv)
+    p = pathlib.Path(sock_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        p.unlink()
+    except OSError:
+        pass
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    old_umask = os.umask(0o177)
+    try:
+        srv.bind(sock_path)
+    finally:
+        os.umask(old_umask)
+    os.chmod(sock_path, 0o600)
+    srv.listen(64)
+    try:
+        while True:
+            conn, _ = srv.accept()
+            t = threading.Thread(target=handle_proxy_client, args=(conn, allowlist, log_path), daemon=True)
+            t.start()
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        srv.close()
+        try:
+            p.unlink()
+        except OSError:
+            pass
+
+
+def run_bridge(sock_path: str, port: int, cmd: list[str]) -> int:
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", port))
+    listener.listen(64)
+
+    def forward_one(tcp_conn: socket.socket) -> None:
+        try:
+            ux = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            ux.connect(sock_path)
+        except OSError:
+            tcp_conn.close()
+            return
+        relay_bidirectional(tcp_conn, ux)
+
+    def accept_loop() -> None:
+        while True:
+            try:
+                c, _ = listener.accept()
+            except OSError:
+                break
+            threading.Thread(target=forward_one, args=(c,), daemon=True).start()
+
+    threading.Thread(target=accept_loop, daemon=True).start()
+    try:
+        return subprocess.call(cmd)
+    finally:
+        listener.close()
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if not args:
+        print(__doc__)
+        return 2
+    if args[0] == "--check-host":
+        if len(args) < 2:
+            return 2
+        target = args[1]
+        allow_csv = args[3] if len(args) >= 4 and args[2] == "--allow" else ""
+        ok = is_allowed(target, build_allowlist(allow_csv))
+        print("ALLOW" if ok else "BLOCK")
+        return 0 if ok else 1
+    if args[0] == "--daemon":
+        sock_path = args[1]
+        allow_csv = ""
+        log_path = None
+        i = 2
+        while i < len(args):
+            if args[i] == "--allow" and i + 1 < len(args):
+                allow_csv = args[i + 1]
+                i += 2
+            elif args[i] == "--log" and i + 1 < len(args):
+                log_path = args[i + 1]
+                i += 2
+            else:
+                i += 1
+        return run_daemon(sock_path, allow_csv, log_path)
+    if args[0] == "--bridge":
+        if "--" not in args or len(args) < 4:
+            print("usage: egress-guard --bridge <unix_sock> <port> -- <command>...", file=sys.stderr)
+            return 2
+        sep = args.index("--")
+        sock_path = args[1]
+        port = int(args[2])
+        cmd = args[sep + 1 :]
+        if not cmd:
+            return 2
+        return run_bridge(sock_path, port, cmd)
+    print(__doc__, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

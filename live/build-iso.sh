@@ -25,6 +25,7 @@ LIVE=${2:?imagem live}
 OUT=${3:?arquivo .iso de saída}
 LABEL=TAMAGI_LIVE
 
+mkdir -p "$(dirname "$OUT")"
 OUT_DIR=$(cd "$(dirname "$OUT")" && pwd)
 OUT_NAME=$(basename "$OUT")
 WORK="$OUT_DIR/iso-work"
@@ -60,6 +61,8 @@ podman run --rm \
     "$LIVE" bash /ctx/mkiso-inner.sh
 
 step "Pronto"
-ls -lh "$OUT_DIR/$OUT_NAME"
+( cd "$OUT_DIR" && sha256sum "$OUT_NAME" > "$OUT_NAME.sha256" )
+ls -lh "$OUT_DIR/$OUT_NAME" "$OUT_DIR/$OUT_NAME.sha256"
+cat "$OUT_DIR/$OUT_NAME.sha256"
 echo "Gravar num pendrive:  sudo bash live/write-usb.sh /dev/disk/by-id/usb-<seu-pendrive> --yes"
 echo "Testar numa VM:       just test-iso   (instala sozinho)   ou   just run-iso"

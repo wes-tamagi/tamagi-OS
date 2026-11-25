@@ -74,6 +74,7 @@ tamagi doctor                                # run system diagnostics
 tamagi install                               # open the optional software catalog
 tamagi browser install firefox --flatpak     # or --native, or --box
 tamagi agents install claude codex qwen      # install AI coding agents
+tamagi mcp add memory git playwright         # sandboxed MCP servers in Podman Quadlets
 tamagi devbox create ubuntu                  # create a dev container
 tamagi db add postgres                       # start a local development database
 ```
@@ -100,17 +101,22 @@ and puts all system administration behind one CLI.
 tamagi agents install claude codex opencode   # or: tamagi apply ai
 cd ~/Projects/my-app
 tamagi agents run claude                      # run the agent jailed to this directory
+tamagi agents run --shadow claude             # run on an instant Btrfs CoW clone + Egress Guard
+tamagi agents shadow diff <id>                # inspect speculative changes before applying
+tamagi agents shadow apply <id>               # atomically promote shadow changes to live tree
 tamagi agents jail                            # open a shell inside the same jail
 ```
 
 Inside the bubblewrap sandbox (the isolation layer Flatpak uses), an agent can
-read and write only the project directory and its own configuration.
+read and write only the project directory (or its isolated Copy-on-Write shadow
+workspace) and its own configuration.
 
 | | |
 |---|---|
 | **Hidden** | `~/.ssh`, `~/.gnupg`, API tokens, browser profiles, other repositories, removable drives |
 | **Read-only** | the operating system; the project's `.git/hooks` and `.git/config` |
-| **Network** | enabled for API calls; `--offline` cuts it |
+| **Shadow CoW (`--shadow`)** | clones the project (including `target/`, `node_modules/`, `.venv/`) via Btrfs `cp --reflink=auto` in milliseconds and mounts it over the canonical project path; parallel agents never touch your live working tree until `tamagi agents shadow apply` |
+| **Network & Egress Guard** | `--egress-guard` (default with `--shadow`) airgaps `--unshare-net` and bridges only allowlisted AI APIs, open-source package registries and local `llama.cpp` (`127.0.0.1:9931`), blocking code exfiltration; `--offline` cuts all network |
 | **Compilers** | if a devbox exists (`tamagi devbox`), the jail is built inside it (Node, Python, Rust, git, database clients); otherwise on the host (`--host` forces it) |
 | **Rollback point** | before launch Tamagi records a git ref (`refs/tamagi/before-agent/<timestamp>`) and takes a home snapshot when snapshots are on; `--db` also snapshots running `tamagi db` instances |
 | **Authentication** | log in once outside the jail (`claude`, `codex`…): there is no browser or desktop session inside |
@@ -201,14 +207,14 @@ and nothing is written before the review is confirmed. Until 1.1 Tamagi used
 own. The ISO builds rootless:
 
 ```bash
-just build-iso      # output/tamagi.iso (about 5 GiB: fits an 8 GB USB drive)
+just build-iso      # output/imagens_iso/tamagi.iso (+ .sha256)
 just test-iso       # unattended VM install + post-install verification
 just test-upgrade   # end-to-end: local registry, automatic update, reboot, then a bad image that must roll back by itself
 just run-iso        # launch the ISO in a windowed VM
 sudo bash live/write-usb.sh /dev/disk/by-id/usb-... --yes
 ```
 
-The UEFI-only ISO boots a live COSMIC session and launches the installer.
+The UEFI-only ISO boots a dedicated live COSMIC session (with pre-built linker/hwdb caches and host-only services masked so USB drives never stall on `ldconfig.service`), blocks installation early if UEFI Secure Boot is still enabled, and launches the installer.
 
 - **Languages:** English is the default; Brazilian Portuguese is second, then
   Spanish and French. The chosen language applies to the installer, the OS and
@@ -486,8 +492,8 @@ kernel-level anti-cheat is unsupported on both paths.
 
 ### Gaming
 
-Only kernel-level parts ship in the base image: the OGC kernel, Xbox
-controller drivers (xone/xpadneo) and `scx_rusty`. Steam, steam-devices,
+Only kernel-level parts ship in the base image: the OGC kernel and
+`scx_rusty`. Steam, steam-devices,
 gamescope, MangoHud, GameMode, 32-bit Mesa/Vulkan, Lutris, Wine, Winetricks,
 GOverlay, vkBasalt and Protontricks install on demand, as a reversible native
 layer or through Flatpak:
@@ -542,6 +548,12 @@ tamagi agents install claude antigravity codex clio qwen opencode gemini opencla
   and unloads after 15 idle minutes.
 - **`tamagi agent`** (alias `agent`): local system agent using the declarative
   actions in `/usr/share/tamagi/actions.toml`.
+- **`tamagi mcp`:** sandboxed Model Context Protocol servers (`fetch`, `memory`,
+  `git`, `postgres`, `playwright`, `filesystem`) managed via rootless Podman
+  Quadlet `.image` units (`AutoUpdate=registry`) and invoked over stdio with
+  `--cap-drop=ALL --security-opt=no-new-privileges` (0 MB idle RAM, blind to
+  `$HOME`), automatically synced into Claude Code, Antigravity, Gemini CLI,
+  Codex and opencode.
 - **llm-scripts** (`tamagi install llm-scripts`): GPL-3.0 toolkit that reads
   model metadata and VRAM to compute context and KV-cache profiles
   (`llm doctor`, `llm models`, `llm profile --model <model>`, `llm serve`),
@@ -571,10 +583,10 @@ tamagi agents install claude antigravity codex clio qwen opencode gemini opencla
 | `tamagi perf` | CPU/EPP profiles (`eco`, `balanced`, `performance`, `latency`) coordinated with `scx_rusty`; `tamagi perf status`, `tamagi perf bench` |
 | `tamagi setup` | machine chores: `secure-boot-key`, `tpm-unlock pin|auto|off|reseal`, `firmware`, `bios`, `clean`, `lazyvim`, `switch-image <ref>` |
 | `tamagi isolate <file>` | runs an untrusted script, AppImage or binary in a disposable jail: no network, empty `$HOME`, read-only OS, no D-Bus; display, audio and GPU kept. `--keep` keeps the jail, `--net` allows networking. Also in COSMIC Files → Open With → "Run Isolated" |
-| `tamagi guest on` | passwordless "Guest" account whose home lives in RAM and resets on logout; no sudo, polkit blocks disks, VMs and package installs. Off by default |
+| `tamagi mcp` | sandboxed MCP servers in rootless Podman Quadlets (`fetch`, `memory`, `git`, `postgres`, `playwright`, `filesystem`) with 0 MB idle RAM and automatic agent config sync |
 | `tamagi privacy` | one-touch privacy mode (`Super+Ctrl+P`): camera drivers unbound, microphones muted, Bluetooth blocked, mDNS off, firewall zone `drop`, random Wi-Fi MAC, optional Tailscale exit node, Do Not Disturb |
-| `tamagi capture` | `text` (region OCR to the clipboard), `record` (screen recording) |
-| `tamagi font`, `tamagi remind 25m "Break"` | monospace font everywhere; a desktop reminder |
+| `tamagi capture` | `text` (region OCR to the clipboard, via optional `tamagi install ocr`), `record` (screen recording) |
+| `tamagi font` | monospace font across terminal, editor and desktop |
 
 **Home history:**
 
@@ -609,13 +621,6 @@ tamagi harden usb on               # USBGuard allowlist of the devices attached 
 tamagi harden malloc on            # hardened_malloc globally
 tamagi setup tpm-unlock pin        # unlock the encrypted disk with the TPM + a PIN
 ```
-
-**Your own commands.** `tamagi recipe` runs recipes written in a Markdown
-file: a few lines of shell with a name, inside ```` ```just ```` blocks, with
-the explanation written around them. Yours live in
-`~/.config/tamagi/recipes.md` (`tamagi recipe edit` creates it with an
-example); Tamagi ships a few (`clean`, `space`, `boots`, `errors`, `ip`) in
-`/usr/share/tamagi/recipes.md`. A recipe of yours with the same name wins.
 
 **What is it doing?** `tamagi status` says what Tamagi is running in the
 background right now (the first login installing its apps, a new system image
@@ -699,8 +704,8 @@ and always ask for confirmation.
 | `Super+T` / `Super+Y` | float window / toggle tiling |
 | `Super+B` / `E` | browser / files |
 | `Super+Shift+G` / `D` / `M` / `W` | lazygit (from the dev box; offers to create it) / databases / Mission Center / Windows |
-| `Super+Ctrl+P` / `E` / `R` | privacy mode / emojis / reminder |
-| `Shift+Print` / `Alt+Print` | OCR of a region / screen recording |
+| `Super+Ctrl+P` | privacy mode |
+| `Shift+Print` / `Alt+Print` | OCR of a region (`tamagi install ocr`) / screen recording |
 
 ## Build and test
 
@@ -727,16 +732,16 @@ just lint
 ## Kernel, modules and signing
 
 - **Default kernel:** OGC (`ogc` flavor, the version Bazzite's `stable` ships)
-  with signed `ublue-os/akmods` (xone, xpadneo, v4l2loopback).
+  with signed `ublue-os/akmods` (`v4l2loopback`).
 - **Secure Boot:** the OGC kernel is signed by Universal Blue, not Fedora.
   Enroll the key once with `tamagi setup secure-boot-key` (password
   `universalblue`). The updater downloads a new image held back, runs the
   Secure Boot guard, and releases it only if its kernel would boot (Secure
-  Boot on without the key enrolled: it stays held). On the ISO, `universalblue.der`
-  is on `TAMAGI_EFI` for MokManager.
+  Boot on without the key enrolled: it stays held). Note: install from the ISO
+  with Secure Boot turned off in UEFI firmware (the installer checks and warns
+  upfront while `systemd-boot` remains unsigned).
 - **Other flavors, for local builds:** `KERNEL_FLAVOR=main just build`
-  (Fedora-signed base kernel) or `KERNEL_FLAVOR=ark just build` (Fedora
-  Rawhide kernel, no Universal Blue modules).
+  (Fedora-signed stable base kernel).
 - **Image signing:** see [Updates and signed images](#updates-and-signed-images).
 
 ## Repository structure
@@ -744,7 +749,7 @@ just lint
 ```text
 Containerfile            stages: llama.cpp -> start menu + welcome -> Rust tools -> image
 build_files/             numbered build scripts; packages.txt
-rust/                    tamagi, tamagi-layer and agent-jail (static Rust binaries)
+rust/                    tamagi, tamagi-layer, tamagi-doctor, tamagi-install and agent-jail (static Rust binaries)
 welcome/                 tamagi-welcome, the first-login window (Rust + libcosmic)
 system_files/            files overlaid onto the image root
   usr/bin/tamagi-*       update, setup, install, browser, harden, ai, agents…

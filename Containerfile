@@ -8,15 +8,13 @@
 ARG FEDORA_VERSION=45
 ARG BASE_IMAGE=ghcr.io/ublue-os/base-main
 # Kernel: ogc (padrão: Open Gaming Collective, assinado pelo
-# Universal Blue) | main (o da base, assinado pelo Fedora) | ark (kernel-ark,
-# o do Fedora Rawhide).
+# Universal Blue) | main (o da base, assinado pelo Fedora).
 # Veja build_files/12-kernel.sh, em especial a nota sobre Secure Boot.
 ARG KERNEL_FLAVOR=ogc
 # Idioma padrão da imagem e do instalador: en (padrão, a única publicada) ou
 # pt (português do Brasil, só para build local).
 ARG TAMAGI_DEFAULT_LANG=en
-# Módulos prontos do Universal Blue: o mesmo sabor do kernel (ogc ou main). O
-# ark não tem módulos lá; com ele, passe AKMODS_FLAVOR=main (o Justfile faz).
+# Módulos prontos do Universal Blue: o mesmo sabor do kernel (ogc ou main).
 ARG AKMODS_FLAVOR=${KERNEL_FLAVOR}
 
 # ── Estágio 1: compila o llama.cpp (CPU + Vulkan) ──────────────────────────
@@ -97,16 +95,9 @@ RUN cargo test --release --locked \
     && RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --locked --target x86_64-unknown-linux-gnu \
     && install -Dm755 /target/x86_64-unknown-linux-gnu/release/agent-jail /out/usr/libexec/tamagi/agent-jail \
     && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi /out/usr/bin/tamagi \
-    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-layer /out/usr/bin/tamagi-layer
-
-# ── Estágio 1d: ferramentas escritas em Go (go/) ─────────────────────────────
-FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS tamagigo
-RUN dnf -y install --setopt=install_weak_deps=False golang && dnf clean all
-COPY go /src
-WORKDIR /src
-RUN go test ./... \
-    && CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/usr/bin/tamagi-doctor ./cmd/tamagi-doctor \
-    && CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/usr/bin/tamagi-install ./cmd/tamagi-install
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-layer /out/usr/bin/tamagi-layer \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-doctor /out/usr/bin/tamagi-doctor \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-install /out/usr/bin/tamagi-install
 
 # ── Kernel e módulos prontos e assinados do Universal Blue (ublue-os/akmods) ──
 # build_files/12-kernel.sh troca o kernel (se o sabor pedir) e instala os módulos.
@@ -136,7 +127,6 @@ COPY --from=llama /out/usr /usr
 COPY --from=rustdesk /out/usr /usr
 COPY --from=ctx /system_files /
 COPY --from=tamagitools /out/usr /usr
-COPY --from=tamagigo /out/usr /usr
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=bind,from=akmods,source=/,target=/akmods \

@@ -24,12 +24,6 @@ python3-gobject
 adw-gtk3-theme
 xdg-terminal-exec
 wl-clipboard
-# OCR do tamagi-capture (Shift+Print copia o texto de uma área da tela).
-tesseract
-tesseract-langpack-eng
-tesseract-langpack-por
-tesseract-langpack-spa
-tesseract-langpack-fra
 nm-connection-editor
 # Discos (GNOME Disks): particionar, formatar, LUKS, SMART, imagens de disco e
 # teste de velocidade. O COSMIC ainda não tem equivalente tão completo. 8 MB.
@@ -113,21 +107,13 @@ NetworkManager-openvpn-gnome
 NetworkManager-openconnect-gnome
 NetworkManager-tui
 # Tailscale não vem na imagem: é opcional (`tamagi install tailscale`).
-# Celulares, pastas remotas e nuvem
+# Celulares e pastas remotas (NAS/SSHFS/MTP). Ferramentas de rede avançadas,
+# OCR e adb/fastboot entram sob demanda pelo catálogo (`tamagi install`).
 gvfs-smb
 gvfs-mtp
-gvfs-afc
 gvfs-nfs
 gvfs-fuse
-gvfs-goa
-ifuse
-android-tools
 fuse-sshfs
-# rclone (115 MB) saiu da imagem: é opcional, `tamagi install rclone`.
-# Diagnóstico
-iperf3
-nmap-ncat
-wol
 
 # ── Máquinas virtuais e Console Web (DX nativo, ativado por socket) ──
 qemu-kvm

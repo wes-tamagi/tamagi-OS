@@ -1,48 +1,38 @@
 #!/usr/bin/bash
-# tamagi-agents — AI coding agents, installed on demand in your user.
+# tamagi-agents — AI coding agents, installed on demand in your user, with
+# Copy-on-Write Shadow Workspaces and kernel-enforced Egress Guard.
 #
 # None ships in the image: they are third-party software, downloaded from the
 # vendor on your machine when you choose them.
 #
-#   tamagi agents                    choose from a list
-#   tamagi agents list               what exists and what is installed
-#   tamagi agents install <name>…    claude antigravity codex clio qwen opencode gemini openclaw local
+#   tamagi agents                       choose from a list
+#   tamagi agents list                  what exists and what is installed
+#   tamagi agents install <name>…       claude antigravity codex clio qwen opencode gemini openclaw local
 #   tamagi agents remove <name>
-#   tamagi agents update             updates the installed ones
-#   tamagi agents run <name> [args]  runs the agent JAILED in the current project
-#   tamagi agents jail [-- command]  a shell in the same jail (see what the agent sees)
+#   tamagi agents update                updates the installed ones
+#   tamagi agents run [opts] <name> …   runs the agent JAILED in the current project
+#   tamagi agents jail [opts] [-- cmd]  a shell in the same jail (see what the agent sees)
+#   tamagi agents shadow <subcommand>   speculative CoW shadow workspaces:
+#                                         list | run | diff <id> | apply <id> | drop <id|--all>
 #
-# The jail (bubblewrap, inside the development box when there is one, so the
-# agent has compilers and Node): the agent sees the project folder and its own
-# settings, and nothing else of your home — no SSH or GPG keys, no tokens, no
-# browser profiles, no other projects. The system is read-only; the network
-# stays on (the agent talks to its API) unless --offline. Before it starts,
-# the state of the project is saved: a snapshot of the home folder (when
-# snapshots are on) and a git reference, so `tamagi rewind` and
-# `git diff refs/tamagi/before-agent/<time>` show and undo what it did.
-#   options of run/jail:  --offline   --db (snapshot the running databases too)
-#                         --no-snapshot   --host (do not use the development box)
-#
-# How each one is installed:
-#   claude       Anthropic's installer, checksum verified, in ~/.local/bin
-#   codex        official binary from GitHub, digest verified, in ~/.local/bin
-#   opencode     official binary from GitHub, digest verified, in ~/.local/bin
-#   clio         CLIO (pure Perl, GPL-3.0): release from GitHub, digest verified,
-#                unpacked in your user; runs in the development box (the host
-#                has only a minimal Perl) and talks to the local model (llama.cpp)
-#   antigravity  Antigravity CLI (`agy`), Google's terminal agent: Google's own
-#                installer (it checks the SHA-512 of what it downloads), one
-#                binary in ~/.local/bin. The desktop IDE is a separate, much
-#                larger thing and is not in the catalog: tamagi antigravity
-#   qwen, gemini, openclaw   npm packages: they live in the development box
-#                (`tamagi devbox`), where Node, git and the compilers are; a
-#                launcher in ~/.local/bin opens them from anywhere
-#   local        the Tamagi agent with a local model (llama.cpp): tamagi ai setup
+# Options of run/jail:
+#   --shadow [--shadow-id <id>]   run on an instant Copy-on-Write reflink clone
+#                                 (0 extra bytes on Btrfs, warm target/ & node_modules/);
+#                                 your live tree is untouched until `shadow apply <id>`
+#   --egress-guard                airgap network (--unshare-net) and allow only AI APIs
+#                                 and open-source package registries (default with --shadow)
+#   --allow-domain <domain>       add an extra allowed domain to --egress-guard
+#   --full-net                    disable automatic --egress-guard when using --shadow
+#   --offline                     cut all network access inside the jail
+#   --db                          snapshot running `tamagi db` databases before launch
+#   --no-snapshot                 skip pre-agent git/Btrfs save point
+#   --host                        run on the host instead of the development box
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
 BIN_DIR="$HOME/.local/bin"
 PREFIX="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/agents"   # npm prefix, used from the dev box
+SHADOWS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/shadows"
 BOX="${TAMAGI_AGENTS_BOX:-dev}"
 ORDER=(claude antigravity codex clio qwen opencode gemini openclaw local)
 declare -A TITLE=(
@@ -52,15 +42,11 @@ declare -A TITLE=(
 )
 declare -A NPM=([qwen]="@qwen-code/qwen-code" [gemini]="@google/gemini-cli" [openclaw]="openclaw")
 declare -A GH_REPO=([codex]="openai/codex" [opencode]="anomalyco/opencode" [clio]="SyntheticAutonomicMind/CLIO")
-CLIO_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/clio"      # CLIO is a tree of Perl files, not one binary
+CLIO_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/clio"
 declare -A GH_ASSET=([codex]='^codex-x86_64-unknown-linux-musl\.tar\.gz$' [opencode]='^opencode-linux-x64-baseline\.tar\.gz$'
                      [clio]='^clio-[0-9.]+\.tar\.gz$')
 
 die() { echo "$(t "error"): $*" >&2; exit 1; }
-# Agents that run in the development box: npm packages (Node is there) and
-# CLIO (needs the complete Perl, which the immutable host does not carry).
-# The menu entry of an agent appears when the agent is installed (the image
-# carries the entry as a template, not in the menu).
 APPS="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 menu_entry() {
     [[ -f /usr/share/tamagi/desktop/$1.desktop ]] || return 0
@@ -69,7 +55,7 @@ menu_entry() {
 }
 needs_box() { [[ -n ${NPM[$1]:-} || $1 == clio ]]; }
 ensure_box() { podman container exists "$BOX" 2>/dev/null || tamagi-devbox create fedora --name "$BOX"; }
-write_launcher() { # write_launcher <name> <program inside the home>: works from the host and from any box
+write_launcher() {
     mkdir -p "$BIN_DIR"
     rm -f "$BIN_DIR/$1"
     cat > "$BIN_DIR/$1" <<SH
@@ -81,8 +67,17 @@ exec distrobox enter $BOX -- "\$BIN" "\$@"
 SH
     chmod +x "$BIN_DIR/$1"
 }
-DOWNLOAD_TMP=""    # download folder of install_github, removed also when it fails
-trap 'if [[ -n $DOWNLOAD_TMP ]]; then rm -rf -- "${DOWNLOAD_TMP:?}"; fi' EXIT
+
+DOWNLOAD_TMP=""
+EGRESS_PID=""
+EGRESS_TMP=""
+cleanup_runtime() {
+    [[ -n $EGRESS_PID ]] && kill "$EGRESS_PID" 2>/dev/null || true
+    [[ -n $EGRESS_TMP ]] && rm -rf -- "${EGRESS_TMP:?}" || true
+    [[ -n $DOWNLOAD_TMP ]] && rm -rf -- "${DOWNLOAD_TMP:?}" || true
+}
+trap cleanup_runtime EXIT
+
 info() { echo -e "\033[1m$*\033[0m"; }
 canon() { case "${1:-}" in claude-code) echo claude ;; qwen-code) echo qwen ;; gemini-cli) echo gemini ;; claw|claws) echo openclaw ;; agy) echo antigravity ;; *) echo "${1:-}" ;; esac; }
 known() { [[ -n ${1:-} && -n ${TITLE[$1]:-} ]]; }
@@ -99,8 +94,6 @@ is_installed() {
     esac
 }
 
-# Official binary from the latest GitHub release, verified against the SHA-256
-# digest that GitHub publishes for the asset.
 install_github() {
     local name=$1 json url digest tmp bin
     tmp=$(mktemp -d); DOWNLOAD_TMP=$tmp
@@ -113,8 +106,6 @@ install_github() {
     echo "${digest#sha256:}  $tmp/pkg.tar.gz" | sha256sum -c --quiet - || die "$name: $(t "the downloaded file does not match the published digest")"
     mkdir "$tmp/x"; tar -xzf "$tmp/pkg.tar.gz" -C "$tmp/x"
     if [[ $name == clio ]]; then
-        # The whole tree goes to the user's data folder; the launcher is a link
-        # (CLIO finds its library next to the real file).
         bin=$(find "$tmp/x" -maxdepth 2 -type f -name clio | head -1)
         [[ -n $bin ]] || die "$name: $(t "the package has no executable")"
         mkdir -p "$(dirname "$CLIO_DIR")"
@@ -125,7 +116,6 @@ install_github() {
             || echo "$name: $(t "the box has no complete Perl; run"): tamagi devbox provision $BOX" >&2
         write_launcher clio "$CLIO_DIR/clio"
     else
-        # The executable named after the agent (codex ships it as codex-<target>).
         bin=$(find "$tmp/x" -type f -perm -u+x \( -name "$name" -o -name "$name-*" \) | head -1)
         [[ -n $bin ]] || die "$name: $(t "the package has no executable")"
         install -Dm755 "$bin" "$BIN_DIR/$name"
@@ -134,23 +124,16 @@ install_github() {
     echo "$name: $("$BIN_DIR/$name" --version 2>/dev/null | head -1)"
 }
 
-# npm agents live in the development box; the launcher works from the host
-# and from inside any box.
 install_npm() {
     local name=$1
     ensure_box
     info "npm install -g ${NPM[$name]}   ($(t "box") $BOX)"
-    # Jailed: an install script of the package (postinstall) sees the prefix, not your home.
     mkdir -p "$PREFIX"
     distrobox enter "$BOX" -- "$JAIL_BOX" --root "$PREFIX" --cwd "$PREFIX" -- npm install -g --prefix "$PREFIX" "${NPM[$name]}"
     [[ -e $PREFIX/bin/$name ]] || die "$name: $(t "npm did not create the executable")"
     write_launcher "$name" "$PREFIX/bin/$name"
 }
 
-# Antigravity CLI: Google publishes it only through its install script, which
-# picks the build for this machine and checks its SHA-512. The script is
-# downloaded to a file and run from there (never piped from the network into
-# the shell), and told to put the binary in ~/.local/bin.
 AGY_INSTALLER=https://antigravity.google/cli/install.sh
 install_agy() {
     local tmp; tmp=$(mktemp -d); DOWNLOAD_TMP=$tmp
@@ -195,15 +178,14 @@ remove_one() {
     echo "$(t "Removed"): $name"
 }
 
-# ── The jail ───────────────────────────────────────────────────────────────
-# What each agent keeps in the home folder (settings, login, history).
+# ── The jail, Egress Guard & Shadow Workspaces ─────────────────────────────
 declare -A STATE=(
     [claude]=".claude" [codex]=".codex" [clio]=".clio" [qwen]=".qwen" [gemini]=".gemini" [openclaw]=".openclaw"
     [opencode]=".config/opencode .local/share/opencode .local/state/opencode .cache/opencode"
     [antigravity]=".gemini" [local]=""
 )
 
-project_root() { # the git repository around the current folder, or the folder itself
+project_root() {
     local root
     root=$(git rev-parse --show-toplevel 2>/dev/null) || root=$PWD
     root=$(realpath "$root")
@@ -212,7 +194,7 @@ project_root() { # the git repository around the current folder, or the folder i
     echo "$root"
 }
 
-save_point() { # save_point <project> <label> <db?>: what `rewind` and git can bring back
+save_point() {
     local root=$1 label=$2 db=$3 stamp ref name
     stamp=$(date +%Y%m%d-%H%M%S)
     if git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
@@ -235,34 +217,91 @@ save_point() { # save_point <project> <label> <db?>: what `rewind` and git can b
     fi
 }
 
-# The jail is built by /usr/libexec/tamagi/agent-jail, run where the agent
-# will run: here, or inside the development box (through /run/host). What has
-# to be hidden differs between the two, so it is decided on the spot.
 JAIL_HOST="${TAMAGI_LIBEXEC:-/usr/libexec/tamagi}/agent-jail"
 JAIL_BOX="${TAMAGI_BOX_LIBEXEC:-/run/host/usr/libexec/tamagi}/agent-jail"
+GUARD_HOST="${TAMAGI_LIBEXEC:-/usr/libexec/tamagi}/egress-guard"
 
-cmd_run() { # cmd_run <shell?> args…
-    local shell=$1 offline=0 db=0 snapshot=1 use_box=1 print=0 agent="" root; shift
+valid_shadow_id() { [[ ${1:-} =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,48}$ ]] || die "$(t "invalid shadow ID"): ${1:-}"; }
+
+shadow_changes_count() {
+    python3 - "$1" "$2" <<'PY'
+import filecmp, os, pathlib, sys
+SKIP = {".git", "target", "node_modules", "__pycache__", ".venv", ".pytest_cache", ".mypy_cache"}
+src = pathlib.Path(sys.argv[1])
+dst = pathlib.Path(sys.argv[2])
+changed = 0
+def walk(base):
+    out = {}
+    for root, dirs, files in os.walk(base):
+        dirs[:] = [d for d in dirs if d not in SKIP]
+        rel_dir = pathlib.Path(root).relative_to(base)
+        for f in files:
+            p = pathlib.Path(root) / f
+            if p.is_symlink() or p.is_file():
+                out[str(rel_dir / f)] = p
+    return out
+a, b = walk(src), walk(dst)
+for k in set(a) | set(b):
+    if k not in a or k not in b:
+        changed += 1
+    elif a[k].is_symlink() != b[k].is_symlink():
+        changed += 1
+    elif a[k].is_symlink():
+        if os.readlink(a[k]) != os.readlink(b[k]):
+            changed += 1
+    elif not filecmp.cmp(a[k], b[k], shallow=False):
+        changed += 1
+print(changed)
+PY
+}
+
+start_egress_daemon() {
+    local allow_csv=$1
+    [[ -x $GUARD_HOST ]] || die "missing $GUARD_HOST"
+    EGRESS_TMP=$(mktemp -d "${TMPDIR:-/tmp}/tamagi-egress.XXXXXX")
+    chmod 700 "$EGRESS_TMP"
+    local sock="$EGRESS_TMP/proxy.sock"
+    "$GUARD_HOST" --daemon "$sock" --allow "$allow_csv" --log "$EGRESS_TMP/egress.log" &
+    EGRESS_PID=$!
+    for _ in $(seq 30); do
+        [[ -S $sock ]] && break
+        sleep 0.1
+    done
+    [[ -S $sock ]] || die "could not start egress-guard socket"
+    echo "$sock"
+}
+
+cmd_run() {
+    local shell=$1 offline=0 db=0 snapshot=1 use_box=1 print=0 shadow=0 shadow_id="" egress=0 full_net=0 allow_domains="" agent="" root
+    shift
     while (( $# )); do
         case $1 in
-            --offline)     offline=1 ;;
-            --db)          db=1 ;;
-            --no-snapshot) snapshot=0 ;;
-            --host)        use_box=0 ;;
-            --print)       print=1 ;;          # show the jail and leave (tests)
-            --)            shift; break ;;
-            -*)            die "$(t "unknown option"): $1" ;;
-            *)             break ;;
+            --offline)       offline=1 ;;
+            --db)            db=1 ;;
+            --no-snapshot)   snapshot=0 ;;
+            --host)          use_box=0 ;;
+            --print)         print=1 ;;
+            --shadow)        shadow=1 ;;
+            --shadow-id)     shadow=1; shadow_id=${2:?--shadow-id needs a value}; shift ;;
+            --egress-guard)  egress=1 ;;
+            --allow-domain)  egress=1; allow_domains="${allow_domains:+$allow_domains,}${2:?--allow-domain needs a value}"; shift ;;
+            --full-net)      full_net=1 ;;
+            --)              shift; break ;;
+            -*)              die "$(t "unknown option"): $1" ;;
+            *)               break ;;
         esac
         shift
     done
+    (( shadow && ! offline && ! full_net )) && egress=1
+    (( offline )) && egress=0
+
     local home; home=$(realpath "$HOME")
     local -a cmd opts=()
     if (( shell )); then
         cmd=("$@"); (( ${#cmd[@]} )) || cmd=(bash)
     else
         agent=$(canon "${1:-}"); shift || true
-        known "$agent" && [[ -n ${STATE[$agent]} ]] || die "usage: tamagi agents run <claude|antigravity|codex|clio|qwen|opencode|gemini|openclaw> [args]"
+        known "$agent" && [[ -n ${STATE[$agent]} ]] || die "usage: tamagi agents run [options] <claude|antigravity|codex|clio|qwen|opencode|gemini|openclaw> [args]"
         is_installed "$agent" || die "$agent $(t "is not installed"): tamagi agents install $agent"
         cmd=("$home/.local/bin/$agent" "$@")
         [[ $agent == antigravity ]] && cmd=("$home/.local/bin/agy" "$@")
@@ -270,31 +309,204 @@ cmd_run() { # cmd_run <shell?> args…
         [[ $agent == clio ]] && cmd=("$CLIO_DIR/clio" "$@")
         opts+=(--state "${STATE[$agent]}")
         if [[ $agent == claude ]]; then
-            # Claude Code keeps its settings file next to its folder; inside the jail it goes in the folder.
             if [[ -f $home/.claude.json && ( ! -e $home/.claude/.claude.json || $home/.claude.json -nt $home/.claude/.claude.json ) ]]; then
                 mkdir -p "$home/.claude"; cp "$home/.claude.json" "$home/.claude/.claude.json"
             fi
             opts+=(--setenv "CLAUDE_CONFIG_DIR=$home/.claude")
         fi
     fi
+
     root=$(project_root)
+    local sdir=""
+    if (( shadow )); then
+        [[ -n $shadow_id ]] || shadow_id="${agent:-jail}-$(date +%Y%m%d-%H%M%S)"
+        valid_shadow_id "$shadow_id"
+        sdir="$SHADOWS_DIR/$shadow_id"
+        [[ ! -e $sdir ]] || die "$(t "shadow already exists"): $shadow_id"
+        if (( print )); then
+            opts+=(--shadow "/tmp/tamagi-shadow-preview-$shadow_id")
+        else
+            mkdir -p "$sdir"
+            cp -a --reflink=auto "$root" "$sdir/work"
+            {
+                printf 'SHADOW_ID=%s\n' "$shadow_id"
+                printf 'SHADOW_ROOT=%s\n' "$root"
+                printf 'SHADOW_AGENT=%s\n' "${agent:-jail}"
+                printf 'SHADOW_CREATED=%s\n' "$(date -Iseconds)"
+            } > "$sdir/meta.env"
+            opts+=(--shadow "$sdir/work")
+        fi
+    fi
+
+    if (( egress )); then
+        if (( print )); then
+            opts+=(--egress-sock "/tmp/tamagi-egress-preview.sock")
+        else
+            local sock
+            sock=$(start_egress_daemon "$allow_domains")
+            opts+=(--egress-sock "$sock")
+        fi
+    fi
+
     (( offline )) && opts+=(--offline)
     (( print )) && opts+=(--print)
     opts+=(--root "$root" --cwd "$(realpath "$PWD")")
-    # In the development box the agent has compilers, Node and git; npm agents and CLIO live there.
+
     local in_box=0
     if (( use_box )) && podman container exists "$BOX" 2>/dev/null; then in_box=1; fi
     if [[ -n $agent ]] && needs_box "$agent" && (( ! in_box )); then
         die "$agent $(t "runs in the development box"): tamagi devbox create"
     fi
+
     if (( ! print )); then
-        info "$(t "Jail"): $root   ($( (( in_box )) && echo "$(t "box") $BOX" || t "on the host, without compilers")$( (( offline )) && echo ", offline"))"
-        (( snapshot )) && save_point "$root" "${agent:-jail}" "$db"
+        local mode_note=""
+        (( offline )) && mode_note+=", offline"
+        (( egress )) && mode_note+=", egress-guard"
+        (( shadow )) && mode_note+=", shadow:$shadow_id"
+        info "$(t "Jail"): $root   ($( (( in_box )) && echo "$(t "box") $BOX" || t "on the host, without compilers")$mode_note)"
+        if (( ! shadow && snapshot )); then
+            save_point "$root" "${agent:-jail}" "$db"
+        elif (( shadow && db )); then
+            save_point "$root" "shadow-$shadow_id" 1
+        fi
     fi
+
+    if (( ! print && (shadow || egress) )); then
+        local rc=0
+        if (( in_box )); then
+            distrobox enter "$BOX" -- env TAMAGI_EGRESS_GUARD_BIN="/run/host${GUARD_HOST}" "$JAIL_BOX" "${opts[@]}" -- "${cmd[@]}" || rc=$?
+        else
+            env TAMAGI_EGRESS_GUARD_BIN="$GUARD_HOST" "$JAIL_HOST" "${opts[@]}" -- "${cmd[@]}" || rc=$?
+        fi
+        if (( shadow )) && [[ -d $sdir/work ]]; then
+            local nchg
+            nchg=$(shadow_changes_count "$root" "$sdir/work")
+            echo
+            info "── $(t "Shadow workspace"): $shadow_id ($nchg $(t "changed files"))"
+            echo "  tamagi agents shadow diff $shadow_id"
+            echo "  tamagi agents shadow apply $shadow_id"
+            echo "  tamagi agents shadow drop $shadow_id"
+        fi
+        return "$rc"
+    fi
+
     if (( in_box )); then
         exec distrobox enter "$BOX" -- "$JAIL_BOX" "${opts[@]}" -- "${cmd[@]}"
     fi
     exec "$JAIL_HOST" "${opts[@]}" -- "${cmd[@]}"
+}
+
+load_shadow_meta() {
+    local id=$1
+    valid_shadow_id "$id"
+    local m="$SHADOWS_DIR/$id/meta.env"
+    [[ -f $m && -d $SHADOWS_DIR/$id/work ]] || die "$(t "no such shadow workspace"): $id"
+    SHADOW_ID="" SHADOW_ROOT="" SHADOW_AGENT=""
+    while IFS='=' read -r k v; do
+        case $k in
+            SHADOW_ID) SHADOW_ID=$v ;;
+            SHADOW_ROOT) SHADOW_ROOT=$v ;;
+            SHADOW_AGENT) SHADOW_AGENT=$v ;;
+        esac
+    done < "$m"
+}
+
+cmd_shadow() {
+    local sub=${1:-list}
+    shift || true
+    case "$sub" in
+        list)
+            local m any=0 nchg
+            for m in "$SHADOWS_DIR"/*/meta.env; do
+                [[ -f $m ]] || continue
+                any=1
+                load_shadow_meta "$(basename "$(dirname "$m")")"
+                nchg="?"
+                [[ -d $SHADOW_ROOT ]] && nchg=$(shadow_changes_count "$SHADOW_ROOT" "$SHADOWS_DIR/$SHADOW_ID/work")
+                printf '  %-26s %-10s %4s %-16s %s\n' "$SHADOW_ID" "$SHADOW_AGENT" "$nchg" "$(t "changed files")" "$SHADOW_ROOT"
+            done
+            (( any )) || tl "No active shadow workspaces. Start one with: tamagi agents run --shadow <agent>"
+            ;;
+        run)
+            cmd_run 0 --shadow "$@"
+            ;;
+        jail)
+            cmd_run 1 --shadow "$@"
+            ;;
+        diff)
+            local id=${1:?usage: tamagi agents shadow diff <id>}
+            load_shadow_meta "$id"
+            [[ -d $SHADOW_ROOT ]] || die "$(t "original project folder is missing"): $SHADOW_ROOT"
+            diff -ruN \
+                --exclude=.git --exclude=target --exclude=node_modules \
+                --exclude=__pycache__ --exclude=.venv --exclude=.pytest_cache \
+                "$SHADOW_ROOT" "$SHADOWS_DIR/$id/work" || true
+            ;;
+        apply)
+            local id=${1:?usage: tamagi agents shadow apply <id>}
+            load_shadow_meta "$id"
+            [[ -d $SHADOW_ROOT ]] || die "$(t "original project folder is missing"): $SHADOW_ROOT"
+            save_point "$SHADOW_ROOT" "shadow-apply-$id" 0
+            python3 - "$SHADOWS_DIR/$id/work" "$SHADOW_ROOT" <<'PY'
+import os, pathlib, shutil, subprocess, sys
+SKIP = {".git", "target", "node_modules", "__pycache__", ".venv", ".pytest_cache", ".mypy_cache"}
+src = pathlib.Path(sys.argv[1]).resolve()
+dst = pathlib.Path(sys.argv[2]).resolve()
+
+def rel_entries(base):
+    files, dirs = set(), set()
+    for root, dnames, fnames in os.walk(base):
+        dnames[:] = [d for d in dnames if d not in SKIP]
+        rel_root = pathlib.Path(root).relative_to(base)
+        if str(rel_root) != ".":
+            dirs.add(rel_root)
+        for f in fnames:
+            files.add(rel_root / f)
+    return files, dirs
+
+src_files, src_dirs = rel_entries(src)
+dst_files, dst_dirs = rel_entries(dst)
+
+for rel in sorted(dst_files - src_files):
+    p = dst / rel
+    if p.exists() or p.is_symlink():
+        p.unlink()
+
+for rel in sorted(dst_dirs - src_dirs, key=lambda p: len(p.parts), reverse=True):
+    p = dst / rel
+    try:
+        p.rmdir()
+    except OSError:
+        pass
+
+for rel in sorted(src_dirs):
+    (dst / rel).mkdir(parents=True, exist_ok=True)
+
+for rel in sorted(src_files):
+    s, d = src / rel, dst / rel
+    d.parent.mkdir(parents=True, exist_ok=True)
+    if d.exists() or d.is_symlink():
+        d.unlink()
+    subprocess.run(["cp", "-a", "--reflink=auto", str(s), str(d)], check=True)
+PY
+            rm -rf -- "${SHADOWS_DIR:?}/$id"
+            echo "$(t "Shadow workspace applied and cleaned up"): $id → $SHADOW_ROOT"
+            ;;
+        drop)
+            local target=${1:?usage: tamagi agents shadow drop <id|--all>}
+            if [[ $target == --all ]]; then
+                rm -rf -- "${SHADOWS_DIR:?}"
+                tl "All shadow workspaces removed."
+            else
+                load_shadow_meta "$target"
+                rm -rf -- "${SHADOWS_DIR:?}/$target"
+                echo "$(t "Removed"): $target"
+            fi
+            ;;
+        *)
+            die "usage: tamagi agents shadow [list|run|jail|diff <id>|apply <id>|drop <id|--all>]"
+            ;;
+    esac
 }
 
 cmd_list() {
@@ -313,7 +525,7 @@ cmd_update() {
             codex|opencode|clio) install_github "$name" || rc=1 ;;
             qwen|gemini|openclaw)
                 distrobox enter "$BOX" -- "$JAIL_BOX" --root "$PREFIX" --cwd "$PREFIX" -- npm install -g --prefix "$PREFIX" "${NPM[$name]}@latest" </dev/null || rc=1 ;;
-            *) ;;   # agy updates itself; local models do not change
+            *) ;;
         esac
     done
     return $rc
@@ -331,16 +543,17 @@ pick() {
 }
 
 case "${1:-}" in
-    "")         pick ;;
-    list)       cmd_list ;;
-    installed)  for n in "${ORDER[@]}"; do [[ $n != local ]] && is_installed "$n" && echo "$n"; done; exit 0 ;;
-    install)    shift; (( $# )) || die "usage: tamagi agents install <${ORDER[*]}>"
-                for a in "$@"; do install_one "$a"; done ;;
-    remove)     shift; (( $# )) || die "usage: tamagi agents remove <name>"
-                for a in "$@"; do remove_one "$a"; done ;;
-    update)     cmd_update ;;
-    run)        shift; cmd_run 0 "$@" ;;
-    jail)       shift; cmd_run 1 "$@" ;;
-    -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-    *)          die "usage: tamagi agents [list|install <name>…|remove <name>|update|run <name>|jail]" ;;
+    "")              pick ;;
+    list)            cmd_list ;;
+    installed)       for n in "${ORDER[@]}"; do [[ $n != local ]] && is_installed "$n" && echo "$n"; done; exit 0 ;;
+    install)         shift; (( $# )) || die "usage: tamagi agents install <${ORDER[*]}>"
+                     for a in "$@"; do install_one "$a"; done ;;
+    remove)          shift; (( $# )) || die "usage: tamagi agents remove <name>"
+                     for a in "$@"; do remove_one "$a"; done ;;
+    update)          cmd_update ;;
+    run)             shift; cmd_run 0 "$@" ;;
+    jail)            shift; cmd_run 1 "$@" ;;
+    shadow|shadows)  shift; cmd_shadow "$@" ;;
+    -h|--help|help)  sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *)               die "usage: tamagi agents [list|install <name>…|remove <name>|update|run <name>|jail|shadow]" ;;
 esac

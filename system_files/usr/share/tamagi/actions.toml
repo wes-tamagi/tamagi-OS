@@ -221,6 +221,48 @@ en = "Lists presets by role and hardware recommendation"
 es = "Lista preajustes por perfil y recomendación para este equipo"
 fr = "Liste les profils par usage et la recommandation matérielle"
 
+[[action]]
+id = "ai.mcp"
+category = "ai"
+icon = "network-server-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-mcp"
+keywords = "mcp model context protocol podman quadlet container claude codex gemini opencode playwright memory postgres git"
+[action.title]
+pt = "Servidores MCP em Podman Quadlets"
+en = "MCP servers in Podman Quadlets"
+es = "Servidores MCP en Podman Quadlets"
+fr = "Serveurs MCP dans Podman Quadlets"
+[action.subtitle]
+pt = "Isolados sem acesso à sua pasta pessoal e 0 MB de RAM parados"
+en = "Sandboxed with zero home-folder access and 0 MB idle RAM"
+es = "Aislados sin acceso a tu carpeta personal y 0 MB de RAM en reposo"
+fr = "Isolés sans accès au dossier personnel et 0 Mo de RAM au repos"
+
+[[action]]
+id = "ai.shadows"
+category = "ai"
+icon = "utilities-terminal-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi-agents shadow list"
+keywords = "shadow workspaces cow btrfs reflink agents paralelo especulativo egress guard"
+[action.title]
+pt = "Shadow Workspaces dos agentes (CoW)"
+en = "Agent Shadow Workspaces (CoW)"
+es = "Shadow Workspaces de agentes (CoW)"
+fr = "Shadow Workspaces des agents (CoW)"
+[action.subtitle]
+pt = "Clones Btrfs instantâneos com Egress Guard para rodar agentes sem tocar no projeto real"
+en = "Instant Btrfs clones with Egress Guard to run agents without touching your live tree"
+es = "Clones Btrfs instantáneos con Egress Guard sin tocar tu proyecto en vivo"
+fr = "Clones Btrfs instantanés avec Egress Guard sans toucher au projet réel"
+
 # ── Instalar ────────────────────────────────────────────────────────────────
 
 [[action]]
@@ -711,27 +753,6 @@ es = "Postgres, MySQL, MariaDB, Redis, Valkey o Mongo; solo en 127.0.0.1"
 fr = "Postgres, MySQL, MariaDB, Redis, Valkey ou Mongo ; 127.0.0.1 seulement"
 
 [[action]]
-id = "system.reminder"
-category = "system"
-icon = "alarm-symbolic"
-risk = "user"
-terminal = true
-confirm = false
-agent = true
-command = "tamagi-remind"
-keywords = "lembrete reminder alarme timer avisar notificacao"
-[action.title]
-pt = "Lembrete"
-en = "Reminder"
-es = "Recordatorio"
-fr = "Rappel"
-[action.subtitle]
-pt = "Avisa daqui a um tempo: 10m Tirar o chá"
-en = "Notifies you after a while: 10m Tea is ready"
-es = "Avisa dentro de un rato: 10m El té está listo"
-fr = "Vous prévient dans un moment : 10m Le thé est prêt"
-
-[[action]]
 id = "capture.ocr"
 category = "system"
 icon = "edit-copy-symbolic"
@@ -814,27 +835,6 @@ pt = "Terminal, editor e apps de uma vez"
 en = "Terminal, editor and apps at once"
 es = "Terminal, editor y apps de una vez"
 fr = "Terminal, éditeur et applications d'un coup"
-
-[[action]]
-id = "system.emoji"
-category = "system"
-icon = "face-smile-symbolic"
-risk = "user"
-terminal = false
-confirm = false
-agent = false
-command = "/usr/libexec/tamagi/emoji"
-keywords = "emoji emojis smile carinha copiar"
-[action.title]
-pt = "Emojis"
-en = "Emoji"
-es = "Emojis"
-fr = "Émojis"
-[action.subtitle]
-pt = "Escolha um e ele vai para a área de transferência (Super+Ctrl+E)"
-en = "Pick one and it goes to the clipboard (Super+Ctrl+E)"
-es = "Elige uno y va al portapapeles (Super+Ctrl+E)"
-fr = "Choisissez-en un, il va dans le presse-papiers (Super+Ctrl+E)"
 
 [[action]]
 id = "system.update"
@@ -940,27 +940,6 @@ pt = "Câmera e microfones, Bluetooth, rede local e firewall de uma vez (Super+C
 en = "Camera and mics, Bluetooth, local network and firewall at once (Super+Ctrl+P)"
 es = "Cámara y micrófonos, Bluetooth, red local y firewall a la vez (Super+Ctrl+P)"
 fr = "Caméra et micros, Bluetooth, réseau local et pare-feu d'un coup (Super+Ctrl+P)"
-
-[[action]]
-id = "system.guest"
-category = "system"
-icon = "avatar-default-symbolic"
-risk = "system"
-terminal = true
-confirm = true
-agent = false
-command = "bash -c 'if id convidado >/dev/null 2>&1; then tamagi-guest off; else tamagi-guest on; fi'"
-keywords = "convidado guest visitante emprestar sessao temporaria descartavel"
-[action.title]
-pt = "Sessão de convidado (liga/desliga)"
-en = "Guest session (on/off)"
-es = "Sesión de invitado (activar/desactivar)"
-fr = "Session invité (activer/désactiver)"
-[action.subtitle]
-pt = "Conta sem senha que some no logout, para emprestar o computador"
-en = "Password-less account wiped at logout, to lend your computer"
-es = "Cuenta sin contraseña que se borra al cerrar sesión, para prestar el equipo"
-fr = "Compte sans mot de passe effacé à la déconnexion, pour prêter l'ordinateur"
 
 [[action]]
 id = "system.autoupdate"

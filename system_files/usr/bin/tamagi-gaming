@@ -2,7 +2,7 @@
 # tamagi-gaming — games on Tamagi, native like on Bazzite, on demand.
 #
 # The image brings only what must be in the kernel: the OGC kernel (the one
-# Bazzite uses), the Xbox controller drivers (xone/xpadneo) and scx_rusty.
+# Bazzite uses) and scx_rusty.
 # Everything else is optional and installed natively in a reversible layer
 # over /usr (tamagi-layer), with the same packages Bazzite ships built in —
 # Steam, steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine — or by
@@ -142,7 +142,7 @@ cmd_flatpak() {
 
 cmd_status() {
     echo "$(t "Kernel")               : $(uname -r) ($(cat /usr/share/tamagi/kernel-flavor 2>/dev/null || echo -))"
-    echo "$(t "In the image")            : $(t "OGC kernel, Xbox controllers (xone/xpadneo), scx_rusty")"
+    echo "$(t "In the image")            : $(t "OGC kernel, scx_rusty")"
     echo "gamescope / MangoHud  : $(command -v gamescope >/dev/null 2>&1 && t "yes" || t "no") / $(command -v mangohud >/dev/null 2>&1 && t "yes" || t "no")"
     local layer_st
     layer_st=$(tamagi-layer list 2>/dev/null | awk -v l="$LAYER" '$1 == l {print $2; exit}')
@@ -206,7 +206,7 @@ cmd_remove() {
 
 cmd_setup() {
     if [[ ! -t 0 ]]; then cmd_status; return 0; fi
-    tl "The OGC kernel and the Xbox controller drivers ship in the image; the rest is optional."
+    tl "The OGC kernel and scx_rusty ship in the image; the rest is optional."
     local opt_nat opt_fp opt_lat choice
     opt_nat=$(t "Native (like Bazzite) — Steam, steam-devices, gamescope, MangoHud, Lutris, Wine")
     opt_fp=$(t "Flatpak (sandbox) — Steam, Lutris, Heroic, ProtonUp-Qt, Bottles")

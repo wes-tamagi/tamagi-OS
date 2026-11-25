@@ -17,15 +17,16 @@ echo "squashfs do ambiente live (kernel $kver)…"
 if [[ ${SQUASH_COMP:-zstd} == xz ]]; then
     comp=(-comp xz -Xbcj x86 -Xdict-size 1M)
 else
-    comp=(-comp zstd -Xcompression-level 19)
+    comp=(-comp zstd -Xcompression-level 15)
 fi
 # Fica fora do ambiente live o que não serve para instalar nem para
-# experimentar o desktop (o sistema INSTALADO vem da imagem embutida e
-# continua completo): os dois initramfs (o live já está em /boot da ISO), a
-# os agentes de IA de terceiros, documentação e manuais.
+# experimentar o desktop (o sistema INSTALADO vem da imagem embutida tamagi-oci/
+# e continua completo): os dois initramfs (o live já está em /boot da ISO),
+# ROMs/binários de máquinas virtuais, documentação e manuais.
 exclude=(
     'usr/lib/modules/*/initramfs.img' 'usr/lib/modules/*/initramfs-live.img'
     usr/bin/claude
+    usr/share/edk2 usr/share/qemu usr/lib64/qemu
     usr/share/doc usr/share/man
 )
 mksquashfs /live "$TREE/LiveOS/squashfs.img" -noappend -no-progress -b 1M "${comp[@]}" \

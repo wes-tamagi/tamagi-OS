@@ -54,10 +54,38 @@ touch /var/home/live/.config/tamagi/firstrun-done
 chown -R live:live /var/home/live
 
 # ── Serviços que só fazem sentido no sistema instalado ──────────────────
-systemctl disable tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-combustion.service tamagi-layer-rebuild.service 2>/dev/null || true
-systemctl mask rpm-ostreed-automatic.timer rpm-ostreed-automatic.service \
+# Na mídia live (pendrive USB + squashfs), reconstruir caches em tempo de boot
+# (ldconfig, hwdb, catálogo do journal, appstream, mandb) ou subir sockets de
+# host (VMs, Cockpit, impressão, Snapper) disputa leitura aleatória no pendrive
+# e trava o sysinit.target. Os caches são pré-gerados aqui no build.
+systemctl disable \
+    tamagi-flatpak-setup.service tamagi-firstboot.service tamagi-combustion.service \
+    tamagi-layer-rebuild.service tamagi-layer-units.service \
+    cockpit.socket virtqemud.socket virtnetworkd.socket virtstoraged.socket \
+    virtnodedevd.socket virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket \
+    virtlogd.socket virtlockd.socket virtproxyd.socket \
+    cups.socket cups.path avahi-daemon.socket avahi-daemon.service \
+    iscsid.socket iscsiuio.socket \
+    snapper-timeline.timer snapper-cleanup.timer \
+    btrfs-scrub.timer btrfs-balance.timer fstrim.timer 2>/dev/null || true
+
+systemctl mask \
+    ldconfig.service systemd-hwdb-update.service systemd-journal-catalog-update.service \
+    systemd-update-done.service \
+    fedora-atomic-desktop-appstream-cache-refresh.service \
+    fedora-atomic-desktop-mandb-update.service \
+    plymouth-start.service plymouth-read-write.service \
+    plymouth-quit.service plymouth-quit-wait.service \
+    rpm-ostreed-automatic.timer rpm-ostreed-automatic.service \
     bootc-fetch-apply-updates.timer bootloader-update.service \
-    ostree-remount.service systemd-remount-fs.service 2>/dev/null || true
+    ostree-remount.service systemd-remount-fs.service \
+    tamagi-boot-check.service tamagi-tpm-seal.service \
+    tamagi-home-snapshots.service tamagi-lease-expire.service \
+    tamagi-flatpak-cleanup.service tamagi-loader-conf.service \
+    tamagi-system-status.service tamagi-system-update.timer tamagi-system-update.service \
+    systemd-sysext.service \
+    lvm2-monitor.service lvm-devices-import.service lvm-devices-import.path \
+    raid-check.timer 2>/dev/null || true
 # A tela não apaga nem o computador suspende no meio da instalação.
 idle=/usr/share/cosmic/com.system76.CosmicIdle/v1
 install -d "$idle"
@@ -79,6 +107,10 @@ dracut --force --no-hostonly --reproducible --zstd \
 ls -lh "/usr/lib/modules/$kver/initramfs-live.img"
 
 dnf5 clean all
+ldconfig -X
+[[ -s /etc/ld.so.cache ]] || { echo "live: /etc/ld.so.cache não foi gerado" >&2; exit 1; }
+systemd-hwdb update 2>/dev/null || true
+journalctl --update-catalog 2>/dev/null || true
 find /var -mindepth 1 -maxdepth 1 ! -name tmp ! -name cache ! -name home -exec rm -rf {} +
 rm -rf /var/tmp/* /run/dnf 2>/dev/null || true
 echo "Ambiente live pronto (kernel $kver)."

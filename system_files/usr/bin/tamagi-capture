@@ -40,6 +40,7 @@ MSG = {
     "copied": ("Texto copiado", "Text copied"),
     "no_text": ("Nenhum texto encontrado na área", "No text found in the area"),
     "cancel": ("Captura cancelada", "Capture cancelled"),
+    "no_ocr": ("Instale o OCR primeiro: tamagi install ocr", "Install OCR first: tamagi install ocr"),
     "rec_on": ("Gravando a tela", "Recording the screen"),
     "rec_on_body": ("Alt+Print (ou tamagi-capture stop) para parar", "Alt+Print (or tamagi-capture stop) to stop"),
     "rec_off": ("Gravação salva", "Recording saved"),
@@ -106,6 +107,11 @@ def ocr_langs():
 
 
 def text():
+    if not shutil.which("tesseract"):
+        notify(tr("no_ocr"))
+        if sys.stderr.isatty() or os.environ.get("TAMAGI_CAPTURE_PRINT") == "1":
+            print(tr("no_ocr"), file=sys.stderr)
+        return 1
     shot = portal_screenshot()
     if not shot:
         notify(tr("cancel"))

@@ -1,0 +1,299 @@
+#!/usr/bin/bash
+# tamagi-mcp — sandboxed Model Context Protocol (MCP) servers in rootless
+# Podman Quadlets, with 0 MB idle RAM and zero access to your home folder.
+#
+#   tamagi mcp                    choose servers to enable (menu)
+#   tamagi mcp list               available MCP servers and their state
+#   tamagi mcp installed          enabled server IDs (one per line)
+#   tamagi mcp add <server>…      enable one or more servers and wire AI agents
+#   tamagi mcp remove <server>…   disable and unwire from AI agents
+#   tamagi mcp sync               sync enabled servers into Claude/Gemini/Codex/OpenCode
+#   tamagi mcp status [--json]    status of enabled Quadlet units and runners
+#
+# Each enabled server is tracked declaratively by a Podman Quadlet .image unit
+# in ~/.config/containers/systemd/tamagi-mcp-<server>.image (updated by
+# `tamagi update`) and invoked on demand over stdio via `podman run --rm -i`
+# with `--cap-drop=ALL --security-opt=no-new-privileges`: 0 MB RAM while idle,
+# and blind to ~/.ssh, ~/.gnupg, browser profiles, and unrelated folders.
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd"
+RUNNERS="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/mcp/bin"
+SERVERS=(fetch memory git postgres playwright filesystem)
+
+declare -A IMAGE=(
+    [fetch]="docker.io/mcp/fetch:latest"
+    [memory]="docker.io/mcp/memory:latest"
+    [git]="docker.io/mcp/git:latest"
+    [postgres]="docker.io/mcp/postgres:latest"
+    [playwright]="mcr.microsoft.com/playwright/mcp:latest"
+    [filesystem]="docker.io/mcp/filesystem:latest"
+)
+
+declare -A SUMMARY=(
+    [fetch]="Clean web/docs HTTP reader (isolated container, no disk access)"
+    [memory]="Persistent local knowledge graph (isolated Podman volume)"
+    [git]="Read-only Git repository inspector (current project :ro, offline)"
+    [postgres]="Local PostgreSQL inspector (connects to tamagi db on 127.0.0.1:5432)"
+    [playwright]="Headless browser automation (isolated from personal profiles)"
+    [filesystem]="Scoped workspace-only file access (current project only, offline)"
+)
+
+die() { echo "$(t "error"): $*" >&2; exit 1; }
+known() { [[ -n ${1:-} && -n ${IMAGE[$1]:-} ]]; }
+unit_of() { echo "$UNITS/tamagi-mcp-$1.image"; }
+runner_of() { echo "$RUNNERS/tamagi-mcp-$1"; }
+is_enabled() { [[ -f $(unit_of "$1") && -x $(runner_of "$1") ]]; }
+
+write_runner() {
+    local srv=$1 img=${IMAGE[$1]} out
+    out=$(runner_of "$srv")
+    mkdir -p "$RUNNERS"
+    case "$srv" in
+        fetch)
+            cat > "$out" <<SH
+#!/usr/bin/bash
+set -euo pipefail
+exec podman run --rm -i --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
+    --cap-drop=ALL --security-opt=no-new-privileges "$img" "\$@"
+SH
+            ;;
+        memory)
+            cat > "$out" <<SH
+#!/usr/bin/bash
+set -euo pipefail
+exec podman run --rm -i --network=none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
+    --cap-drop=ALL --security-opt=no-new-privileges \\
+    -v tamagi-mcp-memory:/data "$img" "\$@"
+SH
+            ;;
+        git)
+            cat > "$out" <<SH
+#!/usr/bin/bash
+set -euo pipefail
+root=\$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+root=\$(realpath "\$root")
+exec podman run --rm -i --network=none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
+    --cap-drop=ALL --security-opt=no-new-privileges --security-opt=label=disable \\
+    -v "\$root:/repo:ro" "$img" --repository /repo "\$@"
+SH
+            ;;
+        postgres)
+            cat > "$out" <<SH
+#!/usr/bin/bash
+set -euo pipefail
+url="\${TAMAGI_MCP_POSTGRES_URL:-postgresql://postgres@host.containers.internal:5432/postgres}"
+exec podman run --rm -i --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
+    --network=slirp4netns:allow_host_loopback=true \\
+    --cap-drop=ALL --security-opt=no-new-privileges "$img" "\$url" "\$@"
+SH
+            ;;
+        playwright)
+            cat > "$out" <<SH
+#!/usr/bin/bash
+set -euo pipefail
+exec podman run --rm -i --ipc=host --tmpfs /tmp:rw,nosuid,size=256m \\
+    --cap-drop=ALL --security-opt=no-new-privileges "$img" --headless "\$@"
+SH
+            ;;
+        filesystem)
+            cat > "$out" <<SH
+#!/usr/bin/bash
+set -euo pipefail
+root=\$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+root=\$(realpath "\$root")
+home=\$(realpath "\$HOME")
+if [[ "\$root" == "\$home" || "\$root" == "/" || "\$root" == "/var/home" || "\$root" == "/home" ]]; then
+    echo "tamagi-mcp-filesystem: refusing to expose whole home or root directory" >&2
+    exit 2
+fi
+exec podman run --rm -i --network=none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \\
+    --cap-drop=ALL --security-opt=no-new-privileges --security-opt=label=disable \\
+    -v "\$root:/workspace" "$img" /workspace "\$@"
+SH
+            ;;
+    esac
+    chmod 755 "$out"
+}
+
+sync_agents() {
+    python3 - "$RUNNERS" "${SERVERS[@]}" <<'PY'
+import json
+import os
+import pathlib
+import re
+import sys
+
+runners_dir = pathlib.Path(sys.argv[1])
+servers = sys.argv[2:]
+home = pathlib.Path(os.environ.get("HOME", os.path.expanduser("~")))
+cfg_home = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", home / ".config"))
+units_dir = cfg_home / "containers/systemd"
+
+enabled = {
+    s: str(runners_dir / f"tamagi-mcp-{s}")
+    for s in servers
+    if (units_dir / f"tamagi-mcp-{s}.image").is_file() and os.access(runners_dir / f"tamagi-mcp-{s}", os.X_OK)
+}
+
+def sync_json_mcp(path: pathlib.Path, top_key: str, style: str):
+    if not enabled and not path.is_file():
+        return
+    data = {}
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+    if not isinstance(data, dict):
+        return
+    mcp = data.get(top_key)
+    if not isinstance(mcp, dict):
+        mcp = {}
+    for k in [k for k in list(mcp.keys()) if k.startswith("tamagi-")]:
+        del mcp[k]
+    for s, cmd in enabled.items():
+        key = f"tamagi-{s}"
+        if style == "opencode":
+            mcp[key] = {"type": "local", "command": [cmd], "enabled": True}
+        else:
+            mcp[key] = {"command": cmd, "args": []}
+    if mcp:
+        data[top_key] = mcp
+    elif top_key in data:
+        del data[top_key]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+# Gemini CLI & Antigravity (~/.gemini/settings.json) and Claude Code (~/.claude.json)
+sync_json_mcp(home / ".gemini/settings.json", "mcpServers", "standard")
+sync_json_mcp(home / ".claude.json", "mcpServers", "standard")
+sync_json_mcp(cfg_home / "opencode/opencode.json", "mcp", "opencode")
+
+# Codex (~/.codex/config.toml): managed block at EOF so user settings stay intact
+codex_cfg = home / ".codex/config.toml"
+if enabled or codex_cfg.is_file():
+    existing = codex_cfg.read_text(encoding="utf-8") if codex_cfg.is_file() else ""
+    existing = re.sub(
+        r"\n?# BEGIN TAMAGI MCP.*?# END TAMAGI MCP\n?",
+        "\n",
+        existing,
+        flags=re.S,
+    ).rstrip()
+    if enabled:
+        lines = ["", "# BEGIN TAMAGI MCP"]
+        for s, cmd in enabled.items():
+            lines.append(f"[mcp_servers.tamagi-{s}]")
+            lines.append(f'command = "{cmd}"')
+            lines.append("args = []")
+        lines.append("# END TAMAGI MCP")
+        existing = (existing + "\n" + "\n".join(lines)).lstrip() + "\n"
+    elif existing:
+        existing += "\n"
+    if existing or codex_cfg.is_file():
+        codex_cfg.parent.mkdir(parents=True, exist_ok=True)
+        codex_cfg.write_text(existing, encoding="utf-8")
+PY
+}
+
+cmd_add() {
+    local pull=1 targets=() s
+    while (( $# )); do
+        case $1 in
+            --no-pull) pull=0 ;;
+            *) known "$1" || die "$(t "unknown MCP server"): $1 (${SERVERS[*]})"; targets+=("$1") ;;
+        esac
+        shift
+    done
+    (( ${#targets[@]} )) || die "usage: tamagi mcp add [--no-pull] <${SERVERS[*]// /|}>"
+    [[ ${TAMAGI_MCP_OFFLINE:-0} == 1 ]] && pull=0
+    mkdir -p "$UNITS" "$RUNNERS"
+    for s in "${targets[@]}"; do
+        cat > "$(unit_of "$s")" <<UNIT
+# Generated by tamagi-mcp. Updated automatically by podman auto-update / tamagi update.
+[Unit]
+Description=Tamagi MCP container image ($s)
+
+[Image]
+Image=${IMAGE[$s]}
+AutoUpdate=registry
+UNIT
+        write_runner "$s"
+        if (( pull )); then
+            echo "$(t "Pulling MCP container image") ($s: ${IMAGE[$s]})…"
+            podman pull -q "${IMAGE[$s]}" >/dev/null || echo "$(t "warning"): $(t "image will be pulled on first run"): ${IMAGE[$s]}" >&2
+        fi
+        systemctl --user daemon-reload 2>/dev/null || true
+        echo "$(t "MCP server enabled"): $s ($(runner_of "$s"))"
+    done
+    sync_agents
+}
+
+cmd_remove() {
+    (( $# )) || die "usage: tamagi mcp remove <${SERVERS[*]// /|}>"
+    local s
+    for s in "$@"; do
+        known "$s" || die "$(t "unknown MCP server"): $s (${SERVERS[*]})"
+        rm -f "$(unit_of "$s")" "$(runner_of "$s")"
+        systemctl --user daemon-reload 2>/dev/null || true
+        echo "$(t "Removed"): $s"
+    done
+    sync_agents
+}
+
+cmd_list() {
+    local s
+    for s in "${SERVERS[@]}"; do
+        printf '  %-12s %-64s %s\n' "$s" "$(t "${SUMMARY[$s]}")" "$(is_enabled "$s" && t "enabled" || t "off")"
+    done
+}
+
+cmd_status() {
+    if [[ ${1:-} == --json ]]; then
+        python3 - "$UNITS" "$RUNNERS" "${SERVERS[@]}" <<'PY'
+import json, os, pathlib, sys
+units = pathlib.Path(sys.argv[1])
+runners = pathlib.Path(sys.argv[2])
+out = []
+for s in sys.argv[3:]:
+    u = units / f"tamagi-mcp-{s}.image"
+    r = runners / f"tamagi-mcp-{s}"
+    out.append({"id": s, "enabled": u.is_file() and os.access(r, os.X_OK), "unit": str(u), "runner": str(r)})
+print(json.dumps({"servers": out}, indent=2))
+PY
+        return 0
+    fi
+    local s any=0
+    for s in "${SERVERS[@]}"; do
+        is_enabled "$s" || continue
+        any=1
+        printf '  %-12s %-44s %s\n' "$s" "${IMAGE[$s]}" "$(runner_of "$s")"
+    done
+    (( any )) || tl "No MCP servers enabled. Enable one with: tamagi mcp add <fetch|memory|git|postgres|playwright|filesystem>"
+}
+
+pick() {
+    [[ -t 0 ]] || { cmd_list; return 0; }
+    local picked s
+    picked=$(for s in "${SERVERS[@]}"; do
+                 is_enabled "$s" || printf '%-12s %s\n' "$s" "$(t "${SUMMARY[$s]}")"
+             done | /usr/libexec/tamagi/gum-multi --height 12 \
+                 --header "$(t "Sandboxed MCP servers in Podman Quadlets (0 RAM idle)")") || return 0
+    [[ -n $picked ]] || return 0
+    local chosen=()
+    while read -r s _; do [[ -n $s ]] && chosen+=("$s"); done <<<"$picked"
+    (( ${#chosen[@]} )) && cmd_add "${chosen[@]}"
+}
+
+case "${1:-}" in
+    "")         pick ;;
+    list)       cmd_list ;;
+    installed)  for s in "${SERVERS[@]}"; do is_enabled "$s" && echo "$s"; done ;;
+    add)        shift; cmd_add "$@" ;;
+    remove)     shift; cmd_remove "$@" ;;
+    sync)       sync_agents ;;
+    status)     shift; cmd_status "$@" ;;
+    -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
+    *)          die "usage: tamagi mcp [list|installed|add|remove|sync|status]" ;;
+esac

@@ -56,6 +56,10 @@ Responda de forma direta e curta.
   claude|antigravity|codex|qwen|opencode|gemini|openclaw`.
   Rodar um agente preso à pasta do projeto (sem ver chaves nem o resto da
   pasta pessoal, com ponto de retorno no git): `tamagi agents run <agente>`.
+  Para rodar em paralelo sem tocar no projeto real (clone CoW Btrfs + Egress Guard):
+  `tamagi agents run --shadow <agente>`, depois `tamagi agents shadow diff|apply|drop <id>`.
+- Servidores MCP em Podman Quadlets (0 MB de RAM parados, sem acesso à pasta pessoal):
+  `tamagi mcp add fetch|memory|git|postgres|playwright|filesystem` e `tamagi mcp status`.
 - Perfis prontos: `tamagi profiles`, `tamagi apply ai|dev|gamer|office`.
 - Tailscale é opcional: `tamagi install tailscale`.
 - Máquinas virtuais: `tamagi vm install` instala o virt-manager nativo (camada);

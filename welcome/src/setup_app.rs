@@ -292,6 +292,13 @@ impl Application for Setup {
                         return Task::none();
                     }
                     self.keep = found.preservable();
+                    if self.keep && !self.user_touched && self.user.is_empty() {
+                        if let Some(first_user) = found.users().split_whitespace().next() {
+                            if check_username(first_user, sys::user_taken).is_ok() {
+                                self.user = first_user.to_string();
+                            }
+                        }
+                    }
                     self.found = Some(found);
                 }
             }
@@ -425,6 +432,7 @@ impl Setup {
         self.error = None;
         let problem: Option<String> = match self.page {
             Page::Welcome if !sys::uefi() => Some(tr("Tamagi needs a computer started in UEFI mode. Check the firmware (BIOS) options.")),
+            Page::Welcome if sys::secure_boot() => Some(tr("Turn Secure Boot off in the firmware (BIOS/UEFI) settings before installing Tamagi.")),
             Page::Region => {
                 sys::apply_keyboard(&KEYBOARDS[self.keyboard]);
                 None
@@ -624,8 +632,14 @@ impl Setup {
     fn view_welcome(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
         let items = LANGS.iter().enumerate().map(|(index, (_, name, _))| m3::list_item(index == self.lang, name.to_string(), None, None, Message::Lang(index))).collect();
-        let body = widget::column::with_capacity(4)
-            .spacing(spacing.space_s)
+        let mut body = widget::column::with_capacity(5).spacing(spacing.space_s);
+        if sys::secure_boot() {
+            body = body.push(m3::warning_card(
+                "dialog-warning-symbolic",
+                tr("Secure Boot is enabled in UEFI firmware. Turn Secure Boot off before installing: the installed system uses unsigned systemd-boot and will not start while Secure Boot is on."),
+            ));
+        }
+        body = body
             .push(m3::label("Language · Idioma · Langue"))
             .push(m3::list(items))
             .push(widget::space::vertical().height(Length::Fixed(spacing.space_xxs.into())))

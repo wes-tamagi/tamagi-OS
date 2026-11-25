@@ -63,6 +63,10 @@ declare -A A=()
 while IFS='=' read -r key value; do
     [[ $key =~ ^[A-Z_]+$ ]] && A[$key]=$value
 done < "$ANSWERS"
+sb_var=/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c
+if [[ ${A[ALLOW_SECUREBOOT]:-0} != 1 && -r $sb_var ]] && [[ $(od -An -t u1 -j4 -N1 "$sb_var" 2>/dev/null | tr -d ' ') == 1 ]]; then
+    die "o Secure Boot está ligado no firmware UEFI; desligue o Secure Boot antes de instalar o Tamagi"
+fi
 # shellcheck disable=SC1090
 source "$LIVE_CONF"
 case "${A[LOCALE]:-en_US.UTF-8}" in pt_*) MSG_LANG=pt ;; es_*) MSG_LANG=es ;; fr_*) MSG_LANG=fr ;; esac

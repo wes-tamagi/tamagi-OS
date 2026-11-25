@@ -13,6 +13,7 @@ pub const BROWSERS: &[&str] = &["chrome", "firefox", "vivaldi", "chromium"];
 pub const BROWSER_METHODS: &[&str] = &["flatpak", "native", "box"];
 pub const BOX_DISTROS: &[&str] = &["fedora", "ubuntu", "opensuse", "arch"];
 pub const AGENTS: &[&str] = &["claude", "antigravity", "codex", "clio", "qwen", "opencode", "gemini", "openclaw"];
+pub const MCP_SERVERS: &[&str] = &["fetch", "memory", "git", "postgres", "playwright", "filesystem"];
 pub const PERF_PROFILES: &[&str] = &["eco", "balanced", "performance", "latency"];
 /// Layers made by other commands (tamagi vm, gaming, browser --native,
 /// Tailscale, VS Code, Docker) carry options a plain `tamagi layer add` has
@@ -133,6 +134,7 @@ pub struct State {
     /// (tool, version) of mise's global configuration, sorted.
     pub mise: Vec<(String, String)>,
     pub agents: Vec<String>,
+    pub mcp: Vec<String>,
     pub catalog: Vec<String>,
     pub boxes: Vec<(String, String)>,
     pub layers: Vec<(String, Vec<String>)>,
@@ -164,6 +166,10 @@ fn browsers_installed() -> Vec<String> {
 
 fn agents_installed() -> Vec<String> {
     out(&["tamagi-agents", "installed"]).split_whitespace().filter(|a| AGENTS.contains(a)).map(String::from).collect()
+}
+
+fn mcp_installed() -> Vec<String> {
+    out(&["tamagi-mcp", "installed"]).split_whitespace().filter(|s| MCP_SERVERS.contains(s)).map(String::from).collect()
 }
 
 pub fn catalog_ids() -> BTreeSet<String> {
@@ -310,6 +316,7 @@ pub fn current_state() -> State {
         flatpak: flatpak.into_iter().collect(),
         mise: mise_global(),
         agents: agents_installed(),
+        mcp: mcp_installed(),
         catalog: catalog_own(&out(&["tamagi-install", "installed"])),
         boxes: user_boxes(),
         layers: layers(),
@@ -345,6 +352,11 @@ pub fn to_toml(state: &State) -> String {
             one("tools", quoted_list(&state.mise.iter().map(|(n, v)| format!("{n}@{v}")).collect::<Vec<_>>())),
         ),
         ("agents", "AI agents: claude, antigravity, codex, qwen, opencode, gemini, openclaw", one("install", quoted_list(&state.agents))),
+        (
+            "mcp",
+            "sandboxed MCP servers in Podman Quadlets: fetch, memory, git, postgres, playwright, filesystem",
+            one("servers", quoted_list(&state.mcp)),
+        ),
         (
             "catalog",
             "catalog items (tamagi install list): steam, gaming-tools, virt-manager, windows, tailscale…",

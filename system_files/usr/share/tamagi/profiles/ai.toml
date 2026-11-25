@@ -6,6 +6,9 @@
 [agents]
 install = ["claude", "codex", "opencode", "clio"]
 
+[mcp]
+servers = ["memory", "git"]
+
 [boxes]
 dev = "fedora"
 

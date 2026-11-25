@@ -29,9 +29,9 @@ Optional, by what the change touches:
 
 - installer, disk layout, `/var/home`: `just test-iso --preserve-home`
 - update, rollback, boot-check, timers: `just test-upgrade`
-- live boot, dracut, kernel command line: check `output/vm-install.log` for
+- live boot, dracut, kernel command line: check `output/imagens_iso/vm-install.log` for
   `dracut Warning` / `deprecated` after step 5
-- encrypted disk, TPM: `bash tests/iso.sh output/tamagi.iso --tpm`
+- encrypted disk, TPM: `bash tests/iso.sh output/imagens_iso/tamagi.iso --tpm`
 
 One loop that stops at the first failure and keeps the logs:
 
@@ -64,9 +64,9 @@ done
   machine: it corrupts the user's rootless podman state.
 - **Do not `pkill -f <pattern>` from the same shell line that contains the
   pattern**: it kills the validation itself. Kill by PID.
-- **The ISO changed? So did its hash.** After step 4, rewrite
-  `output/tamagi.iso.sha256`, and do not quote a hash while another run is
-  writing `output/tamagi.iso`.
+- **The ISO changed? So did its hash.** `just build-iso` writes
+  `output/imagens_iso/tamagi.iso` and `output/imagens_iso/tamagi.iso.sha256`
+  automatically; do not quote a hash while another run is writing the ISO.
 - **Destructive or security features** (leases, reset, harden) need a
   simulated mode for step 3 (an environment variable that prints instead of
   acting) *and* an honest note that the real path was not exercised, until

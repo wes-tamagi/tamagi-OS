@@ -1,12 +1,12 @@
-//! The wanted state (a tamagi.toml) and the plan to reach it: reading older
-//! files, checking the file, and working out what is missing.
+//! The wanted state (a tamagi.toml) and the plan to reach it: checking the
+//! file and working out what is missing.
 
 use std::collections::BTreeSet;
 
 use toml::{Table, Value};
 
 use crate::i18n::t;
-use crate::state::{pystr, slug, truthy, State, AGENTS, BOX_DISTROS, BROWSERS, BROWSER_METHODS, PERF_PROFILES};
+use crate::state::{pystr, slug, truthy, State, AGENTS, BOX_DISTROS, BROWSERS, BROWSER_METHODS, MCP_SERVERS, PERF_PROFILES};
 
 /// Sections and the keys each one takes (`None`: free names, e.g. box = distro).
 const KNOWN: &[(&str, Option<&[&str]>)] = &[
@@ -15,25 +15,15 @@ const KNOWN: &[(&str, Option<&[&str]>)] = &[
     ("flatpak", Some(&["apps"])),
     ("mise", Some(&["tools"])),
     ("agents", Some(&["install"])),
+    ("mcp", Some(&["servers"])),
     ("catalog", Some(&["install"])),
     ("boxes", None),    // name = distro
     ("layers", None),   // name = [Fedora packages]
     ("webapps", None),  // name = address
     ("services", Some(&["autoupdate", "security", "performance"])),
 ];
-/// Files written before the commands and keys became English keep working.
-const LEGACY_SECTIONS: &[(&str, &str)] =
-    &[("aparencia", "appearance"), ("navegadores", "browsers"), ("caixas", "boxes"), ("camadas", "layers"), ("servicos", "services")];
 /// Sections of commands that no longer exist: read and ignored, with a note.
-const RETIRED_SECTIONS: &[&str] = &["packages", "pacotes"];
-/// Old key -> new key (`None`: the key is gone and is dropped).
-const LEGACY_KEYS: &[(&str, &[(&str, Option<&str>)])] = &[
-    ("appearance", &[("tema", Some("theme")), ("papel", None)]),
-    ("browsers", &[("instalar", Some("install")), ("padrao", Some("default"))]),
-    ("mise", &[("ferramentas", Some("tools"))]),
-    ("services", &[("atualizacao_automatica", Some("autoupdate")), ("seguranca", Some("security")), ("desempenho", Some("performance"))]),
-];
-const LEGACY_VALUES: &[(&str, &str)] = &[("equilibrado", "balanced"), ("estrito", "strict")];
+const RETIRED_SECTIONS: &[&str] = &["packages"];
 
 /// One thing to do: what it is, the command that does it, whether it asks for the password.
 #[derive(Debug, Clone, PartialEq)]
@@ -54,8 +44,7 @@ pub trait Probe {
 
 // ── Reading the file ────────────────────────────────────────────────────────
 
-/// Portuguese section and key names (older files) become English. Sections of
-/// retired commands are left out, with a warning each.
+/// Sections of retired commands are left out, with a warning each.
 pub fn modernize(wanted: Table, warnings: &mut Vec<String>) -> Table {
     let mut result = Table::new();
     for (section, values) in wanted {
@@ -63,27 +52,6 @@ pub fn modernize(wanted: Table, warnings: &mut Vec<String>) -> Table {
             warnings.push(format!("{}: [{section}] {}", t("warning"), t("no longer exists (use a box: tamagi devbox); ignored")));
             continue;
         }
-        let section = LEGACY_SECTIONS.iter().find(|(old, _)| *old == section).map(|(_, new)| new.to_string()).unwrap_or(section);
-        let legacy = LEGACY_KEYS.iter().find(|(s, _)| *s == section).map(|(_, keys)| *keys);
-        let values = match (values, legacy) {
-            (Value::Table(table), Some(keys)) => {
-                let mut renamed = Table::new();
-                for (key, value) in table {
-                    let key = match keys.iter().find(|(old, _)| *old == key) {
-                        Some((_, Some(new))) => new.to_string(),
-                        Some((_, None)) => continue,
-                        None => key,
-                    };
-                    let value = match value {
-                        Value::String(s) => Value::String(LEGACY_VALUES.iter().find(|(old, _)| *old == s).map(|(_, new)| new.to_string()).unwrap_or(s)),
-                        other => other,
-                    };
-                    renamed.insert(key, value);
-                }
-                Value::Table(renamed)
-            }
-            (other, _) => other,
-        };
         result.insert(section, values);
     }
     result
@@ -143,6 +111,11 @@ pub fn problems(wanted: &Table, catalog_ids: &dyn Fn() -> BTreeSet<String>) -> V
     for name in list(wanted, "agents", "install") {
         if !name.as_str().is_some_and(|n| AGENTS.contains(&n)) {
             problems.push(format!("{}: {}", t("unknown agent"), pystr(name)));
+        }
+    }
+    for srv in list(wanted, "mcp", "servers") {
+        if !srv.as_str().is_some_and(|s| MCP_SERVERS.contains(&s)) {
+            problems.push(format!("{}: {}", t("unknown MCP server"), pystr(srv)));
         }
     }
     let items = list(wanted, "catalog", "install");
@@ -254,6 +227,13 @@ pub fn plan(wanted: &Table, now: &State, probe: &dyn Probe) -> Vec<Step> {
         }
     }
 
+    for srv in list(wanted, "mcp", "servers") {
+        if !srv.as_str().is_some_and(|s| now.mcp.iter().any(|x| x == s)) {
+            let srv = pystr(srv);
+            steps.push(step(format!("MCP: {srv}"), &["tamagi-mcp", "add", &srv], false));
+        }
+    }
+
     let mut missing: Vec<String> = list(wanted, "catalog", "install").iter().map(pystr).filter(|i| !now.catalog.contains(i)).collect();
     if !missing.is_empty() {
         let installed = probe.catalog_installed();
@@ -316,6 +296,8 @@ pub fn extras(wanted: &Table, now: &State) -> Vec<String> {
     let listed: BTreeSet<&str> =
         list(wanted, "mise", "tools").iter().filter_map(Value::as_str).map(|i| i.split('@').next().unwrap_or("")).collect();
     found.extend(now.mise.iter().filter(|(n, _)| !listed.contains(n.as_str())).map(|(n, v)| format!("mise {n}@{v}")));
+    let listed_mcp: BTreeSet<&str> = list(wanted, "mcp", "servers").iter().filter_map(Value::as_str).collect();
+    found.extend(now.mcp.iter().filter(|s| !listed_mcp.contains(s.as_str())).map(|s| format!("MCP {s}")));
     let named = |name: &str, key: &str| section(wanted, name).is_some_and(|s| s.contains_key(key));
     found.extend(now.boxes.iter().filter(|(n, _)| !named("boxes", n)).map(|(n, _)| format!("{} {n}", t("box"))));
     found.extend(now.layers.iter().filter(|(n, _)| !named("layers", n)).map(|(n, _)| format!("{} {n}", t("layer"))));
@@ -354,35 +336,17 @@ mod tests {
         BTreeSet::new()
     }
     fn now() -> State {
-        State { theme: "tokyo-night".into(), tiling: true, security: "balanced".into(), performance: "balanced".into(), ..State::default() }
+        State { theme: "ipe".into(), tiling: true, security: "balanced".into(), performance: "balanced".into(), ..State::default() }
     }
     fn descs(steps: &[Step]) -> Vec<&str> {
         steps.iter().map(|s| s.desc.as_str()).collect()
     }
 
     #[test]
-    fn legacy_portuguese_names_become_english() {
-        let (w, warnings) = read(
-            "[aparencia]\ntema = \"nord\"\npapel = \"x.png\"\n[navegadores]\ninstalar = [\"firefox\"]\npadrao = \"firefox\"\n\
-             [mise]\nferramentas = [\"node@lts\"]\n[caixas]\ndev = \"fedora\"\n[camadas]\nx = [\"htop\"]\n\
-             [servicos]\natualizacao_automatica = true\nseguranca = \"estrito\"\ndesempenho = \"eco\"\n",
-        );
-        assert!(warnings.is_empty());
-        assert_eq!(w.keys().map(String::as_str).collect::<Vec<_>>(), ["appearance", "browsers", "mise", "boxes", "layers", "services"]);
-        let ap = w["appearance"].as_table().unwrap();
-        assert_eq!(ap.get("theme").and_then(Value::as_str), Some("nord"));
-        assert!(!ap.contains_key("papel") && !ap.contains_key("tema"));
-        assert_eq!(w["browsers"]["default"].as_str(), Some("firefox"));
-        assert_eq!(w["services"]["security"].as_str(), Some("strict"));
-        assert_eq!(w["services"]["autoupdate"].as_bool(), Some(true));
-        assert!(problems(&w, &no_ids).is_empty());
-    }
-
-    #[test]
     fn retired_sections_are_ignored_with_a_warning() {
-        let (w, warnings) = read("[pacotes]\ninstalar = [\"htop\"]\n[packages]\ninstall = [\"x\"]\n[flatpak]\napps = []\n");
-        assert_eq!(warnings.len(), 2);
-        assert!(warnings[0].contains("[pacotes]"));
+        let (w, warnings) = read("[packages]\ninstall = [\"x\"]\n[flatpak]\napps = []\n");
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("[packages]"));
         assert_eq!(w.keys().map(String::as_str).collect::<Vec<_>>(), ["flatpak"]);
     }
 
@@ -390,6 +354,7 @@ mod tests {
     fn file_problems_are_listed() {
         let (w, _) = read(
             "[nope]\na = 1\n[appearance]\ncolor = \"x\"\n[browsers]\ninstall = [\"opera\", \"firefox:snap\"]\n[agents]\ninstall = [\"hal\"]\n\
+             [mcp]\nservers = [\"badmcp\"]\n\
              [boxes]\nDev = \"debian\"\n[layers]\n\"Bad Name\" = []\n[webapps]\nx = \"ftp://x\"\n[services]\nsecurity = \"max\"\nperformance = \"turbo\"\n",
         );
         let p = problems(&w, &no_ids);
@@ -401,6 +366,7 @@ mod tests {
                 "unknown browser: opera",
                 "browser firefox: unknown method 'snap'",
                 "unknown agent: hal",
+                "unknown MCP server: badmcp",
                 "box Dev: unknown distro 'debian'",
                 "invalid box name: Dev",
                 "invalid layer name: Bad Name",
@@ -425,7 +391,7 @@ mod tests {
 
     #[test]
     fn nothing_to_do_when_the_machine_matches() {
-        let (w, _) = read("[appearance]\ntheme = \"tokyo-night\"\ntiling = true\n[services]\nsecurity = \"balanced\"\nautoupdate = false\n");
+        let (w, _) = read("[appearance]\ntheme = \"ipe\"\ntiling = true\n[services]\nsecurity = \"balanced\"\nautoupdate = false\n");
         assert!(plan(&w, &now(), &NOTHING).is_empty());
     }
 
@@ -434,6 +400,7 @@ mod tests {
         let (w, _) = read(
             "[appearance]\ntheme = \"nord\"\ntiling = false\n[browsers]\ninstall = [\"firefox\", \"chrome:native\", \"vivaldi:box\"]\ndefault = \"firefox\"\n\
              [flatpak]\napps = [\"a.b.C\", \"d.e.F\"]\n[mise]\ntools = [\"node@lts\", \"python@3.13\", \"go\"]\n[agents]\ninstall = [\"claude\", \"codex\"]\n\
+             [mcp]\nservers = [\"memory\", \"git\"]\n\
              [catalog]\ninstall = [\"steam\", \"vscode\", \"tailscale\"]\n[boxes]\ndev = \"fedora\"\nold = \"arch\"\n\
              [layers]\ntools = [\"ncdu\", \"htop\"]\nsame = [\"b\", \"a\"]\n[webapps]\n\"My Mail\" = \"https://mail.example\"\nDone = \"https://x\"\n\
              [services]\nautoupdate = true\nsecurity = \"strict\"\nperformance = \"eco\"\n",
@@ -443,6 +410,7 @@ mod tests {
             flatpak: vec!["d.e.F".into()],
             mise: vec![("go".into(), "1.22".into()), ("node".into(), "20".into()), ("python".into(), "3.13".into())],
             agents: vec!["codex".into()],
+            mcp: vec!["git".into()],
             catalog: vec!["steam".into()],
             layers: vec![("same".into(), vec!["a".into(), "b".into()])],
             ..now()
@@ -460,6 +428,7 @@ mod tests {
                 "Flatpak: a.b.C",
                 "mise: node@lts",
                 "agent: claude",
+                "MCP: memory",
                 "catalog: tailscale",
                 "box dev (fedora)",
                 "layer tools: ncdu htop",
@@ -473,13 +442,14 @@ mod tests {
         assert_eq!(cmd(1), "tamagi tiling off");
         assert_eq!(cmd(3), "tamagi-browser install chrome --native");
         assert_eq!(cmd(5), "flatpak install --user -y --noninteractive a.b.C");
-        assert_eq!(cmd(8), "tamagi-install tailscale");
-        assert_eq!(cmd(9), "tamagi-devbox create fedora --name dev");
-        assert_eq!(cmd(10), "tamagi-layer add tools ncdu htop");
-        assert_eq!(cmd(11), "tamagi-webapp install My Mail https://mail.example");
-        assert_eq!(cmd(13), "tamagi-harden strict");
+        assert_eq!(cmd(8), "tamagi-mcp add memory");
+        assert_eq!(cmd(9), "tamagi-install tailscale");
+        assert_eq!(cmd(10), "tamagi-devbox create fedora --name dev");
+        assert_eq!(cmd(11), "tamagi-layer add tools ncdu htop");
+        assert_eq!(cmd(12), "tamagi-webapp install My Mail https://mail.example");
+        assert_eq!(cmd(14), "tamagi-harden strict");
         let root: Vec<bool> = steps.iter().map(|s| s.root).collect();
-        assert_eq!(root, [false, false, false, true, false, false, false, false, true, false, true, false, true, true, true]);
+        assert_eq!(root, [false, false, false, true, false, false, false, false, false, true, false, true, false, true, true, true]);
     }
 
     #[test]
@@ -488,12 +458,13 @@ mod tests {
         let state = State {
             flatpak: vec!["a.b.C".into(), "x.y.Z".into()],
             mise: vec![("node".into(), "20".into()), ("python".into(), "3.13".into())],
+            mcp: vec!["memory".into()],
             boxes: vec![("dev".into(), "fedora".into()), ("other".into(), "arch".into())],
             layers: vec![("tools".into(), vec!["htop".into()])],
             webapps: vec![("Mail".into(), "https://x".into())],
             ..now()
         };
-        assert_eq!(extras(&w, &state), ["Flatpak x.y.Z", "mise python@3.13", "box other", "layer tools", "web app Mail"]);
+        assert_eq!(extras(&w, &state), ["Flatpak x.y.Z", "mise python@3.13", "MCP memory", "box other", "layer tools", "web app Mail"]);
     }
 
     #[test]

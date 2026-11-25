@@ -34,7 +34,5 @@
    Impr. écran               capture d'écran
    Maj + Impr. écran         copier le texte d'une zone (OCR)
    Alt + Impr. écran         enregistrer l'écran / arrêter
-   Super + Ctrl + E          émojis
-   Super + Ctrl + R          rappel
    Super + Ctrl + P          mode confidentialité (activer/désactiver)
    Super + Ctrl + Espace     changer la disposition du clavier

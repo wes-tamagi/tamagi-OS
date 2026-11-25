@@ -14,6 +14,13 @@ fn var(name: &str) -> Option<String> {
     env::var(name).ok().filter(|v| !v.is_empty())
 }
 
+fn config_dir() -> PathBuf {
+    env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| {
+        let home = env::var_os("HOME").filter(|h| !h.is_empty()).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"));
+        home.join(".config")
+    })
+}
+
 /// "pt_BR.UTF-8" -> "pt"; anything that is not one of the four is English.
 pub fn lang_code(raw: &str) -> &'static str {
     let code = raw.split('_').next().unwrap_or("").split('.').next().unwrap_or("").to_lowercase();
@@ -25,10 +32,10 @@ pub fn lang_code(raw: &str) -> &'static str {
     }
 }
 
-fn detect_lang() -> &'static str {
+pub fn detect_lang() -> &'static str {
     let mut raw = var("TAMAGI_LANG").or_else(|| var("LC_ALL")).or_else(|| var("LC_MESSAGES"));
     if raw.is_none() {
-        let cfg = crate::state::config_dir().join("tamagi").join("lang");
+        let cfg = config_dir().join("tamagi").join("lang");
         raw = fs::read_to_string(cfg)
             .ok()
             .and_then(|s| s.trim().lines().next().map(str::to_string))

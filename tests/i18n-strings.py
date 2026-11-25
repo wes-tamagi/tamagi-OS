@@ -15,10 +15,10 @@ import tomllib
 SCRIPTS = [
     "tamagi", "tamagi-firstrun", "tamagi-keys", "tamagi-lang", "tamagi-install",
     "tamagi-panel", "tamagi-theme", "tamagi-ai", "tamagi-update", "tamagi-agents",
-    "tamagi-boot-report", "tamagi-windows", "tamagi-db", "tamagi-remind", "tamagi-vm",
+    "tamagi-mcp", "tamagi-boot-report", "tamagi-windows", "tamagi-db", "tamagi-vm",
     "tamagi-devbox", "tamagi-font", "tamagi-antigravity", "tamagi-try",
-    "tamagi-isolate", "tamagi-privacy", "tamagi-guest",
-    "tamagi-browser", "tamagi-harden", "tamagi-layer", "tamagi-pkg", "tamagi-webapp",
+    "tamagi-isolate", "tamagi-privacy",
+    "tamagi-browser", "tamagi-harden", "tamagi-layer", "tamagi-webapp",
     "tamagi-perf", "tamagi-workspace", "tamagi-doctor", "tamagi-gaming",
 ]
 STR = r'"((?:[^"\\$]|\\.)*)"'
@@ -46,9 +46,6 @@ def strings(root):
     # The tools written in Rust (rust/, next to system_files in the repository;
     # the image carries only the binaries): t("…") calls, same English keys.
     for src in sorted((root.parent / "rust").glob("*/src/*.rs")):
-        found += [m.replace('\\"', '"') for m in PY_CALLS_DQ.findall(src.read_text(encoding="utf-8"))]
-    # The tools written in Go (go/, next to system_files in the repository).
-    for src in sorted((root.parent / "go").rglob("*.go")):
         found += [m.replace('\\"', '"') for m in PY_CALLS_DQ.findall(src.read_text(encoding="utf-8"))]
     # The first-login window (welcome/, Rust + libcosmic): its list of strings.
     welcome = root.parent / "welcome/NEW_STRINGS.txt"
@@ -110,6 +107,16 @@ def devbox_labels(root):
     return re.findall(r'\]="([^"]+)"', block.group(1)) if block else []
 
 
+def mcp_labels(root):
+    """Server summaries of tamagi-mcp (SUMMARY table), shown through t()."""
+    p = root / "usr/bin/tamagi-mcp"
+    if not p.is_file():
+        return []
+    text = p.read_text(encoding="utf-8")
+    block = re.search(r"declare -A SUMMARY=\((.*?)\n\)", text, re.S)
+    return re.findall(r'\]="([^"]+)"', block.group(1)) if block else []
+
+
 def catalog(root):
     """Categories and descriptions of catalog.tsv (tamagi install, first login)."""
     path = root / "usr/share/tamagi/catalog.tsv"
@@ -142,7 +149,7 @@ def flatpak_catalog(root):
 def main():
     root = pathlib.Path(sys.argv[1])
     wanted = strings(root)
-    for extra in (flatpak_catalog(root), catalog(root), command_list(root), devbox_labels(root)):
+    for extra in (flatpak_catalog(root), catalog(root), command_list(root), devbox_labels(root), mcp_labels(root)):
         wanted += [s for s in extra if s not in wanted]
     if "--check" not in sys.argv:
         print("\n".join(wanted))

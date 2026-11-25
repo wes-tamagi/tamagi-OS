@@ -13,7 +13,7 @@ IMAGE=${1:-localhost/tamagi:latest}
 FEDORA=${FEDORA_VERSION:-45}
 OUT=output/installer-shots
 CACHE=.cache/installer-ui
-PAGES=17
+PAGES=19
 mkdir -p "$OUT" "$CACHE/cargo" "$CACHE/target"
 rm -rf "$CACHE/cosmic" "$CACHE/fonts" "${OUT:?}/dark" "${OUT:?}/light"
 

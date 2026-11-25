@@ -3,12 +3,13 @@
 image := env("TAMAGI_IMAGE", "localhost/tamagi")
 tag := env("TAMAGI_TAG", "latest")
 fedora := env("FEDORA_VERSION", "45")
-# Kernel: ogc (padrão: Open Gaming Collective) | main (o da base) | ark (o do Fedora Rawhide).
+# Kernel: ogc (padrão: Open Gaming Collective) | main (o da base Fedora).
 # Ex.: KERNEL_FLAVOR=main TAMAGI_TAG=main just build
 kernel := env("KERNEL_FLAVOR", "ogc")
-akmods := if kernel == "ark" { "main" } else { kernel }
+akmods := kernel
 # Para onde o sistema instalado olha para se atualizar (vazio: fica na imagem local).
 target := env("TAMAGI_TARGET_IMGREF", "")
+iso := "output/imagens_iso/tamagi.iso"
 bib := "quay.io/centos-bootc/bootc-image-builder:latest"
 
 _default:
@@ -69,6 +70,7 @@ lint:
             system_files/usr/bin/tamagi-agent system_files/usr/bin/tamagi-menu \
             system_files/usr/bin/tamagi-snap system_files/usr/bin/tamagi-capture system_files/usr/bin/tamagi-rewind \
             system_files/usr/bin/tamagi-workspace \
+            system_files/usr/libexec/tamagi/egress-guard \
             system_files/usr/libexec/tamagi/tamagi_i18n.py system_files/usr/libexec/tamagi/gum-multi \
             system_files/usr/libexec/tamagi/update-changes \
         && python3 tests/i18n-strings.py system_files --check \
@@ -82,29 +84,30 @@ build-live *ARGS:
         --build-arg TARGET_IMGREF={{ target }} \
         -t {{ image }}-live:{{ tag }} {{ ARGS }} -f live/Containerfile .
 
-# Gera output/tamagi.iso: ambiente live + a imagem do sistema embutida (instala sem rede)
+# Gera output/imagens_iso/tamagi.iso: ambiente live + a imagem do sistema embutida (instala sem rede)
 build-iso: build-live
-    bash live/build-iso.sh {{ image }}:{{ tag }} {{ image }}-live:{{ tag }} output/tamagi.iso
+    mkdir -p output/imagens_iso
+    bash live/build-iso.sh {{ image }}:{{ tag }} {{ image }}-live:{{ tag }} {{ iso }}
 
-# Instala a ISO numa VM sem ninguém clicar (disco output/vm-test.qcow2) e confere o boot do sistema instalado
+# Instala a ISO numa VM sem ninguém clicar (disco output/imagens_iso/vm-test.qcow2) e confere o boot do sistema instalado
 test-iso *ARGS:
-    bash tests/iso.sh output/tamagi.iso {{ ARGS }}
+    bash tests/iso.sh {{ iso }} {{ ARGS }}
 
 # Testa preservação de /var/home a partir de layout GRUB+ostree anterior (sem interação)
 test-preserve-home:
-    bash tests/iso.sh output/tamagi.iso --preserve-home
+    bash tests/iso.sh {{ iso }} --preserve-home
 
 # Atualização automática de ponta a ponta numa VM (registry local, imagem nova, reinício) e volta automática de uma imagem ruim
 test-upgrade:
-    bash tests/iso.sh output/tamagi.iso --upgrade
+    bash tests/iso.sh {{ iso }} --upgrade
 
 # Abre a ISO numa VM com janela, para usar o instalador de verdade
 run-iso:
-    bash tests/iso.sh output/tamagi.iso --interactive
+    bash tests/iso.sh {{ iso }} --interactive
 
-# Inicia a VM pelo disco já instalado (output/vm-test.qcow2)
+# Inicia a VM pelo disco já instalado (output/imagens_iso/vm-test.qcow2)
 run-vm:
-    bash tests/iso.sh output/tamagi.iso --boot-disk
+    bash tests/iso.sh {{ iso }} --boot-disk
 
 # ── Alternativa sem instalador: disco de VM pelo bootc-image-builder (pede sudo) ──
 

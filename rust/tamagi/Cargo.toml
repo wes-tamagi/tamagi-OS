@@ -10,8 +10,16 @@ description = "tamagi — one command for the whole system"
 name = "tamagi"
 path = "src/main.rs"
 
+[[bin]]
+name = "tamagi-doctor"
+path = "src/doctor_bin.rs"
+
+[[bin]]
+name = "tamagi-install"
+path = "src/install_bin.rs"
+
 # One dependency: the TOML reader (tamagi.toml, profiles, mise's config).
 # `preserve_order` keeps sections and keys in the order of the file, which is
-# the order of the plan. No HTTP crate: a shared file is fetched with curl.
+# the order of the plan. No HTTP crate: external endpoints are queried with curl.
 [dependencies]
 toml = { version = "0.8", default-features = false, features = ["parse", "preserve_order"] }

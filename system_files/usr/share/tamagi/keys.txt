@@ -34,7 +34,5 @@
    Print                     screenshot
    Shift + Print             copy text from an area (OCR)
    Alt + Print               record the screen / stop
-   Super + Ctrl + E          emoji
-   Super + Ctrl + R          reminder
    Super + Ctrl + P          privacy mode (on/off)
    Super + Ctrl + Space      switch keyboard layout

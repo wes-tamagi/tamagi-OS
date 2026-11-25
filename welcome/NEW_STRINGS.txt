@@ -78,6 +78,7 @@ Review
 runs a setup command
 sandboxed app from Flathub
 Search a city or zone
+Secure Boot is enabled in UEFI firmware. Turn Secure Boot off before installing: the installed system uses unsigned systemd-boot and will not start while Secure Boot is on.
 selected
 setup command
 Show details
@@ -111,6 +112,7 @@ Tick what you want now. Everything else is one command away: tamagi install
 Time zone
 To only try the system, choose Just try it. The installer stays in the launcher: Install Tamagi.
 too small
+Turn Secure Boot off in the firmware (BIOS/UEFI) settings before installing Tamagi.
 Type its current password to look for your files and keep them. Or go on: the disk is erased.
 Unlock
 Unlock it by itself at startup, with the TPM chip

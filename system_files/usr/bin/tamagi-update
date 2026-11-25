@@ -277,6 +277,10 @@ run_all() {
         step "AI agents"
         tamagi-agents update || failed+=(agents)
     fi
+    if compgen -G "${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd/*.image" >/dev/null || compgen -G "${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd/*.container" >/dev/null; then
+        step "Podman Quadlets (MCP & containers)"
+        podman auto-update || failed+=(quadlets)
+    fi
 }
 
 args=()

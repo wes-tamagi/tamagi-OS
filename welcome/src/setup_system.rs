@@ -44,6 +44,18 @@ pub fn uefi() -> bool {
     env("TAMAGI_SETUP_LSBLK").is_some() || std::path::Path::new("/sys/firmware/efi").is_dir()
 }
 
+/// Secure Boot is enabled in the UEFI firmware.
+pub fn secure_boot() -> bool {
+    if let Some(v) = env("TAMAGI_SETUP_SECUREBOOT") {
+        return v == "1";
+    }
+    if env("TAMAGI_SETUP_LSBLK").is_some() {
+        return false;
+    }
+    std::fs::read("/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c")
+        .is_ok_and(|b| b.get(4) == Some(&1))
+}
+
 /// A TPM 2.0 chip is there.
 pub fn has_tpm2() -> bool {
     if let Some(v) = env("TAMAGI_SETUP_TPM") {

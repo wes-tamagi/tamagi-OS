@@ -195,7 +195,15 @@ installer() {
     echo "--- answers"; sed 's/^PASSWORD_HASH=.*/PASSWORD_HASH=(hash)/' "$STUB_LOG.answers"
     echo "--- secrets left: $(ls "$XDG_RUNTIME_DIR/tamagi-install" 2>/dev/null | tr '\n' ' ')"
     session_end
-    unset TAMAGI_SETUP_LSBLK TAMAGI_SETUP_BACKEND TAMAGI_SETUP_DETECT TAMAGI_SETUP_PRIV TAMAGI_SETUP_TPM
+    # Secure Boot guard on the Welcome screen: warning shown and Next stays on step 1.
+    export TAMAGI_SETUP_SECUREBOOT=1
+    STUB_SLEEP=0.4 session_start $W $H "${THEME:-dark}"
+    STUB_SLEEP=0.4 app --install
+    shot i01c-secureboot
+    key Return; sleep 0.6
+    shot i01d-secureboot-blocked
+    session_end
+    unset TAMAGI_SETUP_LSBLK TAMAGI_SETUP_BACKEND TAMAGI_SETUP_DETECT TAMAGI_SETUP_PRIV TAMAGI_SETUP_TPM TAMAGI_SETUP_SECUREBOOT
 }
 
 [[ $# -gt 0 ]] || set -- pages defaults laptop pt light failure skip askpass

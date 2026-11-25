@@ -1143,3 +1143,36 @@ Unlock the disk with the TPM chip and a PIN	Desbloquear o disco pelo chip TPM e 
 Later: tamagi setup tpm-unlock pin	Depois: tamagi setup tpm-unlock pin
 The TPM disk unlock is sealed to Secure Boot: after the blue screen the disk asks for its password once. Then run: tamagi setup tpm-unlock reseal	O desbloqueio pelo TPM está amarrado ao Secure Boot: depois da tela azul, o disco pede a senha uma vez. Depois rode: tamagi setup tpm-unlock reseal
 Opens by itself. Protects a disk taken out of the computer, not a stolen computer.	Abre sozinho. Protege o disco tirado do computador, não o computador roubado.
+Podman Quadlets (MCP & containers)	Podman Quadlets (MCP e contêineres)
+invalid shadow ID	ID de sombra inválido
+shadow already exists	a sombra já existe
+Shadow workspace	Workspace sombra
+changed files	arquivos alterados
+no such shadow workspace	esse workspace sombra não existe
+No active shadow workspaces. Start one with: tamagi agents run --shadow <agent>	Nenhum workspace sombra ativo. Inicie um com: tamagi agents run --shadow <agente>
+original project folder is missing	a pasta original do projeto não foi encontrada
+Shadow workspace applied and cleaned up	Workspace sombra aplicado e limpo
+All shadow workspaces removed.	Todos os workspaces sombra foram removidos.
+unknown MCP server	servidor MCP desconhecido
+Pulling MCP container image	Baixando a imagem do contêiner MCP
+image will be pulled on first run	a imagem será baixada no primeiro uso
+MCP server enabled	Servidor MCP ativado
+enabled	ativado
+No MCP servers enabled. Enable one with: tamagi mcp add <fetch|memory|git|postgres|playwright|filesystem>	Nenhum servidor MCP ativado. Ative um com: tamagi mcp add <fetch|memory|git|postgres|playwright|filesystem>
+Sandboxed MCP servers in Podman Quadlets (0 RAM idle)	Servidores MCP isolados em Podman Quadlets (0 MB de RAM parados)
+OGC kernel, scx_rusty	kernel OGC, scx_rusty
+The OGC kernel and scx_rusty ship in the image; the rest is optional.	O kernel OGC e o scx_rusty já vêm na imagem; o resto é opcional.
+Secure Boot is enabled in UEFI firmware. Turn Secure Boot off before installing: the installed system uses unsigned systemd-boot and will not start while Secure Boot is on.	O Secure Boot está ligado no firmware UEFI. Desligue o Secure Boot antes de instalar: o sistema instalado usa o systemd-boot ainda sem assinatura e não iniciará com o Secure Boot ligado.
+Turn Secure Boot off in the firmware (BIOS/UEFI) settings before installing Tamagi.	Desligue o Secure Boot nas configurações do firmware (BIOS/UEFI) antes de instalar o Tamagi.
+Screen OCR — Tesseract text recognition for Shift+Print, native (asks for the password)	OCR de tela — reconhecimento de texto Tesseract no Shift+Print, nativo (pede a senha)
+Android tools — adb and fastboot, native (asks for the password)	Ferramentas Android — adb e fastboot, nativo (pede a senha)
+Network diagnostics — iperf3, ncat and Wake-on-LAN, native (asks for the password)	Diagnóstico de rede — iperf3, ncat e Wake-on-LAN, nativo (pede a senha)
+AI agents: Claude Code, Codex, Qwen Code, opencode, shadow…	agentes de IA: Claude Code, Codex, Qwen Code, opencode, shadow…
+sandboxed MCP servers in Podman Quadlets (0 RAM idle)	servidores MCP isolados em Podman Quadlets (0 MB de RAM parados)
+sandboxed MCP servers in Podman Quadlets: fetch, memory, git, postgres, playwright, filesystem	servidores MCP isolados em Podman Quadlets: fetch, memory, git, postgres, playwright, filesystem
+Clean web/docs HTTP reader (isolated container, no disk access)	Leitor HTTP limpo de páginas/docs (contêiner isolado, sem acesso ao disco)
+Persistent local knowledge graph (isolated Podman volume)	Grafo de memória local persistente (volume Podman isolado)
+Read-only Git repository inspector (current project :ro, offline)	Inspetor Git somente-leitura (projeto atual :ro, sem rede)
+Local PostgreSQL inspector (connects to tamagi db on 127.0.0.1:5432)	Inspetor PostgreSQL local (conecta ao tamagi db em 127.0.0.1:5432)
+Headless browser automation (isolated from personal profiles)	Automação de navegador headless (isolado dos seus perfis pessoais)
+Scoped workspace-only file access (current project only, offline)	Acesso a arquivos restrito ao projeto atual (sem rede)

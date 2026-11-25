@@ -8,7 +8,7 @@
 # confere, lendo de volta, que o que ficou no pendrive é igual à ISO.
 set -euo pipefail
 
-DEV="" ISO="$(cd "$(dirname "$0")/.." && pwd)/output/tamagi.iso" YES=0
+DEV="" ISO="$(cd "$(dirname "$0")/.." && pwd)/output/imagens_iso/tamagi.iso" YES=0
 for arg in "$@"; do
     case "$arg" in
         --yes) YES=1 ;;

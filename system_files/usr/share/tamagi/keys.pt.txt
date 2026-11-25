@@ -34,7 +34,5 @@
    Print                     captura de tela
    Shift + Print             copiar o texto de uma área (OCR)
    Alt + Print               gravar a tela / parar
-   Super + Ctrl + E          emojis
-   Super + Ctrl + R          lembrete
    Super + Ctrl + P          modo privacidade (liga/desliga)
    Super + Ctrl + Espaço     trocar layout do teclado

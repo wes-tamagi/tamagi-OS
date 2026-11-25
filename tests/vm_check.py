@@ -251,6 +251,10 @@ def main():
     check("swap em zram", "zram" in out, out)
     out, _ = run("systemctl is-enabled firewalld; systemctl is-active firewalld")
     check("firewall ativo", out.split() == ["enabled", "active"], out)
+    out, _ = run("test -s /etc/ld.so.cache && systemctl show ldconfig.service -p Result --value")
+    check("ldconfig: /etc/ld.so.cache íntegro e sem falha no boot", out.strip() == "success", out)
+    out, _ = run("tamagi-mcp list | grep -c memory; /usr/libexec/tamagi/egress-guard --check-host api.anthropic.com:443")
+    check("tamagi-mcp e egress-guard prontos no sistema instalado", out.splitlines() == ["1", "ALLOW"], out)
     out, _ = run("systemctl --failed --no-legend --plain | awk '{print $1}' | tr '\\n' ' '")
     if out.strip():
         why, _ = sudo("sh -c 'for u in %s; do journalctl -b -u $u -o cat --no-pager | tail -6; done'" % out.strip())

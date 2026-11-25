@@ -124,9 +124,15 @@ find /usr/share/locale -mindepth 1 -maxdepth 1 -type d \
 # usa) e a fonte CJK estática (as variáveis, que ficam, cobrem os mesmos
 # idiomas). ~250 MB.
 dnf5 -y remove --no-autoremove python3-botocore python3-boto3 python3-s3transfer google-noto-sans-cjk-fonts || true
+rm -f /usr/libexec/luks-enable-tpm2-autounlock /usr/libexec/luks-disable-tpm2-autounlock
 fc-cache -f >/dev/null 2>&1 || true
 
 dnf5 clean all
+
+# Pre-build linker, hwdb, and journal caches inside the image so boots are fast.
+ldconfig -X
+systemd-hwdb update 2>/dev/null || true
+journalctl --update-catalog 2>/dev/null || true
 
 # /var não viaja na imagem (veja abaixo), mas os pacotes instalados aqui
 # esperam encontrar as pastas deles em /var/lib e /var/log. Como faz o
