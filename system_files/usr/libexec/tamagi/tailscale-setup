@@ -1,27 +1,28 @@
 #!/usr/bin/bash
-# tailscale-setup — Tailscale (mesh VPN), optional and native.
+# tailscale-setup — Tailscale (mesh VPN) pré-instalado na imagem, desligado por padrão.
 #
-# It does not ship in the image. This installs the official package (the
-# vendor's repository, signed) in a reversible layer, starts the daemon now
-# and at every boot, and connects this computer to your network.
-#
-#   tailscale-setup            install and connect      (catalog: tamagi install tailscale)
-#   tailscale-setup remove     disconnects and removes the layer
+#   tamagi shield tailscale [on|off|status]
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 
-LAYER=tailscale
-REPO="tailscale-stable=https://pkgs.tailscale.com/stable/fedora/x86_64=https://pkgs.tailscale.com/stable/fedora/repo.gpg"
-
-case "${1:-install}" in
-    install)
-        if ! command -v tailscale >/dev/null 2>&1; then
-            tamagi-layer add "$LAYER" --repo "$REPO" --unit tailscaled.service tailscale
-        fi
+case "${1:-on}" in
+    on|up|install)
+        command -v tailscale >/dev/null 2>&1 || { echo "$(t "error"): tailscale not installed" >&2; exit 1; }
+        sudo systemctl enable --now tailscaled.service
         echo "$(t "Connecting this computer to your Tailscale network…")"
         sudo tailscale up ;;
-    remove)
+    off|down|remove)
         sudo tailscale down 2>/dev/null || true
-        tamagi-layer remove "$LAYER" ;;
-    *) echo "usage: tailscale-setup [install|remove]" >&2; exit 2 ;;
+        sudo systemctl disable --now tailscaled.service 2>/dev/null || true
+        tl "Tailscale stopped and disabled." ;;
+    status)
+        if systemctl is-active --quiet tailscaled.service 2>/dev/null; then
+            tailscale status || true
+        else
+            tl "Tailscale is installed and off (enable with: tamagi shield tailscale on)."
+        fi ;;
+    -h|--help|help)
+        echo "usage: tamagi shield tailscale [on|off|status]" ;;
+    *)
+        echo "usage: tamagi shield tailscale [on|off|status]" >&2; exit 2 ;;
 esac

@@ -51,7 +51,7 @@ cmd_status() {
     echo "Secure Boot               : $(secure_boot)"
     echo "$(t "Encrypted disk (LUKS)"): $(yn sh -c 'lsblk -no TYPE | grep -qx crypt')"
     echo "Firewall                  : $(systemctl is-active firewalld 2>/dev/null || true)"
-    echo "USBGuard                  : $(systemctl is-active usbguard 2>/dev/null || true)"
+    echo "USBGuard                  : $(command -v usbguard >/dev/null 2>&1 && (systemctl is-active usbguard 2>/dev/null || true) || t "optional")"
     echo "hardened_malloc global    : $(yn grep -qs hardened_malloc "$PRELOAD")"
     echo "$(t "Wi-Fi MAC")              : $(is_strict && t "random per connection" || t "stable per saved network")"
     echo "kptr_restrict / dmesg     : $(sysctl_now kernel.kptr_restrict) / $(sysctl_now kernel.dmesg_restrict)"
@@ -118,6 +118,7 @@ cmd_balanced() {
 }
 
 cmd_usb() {
+    command -v usbguard >/dev/null 2>&1 || die "USBGuard: tamagi install hardening-extra"
     case "${1:-}" in
         on)
             tl "Currently connected USB devices are allowed; new ones will be blocked."

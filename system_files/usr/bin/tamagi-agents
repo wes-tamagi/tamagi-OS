@@ -33,6 +33,7 @@ set -euo pipefail
 BIN_DIR="$HOME/.local/bin"
 PREFIX="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/agents"   # npm prefix, used from the dev box
 SHADOWS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/shadows"
+FLIGHTS_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/tamagi/flights"
 BOX="${TAMAGI_AGENTS_BOX:-dev}"
 ORDER=(claude antigravity codex clio qwen opencode gemini openclaw local)
 declare -A TITLE=(
@@ -372,20 +373,24 @@ cmd_run() {
     fi
 
     if (( ! print && (shadow || egress) )); then
-        local rc=0
+        local rc=0 started ended nchg=0
+        started=$(date -Iseconds)
         if (( in_box )); then
             distrobox enter "$BOX" -- env TAMAGI_EGRESS_GUARD_BIN="/run/host${GUARD_HOST}" "$JAIL_BOX" "${opts[@]}" -- "${cmd[@]}" || rc=$?
         else
             env TAMAGI_EGRESS_GUARD_BIN="$GUARD_HOST" "$JAIL_HOST" "${opts[@]}" -- "${cmd[@]}" || rc=$?
         fi
+        ended=$(date -Iseconds)
         if (( shadow )) && [[ -d $sdir/work ]]; then
-            local nchg
             nchg=$(shadow_changes_count "$root" "$sdir/work")
+        fi
+        record_flight "${shadow_id:-${agent:-jail}-$(date +%Y%m%d-%H%M%S)}" "${agent:-jail}" "$root" "$started" "$ended" "$rc" "${shadow_id:-}" "$nchg" "${EGRESS_TMP:+$EGRESS_TMP/egress.log}"
+        if (( shadow )) && [[ -d $sdir/work ]]; then
             echo
             info "── $(t "Shadow workspace"): $shadow_id ($nchg $(t "changed files"))"
-            echo "  tamagi agents shadow diff $shadow_id"
-            echo "  tamagi agents shadow apply $shadow_id"
-            echo "  tamagi agents shadow drop $shadow_id"
+            echo "  tamagi ai shadow diff $shadow_id"
+            echo "  tamagi ai shadow apply $shadow_id"
+            echo "  tamagi ai shadow drop $shadow_id"
         fi
         return "$rc"
     fi
@@ -542,6 +547,64 @@ pick() {
     while read -r name _; do install_one "$name" || echo "$(t "failed"): $name" >&2; done <<<"$picked"
 }
 
+record_flight() {
+    local fid=$1 agent=$2 root=$3 started=$4 ended=$5 rc=$6 sid=$7 nchg=$8 elog=${9:-}
+    mkdir -p "$FLIGHTS_DIR"
+    python3 - "$FLIGHTS_DIR/$fid.json" "$fid" "$agent" "$root" "$started" "$ended" "$rc" "$sid" "$nchg" "$elog" <<'PY' 2>/dev/null || true
+import json, os, pathlib, sys
+out, fid, agent, root, started, ended, rc, sid, nchg, elog = sys.argv[1:11]
+allowed, blocked = [], []
+if elog and os.path.isfile(elog):
+    for ln in pathlib.Path(elog).read_text(encoding="utf-8", errors="ignore").splitlines():
+        parts = ln.split()
+        if "ALLOW" in parts:
+            allowed.append(parts[-1])
+        elif "DENY" in parts or "BLOCK" in parts:
+            blocked.append(parts[-1])
+rec = {
+    "id": fid,
+    "agent": agent,
+    "root": root,
+    "started": started,
+    "ended": ended,
+    "exit_code": int(rc),
+    "shadow_id": sid,
+    "changed_files": int(nchg),
+    "egress_allowed": sorted(set(allowed)),
+    "egress_blocked": sorted(set(blocked)),
+}
+pathlib.Path(out).write_text(json.dumps(rec, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+cmd_flights() {
+    local sub=${1:-list}
+    shift || true
+    case "$sub" in
+        list)
+            local f any=0
+            for f in $(ls -1t "$FLIGHTS_DIR"/*.json 2>/dev/null || true); do
+                [[ -f $f ]] || continue
+                any=1
+                jq -r '"  \(.id)  \(.agent)  rc=\(.exit_code)  files=\(.changed_files)  blocked=\(.egress_blocked | length)  \(.root)"' "$f" 2>/dev/null || true
+            done
+            (( any )) || tl "No agent flights recorded yet. Run: tamagi ai run --shadow <agent>"
+            ;;
+        show)
+            local fid=${1:?usage: tamagi ai flights show <id>}
+            [[ -f $FLIGHTS_DIR/$fid.json ]] || die "$(t "flight not found"): $fid"
+            cat "$FLIGHTS_DIR/$fid.json"
+            ;;
+        clear)
+            rm -rf -- "${FLIGHTS_DIR:?}"
+            tl "Flight recorder history cleared."
+            ;;
+        *)
+            die "usage: tamagi ai flights [list|show <id>|clear]"
+            ;;
+    esac
+}
+
 case "${1:-}" in
     "")              pick ;;
     list)            cmd_list ;;
@@ -554,6 +617,7 @@ case "${1:-}" in
     run)             shift; cmd_run 0 "$@" ;;
     jail)            shift; cmd_run 1 "$@" ;;
     shadow|shadows)  shift; cmd_shadow "$@" ;;
+    flights)         shift; cmd_flights "$@" ;;
     -h|--help|help)  sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-    *)               die "usage: tamagi agents [list|install <name>…|remove <name>|update|run <name>|jail|shadow]" ;;
+    *)               die "usage: tamagi agents [list|install <name>…|remove <name>|update|run <name>|jail|shadow|flights]" ;;
 esac

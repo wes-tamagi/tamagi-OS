@@ -123,10 +123,11 @@ cmd_set() {
     local prof=${1:-}
     case "$prof" in
         eco|economia)           prof=eco ;;
-        balanced)   prof=balanced ;;
+        balanced)               prof=balanced ;;
+        ai)                     prof=ai ;;
         performance|desempenho) prof=performance ;;
-        latency) prof=latency ;;
-        *) die "$(t "unknown profile"): '$prof' (eco, balanced, performance, latency)" ;;
+        latency)                prof=latency ;;
+        *) die "$(t "unknown profile"): '$prof' (eco, balanced, ai, performance, latency)" ;;
     esac
     if [[ $(id -u) == 0 ]]; then
         "$HELPER" "$prof"

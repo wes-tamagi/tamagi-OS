@@ -21,6 +21,7 @@ cat > /etc/tamagi-live.conf <<CONF
 # De onde o instalador tira o sistema e para onde o sistema instalado olha.
 PAYLOAD_DIR=/run/initramfs/live/tamagi-oci
 TARGET_IMGREF=${TARGET_IMGREF:-}
+SKL_TARGET_IMGREF=${SKL_TARGET_IMGREF:-}
 CONF
 # Marca de "estamos na mídia": o assistente de primeiro login não aparece aqui.
 echo 'f /run/tamagi-live 0644 root root -' > /usr/lib/tmpfiles.d/tamagi-live.conf

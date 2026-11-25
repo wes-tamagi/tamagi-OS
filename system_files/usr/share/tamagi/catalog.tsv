@@ -1,28 +1,35 @@
 # Tamagi — catalog of everything optional (`tamagi install`, first login).
-# The image is lean: nothing here ships in it. One item per line, TAB separated:
-#   id <TAB> category <TAB> size <TAB> action <TAB> description
-# action:
-#   flatpak:<remote>:<app id>   Flatpak app, in the user (no password)
-#   gaming:<key>                native gaming layer, like Bazzite (tamagi gaming native <key>...)
-#   agent:<name>                AI agent (tamagi agents install <name>...)
-#   run:<command>               any other command, run in the terminal
-# Category and description are written in English (the key of the
-# translations in /usr/share/tamagi/i18n) and shown in the system language.
-# The Flatpak apps of flatpaks.list (type "opcional") join this catalog.
+# Native layers (systemd-sysext) cover drivers, ROCm, Bazzite gaming, hardware
+# monitors, and system tools that perform best outside Flatpak/containers.
+# Format: id <TAB> category <TAB> size <TAB> action <TAB> description
 opera-gx	Browsers	450MB	run:tamagi-browser install opera-gx --flatpak	Opera GX (Flatpak)
 chrome	Browsers	380MB	run:tamagi-browser install chrome --flatpak	Google Chrome (Flatpak)
-chromium	Browsers	350MB	run:tamagi-browser install chromium --flatpak	Chromium (Flatpak)
 vivaldi	Browsers	400MB	run:tamagi-browser install vivaldi --flatpak	Vivaldi (Flatpak)
 firefox	Browsers	260MB	run:tamagi-browser install firefox --flatpak	Firefox — Mozilla's browser (Flatpak)
 whatsapp	Communication	1MB	run:tamagi-webapp install WhatsApp https://web.whatsapp.com	WhatsApp — web app in its own window, opened by your Chromium-based browser
+lark	Communication	380MB	run:/usr/libexec/tamagi/lark-setup	Lark Suite — native Linux RPM in a reversible layer (WebApp already pre-installed)
 virt-manager	Virtualization	1MB	run:tamagi-vm install	Virtual machines — Cockpit Machines with KVM, UEFI, TPM and SPICE, built into the image (turns on its services)
 windows	Virtualization	6GB	run:tamagi-windows install	Windows 11 in a container (dockur/windows)
-steam	Games	900MB	gaming:steam	Steam + steam-devices, native like on Bazzite (asks for the password)
-gaming-tools	Games	150MB	gaming:base	gamescope, MangoHud and GameMode, native, with the HDR gaming session (asks for the password)
+steam	Games	900MB	gaming:steam	Steam (RPM Fusion), native like on Bazzite — gamescope, MangoHud, GameMode and 32-bit Mesa/Vulkan are already built in (asks for the password)
+gaming-tools	Games	150MB	gaming:base	Gaming HDR session overlay — registers the Tamagi Gaming gamescope session (asks for the password)
 lutris	Games	300MB	gaming:lutris	Lutris — game manager, native (asks for the password)
 wine	Games	700MB	gaming:wine	Wine + Winetricks, native (asks for the password)
 overlay	Games	60MB	gaming:overlay	GOverlay + vkBasalt, native (asks for the password)
 protontricks	Games	40MB	gaming:protontricks	Protontricks, native (asks for the password)
+rocm	Drivers	1.2GB	run:tamagi-layer add rocm rocm-hip rocm-opencl rocm-smi rocminfo	AMD ROCm compute stack — HIP, OpenCL and GPU compute for local AI and Blender, native (asks for the password)
+video-amd	Drivers	80MB	run:tamagi-layer add video-amd mesa-vdpau-drivers libva-utils	AMD video extras — VDPAU and VA-API diagnostics, native (asks for the password)
+video-intel	Drivers	90MB	run:tamagi-layer add video-intel intel-media-driver libva-intel-driver intel-gpu-tools	Intel video drivers — VA-API media acceleration and GPU telemetry, native (asks for the password)
+video-nvidia	Drivers	450MB	run:/usr/libexec/tamagi/nvidia-setup	NVIDIA drivers & CUDA libraries — native RPM Fusion layer (asks for the password)
+codecs-extra	Drivers	120MB	run:tamagi-layer add codecs-extra --rpmfusion gstreamer1-plugins-bad-freeworld gstreamer1-plugins-ugly	Extra multimedia codecs — full RPM Fusion GStreamer codecs, native (asks for the password)
+lact	Hardware	35MB	run:tamagi-layer add lact --copr ilyaz/LACT --unit lactd.service lact	LACT (Rust) — GPU fan curves, power limits and undervolting for AMD/NVIDIA/Intel, native (asks for the password)
+openrgb	Hardware	40MB	run:tamagi-layer add openrgb openrgb	OpenRGB — motherboard and peripheral RGB control, native (asks for the password)
+solaar	Hardware	25MB	run:tamagi-layer add solaar solaar	Solaar — Logitech Unifying and Bolt receiver manager, native (asks for the password)
+disk-tools	Hardware	15MB	run:tamagi-layer add disk-tools nvme-cli smartmontools	Disk diagnostics — NVMe CLI and SMART health tools, native (asks for the password)
+sniffnet	Networks	35MB	run:/usr/libexec/tamagi/sniffnet-setup	Sniffnet (Rust/Iced) — real-time network traffic monitor with packet capture, native (asks for the password)
+wireshark	Networks	180MB	run:tamagi-layer add wireshark wireshark	Wireshark — deep network packet analyzer, native (asks for the password)
+vpn-extra	Networks	15MB	run:tamagi-layer add vpn-extra NetworkManager-openvpn-gnome NetworkManager-openconnect-gnome NetworkManager-l2tp-gnome NetworkManager-pptp-gnome NetworkManager-sstp-gnome NetworkManager-strongswan-gnome NetworkManager-libreswan-gnome NetworkManager-ssh-gnome	Extra VPNs — OpenVPN, OpenConnect, L2TP, PPTP, SSTP, IPsec and SSH plugins, native (asks for the password)
+net-fs	Networks	12MB	run:tamagi-layer add net-fs gvfs-nfs fuse-sshfs	Remote filesystems — NFS and SSHFS mounts, native (asks for the password)
+hardening-extra	System	15MB	run:tamagi-layer add hardening-extra --copr secureblue/packages usbguard hardened_malloc	Extra hardening — USBGuard and hardened_malloc, native (asks for the password)
 devbox-fedora	Development	1.5GB	run:tamagi-devbox create fedora	Fedora development box (distrobox)
 devbox-ubuntu	Development	1.5GB	run:tamagi-devbox create ubuntu	Ubuntu development box (distrobox)
 devbox-opensuse	Development	1.5GB	run:tamagi-devbox create opensuse	openSUSE Tumbleweed development box (distrobox)
@@ -40,10 +47,7 @@ gemini	AI agents	150MB	agent:gemini	Gemini CLI — Google's agent (in the dev bo
 openclaw	AI agents	300MB	agent:openclaw	OpenClaw — open-source personal assistant (in the dev box)
 local-ai	AI agents	2-9GB	agent:local	Local AI — the Tamagi agent with a model on your computer (llama.cpp)
 llm-scripts	AI agents	1MB	run:/usr/libexec/tamagi/llm-scripts-setup	llm-scripts — works out the best launch profile of a local model for your GPU
-rclone	Networks	115MB	run:tamagi-layer add rclone rclone	rclone — cloud storage in the terminal: sync and mount, native (asks for the password)
-vpn-extra	Networks	15MB	run:tamagi-layer add vpn-extra NetworkManager-l2tp-gnome NetworkManager-pptp-gnome NetworkManager-sstp-gnome NetworkManager-strongswan-gnome NetworkManager-libreswan-gnome NetworkManager-ssh-gnome	Extra VPNs — L2TP, PPTP, SSTP, strongSwan, Libreswan and SSH in the network settings, native (asks for the password)
 cosmic-player	Creative	30MB	run:tamagi-layer add cosmic-player cosmic-player	COSMIC Player — the COSMIC video player, native (asks for the password)
 ocr	System	80MB	run:tamagi-layer add ocr tesseract tesseract-langpack-eng tesseract-langpack-por tesseract-langpack-spa tesseract-langpack-fra	Screen OCR — Tesseract text recognition for Shift+Print, native (asks for the password)
 android-tools	Development	25MB	run:tamagi-layer add android-tools android-tools	Android tools — adb and fastboot, native (asks for the password)
 net-tools	Networks	10MB	run:tamagi-layer add net-tools iperf3 nmap-ncat wol	Network diagnostics — iperf3, ncat and Wake-on-LAN, native (asks for the password)
-tailscale	Networks	60MB	run:/usr/libexec/tamagi/tailscale-setup	Tailscale — mesh VPN between your devices, native (asks for the password)

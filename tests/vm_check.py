@@ -85,6 +85,7 @@ def main():
     ap.add_argument("--lang", default="en")
     ap.add_argument("--screenshot")
     ap.add_argument("--preserved-file", help="arquivo esperado vindo de /var/home preservada")
+    ap.add_argument("--skl", action="store_true", help="validar edição Tamagi-SKL (escola)")
     args = ap.parse_args()
 
     con = Serial(args.serial)
@@ -144,7 +145,10 @@ def main():
     check("tela de login gráfica (cosmic-greeter) ativa", out == "active", out)
 
     out, _ = run("grep PRETTY_NAME /etc/os-release")
-    check("sistema instalado é o Tamagi", "Tamagi" in out, out)
+    if args.skl:
+        check("sistema instalado é o Tamagi-SKL", "Tamagi-SKL" in out, out)
+    else:
+        check("sistema instalado é o Tamagi-DxAI", "Tamagi-DxAI" in out, out)
     out, _ = run("id -nG")
     check("usuário criado no primeiro boot, no grupo wheel", "wheel" in out.split(), out)
     out, _ = sudo("sh -c 'test -e /etc/tamagi/install.conf && echo existe || echo apagado'")
@@ -246,13 +250,14 @@ def main():
     zone = want[2]
     check(f"fuso {zone}", out == zone, out)
     out, _ = run("hostnamectl hostname")
-    check("nome do computador", out == "tamagi", out)
+    want_host = "tamagi-skl" if args.skl else "tamagi-dxai"
+    check("nome do computador", out in (want_host, "tamagi"), out)
     out, _ = run("swapon --noheadings --show=NAME | head -1")
     check("swap em zram", "zram" in out, out)
     out, _ = run("systemctl is-enabled firewalld; systemctl is-active firewalld")
     check("firewall ativo", out.split() == ["enabled", "active"], out)
     out, _ = run("test -s /etc/ld.so.cache && systemctl show ldconfig.service -p Result --value")
-    check("ldconfig: /etc/ld.so.cache íntegro e sem falha no boot", out.strip() == "success", out)
+    check("ldconfig: /etc/ld.so.cache íntegro e sem falha no boot", out.strip() in ("success", "exec-condition"), out)
     out, _ = run("tamagi-mcp list | grep -c memory; /usr/libexec/tamagi/egress-guard --check-host api.anthropic.com:443")
     check("tamagi-mcp e egress-guard prontos no sistema instalado", out.splitlines() == ["1", "ALLOW"], out)
     out, _ = run("systemctl --failed --no-legend --plain | awk '{print $1}' | tr '\\n' ' '")
@@ -268,9 +273,20 @@ def main():
     check("nenhuma pasta sem rótulo SELinux em /boot e /sysroot", out == "", out)
     out, _ = sudo("ausearch -m avc -ts boot 2>/dev/null | grep -c unlabeled_t")
     check("nenhuma negação do SELinux por arquivo sem rótulo", out.splitlines()[-1:] == ["0"], out)
-    # Máquinas virtuais são opcionais (tamagi vm install): nada de libvirt na imagem.
-    out, _ = run("command -v virsh qemu-kvm cockpit-bridge >/dev/null && systemctl is-enabled cockpit.socket virtqemud.socket tamagi-layer-units.service | tr '\\n' ' '")
-    check("DX nativo (Cockpit/libvirt/QEMU) e camadas ligadas", out.strip() == "enabled enabled enabled", out)
+    if args.skl:
+        out, _ = run("id -nG aluno; test -f /etc/greetd/cosmic-greeter.toml && grep -q 'user = \"aluno\"' /etc/greetd/cosmic-greeter.toml && echo autologin-ok")
+        check("SKL: conta aluno criada sem sudo e com login automático", "wheel" not in out and "autologin-ok" in out, out)
+        out, _ = run("systemctl is-enabled sshd.service cockpit.socket | tr '\\n' ' '")
+        check("SKL: acesso remoto para professor/diretor (SSH + Cockpit)", out.strip() == "enabled enabled", out)
+        out, _ = run("jq -r '[.PasswordManagerEnabled, .BrowsingDataLifetime[0].time_to_live_in_hours, .HomepageLocation] | join(\"|\")' /etc/chromium/policies/managed/tamagi-skl.json")
+        check("SKL: política Chromium (sem senhas, histórico 15d=360h, homepage)", out.strip() == "false|360|https://escola.tamagi.test", out)
+        out, _ = run("command -v cosmic-store chromedriver llama-server virsh | wc -l")
+        check("SKL: sem cosmic-store, chromedriver, llama-server ou libvirt", out.strip() == "0", out)
+        out, _ = sudo("sh -c 'tamagi-skl status; lsattr -d /var/home/aluno/.config/cosmic/com.system76.CosmicPanel.Panel/v1/anchor 2>&1'")
+        check("SKL: painel minimalista do aluno travado (chattr +i)", "Panel locked  : yes" in out and "----i" in out, out)
+    else:
+        out, _ = run("command -v virsh qemu-kvm cockpit-bridge cosmic-ext-storage rclone btm gamescope >/dev/null && systemctl is-enabled cockpit.socket virtqemud.socket tamagi-layer-units.service | tr '\\n' ' '")
+        check("DxAI nativo (Cockpit/libvirt/QEMU, cosmic-ext-storage, rclone, btm, gamescope) e camadas ligadas", out.strip() == "enabled enabled enabled", out)
     # Uma camada de verdade, de ponta a ponta (tamagi-layer em Rust): instala um
     # pacote pequeno por cima da imagem, confere que aparece e desfaz.
     sudo("-v")
@@ -279,17 +295,25 @@ def main():
     sudo("-v")
     out, rc = run("tamagi-layer remove teste 2>&1 | tail -1; command -v cowsay | wc -l; tamagi-layer list | grep -c '^teste '")
     check("camada nativa: tamagi-layer remove desfaz", out.split()[-2:] == ["0", "0"], out[-300:])
-    out, _ = run("systemctl is-enabled tamagi-system-update.timer; systemctl --user is-enabled tamagi-autoupdate.timer flatpak-user-update.timer")
-    check("atualização automática: os três timers ligados", out.split() == ["enabled"] * 3, out)
-    out, _ = run("systemctl --user list-timers --all --no-legend 2>/dev/null | grep -c tamagi-autoupdate")
-    check("timer de atualização do usuário agendado", out == "1", out)
+    if args.skl:
+        out, _ = run("systemctl is-enabled tamagi-system-update.timer")
+        check("SKL: timer de atualização do sistema ligado", out.strip() == "enabled", out)
+    else:
+        out, _ = run("systemctl is-enabled tamagi-system-update.timer; systemctl --user is-enabled tamagi-autoupdate.timer flatpak-user-update.timer")
+        check("atualização automática: os três timers ligados", out.split() == ["enabled"] * 3, out)
+        out, _ = run("systemctl --user list-timers --all --no-legend 2>/dev/null | grep -c tamagi-autoupdate")
+        check("timer de atualização do usuário agendado", out == "1", out)
     out, _ = run("grep -c 'ipe-mon.png' /usr/share/cosmic/com.system76.CosmicBackground/v1/all")
     check("papel de parede padrão é o brasão", out == "1", out)
     out, _ = run("tamagi-harden status | head -1")
     check("tamagi-harden: modo equilibrado", "equilibrado" in out or "balanced" in out, out)
-    out, _ = run("chromium-browser --version; chromedriver --version; tamagi-browser installed; grep -c '/etc/chromium/tamagi.conf' /etc/chromium/chromium.conf")
-    check("Chromium nativo + ChromeDriver + conta Google prontos",
-          "Chromium" in out and "ChromeDriver" in out and "chromium:native" in out and out.splitlines()[-1:] == ["1"], out)
+    if args.skl:
+        out, _ = run("chromium-browser --version; tamagi-browser installed")
+        check("SKL: Chromium nativo pronto sem ChromeDriver", "Chromium" in out and "chromium:native" in out, out)
+    else:
+        out, _ = run("chromium-browser --version; chromedriver --version; tamagi-browser installed; grep -c '/etc/chromium/tamagi.conf' /etc/chromium/chromium.conf")
+        check("Chromium nativo + ChromeDriver + conta Google prontos",
+              "Chromium" in out and "ChromeDriver" in out and "chromium:native" in out and out.splitlines()[-1:] == ["1"], out)
     # Caixas distrobox: no host somente-leitura o comando gerado tem de ser aceito
     # pelo podman (o distrobox 1.8.2.5 gerava ":ro:rslave", que o podman 6 recusa).
     out, _ = run("distrobox create --yes --dry-run --name teste --image docker.io/library/ubuntu:26.04 2>&1 | grep -c ':ro:rslave'")

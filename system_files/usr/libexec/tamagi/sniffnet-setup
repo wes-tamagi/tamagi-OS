@@ -1,0 +1,21 @@
+#!/usr/bin/bash
+# sniffnet-setup — instala Sniffnet v1.6.0 (Rust + Iced) como camada nativa reversível.
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+VER=1.6.0
+URL="https://github.com/GyulyVGC/sniffnet/releases/download/v${VER}/Sniffnet_LinuxRPM_x86_64.rpm"
+SHA="18d17389efc42277cdb4ef0c2a4d48817e20ecb4e1fb061eab8ce2346dbd1d4d"
+
+case "${1:-install}" in
+    install)
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        echo "$(t "Downloading Sniffnet") v${VER}…"
+        curl -fL --progress-bar -o "$tmp/sniffnet.rpm" "$URL"
+        echo "${SHA}  $tmp/sniffnet.rpm" | sha256sum -c --quiet -
+        tamagi-layer add sniffnet "$tmp/sniffnet.rpm" ;;
+    remove)
+        tamagi-layer remove sniffnet ;;
+    *) echo "usage: sniffnet-setup [install|remove]" >&2; exit 2 ;;
+esac

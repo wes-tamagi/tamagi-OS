@@ -43,19 +43,27 @@ grub=$(find /live/usr/lib/efi/grub2 -name grubx64.efi | head -1)
 BASE="root=live:CDLABEL=$LABEL rd.live.image rd.overlay=1 rd.luks=0 rd.lvm=0 rd.md=0 rd.multipath=0 enforcing=0 rootdelay=5"
 cat > /tmp/grub.cfg <<CFG
 set default=0
-set timeout=5
+set timeout=8
 search --no-floppy --set=root --label $LABEL
 
-menuentry "Tamagi — Install or Try" {
-    linux /boot/vmlinuz $BASE quiet
+menuentry "Tamagi-DxAI — Install or Try (Regular / AI & Dev)" {
+    linux /boot/vmlinuz $BASE tamagi.edition=dxai quiet
     initrd /boot/initrd.img
 }
-menuentry "Tamagi — Safe Graphics Mode (nomodeset)" {
-    linux /boot/vmlinuz $BASE nomodeset
+menuentry "Tamagi-SKL — Install or Try (School / Escola)" {
+    linux /boot/vmlinuz $BASE tamagi.edition=skl quiet
+    initrd /boot/initrd.img
+}
+menuentry "Tamagi-DxAI — Safe Graphics Mode (nomodeset)" {
+    linux /boot/vmlinuz $BASE tamagi.edition=dxai nomodeset
+    initrd /boot/initrd.img
+}
+menuentry "Tamagi-SKL — Safe Graphics Mode (nomodeset)" {
+    linux /boot/vmlinuz $BASE tamagi.edition=skl nomodeset
     initrd /boot/initrd.img
 }
 menuentry "Tamagi — Boot Diagnostics (verbose)" {
-    linux /boot/vmlinuz $BASE rd.live.debug=1
+    linux /boot/vmlinuz $BASE tamagi.edition=dxai rd.live.debug=1
     initrd /boot/initrd.img
 }
 CFG

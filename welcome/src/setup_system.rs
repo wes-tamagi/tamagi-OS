@@ -44,6 +44,23 @@ pub fn uefi() -> bool {
     env("TAMAGI_SETUP_LSBLK").is_some() || std::path::Path::new("/sys/firmware/efi").is_dir()
 }
 
+/// Edition picked at ISO boot (`tamagi.edition=dxai|skl`), overridable via env.
+pub fn edition() -> String {
+    if let Some(v) = env("TAMAGI_SETUP_EDITION") {
+        return if v == "skl" { "skl".into() } else { "dxai".into() };
+    }
+    if let Ok(cmdline) = std::fs::read_to_string("/proc/cmdline") {
+        for tok in cmdline.split_whitespace() {
+            if let Some(val) = tok.strip_prefix("tamagi.edition=") {
+                if val == "skl" {
+                    return "skl".into();
+                }
+            }
+        }
+    }
+    "dxai".into()
+}
+
 /// Secure Boot is enabled in the UEFI firmware.
 pub fn secure_boot() -> bool {
     if let Some(v) = env("TAMAGI_SETUP_SECUREBOOT") {

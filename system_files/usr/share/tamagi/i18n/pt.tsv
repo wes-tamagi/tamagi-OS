@@ -1176,3 +1176,90 @@ Read-only Git repository inspector (current project :ro, offline)	Inspetor Git s
 Local PostgreSQL inspector (connects to tamagi db on 127.0.0.1:5432)	Inspetor PostgreSQL local (conecta ao tamagi db em 127.0.0.1:5432)
 Headless browser automation (isolated from personal profiles)	Automação de navegador headless (isolado dos seus perfis pessoais)
 Scoped workspace-only file access (current project only, offline)	Acesso a arquivos restrito ao projeto atual (sem rede)
+No agent flights recorded yet. Run: tamagi ai run --shadow <agent>	Nenhum voo de agente registrado ainda. Rode: tamagi ai run --shadow <agente>
+flight not found	voo não encontrado
+Flight recorder history cleared.	Histórico da caixa-preta de agentes limpo.
+In the Tamagi catalog (native, drivers, Bazzite, AI, Flatpak)	No catálogo do Tamagi (nativo, drivers, Bazzite, IA, Flatpak)
+Nothing in catalog or Flathub for	Nada no catálogo ou no Flathub para
+Install Fedora package natively (sysext)…	Instalar pacote Fedora nativamente (sysext)…
+Fedora package name(s)…	Nome(s) do(s) pacote(s) Fedora…
+missing helper	ajudante ausente
+AI agents, Shadow CoW, flights, MCP Quadlets, and local llama.cpp	agentes de IA, Shadow CoW, flights, MCP Quadlets e llama.cpp local
+development boxes, databases, workspaces, try, and isolate	caixas de desenvolvimento, bancos, workspaces, try e isolate
+security hardening, leases, privacy mode, and Tailscale	segurança, permissões com prazo (leases), privacidade e Tailscale
+COSMIC theme, bar, font, tiling, keys, and capture	tema COSMIC, barra, fonte, tiling, atalhos e captura
+health, setup, performance, desktop, school admin, and declarative state	saúde, setup, desempenho, desktop, escola (SKL) e estado declarativo
+Run `tamagi sys diff` to see what is still missing.	Rode `tamagi sys diff` para ver o que ainda falta.
+explain where any file, command, port, or service came from	explica de onde veio qualquer arquivo, comando, porta ou serviço
+Target	Alvo
+Papers — PDF and document viewer (Rust)	Papers — leitor de PDF e documentos (Rust)
+Cedilla — native Markdown notes for COSMIC (Rust)	Cedilla — notas Markdown nativas para COSMIC (Rust)
+Chronos — Pomodoro timer for COSMIC (Rust)	Chronos — temporizador Pomodoro para COSMIC (Rust)
+Rnote — vector sketching and handwritten notes (Rust)	Rnote — notas vetoriais e desenho à mão livre (Rust)
+Key Rack — view and manage system secrets and keys (Rust)	Key Rack — ver e gerenciar segredos e chaves do sistema (Rust)
+Snapshot — camera app for photos and video (Rust)	Snapshot — aplicativo de câmera para fotos e vídeos (Rust)
+Warp — encrypted peer-to-peer file transfer (Rust)	Warp — transferência criptografada de arquivos P2P (Rust)
+Impression — write ISO images to USB drives (Rust)	Impression — gravar imagens ISO em pendrives USB (Rust)
+Kooha — minimalist Wayland screen recorder (Rust)	Kooha — gravador de tela Wayland minimalista (Rust)
+Authenticator — two-factor authentication (2FA) codes (Rust)	Authenticator — códigos de autenticação em dois fatores 2FA (Rust)
+Mission Center — system monitor (Rust)	Mission Center — monitor de sistema (Rust)
+Pika Backup — backups to a disk or server (Rust)	Pika Backup — backups para disco ou servidor (Rust)
+DistroShelf — distrobox boxes with a GUI (Rust)	DistroShelf — gerenciar caixas distrobox com interface (Rust)
+Zed — code editor (Rust)	Zed — editor de código (Rust)
+COSMIC Tweaks — extra COSMIC settings (Rust)	COSMIC Tweaks — ajustes extras do COSMIC (Rust)
+Examine — hardware information (Rust)	Examine — informações de hardware (Rust)
+Tasks — to-do lists (Rust)	Tasks — listas de tarefas (Rust)
+Forecast — weather (Rust)	Forecast — previsão do tempo (Rust)
+Calculator — made for COSMIC (Rust)	Calculadora — feita para o COSMIC (Rust)
+Lark Suite — native Linux RPM in a reversible layer (WebApp already pre-installed)	Lark Suite — RPM nativo em camada reversível (WebApp já pré-instalado)
+Steam (RPM Fusion), native like on Bazzite — gamescope, MangoHud, GameMode and 32-bit Mesa/Vulkan are already built in (asks for the password)	Steam (RPM Fusion), nativo como no Bazzite — gamescope, MangoHud, GameMode e Mesa/Vulkan 32-bit já estão na base (pede a senha)
+Gaming HDR session overlay — registers the Tamagi Gaming gamescope session (asks for the password)	Sessão Gaming HDR — registra a sessão gamescope Tamagi Gaming (pede a senha)
+Drivers	Drivers
+AMD ROCm compute stack — HIP, OpenCL and GPU compute for local AI and Blender, native (asks for the password)	AMD ROCm — HIP, OpenCL e computação em GPU para IA local e Blender, nativo (pede a senha)
+AMD video extras — VDPAU and VA-API diagnostics, native (asks for the password)	Extras de vídeo AMD — VDPAU e diagnóstico VA-API, nativo (pede a senha)
+Intel video drivers — VA-API media acceleration and GPU telemetry, native (asks for the password)	Drivers de vídeo Intel — aceleração VA-API e telemetria de GPU, nativo (pede a senha)
+NVIDIA drivers & CUDA libraries — native RPM Fusion layer (asks for the password)	Drivers NVIDIA e CUDA — camada nativa RPM Fusion (pede a senha)
+Extra multimedia codecs — full RPM Fusion GStreamer codecs, native (asks for the password)	Codecs multimídia extras — plugins completos GStreamer RPM Fusion, nativo (pede a senha)
+Hardware	Hardware
+LACT (Rust) — GPU fan curves, power limits and undervolting for AMD/NVIDIA/Intel, native (asks for the password)	LACT (Rust) — controle de ventoinha, energia e undervolt de GPU AMD/NVIDIA/Intel, nativo (pede a senha)
+OpenRGB — motherboard and peripheral RGB control, native (asks for the password)	OpenRGB — controle RGB de placa-mãe e periféricos, nativo (pede a senha)
+Solaar — Logitech Unifying and Bolt receiver manager, native (asks for the password)	Solaar — gerenciador de receptores Logitech Unifying e Bolt, nativo (pede a senha)
+Disk diagnostics — NVMe CLI and SMART health tools, native (asks for the password)	Diagnóstico de discos — NVMe CLI e saúde SMART, nativo (pede a senha)
+Sniffnet (Rust/Iced) — real-time network traffic monitor with packet capture, native (asks for the password)	Sniffnet (Rust/Iced) — monitor visual de tráfego de rede em tempo real, nativo (pede a senha)
+Wireshark — deep network packet analyzer, native (asks for the password)	Wireshark — analisador profundo de pacotes de rede, nativo (pede a senha)
+Extra VPNs — OpenVPN, OpenConnect, L2TP, PPTP, SSTP, IPsec and SSH plugins, native (asks for the password)	VPNs extras — plugins OpenVPN, OpenConnect, L2TP, PPTP, SSTP, IPsec e SSH, nativo (pede a senha)
+Remote filesystems — NFS and SSHFS mounts, native (asks for the password)	Sistemas de arquivos remotos — montagens NFS e SSHFS, nativo (pede a senha)
+Extra hardening — USBGuard and hardened_malloc, native (asks for the password)	Endurecimento extra — USBGuard e hardened_malloc, nativo (pede a senha)
+Edition	Edição
+Student account	Conta aluno
+School homepage	Página inicial da escola
+Student auto-login account (no sudo)	Conta do aluno com login automático (sem sudo)
+School homepage URL (Chromium)	URL da página inicial da escola (Chromium)
+Set the administrator password (teacher/IT) and the student auto-login account.	Defina a senha do administrador (professor/TI) e a conta de login automático do aluno.
+The student account must have a different username from the administrator.	A conta do aluno precisa ter um nome diferente do administrador.
+The school homepage URL must start with https:// or http://.	A URL da página inicial da escola deve começar com https:// ou http://.
+Downloading Sniffnet	Baixando Sniffnet
+Lark Suite is proprietary ByteDance software and is downloaded now on your machine.	O Lark Suite é software proprietário da ByteDance e será baixado agora na sua máquina.
+Could not resolve the dynamic Lark RPM URL automatically.	Não foi possível obter automaticamente a URL dinâmica do RPM do Lark.
+Download the x86_64 RPM at https://www.larksuite.com/download and run:	Baixe o RPM x86_64 em https://www.larksuite.com/download e rode:
+Meanwhile, the Lark Suite WebApp is already ready in your launcher.	Enquanto isso, o WebApp do Lark Suite já está pronto no seu menu.
+Tailscale stopped and disabled.	Tailscale parado e desabilitado.
+Tailscale is installed and off (enable with: tamagi shield tailscale on).	Tailscale está instalado e desligado (ative com: tamagi shield tailscale on).
+run with sudo	execute com sudo
+No browsing history yet.	Nenhum histórico de navegação ainda.
+School homepage updated	Página inicial da escola atualizada
+Opened on student session	Aberto na sessão do aluno
+Student panel unlocked.	Painel do aluno destravado.
+Student panel locked.	Painel do aluno travado.
+Student browser session reset (login cleared, 15-day history kept).	Sessão do navegador do aluno redefinida (login limpo, histórico de 15 dias mantido).
+AI agents, Shadow CoW, Egress Guard, flights, MCP Quadlets, local llama.cpp	agentes de IA, Shadow CoW, Egress Guard, flights, MCP Quadlets e llama.cpp local
+development boxes, local databases, workspaces, disposable try and isolate	caixas de desenvolvimento, bancos locais, workspaces, try e isolate descartáveis
+catalog + Flathub + native layers (drivers, ROCm, Bazzite), browsers, webapps	catálogo + Flathub + camadas nativas (drivers, ROCm, Bazzite), navegadores e webapps
+atomic updates: OS image, layers, Flatpaks, boxes, agents, rollback	atualizações atômicas: imagem, camadas, Flatpaks, caixas, agentes e rollback
+unified timeline: home snapshots (snap) and OS deployments	linha do tempo unificada: snapshots da home (snap) e versões do sistema
+reversible systemd-sysext native Fedora packages over /usr	pacotes Fedora nativos reversíveis em camadas systemd-sysext sobre /usr
+security hardening, time-limited leases, privacy mode, Tailscale	segurança, permissões com prazo (leases), modo privacidade e Tailscale
+doctor, status, setup, perf, desktop, skl, and declarative state (init/diff/apply)	doctor, status, setup, perf, desktop, skl e estado declarativo (init/diff/apply)
+create tamagi.toml from the current state	cria tamagi.toml a partir do estado atual
+
+optional	opcional

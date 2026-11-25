@@ -137,7 +137,7 @@ fn check_kernel() -> CheckItem {
                     id: "kernel",
                     status: "WARN",
                     summary: format!("{kver} ({flav}): {}", t("Universal Blue Secure Boot key missing")),
-                    fix: "tamagi setup secure-boot-key".into(),
+                    fix: "tamagi sys setup secure-boot-key".into(),
                 };
             }
         }
@@ -324,7 +324,14 @@ fn check_gpu() -> CheckItem {
     CheckItem { id: "gpu", status: "OK", summary: format!("{} GPU DRM ({})", names.len(), names.join(", ")), fix: String::new() }
 }
 
+fn is_skl() -> bool {
+    fs::read_to_string("/usr/share/tamagi/edition").map(|s| s.trim() == "skl").unwrap_or(false)
+}
+
 fn check_kvm() -> CheckItem {
+    if is_skl() {
+        return CheckItem { id: "virtualization", status: "OK", summary: "Tamagi-SKL".into(), fix: String::new() };
+    }
     match OpenOptions::new().read(true).write(true).open("/dev/kvm") {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return CheckItem { id: "virtualization", status: "WARN", summary: t("/dev/kvm missing (virtualization disabled in BIOS?)"), fix: String::new() };
@@ -392,6 +399,9 @@ fn check_desktop() -> CheckItem {
 }
 
 fn check_ai() -> CheckItem {
+    if is_skl() {
+        return CheckItem { id: "ai", status: "OK", summary: "Tamagi-SKL".into(), fix: String::new() };
+    }
     if !Path::new("/usr/lib64/ggml/libggml-vulkan.so").is_file() {
         return CheckItem { id: "ai", status: "WARN", summary: t("llama.cpp Vulkan backend missing"), fix: String::new() };
     }

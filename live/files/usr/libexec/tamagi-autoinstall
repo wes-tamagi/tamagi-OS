@@ -67,17 +67,29 @@ luks=$(karg tamagi.autoinstall.luks)
 rm -f "$KEY"
 [[ -z $luks ]] || ( umask 077; printf '%s' "$luks" > "$KEY" )
 
+edition=$(karg tamagi.edition)
+[[ $edition == skl ]] || edition=dxai
+default_host=tamagi-dxai
+[[ $edition == skl ]] && default_host=tamagi-skl
+student=$(karg tamagi.autoinstall.student)
+homepage=$(karg tamagi.autoinstall.homepage)
+
 ( umask 077
   {
+      echo "EDITION=$edition"
       echo "LOCALE=$locale"
       echo "KEYMAP=$keymap"
       echo "XKB_LAYOUT=$layout"
       echo "XKB_VARIANT="
       echo "TIMEZONE=$zone"
-      echo "HOSTNAME=tamagi"
+      echo "HOSTNAME=$default_host"
       echo "USER=$user"
       echo "FULLNAME=$user"
       echo "PASSWORD_HASH=$hash"
+      if [[ $edition == skl ]]; then
+          echo "STUDENT_USER=${student:-aluno}"
+          echo "SKL_HOMEPAGE=${homepage:-https://classroom.google.com}"
+      fi
       if [[ -s $KEY ]]; then
           echo "LUKS_KEYFILE=$KEY"
           case $(karg tamagi.autoinstall.tpm) in

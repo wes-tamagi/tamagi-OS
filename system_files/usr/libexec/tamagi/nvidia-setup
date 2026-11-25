@@ -1,0 +1,12 @@
+#!/usr/bin/bash
+# nvidia-setup — instala drivers proprietários NVIDIA / CUDA em camada nativa RPM Fusion.
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+case "${1:-install}" in
+    install)
+        tamagi-layer add video-nvidia --rpmfusion xorg-x11-drv-nvidia-cuda xorg-x11-drv-nvidia-cuda-libs nvidia-vaapi-driver ;;
+    remove)
+        tamagi-layer remove video-nvidia ;;
+    *) echo "usage: nvidia-setup [install|remove]" >&2; exit 2 ;;
+esac

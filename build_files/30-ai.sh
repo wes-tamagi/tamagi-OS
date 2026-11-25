@@ -1,7 +1,10 @@
 #!/usr/bin/bash
-# IA local: confere o llama.cpp vindo do estágio de compilação. Os agentes
-# (opencode, Claude Code, Codex, Qwen Code...) não vêm na imagem: são
-# opcionais, instalados no usuário por `tamagi agents install`.
+# IA local: confere o llama.cpp vindo do estágio de compilação (apenas Tamagi-DxAI).
+
+if [[ ${TAMAGI_EDITION:-dxai} == skl ]]; then
+    echo "Tamagi-SKL: sem llama.cpp local (edição escolar enxuta)"
+    exit 0
+fi
 
 ldconfig
 llama-server --version

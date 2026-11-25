@@ -182,7 +182,7 @@ pub fn plan(wanted: &Table, now: &State, probe: &dyn Probe) -> Vec<Step> {
         if let Some(tiling) = ap.get("tiling").map(truthy) {
             if tiling != now.tiling {
                 let word = if tiling { t("running") } else { t("off") };
-                steps.push(step(format!("tiling: {word}"), &["tamagi", "tiling", on_off(tiling)], false));
+                steps.push(step(format!("tiling: {word}"), &["tamagi", "sys", "desktop", "tiling", on_off(tiling)], false));
             }
         }
     }
@@ -439,7 +439,7 @@ mod tests {
             ]
         );
         let cmd = |i: usize| steps[i].cmd.join(" ");
-        assert_eq!(cmd(1), "tamagi tiling off");
+        assert_eq!(cmd(1), "tamagi sys desktop tiling off");
         assert_eq!(cmd(3), "tamagi-browser install chrome --native");
         assert_eq!(cmd(5), "flatpak install --user -y --noninteractive a.b.C");
         assert_eq!(cmd(8), "tamagi-mcp add memory");

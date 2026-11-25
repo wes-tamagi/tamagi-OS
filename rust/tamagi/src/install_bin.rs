@@ -415,23 +415,103 @@ fn is_app_id(s: &str) -> bool {
         && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
 }
 
-fn cmd_search(query: &str) -> i32 {
+fn cmd_search(items: &[CatalogItem], query: &str) -> i32 {
     if query.trim().is_empty() {
         eprintln!("usage: tamagi install search <text>");
         return 2;
     }
+    let low = query.to_lowercase();
+    let local: Vec<&CatalogItem> = items
+        .iter()
+        .filter(|it| {
+            it.id.to_lowercase().contains(&low)
+                || it.cat.to_lowercase().contains(&low)
+                || it.desc.to_lowercase().contains(&low)
+        })
+        .collect();
+    if !local.is_empty() {
+        println!("{}:", t("In the Tamagi catalog (native, drivers, Bazzite, AI, Flatpak)"));
+        for it in &local {
+            let kind = if it.action.starts_with("flatpak:") { "Flatpak" } else { "Native/System" };
+            println!("  {:<22} [{}] {}", it.id, kind, it.label());
+        }
+        println!();
+    }
     let hits = flathub_search(query);
-    if hits.is_empty() {
-        println!("{}: {query}", t("Nothing on Flathub for"));
+    if hits.is_empty() && local.is_empty() {
+        println!("{}: {query}", t("Nothing in catalog or Flathub for"));
         return 1;
     }
-    for h in hits {
-        let mark = if h.verified { " ✓" } else { "" };
-        println!("  {:<44} {} — {}{}", h.id, h.name, h.summary, mark);
+    if !hits.is_empty() {
+        println!("Flathub:");
+        for h in hits {
+            let mark = if h.verified { " ✓" } else { "" };
+            println!("  {:<44} {} — {}{}", h.id, h.name, h.summary, mark);
+        }
+        println!();
+        tl("✓ = published by the app's own developer. Install with: tamagi install <app id>");
     }
-    println!();
-    tl("✓ = published by the app's own developer. Install with: tamagi install <app id>");
     0
+}
+
+fn cmd_native_install(pkgs: &[String]) -> i32 {
+    if pkgs.is_empty() {
+        eprintln!("usage: tamagi install --native <package>…");
+        return 2;
+    }
+    let layer_name: String = pkgs[0]
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .take(32)
+        .collect();
+    let layer = if layer_name.starts_with(|c: char| c.is_ascii_lowercase()) {
+        format!("pkg-{layer_name}")
+    } else {
+        "pkg-custom".into()
+    };
+    let mut cmd = Command::new("tamagi-layer");
+    cmd.arg("add").arg(&layer).args(pkgs);
+    cmd.status().map(|s| s.code().unwrap_or(1)).unwrap_or(1)
+}
+
+fn cmd_remove(items: &[CatalogItem], targets: &[String]) -> i32 {
+    if targets.is_empty() {
+        eprintln!("usage: tamagi install remove <id|app-id>…");
+        return 2;
+    }
+    let mut rc = 0;
+    for target in targets {
+        if let Some(it) = items.iter().find(|i| &i.id == target) {
+            if let Some(rest) = it.action.strip_prefix("flatpak:") {
+                let app = rest.rsplit(':').next().unwrap_or(target);
+                if !Command::new("flatpak").args(["uninstall", "--user", "-y", app]).status().is_ok_and(|s| s.success()) {
+                    rc = 1;
+                }
+                continue;
+            }
+            if it.action.starts_with("run:tamagi-layer add ") {
+                let layer = it.action.split_whitespace().nth(2).unwrap_or(target);
+                if !Command::new("tamagi-layer").args(["remove", layer]).status().is_ok_and(|s| s.success()) {
+                    rc = 1;
+                }
+                continue;
+            }
+            if it.action.starts_with("gaming:") {
+                if !Command::new("tamagi-gaming").arg("remove").status().is_ok_and(|s| s.success()) {
+                    rc = 1;
+                }
+                continue;
+            }
+        }
+        if is_app_id(target) {
+            if !Command::new("flatpak").args(["uninstall", "--user", "-y", target]).status().is_ok_and(|s| s.success()) {
+                rc = 1;
+            }
+        } else if !Command::new("tamagi-layer").args(["remove", target]).status().is_ok_and(|s| s.success()) {
+            rc = 1;
+        }
+    }
+    rc
 }
 
 fn flathub_resolve(want: &str) -> (String, i32) {
@@ -687,16 +767,15 @@ fn run_actions(actions: &[String]) -> i32 {
 
 fn print_help() {
     print!(
-        "tamagi-install — everything optional, in one catalog.
+        "tamagi install — unified catalog, live Flathub search, and native sysext packages.
 
-The image is lean. Optional desktop apps, development tools, games and AI
-agents are your choice, here:
-
-  tamagi install              choose from the catalog (or search Flathub)
-  tamagi install list         the catalog, with what each item is
-  tamagi install <id>…        installs by id (e.g.: tamagi install steam codex)
-  tamagi install <name>…      not in the catalog? looked up on Flathub (--user)
-  tamagi install search <text>   what Flathub has for a text
+  tamagi install                 interactive catalog (Flathub + native layers + drivers + gaming)
+  tamagi install list            list everything in the curated catalog
+  tamagi install search <text>   search both the curated catalog and Flathub
+  tamagi install <id|name>…      install from catalog or Flathub (--user)
+  tamagi install --native <pkg>… install essential Fedora RPM(s) natively via systemd-sysext
+  tamagi install remove <id>…    remove a Flatpak app or native layer
+  tamagi install browser|webapp|gaming|windows […]
 "
     );
 }
@@ -710,8 +789,10 @@ fn main() {
             return;
         }
         let flathub_prompt = format!("[Flathub] {}", t("Search Flathub online…"));
-        let mut labels = Vec::with_capacity(items.len() + 1);
+        let native_prompt = format!("[Native] {}", t("Install Fedora package natively (sysext)…"));
+        let mut labels = Vec::with_capacity(items.len() + 2);
         labels.push(flathub_prompt.clone());
+        labels.push(native_prompt.clone());
         for it in &items {
             labels.push(it.label());
         }
@@ -751,6 +832,18 @@ fn main() {
                 }
                 continue;
             }
+            if line == native_prompt {
+                if let Ok(q_out) = Command::new("gum").args(["input", "--placeholder", &t("Fedora package name(s)…")]).output() {
+                    if q_out.status.success() {
+                        let q = String::from_utf8_lossy(&q_out.stdout).trim().to_string();
+                        let pkgs: Vec<String> = q.split_whitespace().map(str::to_string).collect();
+                        if !pkgs.is_empty() {
+                            exit(cmd_native_install(&pkgs));
+                        }
+                    }
+                }
+                continue;
+            }
             if let Some(it) = items.iter().find(|it| it.label() == line) {
                 picked.push(it.action.clone());
             }
@@ -764,7 +857,9 @@ fn main() {
 
     match args[0].as_str() {
         "list" => cmd_list(&items),
-        "search" => exit(cmd_search(&args[1..].join(" "))),
+        "search" => exit(cmd_search(&items, &args[1..].join(" "))),
+        "--native" | "native" => exit(cmd_native_install(&args[1..])),
+        "remove" | "rm" => exit(cmd_remove(&items, &args[1..])),
         "ids" => {
             for it in &items {
                 println!("{}", it.id);
@@ -797,7 +892,7 @@ fn main() {
                 if rc == 2 {
                     exit(2);
                 }
-                eprintln!("{}: {}: {want}  (tamagi install list · tamagi install search {want})", t("error"), t("not in the catalog and not on Flathub"));
+                eprintln!("{}: {}: {want}  (tamagi install list · tamagi install search {want} · tamagi install --native {want})", t("error"), t("not in the catalog and not on Flathub"));
                 exit(2);
             }
             exit(run_actions(&picked));

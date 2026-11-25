@@ -1,33 +1,28 @@
 #!/usr/bin/bash
-# tamagi-verify-media — confere a imagem do sistema embutida na mídia: o
-# SHA-256 de cada camada contra o manifesto.
-#
-#   tamagi-verify-media <pasta-oci>                 confere e sai com 0 ou 1
-#   tamagi-verify-media <pasta-oci> <pasta-estado>  idem, deixando o resultado em
-#       <pasta-estado>/pid   enquanto roda
-#       <pasta-estado>/rc    "ok <sha256 do index.json>" ou "bad"
-#
-# A segunda forma é a que o instalador usa: a conferência começa quando a
-# janela do instalador abre e roda enquanto as perguntas são respondidas, em
-# vez de fazer a pessoa esperar por ela depois de escolher o disco. A leitura
-# também deixa a imagem no cache de memória: a cópia não relê o pendrive.
-# Quem apaga o disco (tamagi-install, root) só aceita o resultado se o
-# index.json ainda for o mesmo; sem resultado, confere por conta própria.
+# tamagi-verify-media — confere todas as edições embutidas na mídia OCI
+# (Tamagi-DxAI e Tamagi-SKL) deduplicando os blobs compartilhados por SHA-256.
 set -uo pipefail
 dir=${1:?pasta da imagem OCI}
 state=${2:-}
 
 verify() {
-    local digest manifest
-    digest=$(jq -r '.manifests[0].digest' "$dir/index.json") || return 1
-    manifest="$dir/blobs/${digest/://}"
-    [[ -f $manifest ]] || { echo "manifesto ausente: $digest" >&2; return 1; }
-    # Índice de vários manifestos: desce para o primeiro.
-    if jq -e '.manifests' "$manifest" >/dev/null 2>&1; then
-        digest=$(jq -r '.manifests[0].digest' "$manifest")
-        manifest="$dir/blobs/${digest/://}"
-    fi
-    { echo "$digest"; jq -r '.config.digest, .layers[].digest' "$manifest"; } \
+    local digests manifest d all_digests=()
+    mapfile -t digests < <(jq -r '.manifests[].digest' "$dir/index.json") || return 1
+    (( ${#digests[@]} > 0 )) || return 1
+    for d in "${digests[@]}"; do
+        manifest="$dir/blobs/${d/://}"
+        [[ -f $manifest ]] || { echo "manifesto ausente: $d" >&2; return 1; }
+        if jq -e '.manifests' "$manifest" >/dev/null 2>&1; then
+            d=$(jq -r '.manifests[0].digest' "$manifest")
+            manifest="$dir/blobs/${d/://}"
+            [[ -f $manifest ]] || { echo "manifesto interno ausente: $d" >&2; return 1; }
+        fi
+        all_digests+=("$d")
+        while IFS= read -r layer_d; do
+            [[ -n $layer_d ]] && all_digests+=("$layer_d")
+        done < <(jq -r '.config.digest, .layers[].digest' "$manifest")
+    done
+    printf '%s\n' "${all_digests[@]}" | sort -u \
         | sed -E 's#^sha256:([0-9a-f]{64})$#\1  blobs/sha256/\1#' \
         | ( cd "$dir" && xargs -d '\n' -n 8 -P "$(nproc)" sh -c 'printf "%s\n" "$@" | sha256sum --check --quiet --strict' _ )
 }
@@ -39,7 +34,6 @@ fi
 mkdir -p "$state"
 rm -f "$state/rc"
 echo $$ > "$state/pid"
-# Em segundo plano e sem disputar o disco com as janelas do instalador.
 ionice -c 3 -p $$ 2>/dev/null || true
 if verify 2>"$state/log"; then
     echo "ok $(sha256sum "$dir/index.json" | cut -d' ' -f1)" > "$state/rc.tmp"

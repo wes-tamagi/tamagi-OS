@@ -259,12 +259,17 @@ impl Found {
 /// Everything the back end needs.
 #[derive(Debug, Clone, Default)]
 pub struct Answers {
+    pub edition: String,
     pub lang: String,
     pub keyboard: usize,
     pub timezone: String,
     pub user: String,
     pub fullname: String,
     pub password_hash: String,
+    /// Tamagi-SKL student auto-login account (no sudo).
+    pub student_user: Option<String>,
+    /// Tamagi-SKL managed Chromium homepage URL.
+    pub skl_homepage: Option<String>,
     /// The file with the new disk password, when the disk is encrypted.
     pub luks_keyfile: Option<String>,
     /// How the disk opens with the TPM chip (Off when there is none).
@@ -283,17 +288,35 @@ impl Answers {
     /// left out, so nothing can add a line of its own.
     pub fn to_text(&self) -> String {
         let keyboard = KEYBOARDS.get(self.keyboard).copied().unwrap_or(KEYBOARDS[0]);
-        let mut lines: Vec<(String, String)> = vec![
+        let is_skl = self.edition == "skl";
+        let host = if is_skl { "tamagi-skl" } else { "tamagi" };
+        let mut lines: Vec<(String, String)> = Vec::new();
+        if !self.edition.is_empty() {
+            lines.push(("EDITION".into(), if is_skl { "skl" } else { "dxai" }.into()));
+        }
+        lines.extend([
             ("LOCALE".into(), locale_of(&self.lang).into()),
             ("KEYMAP".into(), keyboard.keymap.into()),
             ("XKB_LAYOUT".into(), keyboard.layout.into()),
             ("XKB_VARIANT".into(), keyboard.variant.into()),
             ("TIMEZONE".into(), self.timezone.clone()),
-            ("HOSTNAME".into(), "tamagi".into()),
+            ("HOSTNAME".into(), host.into()),
             ("USER".into(), self.user.clone()),
             ("FULLNAME".into(), if self.fullname.is_empty() { self.user.clone() } else { clean_fullname(&self.fullname) }),
             ("PASSWORD_HASH".into(), self.password_hash.clone()),
-        ];
+        ]);
+        if is_skl {
+            if let Some(student) = &self.student_user {
+                if !student.is_empty() {
+                    lines.push(("STUDENT_USER".into(), student.clone()));
+                }
+            }
+            if let Some(url) = &self.skl_homepage {
+                if !url.is_empty() {
+                    lines.push(("SKL_HOMEPAGE".into(), url.clone()));
+                }
+            }
+        }
         // Keeping an encrypted home: its own password opens it, and the TPM
         // question is about that partition.
         let kept_luks = self.keep.as_ref().is_some_and(|f| f.get("PRESERVE_LUKS") == "1");

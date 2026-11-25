@@ -1,12 +1,10 @@
 #!/usr/bin/bash
 # tamagi-firstboot — conclui, no primeiro boot, o que foi respondido no
-# instalador. O instalador grava /etc/tamagi/install.conf no sistema
-# novo; aqui o usuário é criado com o sistema já rodando (home em /var/home,
-# rótulos SELinux certos) e o arquivo é apagado.
-#
-# Formato: uma CHAVE=valor por linha, sem aspas e sem expansão:
-#   USER  FULLNAME  PASSWORD_HASH  XKB_LAYOUT  XKB_VARIANT
+# instalador (/etc/tamagi/install.conf). Suporta Tamagi-DxAI (1 conta admin)
+# e Tamagi-SKL (2 contas: admin com sudo + aluno sem sudo com login automático,
+# painel COSMIC travado e página inicial do Chromium gerenciada).
 set -euo pipefail
+export HOME="${HOME:-/root}"
 
 CONF=${TAMAGI_INSTALL_CONF:-/etc/tamagi/install.conf}
 [[ -f $CONF ]] || exit 0
@@ -16,31 +14,33 @@ while IFS='=' read -r key value; do
     [[ $key =~ ^[A-Z_]+$ ]] && C[$key]=$value
 done < "$CONF"
 
-user=${C[USER]:-}
-if [[ -n $user ]]; then
-    [[ $user =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "nome de usuário inválido: $user" >&2; exit 1; }
-    if ! id "$user" >/dev/null 2>&1; then
-        uhome="/var/home/$user"
+EDITION=$(cat /usr/share/tamagi/edition 2>/dev/null || echo "${C[EDITION]:-dxai}")
+
+create_account() { # create_account <user> <fullname> <pass_hash> <is_admin:1|0>
+    local u=$1 fname=$2 phash=$3 is_admin=$4
+    [[ $u =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "nome de usuário inválido: $u" >&2; exit 1; }
+    local grp_args=()
+    (( is_admin )) && grp_args=(--groups wheel)
+    if ! id "$u" >/dev/null 2>&1; then
+        local uhome="/var/home/$u"
         if [[ -d $uhome ]]; then
-            # Pasta pessoal preservada de uma instalação anterior: mantém UID/GID
-            # existentes quando disponíveis para não quebrar permissões nem reescrever tudo.
+            local old_uid old_gid uid_args=()
             old_uid=$(stat -c '%u' "$uhome" 2>/dev/null || echo "")
             old_gid=$(stat -c '%g' "$uhome" 2>/dev/null || echo "")
-            uid_args=()
             if [[ $old_uid =~ ^[0-9]+$ ]] && (( old_uid >= 1000 )) && ! getent passwd "$old_uid" >/dev/null 2>&1; then
                 uid_args+=(--uid "$old_uid")
             fi
             if [[ $old_gid =~ ^[0-9]+$ ]] && (( old_gid >= 1000 )) && ! getent group "$old_gid" >/dev/null 2>&1; then
-                groupadd --gid "$old_gid" "$user"
+                groupadd --gid "$old_gid" "$u"
                 uid_args+=(--gid "$old_gid")
             fi
-            useradd --no-create-home --home-dir "$uhome" "${uid_args[@]}" --shell /bin/bash --groups wheel \
-                --comment "${C[FULLNAME]:-$user}" --password "${C[PASSWORD_HASH]:-!}" "$user"
-            echo "usuário $user reconectado à pasta preservada $uhome"
-            ugroup=$(id -gn "$user")
-            if [[ $(stat -c '%u' "$uhome" 2>/dev/null) != "$(id -u "$user")" || $(stat -c '%g' "$uhome" 2>/dev/null) != "$(id -g "$user")" ]]; then
-                chown "$user:$ugroup" "$uhome"
-                find "$uhome" -mindepth 1 -maxdepth 1 ! -name .snapshots -exec chown -R "$user:$ugroup" {} +
+            useradd --no-create-home --home-dir "$uhome" "${uid_args[@]}" --shell /bin/bash "${grp_args[@]}" \
+                --comment "${fname:-$u}" --password "${phash:-!}" "$u"
+            echo "usuário $u reconectado à pasta preservada $uhome"
+            local ugroup; ugroup=$(id -gn "$u")
+            if [[ $(stat -c '%u' "$uhome" 2>/dev/null) != "$(id -u "$u")" || $(stat -c '%g' "$uhome" 2>/dev/null) != "$(id -g "$u")" ]]; then
+                chown "$u:$ugroup" "$uhome"
+                find "$uhome" -mindepth 1 -maxdepth 1 ! -name .snapshots -exec chown -R "$u:$ugroup" {} +
             fi
             if command -v restorecon >/dev/null; then
                 if ! stat -c '%C' "$uhome" 2>/dev/null | grep -q 'user_home_dir_t'; then
@@ -50,35 +50,66 @@ if [[ -n $user ]]; then
                 fi
             fi
         else
-            # Em btrfs, a pasta pessoal já nasce como subvolume: é o que permite os
-            # snapshots automáticos (home-snapshots).
-            subvol=()
+            local subvol=()
             [[ $(stat -f -c %T /var/home 2>/dev/null) == btrfs ]] && subvol=(--btrfs-subvolume-home)
-            useradd --create-home "${subvol[@]}" --shell /bin/bash --groups wheel \
-                --comment "${C[FULLNAME]:-$user}" --password "${C[PASSWORD_HASH]:-!}" "$user"
-            echo "usuário $user criado"
+            useradd --create-home "${subvol[@]}" --shell /bin/bash "${grp_args[@]}" \
+                --comment "${fname:-$u}" --password "${phash:-!}" "$u"
+            echo "usuário $u criado (admin=$is_admin)"
         fi
-        if [[ $(stat -f -c %T /var/home 2>/dev/null) == btrfs && ${C[HOME_SNAPSHOTS]:-yes} != no ]]; then
-            /usr/libexec/tamagi/home-snapshots enable "$user" || echo "snapshots da pasta pessoal: não deu para ligar" >&2
+        if (( is_admin )) && [[ $(stat -f -c %T /var/home 2>/dev/null) == btrfs && ${C[HOME_SNAPSHOTS]:-yes} != no ]]; then
+            /usr/libexec/tamagi/home-snapshots enable "$u" || echo "snapshots da pasta pessoal: não deu para ligar" >&2
         fi
-        # Defesa em profundidade: garante que ~/.local e subpastas XDG pertençam ao usuário.
-        uhome=$(getent passwd "$user" | cut -d: -f6)
-        ugroup=$(id -gn "$user")
+        uhome=$(getent passwd "$u" | cut -d: -f6)
+        local ugroup; ugroup=$(id -gn "$u")
         for d in .local .local/share .local/state .local/bin .config; do
-            install -d -o "$user" -g "$ugroup" "$uhome/$d"
-            chown "$user:$ugroup" "$uhome/$d"
+            install -d -o "$u" -g "$ugroup" "$uhome/$d"
+            chown "$u:$ugroup" "$uhome/$d"
         done
-        command -v restorecon >/dev/null && restorecon -R "$uhome/.local" "$uhome/.config" 2>/dev/null || true
+        command -v restorecon >/dev/null && restorecon "$uhome" && restorecon -R "$uhome/.local" "$uhome/.config" 2>/dev/null || true
+    fi
+}
+
+user=${C[USER]:-}
+if [[ -n $user ]]; then
+    create_account "$user" "${C[FULLNAME]:-$user}" "${C[PASSWORD_HASH]:-!}" 1
+fi
+
+# ── Provisionamento específico do Tamagi-SKL (2 contas: admin + aluno) ─────
+student=""
+if [[ $EDITION == skl ]]; then
+    student=${C[STUDENT_USER]:-aluno}
+    [[ $student == "$user" ]] && student=aluno
+    create_account "$student" "Aluno" "!" 0
+    # Login automático sem senha na conta aluno via cosmic-greeter (greetd)
+    mkdir -p /etc/tamagi
+    printf 'ADMIN_USER=%s\nSTUDENT_USER=%s\n' "$user" "$student" > /etc/tamagi/skl.conf
+    chmod 644 /etc/tamagi/skl.conf
+    if [[ -f /etc/greetd/cosmic-greeter.toml ]] && ! grep -q '^\[initial_session\]' /etc/greetd/cosmic-greeter.toml; then
+        cat >> /etc/greetd/cosmic-greeter.toml <<TOML
+
+# Tamagi-SKL: login automático na conta aluno (sem sudo).
+[initial_session]
+command = "start-cosmic"
+user = "${student}"
+TOML
+    fi
+    # Aplica a página inicial digitada no instalador na política gerenciada do Chromium.
+    skl_url=${C[SKL_HOMEPAGE]:-}
+    if [[ $skl_url =~ ^https?://[^[:space:]]+$ && -x /usr/bin/tamagi-skl ]]; then
+        /usr/bin/tamagi-skl homepage "$skl_url" || true
+    fi
+    # Trava o painel COSMIC da conta aluno (root:root + chattr +i).
+    if [[ -x /usr/bin/tamagi-skl ]]; then
+        /usr/bin/tamagi-skl panel-lock || true
     fi
 fi
 
-# Teclado: o padrão da imagem é ABNT2 (br). Se o instalador pediu outro, vale
-# para o usuário novo e para a tela de login.
+# Teclado para contas criadas e tela de login
 layout=${C[XKB_LAYOUT]:-}
 if [[ -n $layout && $layout =~ ^[a-z0-9_,-]+$ ]]; then
     variant=${C[XKB_VARIANT]:-}
     [[ $variant =~ ^[a-zA-Z0-9_,-]*$ ]] || variant=""
-    for account in "$user" cosmic-greeter; do
+    for account in "$user" "$student" cosmic-greeter; do
         [[ -n $account ]] || continue
         home=$(getent passwd "$account" | cut -d: -f6)
         [[ -n $home && -d $home ]] || continue
@@ -101,8 +132,6 @@ RON
     command -v restorecon >/dev/null && restorecon -R "$(getent passwd "${user:-root}" | cut -d: -f6)/.config" 2>/dev/null || true
 fi
 
-# VMs mantidas na reinstalação (tamagi-install, restore_vm_state): os arquivos
-# voltaram copiados da mídia; aqui recebem os rótulos SELinux deste sistema.
 if [[ -e /etc/tamagi/relabel-libvirt ]]; then
     command -v restorecon >/dev/null && restorecon -R /etc/libvirt/qemu /var/lib/libvirt 2>/dev/null || true
     rm -f /etc/tamagi/relabel-libvirt

@@ -1,46 +1,65 @@
 #!/usr/bin/bash
-# Instala os pacotes de packages.txt e as ferramentas sem pacote no Fedora.
+# Instala os pacotes da edição (dxai ou skl), Tailscale (repo oficial assinado)
+# e binários oficiais verificados por SHA-256 (starship, bottom, Roboto Flex).
 
-# COPRs só para o build: o que vem deles está marcado em packages.txt.
-#   secureblue/packages                        hardened_malloc
-COPRS=(secureblue/packages)
-for copr in "${COPRS[@]}"; do dnf5 -y copr enable "$copr"; done
+EDITION=${TAMAGI_EDITION:-dxai}
+case "$EDITION" in
+    dxai) PKG_FILE=/ctx/build_files/packages.txt ;;
+    skl)  PKG_FILE=/ctx/build_files/packages-skl.txt ;;
+    *)    echo "TAMAGI_EDITION inválido: $EDITION (use dxai ou skl)" >&2; exit 1 ;;
+esac
 
-mapfile -t PACKAGES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' /ctx/build_files/packages.txt | grep -v '^$')
+mapfile -t PACKAGES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$PKG_FILE" | grep -v '^$')
 dnf5 -y install --setopt=install_weak_deps=False "${PACKAGES[@]}"
 
-# A imagem não consulta COPR depois de pronta: tudo se atualiza pelo rebuild.
-for copr in "${COPRS[@]}"; do dnf5 -y copr disable "$copr"; done
+# Tailscale pré-disponível (repositório oficial assinado; desabilitado após o
+# build para a imagem não consultar repos externos em runtime; serviço desligado
+# por padrão até o usuário ativar).
+curl -fsSL -o /etc/yum.repos.d/tailscale.repo https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+dnf5 -y install --setopt=install_weak_deps=False tailscale
+sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/tailscale.repo
+command -v tailscale >/dev/null || { echo "tailscale não instalado" >&2; exit 1; }
 
-# distrobox 1.8.2.5 x podman 6: em host somente-leitura (o caso do Tamagi) o
-# distrobox-create monta cada pasta da raiz com a opção ":ro:rslave", e o
-# podman 6 recusa ("incorrect volume format"): nenhuma caixa era criada. As
-# opções de um volume se separam por vírgula. Conferido: se uma versão nova
-# do distrobox mudar este trecho, o build avisa em vez de a correção sumir.
+# distrobox 1.8.2.5 x podman 6: corrige opção ":ro:rslave" -> ":ro,rslave".
 DBX=/usr/bin/distrobox-create
-if grep -qF ':ro${rslave}"' "$DBX"; then
-    sed -i 's/:ro${rslave}"/:ro,rslave"/' "$DBX"
-    echo "distrobox-create: volume somente-leitura corrigido (:ro,rslave)"
+if [[ -f $DBX ]]; then
+    if grep -qF ':ro${rslave}"' "$DBX"; then
+        sed -i 's/:ro${rslave}"/:ro,rslave"/' "$DBX"
+        echo "distrobox-create: volume somente-leitura corrigido (:ro,rslave)"
+    fi
+    if grep -qE ':ro\$\{rslave\}|:ro:rslave' "$DBX"; then
+        echo "distrobox-create ainda gera ':ro:rslave' (o podman 6 recusa)" >&2; exit 1
+    fi
+    sh -n "$DBX"
 fi
-if grep -qE ':ro\$\{rslave\}|:ro:rslave' "$DBX"; then
-    echo "distrobox-create ainda gera ':ro:rslave' (o podman 6 recusa)" >&2; exit 1
-fi
-sh -n "$DBX"
 
-# Native Chromium + ChromeDriver ship in the base image (packages.txt);
-# other browsers stay optional via first login or `tamagi browser install`.
+# Navegador padrão é Chromium nativo; Firefox sai da imagem.
 dnf5 -y remove firefox firefox-langpacks 2>/dev/null || true
-# Imagem enxuta: o player de vídeo do COSMIC (vem no grupo cosmic-desktop) é
-# opcional, `tamagi install cosmic-player`; o resto do grupo fica.
+# Player de vídeo do COSMIC é opcional (`tamagi install cosmic-player`).
 dnf5 -y remove --no-autoremove cosmic-player
-rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover o cosmic-player levou parte do COSMIC junto" >&2; exit 1; }
-# Um comando só: `tamagi`. O `ujust` da base sai; o que ele fazia de útil está
-# em `tamagi setup` e `tamagi update`. O `just` fica: é ferramenta de
-# desenvolvimento (o Justfile deste repositório, entre outros).
+rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover cosmic-player levou parte do COSMIC junto" >&2; exit 1; }
+# Um comando só: `tamagi` (sem ujust).
 dnf5 -y remove --no-autoremove ublue-os-just
 if command -v ujust >/dev/null 2>&1; then echo "ujust ainda está na imagem" >&2; exit 1; fi
 
-# Ferramentas sem pacote no Fedora: binários oficiais, com checksum conferido.
+# Edição Tamagi-SKL (Escola): sem loja gráfica (Flatpaks só via terminal),
+# sem llama.cpp, sem chromedriver, sem ferramentas de IA/dev pesado.
+if [[ $EDITION == skl ]]; then
+    dnf5 -y remove --no-autoremove cosmic-store 2>/dev/null || true
+    rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover cosmic-store levou parte do COSMIC junto" >&2; exit 1; }
+    rm -rf /usr/bin/llama-* /usr/lib64/ggml /usr/lib64/libllama* /usr/lib64/libggml* \
+           /usr/share/licenses/llama.cpp /usr/bin/claude \
+           /usr/bin/cosmic-ext-storage /usr/share/applications/com.cosmic.ext.Storage.desktop \
+           /usr/share/appdata/com.cosmic.ext.Storage.metainfo.xml \
+           /usr/share/icons/hicolor/scalable/apps/com.cosmic.ext.Storage.svg \
+           /usr/lib/systemd/user/llama-server.service
+    echo "Tamagi-SKL: cosmic-store, llama.cpp e extras de IA removidos da imagem"
+else
+    command -v cosmic-ext-storage >/dev/null || { echo "cosmic-ext-storage ausente no Tamagi-DxAI" >&2; exit 1; }
+    command -v rclone >/dev/null || { echo "rclone ausente no Tamagi-DxAI" >&2; exit 1; }
+fi
+
+# Ferramentas sem pacote no Fedora: binários oficiais com SHA-256 conferido.
 tmp=$(mktemp -d)
 cd "$tmp" || exit 1
 
@@ -50,9 +69,13 @@ echo "$(cat starship-x86_64-unknown-linux-gnu.tar.gz.sha256)  starship-x86_64-un
 tar -xzf starship-x86_64-unknown-linux-gnu.tar.gz starship
 install -Dm755 starship /usr/bin/starship
 
-# Roboto Flex (fonte da interface, Material 3): não tem pacote no Fedora. Vem do
-# repositório oficial do Google, presa a um commit (tag 3.200) e conferida por
-# sha256; licença OFL-1.1. Trocar de versão = trocar o commit e os dois hashes.
+# bottom (btm): monitor de sistema TUI em Rust (substitui btop).
+curl -fsSLO "https://github.com/ClementTsang/bottom/releases/download/${BOTTOM_VERSION}/bottom_x86_64-unknown-linux-gnu.tar.gz"
+echo "${BOTTOM_SHA256}  bottom_x86_64-unknown-linux-gnu.tar.gz" | sha256sum -c -
+tar -xzf bottom_x86_64-unknown-linux-gnu.tar.gz btm
+install -Dm755 btm /usr/bin/btm
+
+# Roboto Flex (fonte da interface Material 3; commit pinado + SHA-256; OFL-1.1).
 ROBOTO_FLEX_COMMIT=739e06dc46ebb14cddd88b9768a6c1504d4677f6
 ROBOTO_FLEX_URL="https://raw.githubusercontent.com/googlefonts/roboto-flex/$ROBOTO_FLEX_COMMIT"
 curl -fsSL -o RobotoFlex.ttf "$ROBOTO_FLEX_URL/fonts/RobotoFlex%5BGRAD,XOPQ,XTRA,YOPQ,YTAS,YTDE,YTFI,YTLC,YTUC,opsz,slnt,wdth,wght%5D.ttf"
@@ -63,10 +86,6 @@ sha256sum -c - <<'SUMS'
 SUMS
 install -Dm644 RobotoFlex.ttf /usr/share/fonts/roboto-flex/RobotoFlex.ttf
 install -Dm644 OFL.txt /usr/share/licenses/roboto-flex/OFL.txt
-
-# O mise (linguagens e ferramentas de desenvolvimento) não vive mais no host:
-# é instalado dentro da caixa de desenvolvimento (devbox-provision), onde há
-# compiladores e bibliotecas. O host imutável fica sem runtimes.
 
 cd /
 rm -rf "$tmp"

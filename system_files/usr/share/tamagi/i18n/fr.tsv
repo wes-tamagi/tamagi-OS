@@ -1176,3 +1176,90 @@ Read-only Git repository inspector (current project :ro, offline)	Inspecteur Git
 Local PostgreSQL inspector (connects to tamagi db on 127.0.0.1:5432)	Inspecteur PostgreSQL local (connecté à tamagi db sur 127.0.0.1:5432)
 Headless browser automation (isolated from personal profiles)	Automatisation de navigateur headless (isolé de vos profils personnels)
 Scoped workspace-only file access (current project only, offline)	Accès aux fichiers limité au projet actuel (hors ligne)
+No agent flights recorded yet. Run: tamagi ai run --shadow <agent>	Aucun vol d'agent enregistré pour l'instant. Lancez : tamagi ai run --shadow <agent>
+flight not found	vol introuvable
+Flight recorder history cleared.	Historique des vols d'agents effacé.
+In the Tamagi catalog (native, drivers, Bazzite, AI, Flatpak)	Dans le catalogue Tamagi (natif, pilotes, Bazzite, IA, Flatpak)
+Nothing in catalog or Flathub for	Rien dans le catalogue ni sur Flathub pour
+Install Fedora package natively (sysext)…	Installer un paquet Fedora nativement (sysext)…
+Fedora package name(s)…	Nom(s) du/des paquet(s) Fedora…
+missing helper	assistant manquant
+AI agents, Shadow CoW, flights, MCP Quadlets, and local llama.cpp	agents IA, Shadow CoW, flights, MCP Quadlets et llama.cpp local
+development boxes, databases, workspaces, try, and isolate	boîtes de développement, bases, workspaces, try et isolate
+security hardening, leases, privacy mode, and Tailscale	sécurité, baux temporaires (leases), mode privé et Tailscale
+COSMIC theme, bar, font, tiling, keys, and capture	thème COSMIC, barre, police, tiling, raccourcis et capture
+health, setup, performance, desktop, school admin, and declarative state	santé, setup, performances, bureau, gestion scolaire et état déclaratif
+Run `tamagi sys diff` to see what is still missing.	Lancez `tamagi sys diff` pour voir ce qui manque encore.
+explain where any file, command, port, or service came from	explique l'origine de tout fichier, commande, port ou service
+Target	Cible
+Papers — PDF and document viewer (Rust)	Papers — visionneuse PDF et documents (Rust)
+Cedilla — native Markdown notes for COSMIC (Rust)	Cedilla — notes Markdown natives pour COSMIC (Rust)
+Chronos — Pomodoro timer for COSMIC (Rust)	Chronos — minuteur Pomodoro pour COSMIC (Rust)
+Rnote — vector sketching and handwritten notes (Rust)	Rnote — notes vectorielles et dessin à main levée (Rust)
+Key Rack — view and manage system secrets and keys (Rust)	Key Rack — afficher et gérer les secrets et clés du système (Rust)
+Snapshot — camera app for photos and video (Rust)	Snapshot — application caméra pour photos et vidéos (Rust)
+Warp — encrypted peer-to-peer file transfer (Rust)	Warp — transfert chiffré de fichiers P2P (Rust)
+Impression — write ISO images to USB drives (Rust)	Impression — graver des images ISO sur clé USB (Rust)
+Kooha — minimalist Wayland screen recorder (Rust)	Kooha — enregistreur d'écran Wayland minimaliste (Rust)
+Authenticator — two-factor authentication (2FA) codes (Rust)	Authenticator — codes d'authentification à deux facteurs 2FA (Rust)
+Mission Center — system monitor (Rust)	Mission Center — moniteur système (Rust)
+Pika Backup — backups to a disk or server (Rust)	Pika Backup — sauvegardes sur disque ou serveur (Rust)
+DistroShelf — distrobox boxes with a GUI (Rust)	DistroShelf — gérer les boîtes distrobox en interface graphique (Rust)
+Zed — code editor (Rust)	Zed — éditeur de code (Rust)
+COSMIC Tweaks — extra COSMIC settings (Rust)	COSMIC Tweaks — réglages avancés de COSMIC (Rust)
+Examine — hardware information (Rust)	Examine — informations matérielles (Rust)
+Tasks — to-do lists (Rust)	Tasks — listes de tâches (Rust)
+Forecast — weather (Rust)	Forecast — météo (Rust)
+Calculator — made for COSMIC (Rust)	Calculatrice — conçue pour COSMIC (Rust)
+Lark Suite — native Linux RPM in a reversible layer (WebApp already pre-installed)	Lark Suite — RPM natif en couche réversible (WebApp déjà préinstallée)
+Steam (RPM Fusion), native like on Bazzite — gamescope, MangoHud, GameMode and 32-bit Mesa/Vulkan are already built in (asks for the password)	Steam (RPM Fusion), natif comme sur Bazzite — gamescope, MangoHud, GameMode et Mesa/Vulkan 32 bits déjà intégrés (demande le mot de passe)
+Gaming HDR session overlay — registers the Tamagi Gaming gamescope session (asks for the password)	Session Gaming HDR — enregistre la session gamescope Tamagi Gaming (demande le mot de passe)
+Drivers	Pilotes
+AMD ROCm compute stack — HIP, OpenCL and GPU compute for local AI and Blender, native (asks for the password)	AMD ROCm — HIP, OpenCL et calcul GPU pour l'IA locale et Blender, natif (demande le mot de passe)
+AMD video extras — VDPAU and VA-API diagnostics, native (asks for the password)	Extras vidéo AMD — VDPAU et diagnostic VA-API, natif (demande le mot de passe)
+Intel video drivers — VA-API media acceleration and GPU telemetry, native (asks for the password)	Pilotes vidéo Intel — accélération VA-API et télémétrie GPU, natif (demande le mot de passe)
+NVIDIA drivers & CUDA libraries — native RPM Fusion layer (asks for the password)	Pilotes NVIDIA et CUDA — couche native RPM Fusion (demande le mot de passe)
+Extra multimedia codecs — full RPM Fusion GStreamer codecs, native (asks for the password)	Codecs multimédias supplémentaires — plugins GStreamer RPM Fusion complets, natif (demande le mot de passe)
+Hardware	Matériel
+LACT (Rust) — GPU fan curves, power limits and undervolting for AMD/NVIDIA/Intel, native (asks for the password)	LACT (Rust) — ventilateurs GPU, limites de puissance et undervolt AMD/NVIDIA/Intel, natif (demande le mot de passe)
+OpenRGB — motherboard and peripheral RGB control, native (asks for the password)	OpenRGB — contrôle RGB de la carte mère et des périphériques, natif (demande le mot de passe)
+Solaar — Logitech Unifying and Bolt receiver manager, native (asks for the password)	Solaar — gestionnaire de récepteurs Logitech Unifying et Bolt, natif (demande le mot de passe)
+Disk diagnostics — NVMe CLI and SMART health tools, native (asks for the password)	Diagnostic disque — NVMe CLI et santé SMART, natif (demande le mot de passe)
+Sniffnet (Rust/Iced) — real-time network traffic monitor with packet capture, native (asks for the password)	Sniffnet (Rust/Iced) — moniteur de trafic réseau en temps réel, natif (demande le mot de passe)
+Wireshark — deep network packet analyzer, native (asks for the password)	Wireshark — analyseur approfondi de paquets réseau, natif (demande le mot de passe)
+Extra VPNs — OpenVPN, OpenConnect, L2TP, PPTP, SSTP, IPsec and SSH plugins, native (asks for the password)	VPN supplémentaires — modules OpenVPN, OpenConnect, L2TP, PPTP, SSTP, IPsec et SSH, natif (demande le mot de passe)
+Remote filesystems — NFS and SSHFS mounts, native (asks for the password)	Systèmes de fichiers distants — montages NFS et SSHFS, natif (demande le mot de passe)
+Extra hardening — USBGuard and hardened_malloc, native (asks for the password)	Durcissement supplémentaire — USBGuard et hardened_malloc, natif (demande le mot de passe)
+Edition	Édition
+Student account	Compte élève
+School homepage	Page d'accueil scolaire
+Student auto-login account (no sudo)	Compte élève à connexion automatique (sans sudo)
+School homepage URL (Chromium)	URL de la page d'accueil scolaire (Chromium)
+Set the administrator password (teacher/IT) and the student auto-login account.	Définissez le mot de passe administrateur (professeur/IT) et le compte élève automatique.
+The student account must have a different username from the administrator.	Le compte élève doit avoir un nom différent de l'administrateur.
+The school homepage URL must start with https:// or http://.	L'URL de la page scolaire doit commencer par https:// ou http://.
+Downloading Sniffnet	Téléchargement de Sniffnet
+Lark Suite is proprietary ByteDance software and is downloaded now on your machine.	Lark Suite est un logiciel propriétaire de ByteDance qui va être téléchargé sur votre machine.
+Could not resolve the dynamic Lark RPM URL automatically.	Impossible de résoudre automatiquement l'URL dynamique du RPM Lark.
+Download the x86_64 RPM at https://www.larksuite.com/download and run:	Téléchargez le RPM x86_64 sur https://www.larksuite.com/download et lancez :
+Meanwhile, the Lark Suite WebApp is already ready in your launcher.	En attendant, la WebApp Lark Suite est déjà prête dans votre lanceur.
+Tailscale stopped and disabled.	Tailscale arrêté et désactivé.
+Tailscale is installed and off (enable with: tamagi shield tailscale on).	Tailscale est installé et désactivé (activez-le avec : tamagi shield tailscale on).
+run with sudo	exécutez avec sudo
+No browsing history yet.	Aucun historique de navigation pour le moment.
+School homepage updated	Page d'accueil scolaire mise à jour
+Opened on student session	Ouvert sur la session élève
+Student panel unlocked.	Panneau élève déverrouillé.
+Student panel locked.	Panneau élève verrouillé.
+Student browser session reset (login cleared, 15-day history kept).	Session du navigateur élève réinitialisée (connexion effacée, historique de 15 jours conservé).
+AI agents, Shadow CoW, Egress Guard, flights, MCP Quadlets, local llama.cpp	agents IA, Shadow CoW, Egress Guard, flights, MCP Quadlets et llama.cpp local
+development boxes, local databases, workspaces, disposable try and isolate	boîtes de dev, bases locales, workspaces, try et isolate jetables
+catalog + Flathub + native layers (drivers, ROCm, Bazzite), browsers, webapps	catalogue + Flathub + couches natives (pilotes, ROCm, Bazzite), navigateurs et webapps
+atomic updates: OS image, layers, Flatpaks, boxes, agents, rollback	mises à jour atomiques : image, couches, Flatpaks, boîtes, agents et rollback
+unified timeline: home snapshots (snap) and OS deployments	chronologie unifiée : instantanés home (snap) et déploiements système
+reversible systemd-sysext native Fedora packages over /usr	paquets Fedora natifs réversibles en couches systemd-sysext sur /usr
+security hardening, time-limited leases, privacy mode, Tailscale	sécurité, baux temporaires (leases), mode privé et Tailscale
+doctor, status, setup, perf, desktop, skl, and declarative state (init/diff/apply)	doctor, status, setup, perf, desktop, skl et état déclaratif (init/diff/apply)
+create tamagi.toml from the current state	crée tamagi.toml à partir de l'état actuel
+
+optional	optionnel

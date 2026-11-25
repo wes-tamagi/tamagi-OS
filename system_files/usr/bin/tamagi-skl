@@ -1,0 +1,174 @@
+#!/usr/bin/bash
+# tamagi-skl — gestão e monitoramento escolar (professor / diretor / TI via SSH).
+#
+#   sudo tamagi-skl status                 estado do computador, usuário ativo e página inicial
+#   sudo tamagi-skl history [dias]         histórico de navegação do aluno (até 15 dias)
+#   sudo tamagi-skl homepage <url>         altera a página inicial travada da escola
+#   sudo tamagi-skl open <url>             abre uma página direto na tela do aluno
+#   sudo tamagi-skl lock | unlock          trava ou destrava a sessão do aluno
+#   sudo tamagi-skl reset-session          destrói cookies/sessão ativa e reabre o Chromium limpo
+#   sudo tamagi-skl panel-lock | panel-unlock  trava ou destrava o painel COSMIC do aluno
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+POLICY=/etc/chromium/policies/managed/tamagi-skl.json
+SKL_CONF=/etc/tamagi/skl.conf
+
+die() { echo "$(t "error"): $*" >&2; exit 1; }
+need_root() { [[ $(id -u) == 0 ]] || die "$(t "run with sudo")"; }
+
+student_user() {
+    local u=""
+    [[ -r $SKL_CONF ]] && u=$(sed -n 's/^STUDENT_USER=//p' "$SKL_CONF" | head -1)
+    echo "${u:-aluno}"
+}
+
+student_home() {
+    local u; u=$(student_user)
+    getent passwd "$u" | cut -d: -f6
+}
+
+cmd_status() {
+    local u home url locked="no"
+    u=$(student_user)
+    home=$(student_home)
+    url=$(jq -r '.HomepageLocation // "-"' "$POLICY" 2>/dev/null || echo "-")
+    if [[ -n $home && -e $home/.config/cosmic/com.system76.CosmicPanel/v1/entries ]]; then
+        lsattr -d "$home/.config/cosmic/com.system76.CosmicPanel/v1/entries" 2>/dev/null | grep -q 'i' && locked="yes"
+    fi
+    echo "Edition       : Tamagi-SKL"
+    echo "Student user  : $u (auto-login, no sudo)"
+    echo "Homepage URL  : $url"
+    echo "Panel locked  : $locked"
+    echo "SSH (wheel)   : $(systemctl is-active sshd.service 2>/dev/null || echo off)"
+    echo "Cockpit web   : $(systemctl is-active cockpit.socket 2>/dev/null || echo off) (port 9090)"
+    echo "Active users  : $(who | awk '{print $1}' | sort -u | tr '\n' ' ')"
+}
+
+cmd_history() {
+    need_root
+    local days=${1:-15} home db tmp
+    [[ $days =~ ^[0-9]+$ ]] || die "usage: sudo tamagi-skl history [days]"
+    home=$(student_home)
+    db="$home/.config/chromium/Default/History"
+    [[ -f $db ]] || { echo "$(t "No browsing history yet.")"; return 0; }
+    tmp=$(mktemp /tmp/tamagi-skl-hist.XXXXXX)
+    trap 'rm -f "$tmp"' RETURN
+    cp "$db" "$tmp"
+    python3 - "$tmp" "$days" <<'PY'
+import datetime, sqlite3, sys
+db_path, days = sys.argv[1], int(sys.argv[2])
+cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+# Chromium timestamps: microseconds since 1601-01-01 UTC
+epoch = datetime.datetime(1601, 1, 1, tzinfo=datetime.timezone.utc)
+cutoff_us = int((cutoff - epoch).total_seconds() * 1_000_000)
+con = sqlite3.connect(db_path)
+rows = con.execute(
+    "SELECT last_visit_time, url, title FROM urls WHERE last_visit_time >= ? ORDER BY last_visit_time DESC LIMIT 100",
+    (cutoff_us,),
+).fetchall()
+for ts, url, title in rows:
+    dt = epoch + datetime.timedelta(microseconds=ts)
+    print(f"{dt.astimezone().strftime('%Y-%m-%d %H:%M')}  {url}  {title[:60]}")
+PY
+}
+
+cmd_homepage() {
+    need_root
+    local url=${1:-}
+    [[ $url =~ ^https?://[^[:space:]]+$ ]] || die "usage: sudo tamagi-skl homepage https://..."
+    [[ -f $POLICY ]] || die "missing $POLICY"
+    jq --arg u "$url" '.HomepageLocation = $u | .RestoreOnStartup = 4 | .RestoreOnStartupURLs = [$u]' \
+        "$POLICY" > "$POLICY.tmp"
+    mv "$POLICY.tmp" "$POLICY"
+    chmod 644 "$POLICY"
+    echo "$(t "School homepage updated"): $url"
+}
+
+cmd_open() {
+    need_root
+    local url=${1:-} u uid
+    [[ $url =~ ^https?://[^[:space:]]+$ ]] || die "usage: sudo tamagi-skl open https://..."
+    u=$(student_user)
+    uid=$(id -u "$u" 2>/dev/null) || die "student user not found: $u"
+    runuser -u "$u" -- env XDG_RUNTIME_DIR="/run/user/$uid" \
+        WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+        setsid -f /usr/bin/chromium-browser "$url" >/dev/null 2>&1
+    echo "$(t "Opened on student session"): $url"
+}
+
+cmd_lock() {
+    need_root
+    local action=$1 u sid
+    u=$(student_user)
+    for sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk -v u="$u" '$3 == u {print $1}'); do
+        loginctl "$action" "$sid"
+    done
+}
+
+cmd_panel_lock() {
+    need_root
+    local mode=$1 u home dir
+    u=$(student_user)
+    home=$(student_home)
+    [[ -n $home && -d $home ]] || die "student home not found"
+    local dirs=(
+        "$home/.config/cosmic/com.system76.CosmicPanel"
+        "$home/.config/cosmic/com.system76.CosmicPanel.Panel"
+        "$home/.config/cosmic/com.system76.CosmicAppList"
+    )
+    if [[ $mode == unlock ]]; then
+        for dir in "${dirs[@]}"; do
+            [[ -e $dir ]] && chattr -R -i "$dir" 2>/dev/null || true
+        done
+        echo "$(t "Student panel unlocked.")"
+        return 0
+    fi
+    for dir in "${dirs[@]}"; do
+        [[ -e $dir ]] && chattr -R -i "$dir" 2>/dev/null || true
+    done
+    install -d -m 755 "$home/.config/cosmic"
+    for name in com.system76.CosmicPanel com.system76.CosmicPanel.Panel com.system76.CosmicAppList; do
+        rm -rf "${home:?}/.config/cosmic/${name:?}"
+        if [[ -d /usr/share/cosmic/$name ]]; then
+            cp -a "/usr/share/cosmic/$name" "$home/.config/cosmic/$name"
+        fi
+        chown -R root:root "$home/.config/cosmic/$name"
+        find "$home/.config/cosmic/$name" -type d -exec chmod 755 {} +
+        find "$home/.config/cosmic/$name" -type f -exec chmod 644 {} +
+        chattr -R +i "$home/.config/cosmic/$name" 2>/dev/null || true
+    done
+    command -v restorecon >/dev/null && restorecon -R "$home/.config/cosmic" 2>/dev/null || true
+    echo "$(t "Student panel locked.")"
+}
+
+cmd_reset_session() {
+    need_root
+    local u uid
+    u=$(student_user)
+    uid=$(id -u "$u" 2>/dev/null) || die "student user not found: $u"
+    pkill -u "$u" -x chrome 2>/dev/null || pkill -u "$u" -f chromium-browser 2>/dev/null || true
+    sleep 1
+    runuser -u "$u" -- env XDG_RUNTIME_DIR="/run/user/$uid" \
+        WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+        setsid -f /usr/libexec/tamagi/skl-browser-launch >/dev/null 2>&1
+    echo "$(t "Student browser session reset (login cleared, 15-day history kept).")"
+}
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; }
+
+case "${1:-status}" in
+    status)        cmd_status ;;
+    history)       cmd_history "${2:-15}" ;;
+    homepage)      cmd_homepage "${2:-}" ;;
+    open)          cmd_open "${2:-}" ;;
+    lock)          cmd_lock lock-session ;;
+    unlock)        cmd_lock unlock-session ;;
+    reset-session) cmd_reset_session ;;
+    panel-lock)    cmd_panel_lock lock ;;
+    panel-unlock)  cmd_panel_lock unlock ;;
+    -h|--help|help) usage ;;
+    *)             usage >&2; exit 2 ;;
+esac

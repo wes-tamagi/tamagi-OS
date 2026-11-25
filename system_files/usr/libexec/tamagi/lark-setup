@@ -1,0 +1,29 @@
+#!/usr/bin/bash
+# lark-setup — baixa o RPM oficial do Lark Suite na máquina do usuário e instala
+# em camada nativa reversível (a WebApp já vem pré-configurada no Tamagi-DxAI).
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+case "${1:-install}" in
+    install)
+        echo "$(t "Lark Suite is proprietary ByteDance software and is downloaded now on your machine.")"
+        url=${LARK_RPM_URL:-}
+        if [[ -z $url ]]; then
+            url=$(curl -fsSL "https://www.larksuite.com/api/downloads" 2>/dev/null \
+                | grep -oE 'https://[^"]+Lark[^"]*x86_64[^"]*\.rpm' | head -1 || true)
+        fi
+        if [[ -z $url ]]; then
+            echo "$(t "Could not resolve the dynamic Lark RPM URL automatically.")"
+            echo "$(t "Download the x86_64 RPM at https://www.larksuite.com/download and run:")"
+            echo "  tamagi layer add lark ~/Downloads/Lark-*.rpm"
+            echo "$(t "Meanwhile, the Lark Suite WebApp is already ready in your launcher.")"
+            exit 0
+        fi
+        tmp=$(mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        curl -fL --progress-bar -o "$tmp/lark.rpm" "$url"
+        tamagi-layer add lark "$tmp/lark.rpm" ;;
+    remove)
+        tamagi-layer remove lark ;;
+    *) echo "usage: lark-setup [install|remove]" >&2; exit 2 ;;
+esac

@@ -83,7 +83,7 @@ case "$MODE" in
         [[ -f $DISK ]] || { echo "sem disco instalado: rode antes just test-iso" >&2; exit 1; }
         qemu "${disk_args[@]}" "${window[@]}"
         exit ;;
-    auto|--luks|--tpm|--tpm-pin|--upgrade|--preserve-home|--pt|--en|--es|--fr|--verify|--verify-luks|--verify-tpm|--rollback) ;;
+    auto|--skl|--luks|--tpm|--tpm-pin|--upgrade|--preserve-home|--pt|--en|--es|--fr|--verify|--verify-skl|--verify-luks|--verify-tpm|--rollback) ;;
     *) echo "modo desconhecido: $MODE" >&2; exit 2 ;;
 esac
 
@@ -144,6 +144,7 @@ append+=" tamagi.autoinstall=/dev/vda tamagi.autoinstall.kargs=console=tty0,cons
 [[ $MODE == --tpm ]] && append+=" tamagi.autoinstall.tpm=1"
 [[ $MODE == --tpm-pin ]] && append+=" tamagi.autoinstall.tpm=pin tamagi.autoinstall.tpmpin=$TPM_PIN"
 [[ $MODE == --preserve-home ]] && append+=" tamagi.autoinstall.preserve_home=1"
+[[ $MODE == --skl ]] && append+=" tamagi.edition=skl tamagi.autoinstall.student=aluno tamagi.autoinstall.homepage=https://escola.tamagi.test"
 if [[ $MODE == --upgrade ]]; then
     # Registry local (sem TLS) com a "v2": a imagem do Tamagi + um arquivo. Da VM,
     # o computador que a roda é 10.0.2.2.
@@ -228,6 +229,7 @@ luks=()
 [[ $MODE == *tpm ]] && luks=(--tpm)
 [[ $MODE == --tpm-pin ]] && luks=(--tpm-pin "$TPM_PIN")
 [[ $MODE == --preserve-home ]] && luks+=(--preserved-file /var/home/tamagi/preserved-marker.txt)
+[[ $MODE == --skl || $MODE == --verify-skl ]] && luks+=(--skl)
 [[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] && luks+=(--lang "${MODE#--}")
 # Sem opção de idioma, a ISO instala no idioma padrão da imagem (en; pt na variante :ptbr).
 [[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] || luks+=(--lang "${TAMAGI_DEFAULT_LANG:-en}")

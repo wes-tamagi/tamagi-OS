@@ -1,47 +1,53 @@
 #!/usr/bin/bash
-# Habilita os serviços do Tamagi e limpa o que o build deixou para trás.
+# Habilita os serviços do Tamagi (por edição: dxai ou skl) e limpa artefatos de build.
+
+EDITION=${TAMAGI_EDITION:-dxai}
 
 systemctl enable tamagi-firstboot.service tamagi-tpm-seal.service tamagi-combustion.service
-systemctl --global enable tamagi-flatpak-setup.service
 
-# Virtualização nativa e console Cockpit ativados sob demanda por socket (0 RAM em idle).
-systemctl disable virtqemud.service 2>/dev/null || true
-systemctl enable cockpit.socket virtqemud.socket virtnetworkd.socket virtstoraged.socket \
-    virtnodedevd.socket virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket \
-    virtlogd.socket virtlockd.socket
-if [[ -f /usr/share/libvirt/networks/default.xml && ! -e /etc/libvirt/qemu/networks/default.xml ]]; then
-    install -Dm600 /usr/share/libvirt/networks/default.xml /etc/libvirt/qemu/networks/default.xml
-    install -d /etc/libvirt/qemu/networks/autostart
-    ln -sfn ../default.xml /etc/libvirt/qemu/networks/autostart/default.xml
+# Tailscale pré-disponível na imagem, mas desligado por padrão (0 MB RAM em idle).
+systemctl disable tailscaled.service 2>/dev/null || true
+
+if [[ $EDITION == skl ]]; then
+    # Edição Tamagi-SKL (Escola):
+    # - Sem loja gráfica nem autoinstalação de Flatpaks (Flatpaks somente via terminal);
+    # - SSH + Cockpit web habilitados para monitoramento e gestão do professor/diretor (grupo wheel).
+    systemctl --global disable tamagi-flatpak-setup.service 2>/dev/null || true
+    systemctl enable sshd.service cockpit.socket
+    install -Dm644 /dev/stdin /etc/ssh/sshd_config.d/50-tamagi-skl.conf <<'SSH'
+# Tamagi-SKL: acesso remoto apenas para administradores (professor/diretor/TI).
+PermitRootLogin no
+AllowGroups wheel
+SSH
+    # Permite SSH na rede local (firewalld já libera ssh por padrão em FedoraWorkstation/public, garantido aqui).
+    rm -f /etc/xdg/autostart/tamagi-firstrun.desktop
+else
+    # Edição Tamagi-DxAI: Flatpak --user automático + virtualização/Cockpit sob demanda por socket.
+    systemctl --global enable tamagi-flatpak-setup.service
+    systemctl disable virtqemud.service 2>/dev/null || true
+    systemctl enable cockpit.socket virtqemud.socket virtnetworkd.socket virtstoraged.socket \
+        virtnodedevd.socket virtsecretd.socket virtinterfaced.socket virtnwfilterd.socket \
+        virtlogd.socket virtlockd.socket
+    if [[ -f /usr/share/libvirt/networks/default.xml && ! -e /etc/libvirt/qemu/networks/default.xml ]]; then
+        install -Dm600 /usr/share/libvirt/networks/default.xml /etc/libvirt/qemu/networks/default.xml
+        install -d /etc/libvirt/qemu/networks/autostart
+        ln -sfn ../default.xml /etc/libvirt/qemu/networks/autostart/default.xml
+    fi
+    authselect enable-feature with-libvirt >/dev/null 2>&1 || true
 fi
-authselect enable-feature with-libvirt >/dev/null 2>&1 || true
 
-# systemd-boot no lugar do GRUB: a partição EFI é montada em /efi (a pasta tem
-# de existir na imagem, que é somente-leitura), e o serviço que atualiza o
-# GRUB a cada boot (bootupd) não tem o que fazer.
+# systemd-boot no lugar do GRUB
 mkdir -p /efi
 systemctl mask bootloader-update.service
 test -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi || { echo "systemd-boot não está na imagem" >&2; exit 1; }
 
-# Verificação de saúde a cada boot e volta automática para a imagem anterior
-# (boot-check): o bootc com systemd-boot não conta tentativas de boot.
+# Verificação de saúde a cada boot e rollback automático
 systemctl enable tamagi-boot-check.service
-
-# Permissões com prazo (tamagi lease): no boot, retira o que venceu com o
-# computador desligado e reabre o que ainda está valendo.
 systemctl enable tamagi-lease-expire.service
 
-# Snapshots da pasta pessoal (home-snapshots / tamagi-snap): os timers do
-# snapper só agem nas configurações criadas; o serviço faz as conversões
-# agendadas antes do login.
+# Snapshots da pasta pessoal + manutenção Btrfs (estilo Aeon)
 systemctl enable snapper-timeline.timer snapper-cleanup.timer tamagi-home-snapshots.service
-# Manutenção do btrfs (btrfsmaintenance): scrub mensal e balance semanal.
 systemctl enable btrfs-scrub.timer btrfs-balance.timer
-# TRIM: o btrfs já devolve os blocos livres ao SSD aos poucos (discard=async, o
-# padrão do kernel em SSD, com limite de taxa) — é o que dá desempenho sem
-# rajadas. O fstrim periódico fica como rede de segurança e para /boot e EFI;
-# semanal ele reenviaria o TRIM de todo o espaço livre do btrfs a cada vez,
-# então passa a mensal e não roda na bateria.
 install -Dm644 /dev/stdin /usr/lib/systemd/system/fstrim.timer.d/10-tamagi.conf <<'UNIT'
 [Timer]
 OnCalendar=
@@ -56,61 +62,29 @@ IOSchedulingClass=idle
 UNIT
 systemctl enable fstrim.timer
 
-# O kernel padrão (Open Gaming Collective) é assinado só pelo Universal Blue: este guarda
-# cancela uma atualização que não iniciaria com o Secure Boot (chave ausente).
-# (chamado pelo system-update logo depois de preparar a imagem nova).
-
-# A imagem do sistema: procurada a cada seis horas e preparada para o próximo
-# boot pelo bootc (system-update). O rpm-ostree não fala com este formato de
-# instalação (composefs): o timer dele fica desligado.
+# Atualizações automáticas atômicas via bootc
 systemctl enable tamagi-system-update.timer tamagi-system-status.service
 systemctl disable rpm-ostreed-automatic.timer 2>/dev/null || true
 systemctl mask bootc-fetch-apply-updates.timer 2>/dev/null || true
-# Zero Flatpak de sistema (todos são --user): o atualizador de Flatpaks de
-# sistema que a base liga não tem o que atualizar e só atrasa o boot.
 systemctl disable flatpak-system-update.timer 2>/dev/null || true
-# A base (flatpak do Universal Blue) liga um serviço que, no primeiro boot,
-# cria o Flathub de sistema e os remotes "Fedora Flatpaks" (fedora e
-# fedora-testing). Aqui os remotes são só do usuário (Flathub e COSMIC, pelo
-# tamagi-flatpak-setup): o serviço fica mascarado.
 systemctl mask flatpak-add-fedora-repos.service
-# Máquinas instaladas antes disso: o tamagi-flatpak-cleanup apaga os dois.
 systemctl enable tamagi-flatpak-cleanup.service
-# Menu de boot sem edição da linha do kernel nas instalações anteriores (as novas
-# já recebem /usr/lib/bootc/install/systemd-boot/loader.conf do bootc).
 systemctl enable tamagi-loader-conf.service
 
-# Camadas do tamagi-layer (/var/lib/extensions) entram no /usr a cada boot.
+# Camadas systemd-sysext
 systemctl enable systemd-sysext.service
-
-# Camadas que trazem serviços (ex.: `tamagi vm install`, com o libvirt): depois
-# do sysext entrar no /usr, cria usuários/pastas e liga as units pedidas;
-# o rebuild assíncrono atualiza camadas antigas após um bootc upgrade.
 systemctl enable tamagi-layer-units.service tamagi-layer-rebuild.service
 
-# Boot mais rápido e menos ruído em background:
-#   - NetworkManager-wait-online atrasa o boot esperando DHCP/Wi-Fi sem necessidade;
-#   - dnf-makecache.timer não serve num host imutável (bootc não usa dnf no host).
+# Boot rápido
 systemctl disable NetworkManager-wait-online.service dnf-makecache.timer 2>/dev/null || true
 
-# Atualização automática dos subsistemas (caixas), para todo usuário (a dos
-# Flatpaks já vem ligada pela base).
+# Timers do usuário
 systemctl --global enable tamagi-autoupdate.timer
-
-# Os apps de terminal (foot, btop, Neovim, janelas do Tamagi) acompanham o tema
-# escolhido nas Configurações do COSMIC.
 systemctl --global enable tamagi-theme-sync.path
 
-# Sob demanda: ficam na imagem, desligados.
-#   usbguard  -> tamagi-harden usb on
-systemctl disable usbguard.service 2>/dev/null || true
-
-# hardened_malloc fica instalado, mas não é carregado em todo processo por
-# padrão (quebraria jogos e alguns apps); `tamagi-harden malloc on` liga.
 rm -f /etc/ld.so.preload
 
-# Idiomas: o produto tem quatro (en, pt, es, fr). A base traz os locales e as
-# traduções de todos os idiomas do mundo (~500 MB); ficam só os quatro.
+# Idiomas: en, pt, es, fr (~500 MB economizados)
 dnf5 -y install --setopt=install_weak_deps=False \
     glibc-langpack-en glibc-langpack-pt glibc-langpack-es glibc-langpack-fr
 dnf5 -y remove glibc-all-langpacks
@@ -120,24 +94,19 @@ done
 find /usr/share/locale -mindepth 1 -maxdepth 1 -type d \
     ! -name 'en*' ! -name 'pt*' ! -name 'es*' ! -name 'fr*' ! -name C -exec rm -rf {} +
 
-# Peso morto herdado da base: o cliente da AWS em Python (nada na imagem o
-# usa) e a fonte CJK estática (as variáveis, que ficam, cobrem os mesmos
-# idiomas). ~250 MB.
+# Peso morto herdado da base
 dnf5 -y remove --no-autoremove python3-botocore python3-boto3 python3-s3transfer google-noto-sans-cjk-fonts || true
 rm -f /usr/libexec/luks-enable-tpm2-autounlock /usr/libexec/luks-disable-tpm2-autounlock
 fc-cache -f >/dev/null 2>&1 || true
 
 dnf5 clean all
 
-# Pre-build linker, hwdb, and journal caches inside the image so boots are fast.
+# Caches pré-gerados na imagem
 ldconfig -X
 systemd-hwdb update 2>/dev/null || true
 journalctl --update-catalog 2>/dev/null || true
 
-# /var não viaja na imagem (veja abaixo), mas os pacotes instalados aqui
-# esperam encontrar as pastas deles em /var/lib e /var/log. Como faz o
-# rpm-ostree na base, cada pasta vira uma linha de tmpfiles: é criada no boot
-# com dono, modo e rótulo SELinux certos.
+# /var -> tmpfiles.d
 autovar=/usr/lib/tmpfiles.d/tamagi-autovar.conf
 known=$(systemd-tmpfiles --cat-config 2>/dev/null | awk '$1 ~ /^[dDvqQ]/ { print $2 }' | sort -u)
 {
@@ -152,8 +121,6 @@ known=$(systemd-tmpfiles --cat-config 2>/dev/null | awk '$1 ~ /^[dDvqQ]/ { print
     done
 } > "$autovar"
 echo "tmpfiles gerado: $(grep -c '^d ' "$autovar") pastas de /var"
-# /var é estado da máquina, não da imagem (a base só traz /var/tmp): o que o
-# build criou ali não chegaria às máquinas já instaladas, então não fica.
 echo "Removendo de /var: $(find /var -mindepth 1 -maxdepth 1 ! -name tmp ! -name cache -printf '%f ')"
 find /var -mindepth 1 -maxdepth 1 ! -name tmp ! -name cache -exec rm -rf {} +
 find /var/cache -mindepth 1 -maxdepth 1 ! -name libdnf5 -exec rm -rf {} + 2>/dev/null || true

@@ -1,121 +1,77 @@
-# Pacotes RPM adicionados à base ghcr.io/ublue-os/base-main (um por linha;
-# '#' comenta). Regra do Tamagi: aqui só entra o que precisa estar no host.
-# O resto é opcional e escolhido pelo usuário (`tamagi install`): Flatpak,
-# camada nativa (tamagi-layer) ou caixa distrobox.
+# Pacotes RPM adicionados à base ghcr.io/ublue-os/base-main para Tamagi-DxAI.
+# Regra do Tamagi: na base só entra o que precisa estar no host (IA, containers,
+# virtualização, COSMIC, gaming base Bazzite e armazenamento nativo).
 
-# ── Browsers & WebApps (native Chromium + ChromeDriver) ──
-# Chromium ships natively with ChromeDriver and Google Account OAuth2 sign-in
-# pre-configured (/etc/chromium/tamagi.conf). Other browsers are optional via `tamagi browser`.
+# ── Navegador & Automação (Chromium nativo + ChromeDriver) ──
 chromium
 chromedriver
 
-# ── Desktop COSMIC (System76, escrito em Rust; tiling nativo) ──
+# ── Desktop COSMIC (System76, Rust; tiling nativo) ──
 @cosmic-desktop
 cosmic-greeter
 xdg-desktop-portal-cosmic
-# O menu iniciar (cosmic-ext-classic-menu 1.1.0) é compilado no Containerfile
-# (estágio rustdesk): o COPR dele parou na 1.0.0.
-# O applet precisa do cosmic-osd (já vem no @cosmic-desktop; fica explícito).
 cosmic-osd
 xdg-desktop-portal-gtk
 gtk4
 libadwaita
 python3-gobject
-adw-gtk3-theme
 xdg-terminal-exec
 wl-clipboard
-nm-connection-editor
-# Discos (GNOME Disks): particionar, formatar, LUKS, SMART, imagens de disco e
-# teste de velocidade. O COSMIC ainda não tem equivalente tão completo. 8 MB.
-gnome-disk-utility
 librsvg2-tools
 desktop-file-utils
 
-# ── Fontes ──
+# ── Fontes (enxuto: Roboto Flex via 10-packages.sh + Noto fallback + JetBrains Mono) ──
 jetbrains-mono-fonts
-cascadia-code-nf-fonts
-# Noto Sans: a variável, que já vem na base (google-noto-sans-vf-fonts). A
-# estática por cima duplicava a família e o COSMIC errava o peso do texto.
 google-noto-sans-vf-fonts
-# Roboto Slab: a fonte com serifa do sistema (títulos e documentos).
-google-roboto-slab-fonts
 google-noto-color-emoji-fonts
 
-# ── Idiomas do produto: inglês (EUA), português (Brasil), espanhol e francês ──
-# (os locales do glibc ficam só nesses quatro: veja 90-finalize.sh)
+# ── Idiomas do produto: en, pt_BR, es, fr ──
 langpacks-core-pt_BR
 langpacks-core-es
 langpacks-core-fr
 
-# ── Ferramentas de terminal em Rust ──
-# (as janelas utilitárias do Tamagi usam o foot, o terminal padrão)
+# ── Armazenamento nativo (pareado com cosmic-ext-storage compilado no Containerfile) ──
+rclone
+
+# ── Ferramentas de terminal em Rust + terminais escolhidos ──
 ripgrep
 fd-find
 bat
 eza
 zoxide
-du-dust
-git-delta
-
-# ── Terminal e desenvolvimento (estilo Omarchy) ──
-# foot: terminal padrão (Super+Enter e apps de terminal): leve e rápido para
-# abrir. O cosmic-term continua instalado e no lançador.
 foot
-# Ptyxis: o terminal do sistema (Super+Enter). Conhece as caixas distrobox e
-# os contêineres do podman: abre uma aba direto dentro deles pelo menu.
 ptyxis
 git
-btop
-fastfetch
 gum
-# Fora da imagem, na caixa de desenvolvimento (`tamagi devbox`), que as exporta
-# para o sistema ao ser criada: neovim, lazygit, gh, uv, glow, hyperfine,
-# direnv, yq e ShellCheck (ver /usr/libexec/tamagi/devbox-provision).
-# Dev Containers com compose (o VS Code é opcional: tamagi install vscode).
 podman-compose
 
-# ── Desempenho ──
-# Jogos (Steam, steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine)
-# não vêm na imagem: entram nativamente, sob demanda, numa camada reversível
-# (`tamagi gaming native`), como os pacotes que o Bazzite traz embutidos.
-# Escalonador de CPU em espaço de usuário via BPF (sched_ext), gerido por tamagi-perf.
+# ── Desempenho & Gaming base estilo Bazzite (sem RPM Fusion na base) ──
+# Escalonadores BPF sched_ext (scx_rusty para throughput/jogos, scx_rustland para IA/interatividade)
 scx_rusty
+scx_rustland
+steam-devices
+gamescope
+mangohud
+gamemode
+mesa-dri-drivers.i686
+mesa-vulkan-drivers.i686
+vulkan-loader.i686
+gamemode.i686
+mangohud.i686
 
-# ── Camadas sobre a imagem (tamagi-layer: systemd-sysext em erofs) ──
+# ── Camadas (systemd-sysext), bootloader e Btrfs estilo Aeon ──
 erofs-utils
-# Carregador de boot: systemd-boot, como no openSUSE Aeon (o bootc o instala
-# com o backend composefs; o kernel fica na partição EFI e não há /boot).
 systemd-boot-unsigned
-
-# ── Boot que se conserta: verificação de saúde e rollback automático ──
-# Histórico da pasta pessoal (snapshots btrfs a cada hora): tamagi-snap.
 snapper
-# Manutenção do btrfs como no openSUSE MicroOS/Aeon: scrub mensal (acha
-# corrupção silenciosa) e balance semanal, em timers do systemd.
 btrfsmaintenance
 
-# ── Segurança (inspirado no GrapheneOS; veja tamagi-harden) ──
-usbguard
-# hardened_malloc: COPR do secureblue; instalado mas só ativado no modo estrito.
-hardened_malloc
-
-# ── Redes e conectividade (o que a base ainda não traz) ──
-# VPNs no NetworkManager: OpenVPN e OpenConnect (Cisco, Fortinet, Palo Alto…).
-# L2TP, PPTP, SSTP, strongSwan, Libreswan e SSH são opcionais
-# (`tamagi install vpn-extra`). vpnc e fortisslvpn saíram do Fedora 45.
-NetworkManager-openvpn-gnome
-NetworkManager-openconnect-gnome
+# ── Redes e conectividade (Tailscale entra em 10-packages.sh via repo oficial) ──
 NetworkManager-tui
-# Tailscale não vem na imagem: é opcional (`tamagi install tailscale`).
-# Celulares e pastas remotas (NAS/SSHFS/MTP). Ferramentas de rede avançadas,
-# OCR e adb/fastboot entram sob demanda pelo catálogo (`tamagi install`).
 gvfs-smb
 gvfs-mtp
-gvfs-nfs
 gvfs-fuse
-fuse-sshfs
 
-# ── Máquinas virtuais e Console Web (DX nativo, ativado por socket) ──
+# ── Máquinas virtuais e Console Web (DX nativo, ativado por socket; sem guestfs-tools) ──
 qemu-kvm
 qemu-img
 qemu-device-display-virtio-gpu-gl
@@ -138,8 +94,6 @@ swtpm
 swtpm-tools
 virtiofsd
 passt
-guestfs-tools
-# Só o que o `tamagi vm` usa: discos e rede do host ficam nas Configurações.
 cockpit
 cockpit-machines
 cockpit-podman

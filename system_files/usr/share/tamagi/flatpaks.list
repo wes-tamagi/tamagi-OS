@@ -1,43 +1,45 @@
-# Apps Flatpak do Tamagi. Uma linha por app:
+# Apps Flatpak do Tamagi (Flathub e COSMIC).
 #   <remote> <ID> <tipo> <categoria> <tamanho aproximado> <descrição>
-# tipo:
-#   essencial    instalado sozinho no primeiro boot (tamagi-flatpak-setup), para
-#                todos. São pequenos: o mínimo para o desktop ser usável.
-#   opcional     oferecido no catálogo (`tamagi install` e primeiro login),
-#                desmarcado: o usuário escolhe.
-# Navegadores, jogos nativos, máquinas virtuais, caixas de desenvolvimento e
-# agentes de IA estão em catalog.tsv (não são só Flatpak).
-# Preferência por apps verificados pelo próprio fabricante.
-# Remotes: flathub e cosmic (repositório da System76 para o COSMIC).
+#   essencial  instalado automaticamente no 1º login (Tamagi-DxAI)
+#   opcional   oferecido no 1º login (basics.list) e em `tamagi install`
 flathub com.github.tchx84.Flatseal               essencial   Sistema         2MB    Flatseal — permissões dos apps Flatpak
 flathub io.github.flattool.Warehouse             essencial   Sistema         2MB    Warehouse — gerenciar apps Flatpak
-flathub org.gnome.Loupe                          essencial   Sistema         15MB   Loupe — imagens
-flathub org.gnome.Papers                         essencial   Sistema         35MB   Papers — PDF e documentos
+flathub org.gnome.Loupe                          essencial   Sistema         15MB   Loupe — imagens (Rust)
 cosmic  io.github.cosmic_utils.minimon-applet    essencial   Sistema         5MB    Monitor de CPU e memória na barra
 cosmic  io.github.cosmic_utils.weather-applet    essencial   Sistema         5MB    Clima na barra
 cosmic  io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager essencial Sistema 5MB Histórico da área de transferência
-flathub io.missioncenter.MissionCenter           opcional    System         35MB   Mission Center — system monitor
-flathub io.github.flattool.Ignition              opcional    System         5MB    Ignition — apps and scripts that start with the session
-flathub org.gnome.World.PikaBackup               opcional    System         45MB   Pika Backup — backups to a disk or server
-flathub org.onlyoffice.desktopeditors            opcional    Office      1.1GB  OnlyOffice — documents, spreadsheets and presentations
-flathub org.libreoffice.LibreOffice              opcional    Office      800MB  LibreOffice — documents, spreadsheets and presentations
-flathub org.mozilla.Thunderbird                  opcional    Office      300MB  Thunderbird — email and calendar
-flathub com.bitwarden.desktop                    opcional    Office      560MB  Bitwarden — password manager
-flathub org.telegram.desktop                     opcional    Communication     260MB  Telegram — messaging
-flathub org.signal.Signal                        opcional    Communication     380MB  Signal — encrypted messaging
-flathub com.discordapp.Discord                   opcional    Communication     600MB  Discord — voice and communities
-flathub com.obsproject.Studio                    opcional    Creative         590MB  OBS Studio — record and stream
-flathub org.gimp.GIMP                            opcional    Creative         270MB  GIMP — image editing
-flathub org.inkscape.Inkscape                    opcional    Creative         310MB  Inkscape — vector drawing
-flathub org.videolan.VLC                         opcional    Creative         150MB  VLC — videos and music
-flathub com.spotify.Client                       opcional    Creative         300MB  Spotify — music
+flathub org.gnome.Papers                         opcional    Office          35MB   Papers — PDF and document viewer (Rust)
+flathub dev.mariinkys.Cedilla                    opcional    COSMIC          25MB   Cedilla — native Markdown notes for COSMIC (Rust)
+flathub com.francescogaglione.chronos            opcional    COSMIC          20MB   Chronos — Pomodoro timer for COSMIC (Rust)
+flathub com.github.flxzt.rnote                   opcional    Creative        65MB   Rnote — vector sketching and handwritten notes (Rust)
+flathub app.drey.KeyRack                         opcional    System          15MB   Key Rack — view and manage system secrets and keys (Rust)
+flathub org.gnome.Snapshot                       opcional    Creative        20MB   Snapshot — camera app for photos and video (Rust)
+flathub app.drey.Warp                            opcional    Networks        15MB   Warp — encrypted peer-to-peer file transfer (Rust)
+flathub io.gitlab.adhami3310.Impression          opcional    System          15MB   Impression — write ISO images to USB drives (Rust)
+flathub io.github.seadve.Kooha                   opcional    Creative        20MB   Kooha — minimalist Wayland screen recorder (Rust)
+flathub com.belmoussaoui.Authenticator           opcional    System          20MB   Authenticator — two-factor authentication (2FA) codes (Rust)
+flathub io.missioncenter.MissionCenter           opcional    System          35MB   Mission Center — system monitor (Rust)
+flathub io.github.flattool.Ignition              opcional    System          5MB    Ignition — apps and scripts that start with the session
+flathub org.gnome.World.PikaBackup               opcional    System          45MB   Pika Backup — backups to a disk or server (Rust)
+flathub org.onlyoffice.desktopeditors            opcional    Office          1.1GB  OnlyOffice — documents, spreadsheets and presentations
+flathub org.libreoffice.LibreOffice              opcional    Office          800MB  LibreOffice — documents, spreadsheets and presentations
+flathub org.mozilla.Thunderbird                  opcional    Office          300MB  Thunderbird — email and calendar
+flathub com.bitwarden.desktop                    opcional    Office          560MB  Bitwarden — password manager
+flathub org.telegram.desktop                     opcional    Communication   260MB  Telegram — messaging
+flathub org.signal.Signal                        opcional    Communication   380MB  Signal — encrypted messaging
+flathub com.discordapp.Discord                   opcional    Communication   600MB  Discord — voice and communities
+flathub com.obsproject.Studio                    opcional    Creative        590MB  OBS Studio — record and stream
+flathub org.gimp.GIMP                            opcional    Creative        270MB  GIMP — image editing
+flathub org.inkscape.Inkscape                    opcional    Creative        310MB  Inkscape — vector drawing
+flathub org.videolan.VLC                         opcional    Creative        150MB  VLC — videos and music
+flathub com.spotify.Client                       opcional    Creative        300MB  Spotify — music
 flathub com.heroicgameslauncher.hgl              opcional    Games           620MB  Heroic — Epic, GOG and Amazon games
 flathub com.usebottles.bottles                   opcional    Games           550MB  Bottles — Windows programs (Wine)
-flathub io.podman_desktop.PodmanDesktop          opcional    Development 480MB  Podman Desktop — containers with a GUI
-flathub com.ranfdev.DistroShelf                  opcional    Development 10MB   DistroShelf — distrobox boxes with a GUI
-flathub dev.zed.Zed                              opcional    Development 250MB  Zed — code editor
-flathub dev.edfloreshz.CosmicTweaks              opcional    COSMIC         120MB  COSMIC Tweaks — extra COSMIC settings
-flathub io.github.cosmic_utils.Examine           opcional    COSMIC         100MB  Examine — hardware information
-flathub dev.edfloreshz.Tasks                     opcional    COSMIC         40MB   Tasks — to-do lists
-flathub com.jwestall.Forecast                    opcional    COSMIC         20MB   Forecast — weather
-flathub dev.edfloreshz.Calculator                opcional    COSMIC         40MB   Calculator — made for COSMIC
+flathub io.podman_desktop.PodmanDesktop          opcional    Development     480MB  Podman Desktop — containers with a GUI
+flathub com.ranfdev.DistroShelf                  opcional    Development     10MB   DistroShelf — distrobox boxes with a GUI (Rust)
+flathub dev.zed.Zed                              opcional    Development     250MB  Zed — code editor (Rust)
+flathub dev.edfloreshz.CosmicTweaks              opcional    COSMIC          120MB  COSMIC Tweaks — extra COSMIC settings (Rust)
+flathub io.github.cosmic_utils.Examine           opcional    COSMIC          100MB  Examine — hardware information (Rust)
+flathub dev.edfloreshz.Tasks                     opcional    COSMIC          40MB   Tasks — to-do lists (Rust)
+flathub com.jwestall.Forecast                    opcional    COSMIC          20MB   Forecast — weather (Rust)
+flathub dev.edfloreshz.Calculator                opcional    COSMIC          40MB   Calculator — made for COSMIC (Rust)

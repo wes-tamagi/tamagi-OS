@@ -1,16 +1,21 @@
-# Tamagi — the basics offered at first login (the window and tamagi-firstrun).
-# Like openSUSE Aeon: a short list, ticked or not, and nothing else. Everything
-# in the catalog stays available later with `tamagi install`.
-#   <on|off> <id>      id: a catalog.tsv id, or the app id of a Flatpak in
-#                      flatpaks.list ("opcional"). on = ticked by default.
-# Shown in this order, grouped by the category of each item. The browser is
-# asked on its own page (Opera GX, Chrome, Chromium, Vivaldi) and cannot be
-# listed here.
+# Tamagi-DxAI — apps offered at first login (multi-select in tamagi-welcome).
+#   <on|off> <id>   id: catalog.tsv id or Flatpak app id from flatpaks.list.
+on  org.gnome.Papers
 on  dev.edfloreshz.Calculator
 on  dev.edfloreshz.CosmicTweaks
+off dev.mariinkys.Cedilla
+off com.francescogaglione.chronos
 off io.github.cosmic_utils.Examine
 off dev.edfloreshz.Tasks
 off com.jwestall.Forecast
+off sniffnet
+off app.drey.KeyRack
+off com.github.flxzt.rnote
+off org.gnome.Snapshot
+off app.drey.Warp
+off io.gitlab.adhami3310.Impression
+off io.github.seadve.Kooha
+off com.belmoussaoui.Authenticator
 off io.github.flattool.Ignition
 off io.missioncenter.MissionCenter
 off org.onlyoffice.desktopeditors

@@ -1,0 +1,49 @@
+# Pacotes RPM adicionados à base ghcr.io/ublue-os/base-main para Tamagi-SKL (Escola).
+# Edição ultra-enxuta: apenas Chromium nativo (sem chromedriver, sem OAuth2),
+# COSMIC minimalista travado (sem cosmic-store), codecs completos (já na base),
+# SSH + Cockpit (somente admin) e Tailscale pré-disponível (desligado).
+
+# ── Navegador nativo (codecs de áudio/vídeo/WebRTC já vêm na base: ffmpeg, openh264, gstreamer, pipewire) ──
+chromium
+
+# ── Desktop COSMIC enxuto (cosmic-store e cosmic-player são removidos em 10-packages.sh) ──
+@cosmic-desktop
+cosmic-greeter
+xdg-desktop-portal-cosmic
+cosmic-osd
+xdg-desktop-portal-gtk
+gtk4
+libadwaita
+python3-gobject
+xdg-terminal-exec
+wl-clipboard
+librsvg2-tools
+desktop-file-utils
+
+# ── Fontes ──
+jetbrains-mono-fonts
+google-noto-sans-vf-fonts
+google-noto-color-emoji-fonts
+
+# ── Idiomas do produto: en, pt_BR, es, fr ──
+langpacks-core-pt_BR
+langpacks-core-es
+langpacks-core-fr
+
+# ── Terminal escolhido + utilitários mínimos ──
+foot
+ptyxis
+gum
+
+# ── Bootloader, camadas e manutenção Btrfs ──
+erofs-utils
+systemd-boot-unsigned
+snapper
+btrfsmaintenance
+
+# ── Gestão remota escolar (SSH + Cockpit web, restritos ao grupo wheel/admin) ──
+NetworkManager-tui
+gvfs-smb
+gvfs-mtp
+gvfs-fuse
+cockpit

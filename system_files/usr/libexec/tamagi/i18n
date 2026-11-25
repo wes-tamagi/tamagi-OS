@@ -11,7 +11,7 @@
 #   TAMAGI_LANG > LC_ALL > LC_MESSAGES > ~/.config/tamagi/lang > LANG
 # Languages other than pt/es/fr fall back to English.
 declare -gA TAMAGI_TR=()
-_tamagi_cfg_lang="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/lang"
+_tamagi_cfg_lang="${XDG_CONFIG_HOME:-${HOME:-/root}/.config}/tamagi/lang"
 if [[ -n ${TAMAGI_LANG:-} ]]; then
     _tamagi_raw=$TAMAGI_LANG
 elif [[ -n ${LC_ALL:-} ]]; then

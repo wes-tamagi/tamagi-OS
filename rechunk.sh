@@ -35,8 +35,10 @@ fi
 # label is carried over. The other labels of the source describe the base
 # image (its title, its kernel, an expiry date for its registry) and stay out.
 version=$(podman inspect "$SRC" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')
-labels=(--label "org.opencontainers.image.title=Tamagi"
-        --label "org.opencontainers.image.description=Tamagi — atomic COSMIC desktop for AI and agents (bootc)")
+title=$(podman inspect "$SRC" --format '{{index .Config.Labels "org.opencontainers.image.title"}}')
+[[ -n $title && $title != "<no value>" ]] || title="Tamagi-DxAI"
+labels=(--label "org.opencontainers.image.title=$title"
+        --label "org.opencontainers.image.description=Tamagi — atomic COSMIC desktop (bootc)")
 [[ -n $version && $version != "<no value>" ]] || version=$(date -u +%Y%m%d)
 labels+=(--label "org.opencontainers.image.version=$version")
 

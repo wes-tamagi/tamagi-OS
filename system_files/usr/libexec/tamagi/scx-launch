@@ -1,0 +1,15 @@
+#!/usr/bin/bash
+# scx-launch — inicia o escalonador BPF sched_ext configurado em /var/lib/tamagi/scx.env.
+set -euo pipefail
+sched=${SCX_SCHED:-scx_rustland}
+case "$sched" in
+    scx_rustland|scx_rusty) ;;
+    *) sched=scx_rustland ;;
+esac
+if [[ -x /usr/bin/$sched ]]; then
+    exec "/usr/bin/$sched"
+elif [[ -x /usr/bin/scx_rusty ]]; then
+    exec /usr/bin/scx_rusty
+fi
+echo "scx-launch: nenhum escalonador sched_ext instalado" >&2
+exit 1

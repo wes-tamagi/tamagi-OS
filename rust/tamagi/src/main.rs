@@ -1,20 +1,15 @@
-//! tamagi — one command for the whole system.
+//! tamagi — 10 clean commands for the whole system (no legacy aliases).
 //!
-//!     tamagi                    lists every command
-//!     tamagi <command> [...]    runs it (tamagi doctor, tamagi update, tamagi devbox ...)
-//!
-//! The system in one file (~/.config/tamagi/tamagi.toml):
-//!
-//!     tamagi init               writes the file from the current state
-//!     tamagi export [file]      prints (or writes) the current state
-//!     tamagi diff [file]        shows what is missing for the machine to match the file
-//!     tamagi apply [file]       does what is missing (-y does not ask)
-//!     tamagi apply <profile>    a ready-made profile: ai, dev, gamer, office
-//!     tamagi apply <https URL>  a file someone shared (shows the plan and asks)
-//!     tamagi profiles           lists the profiles
-//!
-//! Every `tamagi <command>` is the program `tamagi-<command>`; command names are
-//! the same in every language.
+//!   1. tamagi ai       local AI, coding agents, Shadow CoW, MCP Quadlets, flights
+//!   2. tamagi dev      devboxes, local databases, workspaces, try, isolate
+//!   3. tamagi install  unified catalog (Flathub + native layers, browsers, webapps, gaming, Windows)
+//!   4. tamagi update   atomic OS updates, changes, rollback, drop, status
+//!   5. tamagi rewind   unified timeline (home snapshots + OS deployments)
+//!   6. tamagi layer    reversible systemd-sysext native layers
+//!   7. tamagi vm       virtual machines (Cockpit Machines, QEMU/KVM)
+//!   8. tamagi shield   security, leases, privacy mode, Tailscale
+//!   9. tamagi sys      doctor, setup, perf, desktop, skl, declarative tamagi.toml (init/diff/apply)
+//!  10. tamagi why      instant provenance inspector for any file, command, port, or service
 
 mod i18n;
 mod plan;
@@ -38,61 +33,49 @@ const PROFILES: &[(&str, &str)] = &[
     ("office", "Office: Firefox, OnlyOffice and Thunderbird"),
 ];
 
-/// Commands shown by `tamagi` with no arguments: (group, name, description).
-const COMMANDS: &[(&str, &str, &str)] = &[
-    ("System", "update", "updates everything: image, Flatpaks, boxes"),
-    ("System", "rewind", "goes back in time: system, files and apps"),
-    ("System", "status", "what is running in the background right now"),
-    ("System", "doctor", "health, integrity and performance check"),
-    ("System", "boot-report", "boot health check and rolled-back updates"),
-    ("System", "snap", "history of the home folder (snapshots)"),
-    ("System", "layer", "Fedora packages on top of the image"),
-    ("System", "perf", "performance profiles and sched_ext"),
-    ("System", "harden", "security: status, strict, balanced, usb, malloc"),
-    ("System", "lease", "opens something for a limited time; it closes by itself"),
-    ("System", "privacy", "one-touch privacy mode"),
-    ("System", "lang", "system language"),
-    ("System", "setup", "machine chores: Secure Boot key, TPM unlock, firmware, clean"),
-    ("Install", "install", "everything optional, in one catalog"),
-    ("Install", "browser", "browsers: Flatpak, native or box"),
-    ("Install", "agents", "AI agents: Claude Code, Codex, Qwen Code, opencode, shadow…"),
-    ("Install", "mcp", "sandboxed MCP servers in Podman Quadlets (0 RAM idle)"),
-    ("Install", "ai", "local AI (llama.cpp): models and server"),
-    ("Install", "agent", "chat with the local AI agent"),
-    ("Install", "gaming", "native games (like on Bazzite) or Flatpak"),
-    ("Install", "vm", "virtual machines (Cockpit Machines, QEMU/KVM)"),
-    ("Install", "windows", "Windows 11 in a container (dockur)"),
-    ("Install", "webapp", "turns a website into an app"),
-    ("Install", "try", "tries a package in a disposable box"),
-    ("Development", "devbox", "development boxes (Fedora, Ubuntu, openSUSE, Arch)"),
-    ("Development", "db", "development databases"),
-    ("Development", "workspace", "declarative per-project environments"),
-    ("Development", "isolate", "runs a program in a disposable jail"),
-    ("Desktop", "theme", "terminal theme (follows COSMIC)"),
-    ("Desktop", "panel", "bar style"),
-    ("Desktop", "font", "monospace font"),
-    ("Desktop", "tiling", "automatic tiling: on, off or toggle"),
-    ("Desktop", "keys", "keyboard shortcuts"),
-    ("Desktop", "capture", "screenshot, OCR and screen recording"),
-    ("Desktop", "menu", "command palette"),
+/// The 10 primary commands shown by `tamagi` (no legacy aliases).
+const COMMANDS: &[(&str, &str)] = &[
+    ("ai", "AI agents, Shadow CoW, Egress Guard, flights, MCP Quadlets, local llama.cpp"),
+    ("dev", "development boxes, local databases, workspaces, disposable try and isolate"),
+    ("install", "catalog + Flathub + native layers (drivers, ROCm, Bazzite), browsers, webapps"),
+    ("update", "atomic updates: OS image, layers, Flatpaks, boxes, agents, rollback"),
+    ("rewind", "unified timeline: home snapshots (snap) and OS deployments"),
+    ("layer", "reversible systemd-sysext native Fedora packages over /usr"),
+    ("vm", "virtual machines (Cockpit Machines, QEMU/KVM)"),
+    ("shield", "security hardening, time-limited leases, privacy mode, Tailscale"),
+    ("sys", "doctor, status, setup, perf, desktop, skl, and declarative state (init/diff/apply)"),
+    ("why", "explain where any file, command, port, or service came from"),
 ];
 
-/// The four commands of the system file, with their one-line descriptions.
 const FILE_COMMANDS: &[(&str, &str)] = &[
-    ("init", "create the file from the current state"),
+    ("init", "create tamagi.toml from the current state"),
     ("export", "print or save the current state"),
     ("diff", "show what is missing"),
     ("apply", "apply what is missing"),
 ];
 
-/// Ends with a message on the error output and exit code 1.
 fn die(msg: &str) -> ! {
     let _ = io::stdout().flush();
     eprintln!("{msg}");
     exit(1)
 }
 
-// ── Small built-in commands ─────────────────────────────────────────────────
+fn exec_helper(prog_name: &str, args: &[String]) -> ! {
+    let Some(prog) = state::which(prog_name) else {
+        die(&format!("tamagi: {}: {prog_name}", t("missing helper")));
+    };
+    let err = Command::new(&prog).args(args).exec();
+    die(&format!("tamagi: {}: {}", prog.display(), strerror(&err)));
+}
+
+fn exec_libexec(name: &str, args: &[String]) -> ! {
+    let path = PathBuf::from("/usr/libexec/tamagi").join(name);
+    if !path.is_file() {
+        die(&format!("tamagi: {}: {}", t("missing helper"), path.display()));
+    }
+    let err = Command::new(&path).args(args).exec();
+    die(&format!("tamagi: {}: {}", path.display(), strerror(&err)));
+}
 
 fn cmd_tiling(args: &[String]) {
     let action = args.first().map(String::as_str).unwrap_or("toggle");
@@ -101,7 +84,7 @@ fn cmd_tiling(args: &[String]) {
         "on" => true,
         "off" => false,
         "toggle" => !state::tiling(),
-        _ => die("usage: tamagi tiling [on|off|toggle|status]"),
+        _ => die("usage: tamagi sys desktop tiling [on|off|toggle|status]"),
     };
     if action != "status" {
         let file = state::tiling_file();
@@ -115,32 +98,166 @@ fn cmd_tiling(args: &[String]) {
 
 fn cmd_profiles() {
     for (name, desc) in PROFILES {
-        println!("  tamagi apply {name:<7} {}", t(desc));
+        println!("  tamagi sys apply {name:<7} {}", t(desc));
     }
     println!("\n{}", t("A profile only adds what is missing; nothing is removed."));
 }
 
 fn cmd_list() {
-    let width = COMMANDS.iter().map(|(_, name, _)| name.len()).max().unwrap_or(0);
-    println!("tamagi — {}\n", t("one command for the whole system"));
-    let mut group = "";
-    for (g, name, desc) in COMMANDS {
-        if *g != group {
-            group = g;
-            println!("{}", t(g));
-        }
+    let width = COMMANDS.iter().map(|(name, _)| name.len()).max().unwrap_or(0);
+    let edition = fs::read_to_string("/usr/share/tamagi/edition").unwrap_or_else(|_| "dxai".into());
+    let label = if edition.trim() == "skl" { "Tamagi-SKL" } else { "Tamagi-DxAI" };
+    println!("tamagi ({label}) — {}\n", t("one command for the whole system"));
+    for (name, desc) in COMMANDS {
         println!("  tamagi {name:<width$}  {}", t(desc));
     }
-    println!("\n{}: tamagi profiles  ·  tamagi apply ai | dev | gamer | office", t("Ready-made profiles"));
-    println!("\n{}", t("The system in one file"));
-    for (name, desc) in FILE_COMMANDS {
-        println!("  tamagi {name:<width$}  {}", t(desc));
+    println!("\n{}: tamagi sys profiles  ·  tamagi sys apply ai | dev | gamer | office", t("Ready-made profiles"));
+}
+
+// ── Subcommand routers (the 10 commands) ────────────────────────────────────
+
+fn route_ai(args: &[String]) -> ! {
+    match args.first().map(String::as_str) {
+        None | Some("-h" | "--help" | "help") => {
+            println!("tamagi ai — {}", t("AI agents, Shadow CoW, flights, MCP Quadlets, and local llama.cpp"));
+            println!();
+            println!("  tamagi ai run [opts] <agent>       run coding agent jailed (--shadow, --egress-guard)");
+            println!("  tamagi ai flights [list|show|clear] agent flight recorder (audit + rollback)");
+            println!("  tamagi ai shadow <list|diff|apply|drop>  manage CoW shadow workspaces");
+            println!("  tamagi ai jail [opts]              open a shell in the agent jail");
+            println!("  tamagi ai agents [list|install|remove|update]");
+            println!("  tamagi ai mcp [list|add|remove|sync|status]");
+            println!("  tamagi ai ask [prompt]             chat with local system agent");
+            println!("  tamagi ai local <setup|presets|chat|status|rm>  local llama.cpp models");
+            exit(0);
+        }
+        Some("run" | "jail" | "shadow" | "shadows" | "flights") => exec_helper("tamagi-agents", args),
+        Some("agents") => exec_helper("tamagi-agents", &args[1..]),
+        Some("mcp") => exec_helper("tamagi-mcp", &args[1..]),
+        Some("ask") => exec_helper("tamagi-agent", &args[1..]),
+        Some("local") => exec_helper("tamagi-ai", &args[1..]),
+        Some(_) => exec_helper("tamagi-ai", args),
     }
 }
 
-// ── The system file: where it comes from ────────────────────────────────────
+fn route_dev(args: &[String]) -> ! {
+    match args.first().map(String::as_str) {
+        None | Some("-h" | "--help" | "help") => {
+            println!("tamagi dev — {}", t("development boxes, databases, workspaces, try, and isolate"));
+            println!();
+            println!("  tamagi dev box [create|enter|lang|list|update|remove]  distrobox dev environments");
+            println!("  tamagi dev db [add|url|shell|snapshot|restore]         local Podman Quadlet databases");
+            println!("  tamagi dev workspace [init|status|up|enter|run]        per-project workspaces");
+            println!("  tamagi dev try <pkg> [opts]                            disposable package container");
+            println!("  tamagi dev isolate <file> [opts]                       disposable untrusted sandbox");
+            exit(0);
+        }
+        Some("box") => exec_helper("tamagi-devbox", &args[1..]),
+        Some("db") => exec_helper("tamagi-db", &args[1..]),
+        Some("workspace") => exec_helper("tamagi-workspace", &args[1..]),
+        Some("try") => exec_helper("tamagi-try", &args[1..]),
+        Some("isolate") => exec_helper("tamagi-isolate", &args[1..]),
+        Some(other) => die(&format!("tamagi dev: {}: {other} (box | db | workspace | try | isolate)", t("unknown command"))),
+    }
+}
 
-/// The text of an I/O error without Rust's " (os error N)" tail.
+fn route_install(args: &[String]) -> ! {
+    match args.first().map(String::as_str) {
+        Some("browser") => exec_helper("tamagi-browser", &args[1..]),
+        Some("webapp") => exec_helper("tamagi-webapp", &args[1..]),
+        Some("gaming") => exec_helper("tamagi-gaming", &args[1..]),
+        Some("windows") => exec_helper("tamagi-windows", &args[1..]),
+        _ => exec_helper("tamagi-install", args),
+    }
+}
+
+fn route_rewind(args: &[String]) -> ! {
+    match args.first().map(String::as_str) {
+        Some("snap") => exec_helper("tamagi-snap", &args[1..]),
+        _ => exec_helper("tamagi-rewind", args),
+    }
+}
+
+fn route_shield(args: &[String]) -> ! {
+    match args.first().map(String::as_str) {
+        None | Some("-h" | "--help" | "help") => {
+            println!("tamagi shield — {}", t("security hardening, leases, privacy mode, and Tailscale"));
+            println!();
+            println!("  tamagi shield harden [status|strict|balanced|usb|malloc]");
+            println!("  tamagi shield lease [vm|usb|port|end]");
+            println!("  tamagi shield privacy [on|off|status]");
+            println!("  tamagi shield tailscale [on|off|status]");
+            exit(0);
+        }
+        Some("harden") => exec_helper("tamagi-harden", &args[1..]),
+        Some("lease") => exec_helper("tamagi-lease", &args[1..]),
+        Some("privacy") => exec_helper("tamagi-privacy", &args[1..]),
+        Some("tailscale") => exec_libexec("tailscale-setup", &args[1..]),
+        Some(other) => die(&format!("tamagi shield: {}: {other} (harden | lease | privacy | tailscale)", t("unknown command"))),
+    }
+}
+
+fn route_desktop(args: &[String]) -> ! {
+    match args.first().map(String::as_str) {
+        None | Some("-h" | "--help" | "help") => {
+            println!("tamagi sys desktop — {}", t("COSMIC theme, bar, font, tiling, keys, and capture"));
+            println!();
+            println!("  tamagi sys desktop theme|panel|font|tiling|keys|capture|menu [...]");
+            exit(0);
+        }
+        Some("theme") => exec_helper("tamagi-theme", &args[1..]),
+        Some("panel") => exec_helper("tamagi-panel", &args[1..]),
+        Some("font") => exec_helper("tamagi-font", &args[1..]),
+        Some("tiling") => {
+            cmd_tiling(&args[1..]);
+            exit(0);
+        }
+        Some("keys") => exec_helper("tamagi-keys", &args[1..]),
+        Some("capture") => exec_helper("tamagi-capture", &args[1..]),
+        Some("menu") => exec_helper("tamagi-menu", &args[1..]),
+        Some(other) => die(&format!("tamagi sys desktop: {}: {other}", t("unknown command"))),
+    }
+}
+
+fn route_sys(args: &[String]) {
+    match args.first().map(String::as_str) {
+        None | Some("-h" | "--help" | "help") => {
+            println!("tamagi sys — {}", t("health, setup, performance, desktop, school admin, and declarative state"));
+            println!();
+            println!("  tamagi sys doctor [--json|--fix|--explain]  system health diagnostics");
+            println!("  tamagi sys status [--json]                  background jobs and pending updates");
+            println!("  tamagi sys boot-report [show]               boot health and rollback reports");
+            println!("  tamagi sys setup <tpm-unlock|firmware|bios|clean|switch-image>");
+            println!("  tamagi sys perf [status|set|pick|bench]     CPU & sched_ext (scx_rustland / scx_rusty)");
+            println!("  tamagi sys lang [list|pick|set]             system language");
+            println!("  tamagi sys desktop <theme|panel|font|tiling|keys|capture|menu>");
+            println!("  tamagi sys skl <status|history|open|homepage|lock|unlock|reset-session>");
+            println!("  tamagi sys init | export | diff | apply | profiles  declarative tamagi.toml");
+            return;
+        }
+        Some("doctor") => exec_helper("tamagi-doctor", &args[1..]),
+        Some("status") => exec_helper("tamagi-status", &args[1..]),
+        Some("boot-report") => exec_helper("tamagi-boot-report", &args[1..]),
+        Some("setup") => exec_helper("tamagi-setup", &args[1..]),
+        Some("perf") => exec_helper("tamagi-perf", &args[1..]),
+        Some("lang") => exec_helper("tamagi-lang", &args[1..]),
+        Some("desktop") => route_desktop(&args[1..]),
+        Some("skl") => exec_helper("tamagi-skl", &args[1..]),
+        Some("profiles") => return cmd_profiles(),
+        Some(cmd @ ("init" | "export" | "diff" | "apply")) => {
+            let parsed = file_args(cmd, &args[1..]);
+            match cmd {
+                "init" | "export" => save_state(cmd, parsed.file),
+                _ => diff_or_apply(cmd, parsed),
+            }
+            return;
+        }
+        Some(other) => die(&format!("tamagi sys: {}: {other} ({}: tamagi sys --help)", t("unknown command"), t("see"))),
+    }
+}
+
+// ── The system file (tamagi.toml) ───────────────────────────────────────────
+
 fn strerror(e: &io::Error) -> String {
     let text = e.to_string();
     match text.rfind(" (os error ") {
@@ -149,7 +266,6 @@ fn strerror(e: &io::Error) -> String {
     }
 }
 
-/// A TOML mistake on one line: what is wrong and where.
 fn toml_error(text: &str, e: &toml::de::Error) -> String {
     match e.span() {
         Some(span) => {
@@ -162,13 +278,10 @@ fn toml_error(text: &str, e: &toml::de::Error) -> String {
     }
 }
 
-/// "scheme://…" with a scheme of lowercase letters.
 fn has_scheme(source: &str) -> bool {
     source.split_once("://").is_some_and(|(scheme, _)| !scheme.is_empty() && scheme.chars().all(|c| c.is_ascii_lowercase()))
 }
 
-/// A file someone shared: fetched with curl (https only, also after
-/// redirects), at most 1 MB.
 fn download(source: &str) -> String {
     const LIMIT: usize = 1_000_000;
     let fetched = Command::new("curl")
@@ -192,8 +305,6 @@ fn download(source: &str) -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()
 }
 
-/// A file, the name of a profile or an https address -> (name to show, text
-/// already fetched if it came from the network).
 fn resolve(source: &str) -> (String, Option<String>) {
     if source.starts_with("https://") {
         return (source.to_string(), Some(download(source)));
@@ -209,13 +320,12 @@ fn resolve(source: &str) -> (String, Option<String>) {
     (source.to_string(), None)
 }
 
-/// Reads and checks the wanted state; ends the program on a bad file.
 fn load(path: &str, fetched: Option<String>) -> toml::Table {
     let text = match fetched {
         Some(text) => text,
         None => match fs::read(path) {
             Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-            Err(e) => die(&format!("{}: {} {path}: {}. {}: tamagi init", t("error"), t("could not read"), strerror(&e), t("Create one with"))),
+            Err(e) => die(&format!("{}: {} {path}: {}. {}: tamagi sys init", t("error"), t("could not read"), strerror(&e), t("Create one with"))),
         },
     };
     let raw = match text.parse::<toml::Table>() {
@@ -247,32 +357,20 @@ impl Probe for Machine {
     }
 }
 
-// ── Command line of init / export / diff / apply ────────────────────────────
-
-const USAGE: &str = "usage: tamagi [-h] {init,export,diff,apply} ...";
+const USAGE: &str = "usage: tamagi sys [-h] {init,export,diff,apply} ...";
 
 fn usage_of(cmd: &str) -> String {
     match cmd {
-        "init" => "usage: tamagi init [-h]".into(),
-        "export" => "usage: tamagi export [-h] [file]".into(),
-        "diff" => "usage: tamagi diff [-h] [file]".into(),
-        _ => "usage: tamagi apply [-h] [-y] [file]".into(),
+        "init" => "usage: tamagi sys init [-h]".into(),
+        "export" => "usage: tamagi sys export [-h] [file]".into(),
+        "diff" => "usage: tamagi sys diff [-h] [file]".into(),
+        _ => "usage: tamagi sys apply [-h] [-y] [file]".into(),
     }
 }
 
-/// A command-line mistake: the usage line, the reason, exit code 2.
 fn usage_error(usage: &str, msg: &str) -> ! {
     eprintln!("{usage}\ntamagi: error: {msg}");
     exit(2)
-}
-
-fn main_help() -> ! {
-    println!("{USAGE}\n\n{}\n\npositional arguments:\n  {{init,export,diff,apply}}", t("Your system described in a single file."));
-    for (name, desc) in FILE_COMMANDS {
-        println!("    {name:<20}{}", t(desc));
-    }
-    println!("\noptions:\n  -h, --help            show this help message and exit");
-    exit(0)
 }
 
 fn sub_help(cmd: &str) -> ! {
@@ -292,8 +390,6 @@ struct FileArgs {
     yes: bool,
 }
 
-/// The arguments after init/export/diff/apply: an optional file and, for
-/// apply, -y/--yes.
 fn file_args(cmd: &str, args: &[String]) -> FileArgs {
     let mut parsed = FileArgs { file: None, yes: false };
     let mut extra: Vec<&str> = Vec::new();
@@ -320,8 +416,6 @@ fn file_args(cmd: &str, args: &[String]) -> FileArgs {
     parsed
 }
 
-// ── init / export / diff / apply ────────────────────────────────────────────
-
 fn save_state(cmd: &str, file: Option<String>) {
     let text = state::to_toml(&state::current_state());
     let target = if cmd == "init" { Some(state::default_file()) } else { file.map(PathBuf::from) };
@@ -330,13 +424,13 @@ fn save_state(cmd: &str, file: Option<String>) {
         return;
     };
     if cmd == "init" && target.exists() {
-        die(&format!("{} {}: tamagi diff", target.display(), t("already exists. To see differences")));
+        die(&format!("{} {}: tamagi sys diff", target.display(), t("already exists. To see differences")));
     }
     let parent = target.parent().filter(|p| !p.as_os_str().is_empty());
     if let Err(e) = parent.map(fs::create_dir_all).unwrap_or(Ok(())).and_then(|_| fs::write(&target, text)) {
         die(&format!("{}: {}: {}", t("error"), target.display(), strerror(&e)));
     }
-    println!("{} {}. {}: tamagi apply", t("Saved to"), target.display(), t("Edit and run"));
+    println!("{} {}. {}: tamagi sys apply", t("Saved to"), target.display(), t("Edit and run"));
 }
 
 fn confirm() -> bool {
@@ -365,7 +459,7 @@ fn run_steps(steps: &[Step]) {
     }
     println!();
     if !failed.is_empty() {
-        die(&format!("{}: {}\n{}", t("Finished with failures in"), failed.join("; "), t("Run `tamagi diff` to see what is still missing.")));
+        die(&format!("{}: {}\n{}", t("Finished with failures in"), failed.join("; "), t("Run `tamagi sys diff` to see what is still missing.")));
     }
     println!("{}", t("Done: the machine now matches the file."));
 }
@@ -373,7 +467,6 @@ fn run_steps(steps: &[Step]) {
 fn diff_or_apply(cmd: &str, args: FileArgs) {
     let source = args.file.unwrap_or_else(|| state::default_file().to_string_lossy().into_owned());
     let (path, fetched) = resolve(&source);
-    // A file from the network is always shown before it changes the machine.
     let yes = args.yes && fetched.is_none();
     let wanted = load(&path, fetched);
     let now = state::current_state();
@@ -403,7 +496,6 @@ fn diff_or_apply(cmd: &str, args: FileArgs) {
     run_steps(&steps);
 }
 
-/// `[a-z][a-z0-9-]*`: the shape of a command name.
 fn is_command_name(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next().is_some_and(|c| c.is_ascii_lowercase()) && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
@@ -412,37 +504,22 @@ fn is_command_name(name: &str) -> bool {
 fn main() {
     let argv: Vec<String> = env::args().skip(1).collect();
     let first = argv.first().map(String::as_str).unwrap_or("");
-    if argv.is_empty() {
+    if argv.is_empty() || matches!(first, "-h" | "--help" | "help") {
         return cmd_list();
     }
+    let rest = &argv[1..];
     match first {
-        "help" | "list" | "commands" => return cmd_list(),
-        "profiles" => return cmd_profiles(),
-        "tiling" => return cmd_tiling(&argv[1..]),
-        _ => {}
-    }
-    let file_command = FILE_COMMANDS.iter().any(|(name, _)| *name == first);
-    // Every other command is the program tamagi-<command>.
-    if is_command_name(first) && !file_command {
-        if let Some(prog) = state::which(&format!("tamagi-{first}")) {
-            let err = Command::new(&prog).args(&argv[1..]).exec();
-            die(&format!("tamagi: {}: {}", prog.display(), strerror(&err)));
-        }
-        die(&format!("tamagi: {}: {first}  ({}: tamagi)", t("unknown command"), t("see")));
-    }
-    if !file_command {
-        if first == "-h" || (first.len() > 2 && "--help".starts_with(first)) {
-            main_help();
-        }
-        if first.starts_with('-') {
-            usage_error(USAGE, "the following arguments are required: cmd");
-        }
-        usage_error(USAGE, &format!("argument cmd: invalid choice: '{first}' (choose from 'init', 'export', 'diff', 'apply')"));
-    }
-    let args = file_args(first, &argv[1..]);
-    match first {
-        "init" | "export" => save_state(first, args.file),
-        _ => diff_or_apply(first, args),
+        "ai" => route_ai(rest),
+        "dev" => route_dev(rest),
+        "install" => route_install(rest),
+        "update" => exec_helper("tamagi-update", rest),
+        "rewind" => route_rewind(rest),
+        "layer" => exec_helper("tamagi-layer", rest),
+        "vm" => exec_helper("tamagi-vm", rest),
+        "shield" => route_shield(rest),
+        "sys" => route_sys(rest),
+        "why" => exec_helper("tamagi-why", rest),
+        _ => die(&format!("tamagi: {}: {first}  ({}: tamagi)", t("unknown command"), t("see"))),
     }
 }
 
@@ -451,13 +528,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn command_names() {
-        assert!(is_command_name("doctor"));
-        assert!(is_command_name("boot-report"));
-        assert!(!is_command_name("-h"));
-        assert!(!is_command_name("Doctor"));
-        assert!(!is_command_name("a_b"));
-        assert!(!is_command_name(""));
+    fn command_count_is_ten_and_valid() {
+        assert_eq!(COMMANDS.len(), 10);
+        for (name, _) in COMMANDS {
+            assert!(is_command_name(name), "{name}");
+        }
+        assert_eq!(FILE_COMMANDS.len(), 4);
     }
 
     #[test]
@@ -482,12 +558,5 @@ mod tests {
     fn io_error_text() {
         let e = io::Error::from_raw_os_error(2);
         assert_eq!(strerror(&e), "No such file or directory");
-    }
-
-    #[test]
-    fn every_listed_command_is_a_valid_name() {
-        for (_, name, _) in COMMANDS {
-            assert!(is_command_name(name), "{name}");
-        }
     }
 }

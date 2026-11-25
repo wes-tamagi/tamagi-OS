@@ -78,9 +78,27 @@ if [[ -n $live_src ]]; then
     [[ $DISK != "${live_disk:-$live_src}" && $DISK != "$live_src" ]] || die "$DISK é a própria mídia de instalação"
 fi
 
-# De onde vem o sistema: a imagem embutida na mídia; sem ela, o registry.
+# Edição escolhida (dxai = Tamagi-DxAI | skl = Tamagi-SKL): vem das respostas
+# do instalador ou da linha do kernel (GRUB: tamagi.edition=dxai|skl).
+EDITION=${A[EDITION]:-}
+if [[ -z $EDITION ]]; then
+    EDITION=$(sed -nE 's/(^|.* )tamagi\.edition=([^ ]+).*/\2/p' /proc/cmdline 2>/dev/null || true)
+fi
+case "$EDITION" in
+    skl) EDITION=skl ;;
+    *)   EDITION=dxai ;;
+esac
+
+# De onde vem o sistema: a imagem da edição embutida na mídia; sem ela, o registry.
 if [[ -d $PAYLOAD_DIR ]]; then
-    SOURCE="oci:$PAYLOAD_DIR"
+    if jq -e --arg tag "$EDITION" '.manifests[] | select(.annotations["org.opencontainers.image.ref.name"] == $tag)' \
+            "$PAYLOAD_DIR/index.json" >/dev/null 2>&1; then
+        SOURCE="oci:$PAYLOAD_DIR:$EDITION"
+    else
+        SOURCE="oci:$PAYLOAD_DIR"
+    fi
+elif [[ $EDITION == skl && -n ${SKL_TARGET_IMGREF:-} ]]; then
+    SOURCE="docker://$SKL_TARGET_IMGREF"
 elif [[ -n ${TARGET_IMGREF:-} ]]; then
     SOURCE="docker://$TARGET_IMGREF"
 else
@@ -548,8 +566,14 @@ ESP_UUID=$(blkid -s UUID -o value "$ESP")
 [[ -n $ESP_UUID ]] || die "não consegui ler o UUID da partição EFI"
 
 progress 12 copy
-[[ -n ${A[TARGET_IMGREF]:-} ]] && TARGET_IMGREF=${A[TARGET_IMGREF]}
-TARGET=(--target-transport registry --target-imgref "${TARGET_IMGREF:-localhost/tamagi:latest}")
+if [[ -n ${A[TARGET_IMGREF]:-} ]]; then
+    TARGET_REF=${A[TARGET_IMGREF]}
+elif [[ $EDITION == skl ]]; then
+    TARGET_REF=${SKL_TARGET_IMGREF:-localhost/tamagi-skl:latest}
+else
+    TARGET_REF=${TARGET_IMGREF:-localhost/tamagi:latest}
+fi
+TARGET=(--target-transport registry --target-imgref "$TARGET_REF")
 # O sistema vem da mídia e a instalação tem de funcionar sem rede: o bootc não
 # confere o registry agora. Sem registry configurado a imagem instalada ainda
 # não tem de onde se atualizar (`tamagi setup switch-image` resolve depois).
@@ -629,7 +653,8 @@ echo "idioma $locale, teclado $keymap, fuso $zone, nome $host" >&2
 # sistema rodando: home em /var/home e rótulos SELinux certos.
 install -d -m 700 "$DEPLOY/etc/tamagi"
 {
-    for key in USER FULLNAME PASSWORD_HASH XKB_LAYOUT XKB_VARIANT; do
+    echo "EDITION=$EDITION"
+    for key in USER FULLNAME PASSWORD_HASH XKB_LAYOUT XKB_VARIANT STUDENT_USER SKL_HOMEPAGE; do
         [[ -n ${A[$key]:-} ]] && echo "$key=${A[$key]}"
     done
 } > "$DEPLOY/etc/tamagi/install.conf"

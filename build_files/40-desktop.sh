@@ -1,31 +1,37 @@
 #!/usr/bin/bash
-# Desktop COSMIC: tela de login, papéis de parede e padrões do Tamagi.
-# O COSMIC guarda cada ajuste num arquivo em /usr/share/cosmic/<componente>/v1/,
-# então os padrões do Tamagi são só arquivos na imagem; o que o usuário mudar
-# vai para ~/.config/cosmic e tem prioridade.
+# Desktop COSMIC: tela de login, papéis de parede enxutos e padrões por edição
+# (Tamagi-DxAI ou Tamagi-SKL).
 
 C=/usr/share/cosmic
+EDITION=${TAMAGI_EDITION:-dxai}
 
-# Tela de login do COSMIC e boot gráfico.
 systemctl enable cosmic-greeter.service
 systemctl set-default graphical.target
 
-# O assistente inicial do COSMIC repete o que o instalador já perguntou
-# (teclado, fuso — e não avança sem escolher uma cidade). No primeiro login
-# quem aparece é o assistente do Tamagi; o do COSMIC continua no lançador.
 rm -f /etc/xdg/autostart/com.system76.CosmicInitialSetup.desktop
 
-# ── Papéis de parede: aparecem em Configurações › Papel de parede ──
-# Oito estilos por tema, desenhados a partir das cores do .conf. Só os PNG
-# vão para /usr/share/backgrounds/tamagi, a pasta que o COSMIC lista: o
-# usuário escolhe o papel de parede do jeito normal, nas Configurações.
+# ── Papéis de parede enxutos (dieta v1.5) ──
+# Em vez de 40 PNGs 4K (8 estilos x 5 temas), renderizamos em 2560px apenas:
+#   - ipe e ipe-light: mon, ondas e seigaiha (6 arquivos)
+#   - gruvbox, nord, tokyo-night: mon (3 arquivos, para troca de tema manter papel)
+# Total: 9 PNGs leves (economia >75% em /usr/share/backgrounds/tamagi).
 WALL_SVG=/tmp/tamagi-wallpapers
 python3 /ctx/build_files/make-wallpapers.py /usr/share/tamagi/themes "$WALL_SVG" /tmp/tamagi-wallpapers.xml
 mkdir -p /usr/share/backgrounds/tamagi
-for svg in "$WALL_SVG"/*.svg; do
+render_wall() {
+    local svg="$WALL_SVG/$1.svg"
+    [[ -f $svg ]] || { echo "SVG ausente: $svg" >&2; exit 1; }
     python3 -c 'import sys, xml.dom.minidom as m; m.parse(sys.argv[1])' "$svg"
-    rsvg-convert -w 3840 "$svg" -o "/usr/share/backgrounds/tamagi/$(basename "${svg%.svg}").png"
+    rsvg-convert -w 2560 "$svg" -o "/usr/share/backgrounds/tamagi/$1.png"
+}
+for w in ipe ipe-mon ipe-seigaiha ipe-light ipe-light-mon ipe-light-seigaiha gruvbox-mon nord-mon tokyo-night-mon; do
+    render_wall "$w"
 done
+# Em Tamagi-SKL, remove os papéis de parede ilustrados extras para enxugar ainda mais.
+if [[ $EDITION == skl ]]; then
+    rm -rf /usr/share/backgrounds/tamagi/art
+fi
+
 cat > "$C/com.system76.CosmicBackground/v1/all" <<'RON'
 (
     output: "all",
@@ -38,11 +44,7 @@ cat > "$C/com.system76.CosmicBackground/v1/all" <<'RON'
 )
 RON
 
-# ── Temas: um tema do COSMIC para cada tema do Tamagi ──
-# Ficam em /usr/share/cosmic-themes, junto dos temas do próprio COSMIC, cada
-# um com a sua miniatura: é dali que o COSMIC os oferece (escolha de tema) e
-# que Configurações › Aparência › Importar os lê. O `tamagi theme sync` leva
-# as cores do tema escolhido no COSMIC para os apps de terminal.
+# ── Temas do COSMIC (.ron + miniaturas) ──
 python3 /ctx/build_files/make-cosmic-themes.py /usr/share/tamagi/themes /usr/share/cosmic-themes
 n_conf=$(find /usr/share/tamagi/themes -name '*.conf' | wc -l)
 [[ $(find /usr/share/cosmic-themes -name 'tamagi-*.ron' | wc -l) -eq $n_conf ]] \
@@ -51,11 +53,7 @@ for conf in /usr/share/tamagi/themes/*.conf; do
     name=$(basename "$conf" .conf)
     rsvg-convert -w 768 -h 432 "$WALL_SVG/$name-mon.svg" -o "/usr/share/cosmic-themes/tamagi-$name.png"
 done
-# O tema padrão da imagem é o Ipê do Tamagi (escuro) com o Ipê Claro para o
-# modo claro, também para o COSMIC (janelas, barra e apps): cada import
-# escreve o tema completo numa pasta temporária, que vira o padrão do sistema.
-# O claro entra primeiro; o escuro por último deixa o sistema no modo escuro.
-# O que o usuário escolher depois fica em ~/.config/cosmic e tem prioridade.
+
 THEME_TMP=$(mktemp -d)
 for theme in ipe-light ipe; do
     XDG_CONFIG_HOME="$THEME_TMP" HOME="$THEME_TMP" timeout 60 \
@@ -64,7 +62,7 @@ for theme in ipe-light ipe; do
 done
 compgen -G "$THEME_TMP/cosmic/com.system76.CosmicTheme.Dark.Builder/v*/bg_color" >/dev/null \
     && compgen -G "$THEME_TMP/cosmic/com.system76.CosmicTheme.Light.Builder/v*/bg_color" >/dev/null \
-    || { echo "o import do tema não gravou os modos claro e escuro (o cosmic-settings mudou?)" >&2; exit 1; }
+    || { echo "o import do tema não gravou os modos claro e escuro" >&2; exit 1; }
 for d in "$THEME_TMP"/cosmic/com.system76.CosmicTheme.*; do
     [[ -n $(find "$d" -type f -print -quit) ]] || continue
     mkdir -p "$C/$(basename "$d")"
@@ -72,14 +70,14 @@ for d in "$THEME_TMP"/cosmic/com.system76.CosmicTheme.*; do
 done
 echo "tema padrão do COSMIC: Tamagi Ipê (escuro) e Ipê Claro"
 
-# ── Janelas ──
-# Tiling automático ligado em todos os workspaces (Super+Y alterna).
-echo true > "$C/com.system76.CosmicComp/v1/autotile"
-echo Global > "$C/com.system76.CosmicComp/v1/autotile_behavior"
-# O idioma padrão da imagem (TAMAGI_DEFAULT_LANG: en ou pt) fica gravado em
-# /usr/share/tamagi/default-lang: o instalador, a sessão live e o `tamagi lang`
-# leem dali. O teclado de fábrica acompanha (US ou ABNT2); o instalador grava
-# o que for escolhido.
+# ── Janelas & Teclado ──
+if [[ $EDITION == skl ]]; then
+    echo false > "$C/com.system76.CosmicComp/v1/autotile"
+else
+    echo true > "$C/com.system76.CosmicComp/v1/autotile"
+    echo Global > "$C/com.system76.CosmicComp/v1/autotile_behavior"
+fi
+
 case "${TAMAGI_DEFAULT_LANG:-en}" in
     en) XKB_DEFAULT=us ;;
     pt) XKB_DEFAULT=br ;;
@@ -104,9 +102,7 @@ cat > "$C/com.system76.CosmicComp/v1/xkb_config" <<RON
     repeat_rate: 25,
 )
 RON
-# Janelas utilitárias do Tamagi (menu, ações rápidas, agente) abrem flutuando:
-# o popup usa o foot com o app id "org.tamagi.Menu" (o da paleta: a barra
-# mostra o ícone do Tamagi em vez de um ícone genérico).
+
 rules="$C/com.system76.CosmicSettings.WindowRules/v1/tiling_exception_defaults"
 python3 - "$rules" <<'PY'
 import sys
@@ -117,25 +113,18 @@ text = text[:-1].rstrip() + '\n\t// Tamagi\n\t(appid: "tamagi-popup", titles: ["
 open(path, "w", encoding="utf-8").write(text)
 PY
 
-# Paleta padrão das janelas do Tamagi (o tamagi-theme gera a do usuário).
+# Paleta padrão das janelas do Tamagi (foot)
 tamagi-theme foot ipe > /usr/share/tamagi/foot.ini
 foot --config=/usr/share/tamagi/foot.ini --check-config >/dev/null || { echo "foot.ini das janelas do Tamagi é inválido" >&2; exit 1; }
-
-# ── Terminal padrão: foot (o cosmic-term continua instalado, no lançador) ──
-# Configuração do sistema com a fonte e as cores do tema padrão; o
-# tamagi-theme grava a do usuário em ~/.config/foot/foot.ini.
 tamagi-theme foot ipe > /etc/xdg/foot/foot.ini
 foot --check-config >/dev/null || { echo "foot.ini gerado pelo tamagi-theme é inválido" >&2; exit 1; }
-# O atalho System(Terminal) do COSMIC (Super+Enter) roda o que estiver aqui.
 sed -i 's|^\(\s*Terminal: \)"cosmic-term",|\1"/usr/libexec/tamagi/term",|' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions"
 grep -q 'Terminal: "/usr/libexec/tamagi/term"' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions" \
-    || { echo "system_actions do COSMIC mudou de formato: o terminal padrão não virou foot" >&2; exit 1; }
+    || { echo "system_actions do COSMIC mudou de formato" >&2; exit 1; }
 
 # ── Arquivos (COSMIC Files): grade, pastas primeiro ──
-# A lista continua a um clique, no botão de visualização (ou Ctrl+1/Ctrl+2).
 F="$C/com.system76.CosmicFiles/v1"
 mkdir -p "$F"
-grep -q "view:" "$F/tab" 2>/dev/null || echo "aviso: o COSMIC Files mudou o formato de 'tab'; confira os padrões" >&2
 rm -f "$F/tab"
 cat > "$F/tab" <<'RON'
 (
@@ -150,63 +139,43 @@ cat > "$F/tab" <<'RON'
 )
 RON
 
-# ── Fontes: Roboto Flex na interface do COSMIC (libcosmic) e nos apps GTK ──
-# É a fonte do Material 3 (docs/estilo-m3.md), variável, num arquivo só. A Noto
-# Sans fica logo atrás no fontconfig: cobre os alfabetos que a Roboto Flex não
-# tem (CJK, árabe, devanágari…). Roboto Slab é a fonte com serifa
-# (55-tamagi-fonts.conf).
+# ── Fontes: Roboto Flex + Noto Sans fallback + JetBrains Mono ──
 install -d "$C/com.system76.CosmicTk/v1"
 rm -f "$C/com.system76.CosmicTk/v1/interface_font" "$C/com.system76.CosmicTk/v1/monospace_font"
 echo '(family: "Roboto Flex", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/interface_font"
 echo '(family: "JetBrains Mono", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/monospace_font"
-# cosmic-term e cosmic-edit guardam a fonte na configuração do próprio app.
 for app in CosmicTerm CosmicEdit; do
     install -d "$C/com.system76.$app/v1"
     rm -f "$C/com.system76.$app/v1/font_name"
     echo '"JetBrains Mono"' > "$C/com.system76.$app/v1/font_name"
 done
-# O libcosmic vai mudar a fonte de lugar (de CosmicTk para o tema): quando a
-# versão empacotada deixar de ler esta chave, o build avisa em vez de a
-# interface voltar para a fonte padrão em silêncio.
-grep -aq interface_font /usr/bin/cosmic-settings || { echo "o libcosmic desta versão não lê mais CosmicTk/interface_font: ajuste 40-desktop.sh" >&2; exit 1; }
+grep -aq interface_font /usr/bin/cosmic-settings || { echo "o libcosmic desta versão não lê mais CosmicTk/interface_font" >&2; exit 1; }
 install -Dm644 /dev/stdin /etc/dconf/db/local.d/10-tamagi-fonts <<'DCONF'
 [org/gnome/desktop/interface]
 font-name='Roboto Flex 11'
-document-font-name='Roboto Slab 11'
+document-font-name='Roboto Flex 11'
 monospace-font-name='JetBrains Mono 11'
 DCONF
-# (o perfil padrão do Fedora já lê o banco "local"; só cria se não existir)
 [[ -e /etc/dconf/profile/user ]] || printf 'user-db:user\nsystem-db:local\n' | install -Dm644 /dev/stdin /etc/dconf/profile/user
 dconf update
-# Uma família, uma cópia: Noto Sans estática e variável juntas fazem o texto
-# sumir ou trocar de peso em apps do COSMIC.
 rpm -q google-noto-sans-fonts >/dev/null 2>&1 && { echo "google-noto-sans-fonts (estática) duplicaria a Noto Sans variável" >&2; exit 1; }
 fc-cache -f >/dev/null
 [[ $(fc-match -f '%{family}' sans-serif) == "Roboto Flex" ]] || { echo "sans-serif não é Roboto Flex" >&2; exit 1; }
 [[ $(fc-list 'Roboto Flex' family | sort -u) == "Roboto Flex" ]] || { echo "Roboto Flex ausente ou duplicada" >&2; exit 1; }
-# Texto em japonês continua com uma fonte que tem os caracteres.
 [[ $(fc-match -f '%{family}' 'sans-serif:lang=ja') != "Roboto Flex" ]] || { echo "sem fonte de reserva para japonês" >&2; exit 1; }
-[[ $(fc-match -f '%{family}' serif) == "Roboto Slab" ]] || { echo "serif não é Roboto Slab" >&2; exit 1; }
 
-# ── Barra: uma só, embaixo, com os apps no centro ──
-# Junta o layout "Centered" do AnduinOS (barra de tarefas embaixo, apps no
-# meio, bandeja e relógio à direita) com os applets e o acabamento do COSMIC
-# (barra flutuante, cantos arredondados, um pouco translúcida). O layout
-# original do COSMIC (painel em cima + dock) e o clássico continuam a um
-# comando: tamagi-panel.
-tamagi-panel defaults "$C"
-# O Dock do COSMIC tem de continuar como veio do pacote (o estilo "cosmic" volta a ele).
+# ── Barra e Menu Iniciar ──
+if [[ $EDITION == skl ]]; then
+    tamagi-panel defaults-skl "$C"
+else
+    tamagi-panel defaults "$C"
+fi
 dock_changed=$(rpm -V cosmic-panel 2>/dev/null | grep 'CosmicPanel\.Dock/' | grep -c '^..5' || true)
 [[ $dock_changed -eq 0 ]] || { echo "tamagi-panel alterou os padrões do Dock (hardlink)" >&2; exit 1; }
 
-# ── Menu iniciar ancorado ao botão (cosmic-ext-classic-menu) ──
-# Botão com o brasão do Tamagi (o anel com as três joias), sem texto. Layout
-# "Retro": usuário no topo, lista de apps à esquerda, lugares (Pasta pessoal,
-# Documentos, Configurações…) à direita, busca e botões de energia embaixo.
-# Os outros layouts ficam nas configurações do próprio menu.
 command -v cosmic-ext-classic-menu-applet >/dev/null || { echo "applet do menu iniciar não instalado" >&2; exit 1; }
 [[ -f /usr/share/applications/com.championpeak87.cosmic-ext-classic-menu.desktop ]] \
-    || { echo "o applet do menu mudou de identificador: ajuste tamagi-panel" >&2; exit 1; }
+    || { echo "o applet do menu mudou de identificador" >&2; exit 1; }
 MENU_ICON=/usr/share/tamagi/menu/tamagi-start-symbolic.svg
 [[ -f $MENU_ICON ]] || { echo "falta o ícone do menu: $MENU_ICON" >&2; exit 1; }
 rsvg-convert "$MENU_ICON" -o /tmp/menu-icon-check.png && [[ -s /tmp/menu-icon-check.png ]] && rm -f /tmp/menu-icon-check.png
@@ -218,13 +187,157 @@ echo Bottom > "$M/search_field_position"
 echo Favorites > "$M/featured_applications"
 echo IconOnly > "$M/applet_button_style"
 echo "\"$MENU_ICON\"" > "$M/button_icon"
-# Menu focado (1.1.0): abre já com o teclado (digitar busca, setas navegam),
-# também pelo atalho. Ele abre no canto da tela do lado do botão, e sem o
-# desfoque do popup. Sem isto, só se digita depois de clicar na busca.
 echo true > "$M/focused_menu"
 grep -aq focused_menu /usr/bin/cosmic-ext-classic-menu-applet \
-    || { echo "o applet do menu não conhece focused_menu (versão antiga?)" >&2; exit 1; }
-cat > "$M/favorite_applications" <<'RON'
+    || { echo "o applet do menu não conhece focused_menu" >&2; exit 1; }
+
+mkdir -p "$C/com.system76.CosmicAppletTime/v1"
+echo true > "$C/com.system76.CosmicAppletTime/v1/military_time"
+
+# ── WebApps de sistema e favoritos por edição ──
+if [[ $EDITION == skl ]]; then
+    # Tamagi-SKL: atalhos WebApp (Google Docs, Planilhas, Apresentações e Gemini)
+    # no menu e fixados no painel travado + abertura automática do Chromium.
+    cat > /usr/share/applications/tamagi-skl-docs.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Google Docs
+Comment=Google Docs (WebApp)
+Exec=/usr/bin/chromium-browser --app=https://docs.google.com --class=tamagi-skl-docs
+Icon=x-office-document
+Terminal=false
+Categories=Office;WordProcessor;
+StartupWMClass=tamagi-skl-docs
+SingleMainWindow=true
+DESKTOP
+    cat > /usr/share/applications/tamagi-skl-sheets.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Google Sheets
+Name[pt_BR]=Google Planilhas
+Name[pt]=Google Planilhas
+Comment=Google Sheets (WebApp)
+Exec=/usr/bin/chromium-browser --app=https://docs.google.com/spreadsheets --class=tamagi-skl-sheets
+Icon=x-office-spreadsheet
+Terminal=false
+Categories=Office;Spreadsheet;
+StartupWMClass=tamagi-skl-sheets
+SingleMainWindow=true
+DESKTOP
+    cat > /usr/share/applications/tamagi-skl-slides.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Google Slides
+Name[pt_BR]=Google Apresentações
+Name[pt]=Google Apresentações
+Comment=Google Slides (WebApp)
+Exec=/usr/bin/chromium-browser --app=https://docs.google.com/presentation --class=tamagi-skl-slides
+Icon=x-office-presentation
+Terminal=false
+Categories=Office;Presentation;
+StartupWMClass=tamagi-skl-slides
+SingleMainWindow=true
+DESKTOP
+    cat > /usr/share/applications/tamagi-skl-gemini.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Gemini
+Comment=Google Gemini AI (WebApp)
+Exec=/usr/bin/chromium-browser --app=https://gemini.google.com --class=tamagi-skl-gemini
+Icon=applications-science
+Terminal=false
+Categories=Network;Education;
+StartupWMClass=tamagi-skl-gemini
+SingleMainWindow=true
+DESKTOP
+    cat > /etc/xdg/autostart/tamagi-skl-browser.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Tamagi-SKL Browser
+Comment=Start Chromium on student login
+Exec=/usr/libexec/tamagi/skl-browser-launch
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+DESKTOP
+
+    # Política padrão gerenciada do Chromium para Tamagi-SKL (a URL inicial é
+    # preenchida pelo instalador ou via `sudo tamagi-skl homepage <url>`):
+    # - nunca salva senhas (PasswordManagerEnabled: false)
+    # - destrói cookies/login ao fechar (ClearBrowsingDataOnExitList)
+    # - mantém histórico por exatamente 15 dias = 360 horas (BrowsingDataLifetime)
+    install -Dm644 /dev/stdin /etc/chromium/policies/managed/tamagi-skl.json <<'JSON'
+{
+  "BrowserSignin": 0,
+  "PasswordManagerEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "HomepageIsNewTabPage": false,
+  "HomepageLocation": "https://classroom.google.com",
+  "RestoreOnStartup": 4,
+  "RestoreOnStartupURLs": [
+    "https://classroom.google.com"
+  ],
+  "ClearBrowsingDataOnExitList": [
+    "cookies_and_other_site_data",
+    "password_signin",
+    "autofill",
+    "hosted_app_data"
+  ],
+  "BrowsingDataLifetime": [
+    {
+      "data_types": [
+        "browsing_history",
+        "download_history"
+      ],
+      "time_to_live_in_hours": 360
+    }
+  ],
+  "ManagedBookmarks": [
+    { "toplevel_name": "Escola" },
+    { "name": "Google Docs", "url": "https://docs.google.com" },
+    { "name": "Google Planilhas", "url": "https://docs.google.com/spreadsheets" },
+    { "name": "Google Apresentações", "url": "https://docs.google.com/presentation" },
+    { "name": "Gemini", "url": "https://gemini.google.com" }
+  ]
+}
+JSON
+
+    cat > "$M/favorite_applications" <<'RON'
+[
+    "tamagi-browser",
+    "tamagi-skl-docs",
+    "tamagi-skl-sheets",
+    "tamagi-skl-slides",
+    "tamagi-skl-gemini",
+    "com.system76.CosmicFiles",
+]
+RON
+    cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
+[
+    "tamagi-browser",
+    "tamagi-skl-docs",
+    "tamagi-skl-sheets",
+    "tamagi-skl-slides",
+    "tamagi-skl-gemini",
+    "com.system76.CosmicFiles",
+]
+RON
+else
+    # Tamagi-DxAI: WebApp Lark Suite pré-configurada (100% compatível com GHCR
+    # público; o instalador nativo sob demanda também está em `tamagi install lark`).
+    cat > /usr/share/applications/tamagi-lark.desktop <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Lark Suite
+Comment=Lark Suite workspace (WebApp; native RPM via tamagi install lark)
+Exec=/usr/bin/tamagi-browser app --app=https://www.larksuite.com --class=tamagi-lark
+Icon=internet-chat
+Terminal=false
+Categories=Office;Network;InstantMessaging;
+StartupWMClass=tamagi-lark
+SingleMainWindow=true
+DESKTOP
+    cat > "$M/favorite_applications" <<'RON'
 [
     "tamagi-browser",
     "com.system76.CosmicFiles",
@@ -234,16 +347,7 @@ cat > "$M/favorite_applications" <<'RON'
     "com.system76.CosmicSettings",
 ]
 RON
-
-# ── Relógio do painel em 24 horas (o primeiro uso troca para AM/PM em inglês) ──
-mkdir -p "$C/com.system76.CosmicAppletTime/v1"
-echo true > "$C/com.system76.CosmicAppletTime/v1/military_time"
-
-# Poucos favoritos: a imagem é enxuta, e o foco é IA (o agente local fica à
-# mão). "tamagi-browser" é o navegador
-# genérico: abre o navegador padrão e, enquanto não há nenhum, deixa escolher
-# um; o primeiro instalado toma o lugar dele na barra (tamagi-browser).
-cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
+    cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
 [
     "tamagi-browser",
     "com.system76.CosmicFiles",
@@ -253,9 +357,9 @@ cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
     "com.system76.CosmicSettings",
 ]
 RON
+fi
 
 # ── Atalhos do Tamagi por cima dos padrões do COSMIC ──
-# Cada atalho novo substitui o que já usava a mesma combinação de teclas.
 python3 - "$C/com.system76.CosmicSettings.Shortcuts/v1/defaults" <<'PY'
 import re
 import sys
@@ -265,21 +369,18 @@ popup = "/usr/libexec/tamagi/popup"
 ours = [
     ("[Super]", "Return", "System(Terminal)"),
     ("[Super]", "w", "Close"),
-    # Super+Espaço: o menu iniciar da barra (o botão do Tamagi).
     ("[Super]", "space", 'Spawn("/usr/libexec/tamagi/start-menu")'),
     ("[Super, Ctrl]", "space", "System(InputSourceSwitch)"),
     ("[Super]", "b", "System(WebBrowser)"),
     ("[Super]", "e", "System(HomeFolder)"),
     ("[Super]", "f", "Fullscreen"),
     ("[Super]", "t", "ToggleWindowFloating"),
-    # Super+A: a paleta de comandos (ações do Tamagi, instalar, configurar).
     ("[Super]", "a", 'Spawn("tamagi-menu")'),
     ("[Super, Alt]", "space", "System(Launcher)"),
     ("[Super, Shift]", "a", f'Spawn("{popup} tamagi-agent")'),
     ("[Super]", "k", f'Spawn("{popup} tamagi-keys")'),
-    ("[Super, Shift]", "t", f'Spawn("{popup} btop")'),
+    ("[Super, Shift]", "t", f'Spawn("{popup} btm")'),
     ("[Super, Shift]", "n", f'Spawn("{popup} --tile /usr/libexec/tamagi/dev-tool nvim")'),
-    # Do Omarchy: captura, apps com Super+Shift+letra, emoji e lembrete.
     ("[Shift]", "Print", 'Spawn("tamagi-capture text")'),
     ("[Alt]", "Print", 'Spawn("tamagi-capture record")'),
     ("[Super, Shift]", "g", f'Spawn("{popup} --tile /usr/libexec/tamagi/dev-tool lazygit")'),
@@ -309,23 +410,18 @@ open(path, "w", encoding="utf-8").write("\n".join(kept) + "\n")
 print(f"atalhos do COSMIC: {len(ours)} do Tamagi aplicados")
 PY
 
-# Terminal para apps de terminal (.desktop com Terminal=true) e `xdg-terminal-exec`:
-# o foot primeiro (é o padrão), depois o cosmic-term.
 install -Dm644 /dev/stdin /etc/xdg/xdg-terminals.list <<'LIST'
 org.gnome.Ptyxis.desktop
 foot.desktop
 com.system76.CosmicTerm.desktop
 LIST
-# O foot é só o motor leve das janelas flutuantes do Tamagi (org.tamagi.Menu):
-# no lançador ficam apenas o Ptyxis (contêineres) e o COSMIC Terminal.
 for f in foot foot-server footclient; do
     [[ -f /usr/share/applications/$f.desktop ]] && \
         desktop-file-edit --set-key=NoDisplay --set-value=true /usr/share/applications/$f.desktop
 done
 
-# ── Chromium: Omarchy Google Account OAuth2 + Wayland/PipeWire + ~/.config/chromium-flags.conf ──
 if [[ -f /etc/chromium/chromium.conf ]] && ! grep -q '/etc/chromium/tamagi.conf' /etc/chromium/chromium.conf; then
-    printf '\n# Tamagi OS defaults (Google Account OAuth2, Wayland/PipeWire, ~/.config/chromium-flags.conf)\n[[ -f /etc/chromium/tamagi.conf ]] && . /etc/chromium/tamagi.conf\n' >> /etc/chromium/chromium.conf
+    printf '\n# Tamagi OS defaults (Wayland/PipeWire, hardware decode, edition-aware OAuth2)\n[[ -f /etc/chromium/tamagi.conf ]] && . /etc/chromium/tamagi.conf\n' >> /etc/chromium/chromium.conf
 fi
 bash -n /etc/chromium/chromium.conf /etc/chromium/tamagi.conf
 
@@ -334,5 +430,6 @@ gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
 for f in /usr/share/applications/tamagi-*.desktop /usr/share/applications/org.tamagi.Menu.desktop \
          /usr/share/tamagi/desktop/*.desktop \
          /etc/xdg/autostart/tamagi-*.desktop; do
+    [[ -f $f ]] || continue
     desktop-file-validate "$f"
 done

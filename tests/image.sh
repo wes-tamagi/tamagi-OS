@@ -15,27 +15,38 @@ section() { echo; echo "== $*"; }
 export HOME=/tmp/test-home XDG_RUNTIME_DIR=/tmp/test-run TAMAGI_LANG=pt
 mkdir -p "$HOME" "$XDG_RUNTIME_DIR"
 
+EDITION=$(cat /usr/share/tamagi/edition 2>/dev/null || echo dxai)
+EDITION_NAME="Tamagi-DxAI"
+[[ $EDITION == skl ]] && EDITION_NAME="Tamagi-SKL"
+echo "Edição detectada: $EDITION_NAME ($EDITION)"
+
 section "Identidade"
-check "os-release diz Tamagi"            grep -q '^NAME="Tamagi"' /usr/lib/os-release
-check "versão 1.0, codinome Kazunobu M"  grep -q '^PRETTY_NAME="Tamagi 1.0 (Kazunobu M)"' /usr/lib/os-release
-check "VERSION_ID continua o do Fedora"   grep -qE '^VERSION_ID=4[0-9]' /usr/lib/os-release
-check "ID continua fedora"                grep -q '^ID=fedora' /usr/lib/os-release
-check "image-info.json é JSON válido"     jq -e '."image-name"' /usr/share/ublue-os/image-info.json
-check "root padrão é btrfs"               grep -q 'type = "btrfs"' /usr/lib/bootc/install/10-tamagi.toml
+check "os-release diz $EDITION_NAME"       grep -q "^NAME=\"${EDITION_NAME}\"" /usr/lib/os-release
+check "versão 1.5, codinome Kazunobu M"    grep -q "^PRETTY_NAME=\"${EDITION_NAME} 1.5 (Kazunobu M)\"" /usr/lib/os-release
+check "VERSION_ID continua o do Fedora"    grep -qE '^VERSION_ID=4[0-9]' /usr/lib/os-release
+check "ID continua fedora"                 grep -q '^ID=fedora' /usr/lib/os-release
+check "image-info.json é JSON válido"      jq -e '."image-name"' /usr/share/ublue-os/image-info.json
+check "root padrão é btrfs"                grep -q 'type = "btrfs"' /usr/lib/bootc/install/10-tamagi.toml
 
 section "Ferramentas na imagem"
-for cmd in distrobox podman flatpak bootc foot cosmic-term cosmic-files git rg fd bat \
-           eza zoxide btop fastfetch gum starship jq dust delta \
-           usbguard \
-           llama-server llama-cli claude \
-           tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-keys tamagi-panel tamagi-lang \
-           tamagi-firstrun tamagi-update tamagi-webapp \
-           chromium-browser chromedriver \
-           tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper tamagi-windows tamagi-db tamagi-capture tamagi-devbox tamagi-font tamagi-antigravity tamagi-isolate bwrap tamagi-rewind tamagi-privacy tamagi-perf tamagi-workspace tamagi-doctor tamagi-gaming tamagi-install tamagi-agents tamagi-mcp tamagi-vm tamagi-try scx_rusty; do
+COMMON_CMDS=(distrobox podman flatpak bootc foot cosmic-term cosmic-files git fd \
+             btm gum starship jq tailscale \
+             tamagi-ai tamagi-agent tamagi-theme tamagi-menu tamagi-keys tamagi-panel tamagi-lang \
+             tamagi-firstrun tamagi-update tamagi-webapp \
+             chromium-browser \
+             tamagi-browser tamagi-harden tamagi tamagi-layer tamagi-boot-report tamagi-snap snapper tamagi-windows tamagi-db tamagi-capture tamagi-devbox tamagi-font tamagi-antigravity tamagi-isolate bwrap tamagi-rewind tamagi-privacy tamagi-perf tamagi-workspace tamagi-doctor tamagi-gaming tamagi-install tamagi-agents tamagi-mcp tamagi-vm tamagi-try tamagi-why tamagi-skl)
+for cmd in "${COMMON_CMDS[@]}"; do
     check "comando $cmd" command -v "$cmd"
 done
-check "imagem DX enxuta: jogos, compiladores, mise, opencode, OCR, adb, Go e atalhos periféricos fora; QEMU/libvirt/Cockpit sim" bash -c 'for c in steam gamescope mangohud clang go mise opencode google-chrome-stable firefox tesseract adb iperf3 ncat tamagi-remind tamagi-recipe tamagi-guest; do ! command -v $c >/dev/null 2>&1 || { echo "$c"; exit 1; }; done; ! rpm -q steam-devices >/dev/null 2>&1 && for c in virsh qemu-kvm cockpit-bridge; do command -v $c >/dev/null 2>&1 || { echo "falta $c"; exit 1; }; done && rpm -q cockpit-machines libvirt-daemon-kvm >/dev/null 2>&1'
-check "um comando só: tamagi lista e repassa (tamagi doctor == tamagi-doctor)" bash -c 'TAMAGI_LANG=en tamagi | grep -q "tamagi doctor" && tamagi doctor --help | grep -qi diagn && tamagi tiling status | grep -q "^tiling:" && ! tamagi inexistente 2>/dev/null'
+if [[ $EDITION == skl ]]; then
+    check "Tamagi-SKL enxuto: sem cosmic-store, chromedriver, llama-server, libvirt, gamescope ou cosmic-ext-storage" bash -c 'for c in cosmic-store chromedriver llama-server llama-cli claude virsh qemu-kvm gamescope mangohud cosmic-ext-storage; do ! command -v "$c" >/dev/null 2>&1 || { echo "ainda presente: $c"; exit 1; }; done'
+else
+    for cmd in rg bat eza zoxide scx_rusty scx_rustland llama-server llama-cli claude chromedriver rclone cosmic-ext-storage gamescope mangohud gamemoderun virsh qemu-kvm cockpit-bridge; do
+        check "comando DxAI $cmd" command -v "$cmd"
+    done
+    check "imagem DxAI enxuta: Steam/compiladores/guestfs/btop/fastfetch/dust/delta/usbguard/gnome-disks fora; base Bazzite + QEMU/libvirt/Cockpit sim" bash -c 'for c in steam clang go mise opencode google-chrome-stable firefox tesseract adb iperf3 ncat btop fastfetch dust delta usbguard gnome-disks tamagi-remind tamagi-recipe tamagi-guest; do ! command -v "$c" >/dev/null 2>&1 || { echo "ainda presente: $c"; exit 1; }; done; ! rpm -q guestfs-tools nm-connection-editor google-roboto-slab-fonts cascadia-code-nf-fonts adw-gtk3-theme hardened_malloc >/dev/null 2>&1 && rpm -q steam-devices gamescope mangohud gamemode mesa-vulkan-drivers.i686 cockpit-machines libvirt-daemon-kvm >/dev/null 2>&1'
+fi
+check "CLI enxuta (10 comandos, sem aliases legados): tamagi why, tamagi ai flights, tamagi sys doctor" bash -c 'o=$(TAMAGI_LANG=en tamagi); [[ $(grep -c "^  tamagi " <<<"$o") -eq 10 ]] && grep -q "tamagi why" <<<"$o" && tamagi sys doctor --help | grep -qi diagn && tamagi sys desktop tiling status | grep -q "^tiling:" && ! tamagi doctor 2>/dev/null && ! tamagi inexistente 2>/dev/null && tamagi why /usr/bin/bash | grep -qiE "base|image|rpm" && tamagi ai flights list >/dev/null'
 check "comandos e subcomandos em inglês (sem apelidos em português)" bash -c '! ls /usr/bin | grep -qE "^tamagi-(convidado|voltar|privacidade|lembrete|isolar|popos|dev|assist)$" && ! grep -lE "^\s+[a-z|-]*\b(instalar|remover|abrir|ligar|desligar|ajuda|estado|lista)\)" /usr/bin/tamagi-* 2>/dev/null | grep -q .'
 
 section "Base e kernel"
@@ -53,38 +64,58 @@ check "módulo v4l2loopback assinado e sem xone/xpadneo na base" bash -c "find /
 check "módulos assinados; chave do Universal Blue na imagem (Secure Boot)" bash -c "test -s /etc/pki/akmods/certs/akmods-ublue.der && f=\$(find /usr/lib/modules/$kver -name 'v4l2loopback.ko*' | head -1) && modinfo -F signer \"\$f\" | grep -q ."
 
 section "Redes e conectividade"
-for vpn in openvpn openconnect; do
-    check "VPN $vpn no NetworkManager"     bash -c "ls /usr/lib/NetworkManager/VPN/ /etc/NetworkManager/VPN/ 2>/dev/null | grep -qi '$vpn'"
-done
-check "VPNs raras fora da imagem, no catálogo (tamagi install vpn-extra)" bash -c '! rpm -q NetworkManager-l2tp NetworkManager-pptp NetworkManager-sstp NetworkManager-strongswan NetworkManager-libreswan NetworkManager-ssh >/dev/null 2>&1 && grep -q "^vpn-extra	Networks	.*tamagi-layer add vpn-extra .*NetworkManager-l2tp-gnome" /usr/share/tamagi/catalog.tsv'
-check "Cockpit só com o que o tamagi vm usa (sem storaged e networkmanager)" bash -c 'rpm -q cockpit cockpit-machines cockpit-podman >/dev/null && ! rpm -q cockpit-storaged >/dev/null 2>&1 && ! rpm -q cockpit-networkmanager >/dev/null 2>&1'
+check "VPNs extras (OpenVPN/OpenConnect/L2TP/IPsec) fora da imagem, no catálogo (tamagi install vpn-extra)" bash -c '! rpm -q NetworkManager-openvpn-gnome NetworkManager-openconnect-gnome NetworkManager-l2tp NetworkManager-pptp NetworkManager-sstp NetworkManager-strongswan NetworkManager-libreswan NetworkManager-ssh >/dev/null 2>&1 && grep -q "^vpn-extra	Networks	.*tamagi-layer add vpn-extra .*NetworkManager-openvpn-gnome" /usr/share/tamagi/catalog.tsv'
+if [[ $EDITION == skl ]]; then
+    check "SKL: SSH (AllowGroups wheel, sem root) e Cockpit web habilitados para professor/diretor" bash -c 'systemctl is-enabled sshd.service | grep -qx enabled && systemctl is-enabled cockpit.socket | grep -qx enabled && grep -q "AllowGroups wheel" /etc/ssh/sshd_config.d/50-tamagi-skl.conf && grep -q "PermitRootLogin no" /etc/ssh/sshd_config.d/50-tamagi-skl.conf'
+else
+    check "Cockpit só com o que o tamagi vm usa (sem storaged e networkmanager)" bash -c 'rpm -q cockpit cockpit-machines cockpit-podman >/dev/null && ! rpm -q cockpit-storaged >/dev/null 2>&1 && ! rpm -q cockpit-networkmanager >/dev/null 2>&1'
+fi
 check "WireGuard"                          command -v wg
 check "Wi-Fi, banda larga móvel e Bluetooth no NetworkManager" rpm -q NetworkManager-wifi NetworkManager-wwan NetworkManager-bluetooth ModemManager
-check "Tailscale é opcional: fora da imagem, no catálogo, com o repositório oficial" bash -c '! command -v tailscale && ! rpm -q tailscale >/dev/null 2>&1 && grep -qP "^tailscale\t" /usr/share/tamagi/catalog.tsv && grep -q "pkgs.tailscale.com/stable/fedora" /usr/libexec/tamagi/tailscale-setup && grep -q -- "--unit tailscaled.service" /usr/libexec/tamagi/tailscale-setup'
-check "pastas Windows/NAS (SMB), NFS, SSHFS e MTP; extras no catálogo" bash -c 'rpm -q gvfs-smb cifs-utils nfs-utils fuse-sshfs samba-client gvfs-mtp usb_modeswitch && command -v wsdd && ! rpm -q tesseract android-tools iperf3 nmap-ncat ifuse >/dev/null 2>&1 && for id in ocr android-tools net-tools; do grep -qP "^$id\t" /usr/share/tamagi/catalog.tsv || exit 1; done'
+check "Tailscale pré-instalado e desligado por padrão (0 RAM parado; repo oficial desabilitado pós-build)" bash -c 'command -v tailscale >/dev/null && rpm -q tailscale >/dev/null && ! systemctl is-enabled tailscaled.service 2>/dev/null | grep -qx enabled && grep -q "tailscaled.service" /usr/libexec/tamagi/tailscale-setup'
+check "pastas Windows/NAS (SMB) e MTP na imagem; NFS/SSHFS, OCR, adb e net-tools no catálogo" bash -c 'rpm -q gvfs-smb cifs-utils samba-client gvfs-mtp usb_modeswitch && ! rpm -q gvfs-nfs fuse-sshfs tesseract android-tools iperf3 nmap-ncat ifuse >/dev/null 2>&1 && for id in net-fs ocr android-tools net-tools; do grep -qP "^$id\t" /usr/share/tamagi/catalog.tsv || exit 1; done'
 check "descoberta na rede local (mDNS)"    rpm -q avahi nss-mdns
 check "impressão e scanner sem driver"     rpm -q cups cups-browsed ipp-usb sane-airscan
 check "firmware de Wi-Fi (Intel, Realtek, MediaTek, Atheros, Broadcom)" rpm -q iwlwifi-mvm-firmware realtek-firmware mt7xxx-firmware atheros-firmware brcmfmac-firmware
 check "firewall ativo por padrão"          systemctl is-enabled firewalld
 
 section "Navegadores (Chromium nativo + extras) e WebApps"
-check "Chromium + ChromeDriver nativos com OAuth2 Google e inglês padrão" bash -c '
-    rpm -q chromium chromedriver >/dev/null
-    for p in firefox google-chrome-stable; do ! rpm -q "$p" >/dev/null 2>&1 || exit 1; done
-    [[ -f /etc/chromium/tamagi.conf ]] && bash -n /etc/chromium/tamagi.conf
-    grep -q "/etc/chromium/tamagi.conf" /etc/chromium/chromium.conf
-    grep -q -- "--oauth2-client-id=77185425430.apps.googleusercontent.com" /etc/chromium/tamagi.conf
-    grep -q -- "--oauth2-client-secret=OTJgUOQcT7lO7GsGZq2G4IlT" /etc/chromium/tamagi.conf
-    grep -q "ManagedOOMMemoryPressure=kill" /usr/lib/systemd/system/user@.service.d/20-tamagi-oomd.conf
-    if [[ $(cat /usr/share/tamagi/default-lang 2>/dev/null || echo en) == en ]]; then
-        grep -q "^LANG=en_US\.UTF-8" /etc/locale.conf
-    fi
-    TAMAGI_LANG=en tamagi-browser google-account status | grep -qi "enabled"
-    tamagi-browser google-account off >/dev/null
-    TAMAGI_LANG=en tamagi-browser google-account status | grep -qi "disabled"
-    tamagi-browser google-account on >/dev/null
-    TAMAGI_LANG=en tamagi-browser google-account status | grep -qi "enabled"
-'
+if [[ $EDITION == skl ]]; then
+    check "SKL: Chromium nativo SEM ChromeDriver e SEM OAuth2, com política de sessão (sem senhas, limpa login ao fechar, histórico 15 dias = 360h)" bash -c '
+        rpm -q chromium >/dev/null
+        ! rpm -q chromedriver >/dev/null 2>&1
+        for p in firefox google-chrome-stable; do ! rpm -q "$p" >/dev/null 2>&1 || exit 1; done
+        [[ -f /etc/chromium/tamagi.conf ]] && bash -n /etc/chromium/tamagi.conf
+        CHROMIUM_FLAGS=""
+        . /etc/chromium/tamagi.conf
+        [[ $CHROMIUM_FLAGS != *"oauth2-client-id"* ]]
+        jq -e ".PasswordManagerEnabled == false and .BrowserSignin == 0 and (.ClearBrowsingDataOnExitList | index(\"cookies_and_other_site_data\") != null) and .BrowsingDataLifetime[0].time_to_live_in_hours == 360" /etc/chromium/policies/managed/tamagi-skl.json >/dev/null
+        for app in docs sheets slides gemini; do
+            desktop-file-validate "/usr/share/applications/tamagi-skl-$app.desktop"
+        done
+        desktop-file-validate /etc/xdg/autostart/tamagi-skl-browser.desktop
+        test -x /usr/libexec/tamagi/skl-browser-launch
+    '
+else
+    check "Chromium + ChromeDriver nativos com OAuth2 Google, Lark WebApp e inglês padrão" bash -c '
+        rpm -q chromium chromedriver >/dev/null
+        for p in firefox google-chrome-stable; do ! rpm -q "$p" >/dev/null 2>&1 || exit 1; done
+        [[ -f /etc/chromium/tamagi.conf ]] && bash -n /etc/chromium/tamagi.conf
+        grep -q "/etc/chromium/tamagi.conf" /etc/chromium/chromium.conf
+        grep -q -- "--oauth2-client-id=77185425430.apps.googleusercontent.com" /etc/chromium/tamagi.conf
+        grep -q -- "--oauth2-client-secret=OTJgUOQcT7lO7GsGZq2G4IlT" /etc/chromium/tamagi.conf
+        grep -q "ManagedOOMMemoryPressure=kill" /usr/lib/systemd/system/user@.service.d/20-tamagi-oomd.conf
+        desktop-file-validate /usr/share/applications/tamagi-lark.desktop
+        if [[ $(cat /usr/share/tamagi/default-lang 2>/dev/null || echo en) == en ]]; then
+            grep -q "^LANG=en_US\.UTF-8" /etc/locale.conf
+        fi
+        TAMAGI_LANG=en tamagi-browser google-account status | grep -qi "enabled"
+        tamagi-browser google-account off >/dev/null
+        TAMAGI_LANG=en tamagi-browser google-account status | grep -qi "disabled"
+        tamagi-browser google-account on >/dev/null
+        TAMAGI_LANG=en tamagi-browser google-account status | grep -qi "enabled"
+    '
+fi
 check "entrada genérica de navegador abre o padrão" bash -c 'grep -q "^Exec=/usr/bin/tamagi-browser %U" /usr/share/applications/tamagi-browser.desktop && desktop-file-validate /usr/share/applications/tamagi-browser.desktop && [[ ! -e /usr/share/applications/google-chrome.desktop ]]'
 check "navegador padrão: a entrada genérica aponta para tamagi-browser" grep -q 'x-scheme-handler/https=tamagi-browser.desktop' /etc/xdg/mimeapps.list
 check "caixa dos navegadores é Fedora"    grep -q 'fedora-toolbox:45' /usr/bin/tamagi-browser
@@ -125,7 +156,11 @@ check "COSMIC (desktop em Rust) instalado"  rpm -q cosmic-session cosmic-comp co
 check "sudo e coreutils do shell são os do sistema (sem troca por versões em Rust)" bash -lic '[[ ! -e /usr/libexec/tamagi/rust-bin ]] && [[ $(type -P sudo) != *rust-bin* && $(type -P ls) != *rust-bin* ]] && ! rpm -q sudo-rs uutils-coreutils >/dev/null 2>&1'
 
 section "Máquinas virtuais (nativo, sob demanda)"
-check "tamagi vm: Cockpit Machines, libvirt e QEMU/KVM embutidos na imagem DX (socket activation + NoCoW)" bash -c 'TAMAGI_LANG=en tamagi-vm status | grep -q "built in" && systemctl is-enabled cockpit.socket virtqemud.socket virtnetworkd.socket | grep -c enabled | grep -qx 3 && grep -q "virtqemud.socket" /usr/bin/tamagi-vm && grep -q "+C" /usr/lib/tmpfiles.d/tamagi-libvirt.conf && tamagi-vm --help | grep -q "tamagi vm install"'
+if [[ $EDITION == skl ]]; then
+    check "SKL: sem stack de VMs na imagem (libvirt/QEMU omitidos)" bash -c '! rpm -q libvirt-daemon-kvm cockpit-machines >/dev/null 2>&1'
+else
+    check "tamagi vm: Cockpit Machines, libvirt e QEMU/KVM embutidos na imagem DxAI (socket activation + NoCoW)" bash -c 'TAMAGI_LANG=en tamagi-vm status | grep -q "built in" && systemctl is-enabled cockpit.socket virtqemud.socket virtnetworkd.socket | grep -c enabled | grep -qx 3 && grep -q "virtqemud.socket" /usr/bin/tamagi-vm && grep -q "+C" /usr/lib/tmpfiles.d/tamagi-libvirt.conf && tamagi-vm --help | grep -q "tamagi vm install"'
+fi
 check "tamagi-layer: --repo, --unit, /opt e serviço de boot das camadas" bash -c 'tamagi-layer --help | grep -q -- "--repo id=baseurl" && tamagi-layer --help | grep -q -- "--unit" && grep -q "usr/lib/opt" /usr/bin/tamagi-layer && systemctl is-enabled tamagi-layer-units.service | grep -qx enabled && ! tamagi-layer build x --repo "ruim" cowsay 2>/dev/null && ! tamagi-layer build x --unit "ruim" cowsay 2>/dev/null'
 check "administradores gerenciam VMs sem senha (polkit)" grep -q 'org.libvirt.unix.manage' /usr/share/polkit-1/rules.d/50-tamagi-libvirt.rules
 check "tmpfiles gerado é bem formado" bash -c '[[ $(grep -c "^d " /usr/lib/tmpfiles.d/tamagi-autovar.conf) -ge 3 ]] && ! grep -vE "^(#.*|d /var/(lib|log|spool)/[^ ]+ [0-7]{3,4} [a-zA-Z0-9_-]+ [a-zA-Z0-9_-]+ -)$" /usr/lib/tmpfiles.d/tamagi-autovar.conf | grep -q .'
@@ -151,14 +186,14 @@ check "pacote que já está na imagem: nada a fazer" bash -c 'o=$(tamagi-layer b
 check "constrói uma camada só com os arquivos novos" bash -c 'rm -rf /tmp/cam && mkdir /tmp/cam && tamagi-layer build teste cowsay -o /tmp/cam/teste.raw >/dev/null 2>&1 && fsck.erofs --extract=/tmp/cam/x /tmp/cam/teste.raw >/dev/null 2>&1 && test -x /tmp/cam/x/usr/bin/cowsay && grep -qx "ID=fedora" /tmp/cam/x/usr/lib/extension-release.d/extension-release.teste && grep -q "^cowsay " /tmp/cam/x/usr/share/tamagi/layers/teste.packages && [[ ! -e /tmp/cam/x/usr/share/rpm && ! -e /tmp/cam/x/usr/bin/bash && ! -e /tmp/cam/x/etc ]]'
 check "a imagem não foi tocada pela construção" bash -c '! command -v cowsay && ! rpm -q cowsay >/dev/null'
 check "boot com falha desliga as camadas"  bash -c 'mkdir -p /var/lib/extensions && cp /tmp/cam/teste.raw /var/lib/extensions/ && /usr/lib/tamagi/boot-check/red.d/40-tamagi-camadas.sh >/dev/null && [[ ! -e /var/lib/extensions/teste.raw && -e /var/lib/tamagi/layers-off/teste.raw ]] && tamagi-layer list | grep -q "teste.*desligada"; rc=$?; rm -rf /var/lib/tamagi/layers-off /var/lib/extensions; exit $rc'
-check "tamagi.toml: camada entra no plano e pede senha" bash -c 'printf "[layers]\nferramentas = [\"strace\", \"ltrace\"]\n" > /tmp/cam.toml && tamagi diff /tmp/cam.toml | grep -q "camada ferramentas: strace ltrace   \[pede senha\]" && printf "[layers]\n\"Ruim\" = \"x\"\n" > /tmp/camruim.toml && ! tamagi diff /tmp/camruim.toml 2>/dev/null'
+check "tamagi.toml: camada entra no plano e pede senha" bash -c 'printf "[layers]\nferramentas = [\"strace\", \"ltrace\"]\n" > /tmp/cam.toml && tamagi sys diff /tmp/cam.toml | grep -q "camada ferramentas: strace ltrace   \[pede senha\]" && printf "[layers]\n\"Ruim\" = \"x\"\n" > /tmp/camruim.toml && ! tamagi sys diff /tmp/camruim.toml 2>/dev/null'
 
 check "o agente local sabe do tamagi-layer e não sugere rpm-ostree install" bash -c 'grep -q "tamagi-layer add" /usr/share/tamagi/agent/system.md && ! grep -q "rpm-ostree install <pacote>\` (exige" /usr/share/tamagi/agent/system.md && ! command -v tamagi-app'
 
-section "Inovação 1: o sistema num arquivo (tamagi apply)"
+section "Inovação 1: o sistema num arquivo (tamagi sys apply)"
 check "comando tamagi"                    command -v tamagi
-check "export gera TOML válido com as 11 seções (em inglês, incluindo mcp)" bash -c 'tamagi export /tmp/t.toml >/dev/null && python3 -c "import tomllib; d = tomllib.load(open(\"/tmp/t.toml\", \"rb\")); assert set(d) == {\"appearance\", \"browsers\", \"flatpak\", \"mise\", \"agents\", \"mcp\", \"catalog\", \"boxes\", \"layers\", \"webapps\", \"services\"}, d.keys()"'
-check "diff do próprio estado: nada a fazer" bash -c 'tamagi diff /tmp/t.toml | grep -q "Nada a fazer"'
+check "export gera TOML válido com as 11 seções (em inglês, incluindo mcp)" bash -c 'tamagi sys export /tmp/t.toml >/dev/null && python3 -c "import tomllib; d = tomllib.load(open(\"/tmp/t.toml\", \"rb\")); assert set(d) == {\"appearance\", \"browsers\", \"flatpak\", \"mise\", \"agents\", \"mcp\", \"catalog\", \"boxes\", \"layers\", \"webapps\", \"services\"}, d.keys()"'
+check "diff do próprio estado: nada a fazer" bash -c 'tamagi sys diff /tmp/t.toml | grep -q "Nada a fazer"'
 cat > /tmp/quero.toml <<'TOML'
 [appearance]
 theme = "nord"
@@ -179,14 +214,14 @@ WhatsApp = "https://web.whatsapp.com"
 [services]
 security = "strict"
 TOML
-check "diff lista o que falta e marca o que pede senha" bash -c 'o=$(tamagi diff /tmp/quero.toml); for x in "tema: nord" "navegador: firefox (flatpak)" "navegador: chrome (native)   \[pede senha\]" "Flatpak: org.gimp.GIMP" "mise: node@lts" "agente: codex" "catálogo: steam   \[pede senha\]" "caixa dev (arch)" "web app: WhatsApp" "segurança: strict   \[pede senha\]"; do grep -q "$x" <<<"$o" || { echo "faltou: $x"; exit 1; }; done'
+check "diff lista o que falta e marca o que pede senha" bash -c 'o=$(tamagi sys diff /tmp/quero.toml); for x in "tema: nord" "navegador: firefox (flatpak)" "navegador: chrome (native)   \[pede senha\]" "Flatpak: org.gimp.GIMP" "mise: node@lts" "agente: codex" "catálogo: steam   \[pede senha\]" "caixa dev (arch)" "web app: WhatsApp" "segurança: strict   \[pede senha\]"; do grep -q "$x" <<<"$o" || { echo "faltou: $x"; exit 1; }; done'
 printf '[mcp]\nservers = ["memory", "git"]\n' > /tmp/mcp-want.toml
-check "seção [mcp] entra no plano do tamagi diff" bash -c 'o=$(tamagi diff /tmp/mcp-want.toml) && grep -q "MCP: memory" <<<"$o" && grep -q "MCP: git" <<<"$o"'
+check "seção [mcp] entra no plano do tamagi sys diff" bash -c 'o=$(tamagi sys diff /tmp/mcp-want.toml) && grep -q "MCP: memory" <<<"$o" && grep -q "MCP: git" <<<"$o"'
 printf '[appearance]\ntheme = "gruvbox"\n[webapps]\nExemplo = "https://exemplo.invalid"\n' > /tmp/so-local.toml
-check "apply executa e fica idempotente"  bash -c 'tamagi apply -y /tmp/so-local.toml >/dev/null && [[ $(tamagi-theme current) == gruvbox ]] && test -f ~/.local/share/applications/webapp-exemplo.desktop && tamagi diff /tmp/so-local.toml | grep -q "Nada a fazer"; rc=$?; tamagi-webapp remove Exemplo >/dev/null; tamagi-theme set ipe >/dev/null; exit $rc'
-check "apply sem terminal e sem -y não altera nada" bash -c '! tamagi apply /tmp/quero.toml </dev/null >/dev/null 2>&1 && [[ $(tamagi-theme current) != nord ]]'
+check "apply executa e fica idempotente"  bash -c 'tamagi sys apply -y /tmp/so-local.toml >/dev/null && [[ $(tamagi-theme current) == gruvbox ]] && test -f ~/.local/share/applications/webapp-exemplo.desktop && tamagi sys diff /tmp/so-local.toml | grep -q "Nada a fazer"; rc=$?; tamagi-webapp remove Exemplo >/dev/null; tamagi-theme set ipe >/dev/null; exit $rc'
+check "apply sem terminal e sem -y não altera nada" bash -c '! tamagi sys apply /tmp/quero.toml </dev/null >/dev/null 2>&1 && [[ $(tamagi-theme current) != nord ]]'
 printf '[browsers]\ninstall = ["opera"]\n[boxes]\nx = "gentoo"\n[inventado]\na = 1\n' > /tmp/ruim.toml
-check "arquivo com erros é recusado com a lista" bash -c 'o=$(tamagi diff /tmp/ruim.toml 2>&1); [[ $? -ne 0 ]] && grep -q "navegador desconhecido: opera" <<<"$o" && grep -q "gentoo" <<<"$o" && grep -q "inventado" <<<"$o"'
+check "arquivo com erros é recusado com a lista" bash -c 'o=$(tamagi sys diff /tmp/ruim.toml 2>&1); [[ $? -ne 0 ]] && grep -q "navegador desconhecido: opera" <<<"$o" && grep -q "gentoo" <<<"$o" && grep -q "inventado" <<<"$o"'
 
 section "Perfis isolados do navegador e chave de segurança"
 check "cria perfis com atalho próprio no menu" bash -c 'export XDG_DATA_HOME=/tmp/perfis; rm -rf /tmp/perfis; tamagi-browser profile add trabalho chrome >/dev/null && tamagi-browser profile add pessoal firefox >/dev/null && desktop-file-validate /tmp/perfis/applications/tamagi-chrome-trabalho.desktop && grep -qx "Exec=/usr/bin/tamagi-browser chrome --profile trabalho %U" /tmp/perfis/applications/tamagi-chrome-trabalho.desktop && grep -qx "StartupWMClass=tamagi-chrome-trabalho" /tmp/perfis/applications/tamagi-chrome-trabalho.desktop && [[ -d /tmp/perfis/tamagi/browser-profiles/chrome-trabalho && -d /tmp/perfis/tamagi/browser-profiles/firefox-pessoal ]]'
@@ -210,17 +245,16 @@ check "sysctl de endurecimento na imagem"   grep -q '^kernel.kptr_restrict = 2' 
 check "sysctls são aceitos pelo systemd-sysctl" bash -c 'out=$(/usr/lib/systemd/systemd-sysctl --cat-config 2>&1); echo "$out" | grep -q "kernel.yama.ptrace_scope = 1" && echo "$out" | grep -q "vm.max_map_count = 2147483642"'
 check "argumentos de kernel (bootc kargs.d) são TOML válido" python3 -c "import tomllib; d = tomllib.load(open('/usr/lib/bootc/kargs.d/10-tamagi.toml', 'rb')); assert 'init_on_alloc=1' in d['kargs']"
 check "MAC aleatório por rede no NetworkManager" grep -q 'wifi.cloned-mac-address=stable' /usr/lib/NetworkManager/conf.d/50-tamagi-privacy.conf
-check "hardened_malloc instalado mas não global" bash -c 'test -f /usr/lib64/libhardened_malloc.so && test ! -e /etc/ld.so.preload'
-check "hardened_malloc carrega num programa" bash -c 'LD_PRELOAD=/usr/lib64/libhardened_malloc.so /usr/bin/ls / >/dev/null'
-check "USBGuard instalado e desligado"      bash -c 'rpm -q usbguard && ! systemctl is-enabled usbguard.service 2>/dev/null | grep -qx enabled'
+check "hardening extra (USBGuard/hardened_malloc) opcional no catálogo" bash -c '! rpm -q usbguard hardened_malloc >/dev/null 2>&1 && grep -qP "^hardening-extra\t" /usr/share/tamagi/catalog.tsv && test ! -e /etc/ld.so.preload'
 check "tamagi-harden status"                bash -c 'tamagi-harden status | grep -q "Modo.*equilibrado"'
 check "zram: zstd, metade da RAM"           grep -q 'compression-algorithm = zstd' /usr/lib/systemd/zram-generator.conf.d/10-tamagi.conf
 check "regras udev de E/S são válidas"      bash -c 'udevadm verify /usr/lib/udev/rules.d/60-tamagi-ioschedulers.rules'
-check "controles de jogo: steam-devices entra com a camada de jogos" bash -c '! rpm -q steam-devices >/dev/null 2>&1 && grep -q "NATIVE_BASE=(steam-devices gamescope mangohud gamemode)" /usr/bin/tamagi-gaming'
-
-section "Agentes de terceiros"
-check "Claude Code executa"                claude --version
-check "Claude Code se atualiza sozinho (mora em ~/.local)" bash -lc '[[ -z ${DISABLE_AUTOUPDATER:-} ]]'
+if [[ $EDITION != skl ]]; then
+    check "base Bazzite de jogos na imagem DxAI (steam-devices, gamescope, mangohud, gamemode, Mesa/Vulkan 32-bit); Steam sob demanda" bash -c 'rpm -q steam-devices gamescope mangohud gamemode mesa-vulkan-drivers.i686 >/dev/null 2>&1 && ! command -v steam >/dev/null 2>&1'
+    section "Agentes de terceiros"
+    check "Claude Code executa"                claude --version
+    check "Claude Code se atualiza sozinho (mora em ~/.local)" bash -lc '[[ -z ${DISABLE_AUTOUPDATER:-} ]]'
+fi
 
 section "Scripts"
 for f in /usr/bin/tamagi-* /usr/libexec/tamagi/*; do
@@ -233,25 +267,33 @@ for f in /usr/bin/tamagi-* /usr/libexec/tamagi/*; do
         check "sintaxe $(basename "$f")" bash -n "$f"
     fi
 done
-check "ferramentas em Rust: tamagi, tamagi-layer, tamagi-doctor, tamagi-install e agent-jail são binários estáticos" bash -c 'for b in /usr/bin/tamagi /usr/bin/tamagi-layer /usr/bin/tamagi-doctor /usr/bin/tamagi-install /usr/libexec/tamagi/agent-jail; do file -L $b | grep -Eq "static(ally|-pie) linked" || { echo $b; exit 1; }; done; tamagi | grep -q "tamagi update" && tamagi | grep -q "tamagi mcp" && tamagi nosuchcommand 2>/dev/null; [[ $? -ne 0 ]]'
+check "ferramentas em Rust: tamagi, tamagi-why, tamagi-layer, tamagi-doctor, tamagi-install e agent-jail são binários estáticos" bash -c 'for b in /usr/bin/tamagi /usr/bin/tamagi-why /usr/bin/tamagi-layer /usr/bin/tamagi-doctor /usr/bin/tamagi-install /usr/libexec/tamagi/agent-jail; do file -L $b | grep -Eq "static(ally|-pie) linked" || { echo $b; exit 1; }; done; tamagi | grep -q "tamagi update" && tamagi | grep -q "tamagi why" && tamagi nosuchcommand 2>/dev/null; [[ $? -ne 0 ]]'
 check "instalação rápida: runtime adiantado, Flatpaks em segundo plano, etapas numeradas, aviso de runtimes" bash -c 'D=/tmp/inst; rm -rf $D; mkdir -p $D/bin $D/h $D/run; printf "%s\n" "#!/bin/bash" "case \"\$1\" in remote-add) exit 0 ;; remote-info) case \"\${@: -1}\" in *VLC) echo \" Runtime: org.kde.Platform/x86_64/5.15-25.08\" ;; *) echo \" Runtime: org.freedesktop.Platform/x86_64/26.08\" ;; esac ;; info) grep -qx \"\${@: -1}\" $D/state ;; install) for a in \"\$@\"; do case \$a in runtime/*|org.*|com.*) echo \$a >> $D/state ;; esac; done ;; list) grep -v ^runtime/ $D/state ;; uninstall) sed -i \"\\|^\${@: -1}\$|d\" $D/state ;; esac" > $D/bin/flatpak; printf "%s\n" "#!/bin/bash" "echo vm-ok" > $D/bin/tamagi-vm; printf "%s\n" "#!/bin/bash" "exit 1" > $D/bin/nmcli; chmod +x $D/bin/*; : > $D/state; export PATH=$D/bin:$PATH HOME=$D/h XDG_CACHE_HOME=$D/h/.cache XDG_RUNTIME_DIR=$D/run TAMAGI_LANG=en; tamagi-install prefetch && grep -qx "runtime/org.freedesktop.Platform/x86_64/26.08" $D/state && o=$(tamagi-install --actions flatpak:flathub:org.videolan.VLC flatpak:flathub:com.obsproject.Studio "run:tamagi-vm install" 2>&1) && grep -q "\[1/2\] Flatpak" <<<"$o" && grep -q "\[2/2\] tamagi-vm install" <<<"$o" && grep -q "org.kde.Platform 5.15-25.08 .*to download" <<<"$o" && grep -q "org.freedesktop.Platform 26.08 .*already here" <<<"$o" && grep -q "in the background" <<<"$o" && grep -q "vm-ok" <<<"$o" && grep -qx "org.videolan.VLC" $D/state && : > $D/state && tamagi-install prefetch && tamagi-install prefetch-cleanup && [[ ! -s $D/state ]] && grep -q "tamagi-install prefetch" /usr/bin/tamagi-firstrun'
 check "atualização só com imagem assinada: política exige uma das duas chaves do Tamagi para ghcr.io/wes-tamagi" bash -c 'jq -e ".transports.docker[\"ghcr.io/wes-tamagi\"][0] | .type == \"sigstoreSigned\" and .keyPaths == [\"/etc/pki/containers/tamagi.pub\", \"/etc/pki/containers/tamagi-2.pub\"] and .signedIdentity.type == \"matchRepository\"" /etc/containers/policy.json >/dev/null && grep -q "BEGIN PUBLIC KEY" /etc/pki/containers/tamagi.pub && grep -q "BEGIN PUBLIC KEY" /etc/pki/containers/tamagi-2.pub && ! cmp -s /etc/pki/containers/tamagi.pub /etc/pki/containers/tamagi-2.pub && grep -q "use-sigstore-attachments: true" /etc/containers/registries.d/tamagi.yaml && jq -e ".transports.docker[\"ghcr.io/ublue-os\"]" /etc/containers/policy.json >/dev/null'
-check "papéis de parede ilustrados: 10 imagens 2560x1440 na subpasta art" bash -c '[[ $(ls /usr/share/backgrounds/tamagi/art/*.jpg | wc -l) -eq 10 ]] && ! ls /usr/share/backgrounds/tamagi/*.jpg >/dev/null 2>&1 && for f in /usr/share/backgrounds/tamagi/art/*.jpg; do file "$f" | grep -q "2560x1440" || { echo "$f"; exit 1; }; done'
+if [[ $EDITION == skl ]]; then
+    check "SKL: papéis de parede ilustrados extras removidos" bash -c '[[ ! -d /usr/share/backgrounds/tamagi/art ]]'
+else
+    check "papéis de parede ilustrados: 10 imagens 2560x1440 na subpasta art" bash -c '[[ $(ls /usr/share/backgrounds/tamagi/art/*.jpg | wc -l) -eq 10 ]] && ! ls /usr/share/backgrounds/tamagi/*.jpg >/dev/null 2>&1 && for f in /usr/share/backgrounds/tamagi/art/*.jpg; do file "$f" | grep -q "2560x1440" || { echo "$f"; exit 1; }; done'
+fi
 check "a janela de primeiro login abre flutuante (regra de exceção ao tiling)" bash -c 'grep -q "appid: \"org.tamagi.Welcome\"" /usr/share/cosmic/com.system76.CosmicSettings.WindowRules/v1/tiling_exception_defaults'
 check "primeiro login: janela nativa (libcosmic) com o assistente em texto de reserva" bash -c 'test -x /usr/bin/tamagi-welcome && file -L /usr/bin/tamagi-welcome | grep -q "ELF 64-bit" && ! ldd /usr/bin/tamagi-welcome | grep -q "not found" && grep -q "tamagi-welcome && exit 0" /usr/libexec/tamagi/firstrun-launch && grep -q "popup tamagi-firstrun" /usr/libexec/tamagi/firstrun-launch && grep -q "^Exec=tamagi-welcome --force" /usr/share/applications/org.tamagi.Welcome.desktop && mkdir -p /tmp/wl/tamagi && touch /tmp/wl/tamagi/firstrun-done && XDG_CONFIG_HOME=/tmp/wl timeout 10 tamagi-welcome'
 check "um comando só: sem ujust nem scripts legados de TPM; tamagi setup cobre tudo" bash -c '! command -v ujust && command -v just >/dev/null && ! rpm -q ublue-os-just >/dev/null 2>&1 && [[ ! -e /usr/share/ublue-os/just && ! -e /usr/libexec/luks-enable-tpm2-autounlock ]] && for a in secure-boot-key tpm-unlock firmware bios clean lazyvim switch-image; do tamagi-setup help | grep -q "tamagi-setup $a" || exit 1; done; ! tamagi-setup switch-image "x; y" 2>/dev/null && test -f /etc/pki/akmods/certs/akmods-ublue.der && ! grep -rn "ujust" /usr/bin/tamagi* /usr/libexec/tamagi /usr/share/tamagi/actions.toml'
 
 section "llama.cpp"
-check "llama-server executa"              llama-server --version
-check "backend Vulkan presente"           bash -c 'ls /usr/lib64/ggml/*vulkan*'
-check "variantes de CPU presentes"        bash -c 'ls /usr/lib64/ggml/*cpu*haswell* /usr/lib64/ggml/*cpu*x64*'
-check "sem bibliotecas faltando"          bash -c '! ldd /usr/bin/llama-server | grep -q "not found"'
-check "interface web embutida"            bash -c 'grep -qa "<!doctype html\|<!DOCTYPE html" /usr/bin/llama-server /usr/lib64/libllama*.so* /usr/lib64/*.so 2>/dev/null || llama-server --help | grep -q -- "--ui"'
-check "presets: 11 modelos (Gemma 4, Ornith 1.5, Mistral/Devstral, Qwen 3.8/3.6)" bash -c '[[ $(tamagi-ai presets | grep -cE "^(mini|leve|mistral|agente|medio|devstral|qwen38|codigo|ornith|grande|workstation) ") -eq 11 ]]'
-check "presets em inglês funcionam"          bash -c 'TAMAGI_LANG=en tamagi-ai presets | grep -q "ROLE" && TAMAGI_LANG=en tamagi-ai presets | grep -q "Ornith 1.5 9B"'
-check "recomendação devolve um preset geral" bash -c 'tamagi-ai recommend | grep -qxE "mini|leve|medio|qwen38|grande"'
-check "llama-server recebe --jinja e --fit on" bash -c 'grep -q -- "--jinja" /usr/bin/tamagi-ai && grep -q -- "--fit on" /usr/bin/tamagi-ai'
-check "unit do usuário é válida"          systemd-analyze verify --user /usr/lib/systemd/user/llama-server.service
+if [[ $EDITION == skl ]]; then
+    check "SKL: llama.cpp omitido da imagem escolar" bash -c '! command -v llama-server >/dev/null 2>&1'
+else
+    check "llama-server executa"              llama-server --version
+    check "backend Vulkan presente"           bash -c 'ls /usr/lib64/ggml/*vulkan*'
+    check "variantes de CPU presentes"        bash -c 'ls /usr/lib64/ggml/*cpu*haswell* /usr/lib64/ggml/*cpu*x64*'
+    check "sem bibliotecas faltando"          bash -c '! ldd /usr/bin/llama-server | grep -q "not found"'
+    check "interface web embutida"            bash -c 'grep -qa "<!doctype html\|<!DOCTYPE html" /usr/bin/llama-server /usr/lib64/libllama*.so* /usr/lib64/*.so 2>/dev/null || llama-server --help | grep -q -- "--ui"'
+    check "presets: 11 modelos (Gemma 4, Ornith 1.5, Mistral/Devstral, Qwen 3.8/3.6)" bash -c '[[ $(tamagi-ai presets | grep -cE "^(mini|leve|mistral|agente|medio|devstral|qwen38|codigo|ornith|grande|workstation) ") -eq 11 ]]'
+    check "presets em inglês funcionam"          bash -c 'TAMAGI_LANG=en tamagi-ai presets | grep -q "ROLE" && TAMAGI_LANG=en tamagi-ai presets | grep -q "Ornith 1.5 9B"'
+    check "recomendação devolve um preset geral" bash -c 'tamagi-ai recommend | grep -qxE "mini|leve|medio|qwen38|grande"'
+    check "llama-server recebe --jinja e --fit on" bash -c 'grep -q -- "--jinja" /usr/bin/tamagi-ai && grep -q -- "--fit on" /usr/bin/tamagi-ai'
+    check "unit do usuário é válida"          systemd-analyze verify --user /usr/lib/systemd/user/llama-server.service
+fi
 
 section "Agente (regras de segurança)"
 python3 - <<'PY' && ok "classificação de comandos somente-leitura" || bad "classificação de comandos somente-leitura"
@@ -289,17 +331,21 @@ echo "  $(rpm -q --qf '%{NAME} %{VERSION}' cosmic-session)"
 check "sessão COSMIC registrada"       test -f /usr/share/wayland-sessions/cosmic.desktop
 check "tela de login (cosmic-greeter) habilitada" systemctl is-enabled cosmic-greeter.service
 check "boot gráfico por padrão"        bash -c '[[ $(systemctl get-default) == graphical.target ]]'
-check "tiling automático por padrão"   grep -qx true $S/com.system76.CosmicComp/v1/autotile
+if [[ $EDITION == skl ]]; then
+    check "SKL: tiling automático desligado por padrão" grep -qx false $S/com.system76.CosmicComp/v1/autotile
+else
+    check "tiling automático por padrão"   grep -qx true $S/com.system76.CosmicComp/v1/autotile
+fi
 check "idioma padrão da imagem gravado (en ou pt) e teclado de fábrica condizente" bash -c 'l=$(cat /usr/share/tamagi/default-lang); case $l in en) k=us ;; pt) k=br ;; *) exit 1 ;; esac; grep -q "layout: \"$k\"" /usr/share/cosmic/com.system76.CosmicComp/v1/xkb_config && [[ $(tamagi-lang list | head -1 | cut -d" " -f1) == "$l" ]]'
 check "papel de parede padrão: brasão (mon) do Ipê" bash -c 'grep -q tamagi/ipe-mon.png /usr/share/cosmic/com.system76.CosmicBackground/v1/all && test -s /usr/share/backgrounds/tamagi/ipe-mon.png'
-check "5 temas (Ipê, Ipê Claro, Tokyo Night, Nord, Gruvbox), 8 estilos de papel de parede cada (40 PNG)" bash -c '[[ $(tamagi-theme list | tr "\n" " ") == "gruvbox ipe ipe-light nord tokyo-night " && $(ls /usr/share/backgrounds/tamagi/*.png | wc -l) -eq 40 ]]'
+check "5 temas (Ipê, Ipê Claro, Tokyo Night, Nord, Gruvbox) com 9 papéis de parede PNG enxutos em 2560px" bash -c '[[ $(tamagi-theme list | tr "\n" " ") == "gruvbox ipe ipe-light nord tokyo-night " && $(ls /usr/share/backgrounds/tamagi/*.png | wc -l) -eq 9 ]]'
 check "cada tema tem o seu tema do COSMIC (.ron) e a miniatura, junto dos do COSMIC" bash -c 'for t in $(tamagi-theme list); do f=/usr/share/cosmic-themes/tamagi-$t.ron; grep -q "^    accent: Some" "$f" && grep -q "^    palette: " "$f" && file "/usr/share/cosmic-themes/tamagi-$t.png" | grep -q "768 x 432" || { echo "$t"; exit 1; }; done; tamagi-theme list | grep -qx ipe'
 check "papéis de parede só em PNG, na pasta que o COSMIC lista" bash -c '! ls /usr/share/backgrounds/tamagi/*.svg >/dev/null 2>&1 && [[ ! -e /usr/share/tamagi/wallpapers.xml ]]'
 check "tema padrão do COSMIC é o Ipê (escuro) e o Ipê Claro (claro); os terminais combinam" bash -c 'grep -qi "#16211C" /usr/share/cosmic/com.system76.CosmicTheme.Dark.Builder/v2/bg_color && grep -qi "#FAF6EC" /usr/share/cosmic/com.system76.CosmicTheme.Light.Builder/v2/bg_color && [[ -z $(XDG_CONFIG_HOME=/tmp/semtema tamagi-theme sync) ]] && [[ $(XDG_CONFIG_HOME=/tmp/semtema tamagi-theme current) == ipe ]]'
 check "temas do COSMIC com os cantos do Material 3 (4/8/12/28 px, botões em pílula)" bash -c 'for f in /usr/share/cosmic-themes/tamagi-*.ron; do grep -q "radius_m: (12.0" "$f" && grep -q "radius_l: (28.0" "$f" || { echo "$f"; exit 1; }; done'
 check "tema salvo que não existe mais volta para o Ipê" bash -c 'mkdir -p /tmp/velho/tamagi && echo kanagawa > /tmp/velho/tamagi/theme && [[ $(XDG_CONFIG_HOME=/tmp/velho tamagi-theme current) == ipe ]]'
-for st in mon seigaiha asanoha byobu shippo hinode uroko; do
-    check "estilo $st é PNG em 4K" bash -c "file /usr/share/backgrounds/tamagi/nord-$st.png | grep -q '3840 x 2160'"
+for w in ipe ipe-mon ipe-seigaiha ipe-light ipe-light-mon ipe-light-seigaiha gruvbox-mon nord-mon tokyo-night-mon; do
+    check "papel $w é PNG 2560px" bash -c "file /usr/share/backgrounds/tamagi/$w.png | grep -q '2560 x 1440'"
 done
 D=$S/com.system76.CosmicSettings.Shortcuts/v1/defaults
 check "atalho Super+Enter abre o terminal" grep -q 'key: "Return"): System(Terminal)' $D
@@ -319,24 +365,30 @@ for fav in $(grep -oE '"[^"]+"' $S/com.system76.CosmicAppList/v1/favorites | tr 
     check "favorito $fav existe"         test -f "/usr/share/applications/$fav.desktop"
 done
 check "portal do COSMIC"               rpm -q xdg-desktop-portal-cosmic
-check "primeiro login: só o assistente do Tamagi abre sozinho" bash -c 'test ! -e /etc/xdg/autostart/com.system76.CosmicInitialSetup.desktop && test -f /etc/xdg/autostart/tamagi-firstrun.desktop && command -v cosmic-initial-setup'
+if [[ $EDITION == skl ]]; then
+    check "SKL: primeiro login abre Chromium escolar (sem assistente firstrun nem flatpak-setup automático)" bash -c 'test ! -e /etc/xdg/autostart/tamagi-firstrun.desktop && test -f /etc/xdg/autostart/tamagi-skl-browser.desktop && ! systemctl --global is-enabled tamagi-flatpak-setup.service 2>/dev/null | grep -qx enabled'
+else
+    check "primeiro login: só o assistente do Tamagi abre sozinho" bash -c 'test ! -e /etc/xdg/autostart/com.system76.CosmicInitialSetup.desktop && test -f /etc/xdg/autostart/tamagi-firstrun.desktop && command -v cosmic-initial-setup'
+fi
 check "janelas do Tamagi usam o foot (sem alacritty): configuração válida e popup com app id" bash -c '! command -v alacritty && foot --config=/usr/share/tamagi/foot.ini --check-config && grep -q "^background=" /usr/share/tamagi/foot.ini && grep -q "exec foot --config=" /usr/libexec/tamagi/popup && grep -q -- "--app-id=" /usr/libexec/tamagi/popup && ! grep -q Alacritty /etc/xdg/xdg-terminals.list'
-check "papel de parede é do COSMIC: o tema só troca as cores de um papel do Tamagi" bash -c 'B=~/.config/cosmic/com.system76.CosmicBackground/v1/all; rm -f $B; tamagi-theme set gruvbox >/dev/null && grep -q gruvbox-mon.png $B && sed -i "s|gruvbox-mon.png|gruvbox-byobu.png|" $B && tamagi-theme set nord >/dev/null && grep -q nord-byobu.png $B && sed -i "s|Path(\".*\")|Path(\"/usr/share/backgrounds/default.jxl\")|" $B && tamagi-theme set gruvbox >/dev/null && grep -q default.jxl $B; r=$?; rm -f $B; tamagi-theme set ipe >/dev/null; exit $r'
+check "papel de parede é do COSMIC: o tema só troca as cores de um papel do Tamagi" bash -c 'B=~/.config/cosmic/com.system76.CosmicBackground/v1/all; rm -f $B; tamagi-theme set gruvbox >/dev/null && grep -q gruvbox-mon.png $B && sed -i "s|gruvbox-mon.png|ipe-seigaiha.png|" $B && tamagi-theme set ipe-light >/dev/null && grep -q ipe-light-seigaiha.png $B && sed -i "s|Path(\".*\")|Path(\"/usr/share/backgrounds/default.jxl\")|" $B && tamagi-theme set gruvbox >/dev/null && grep -q default.jxl $B; r=$?; rm -f $B; tamagi-theme set ipe >/dev/null; exit $r'
 check "terminais seguem o tema escolhido no COSMIC (tamagi theme sync)" bash -c 'export XDG_CONFIG_HOME=/tmp/sync; rm -rf /tmp/sync; XDG_CONFIG_HOME=/tmp/sync HOME=/tmp/sync cosmic-settings appearance import /usr/share/cosmic-themes/tamagi-nord.ron >/dev/null 2>&1; tamagi-theme sync | grep -q nord && [[ $(tamagi-theme current) == nord ]] && grep -q "Gerado por tamagi-theme (Nord)" /tmp/sync/foot/foot.ini && [[ -z $(tamagi-theme sync) ]] && systemctl --global is-enabled tamagi-theme-sync.path | grep -qx enabled && systemd-analyze verify --user /usr/lib/systemd/user/tamagi-theme-sync.path /usr/lib/systemd/user/tamagi-theme-sync.service'
 check "tamagi-theme aplica um tema"     bash -c 'tamagi-theme set gruvbox >/dev/null && grep -q gruvbox-mon.png ~/.config/cosmic/com.system76.CosmicBackground/v1/all && foot --config="$HOME/.config/tamagi/foot.ini" --check-config && [[ $(tamagi-theme current) == gruvbox ]]'
 for t in $(tamagi-theme list); do
     check "tema $t é um arquivo válido"     bash -c "source /usr/share/tamagi/themes/$t.conf && [[ \${#PALETTE[@]} -eq 16 && \${#WALL[@]} -eq 5 ]]"
 done
-for t in $(tamagi-theme list); do
-    check "papel de parede $t (ondas) existe em PNG" test -s "/usr/share/backgrounds/tamagi/$t.png"
-done
 section "Serviços"
-check "flatpak-setup habilitado (--user global)" systemctl --global is-enabled tamagi-flatpak-setup.service
+if [[ $EDITION != skl ]]; then
+    check "flatpak-setup habilitado (--user global)" systemctl --global is-enabled tamagi-flatpak-setup.service
+fi
 check "units do sistema são válidas"      bash -c 'systemd-analyze verify /usr/lib/systemd/system/tamagi-firstboot.service && test -s /usr/lib/systemd/user/tamagi-flatpak-setup.service && grep -q "^ExecStart=/usr/libexec/tamagi/flatpak-setup" /usr/lib/systemd/user/tamagi-flatpak-setup.service'
 check "provisionamento no primeiro boot (formato Combustion): serviço ligado, só com a marca do instalador" bash -c 'systemctl is-enabled tamagi-combustion.service >/dev/null && grep -q "^ConditionPathExists=/etc/tamagi/first-boot" /usr/lib/systemd/system/tamagi-combustion.service && test -x /usr/libexec/tamagi/combustion && bash -n /usr/libexec/tamagi/combustion && /usr/libexec/tamagi/combustion && [[ ! -e /var/lib/tamagi/combustion-done ]]'
-check "imagem enxuta: COSMIC Player e rclone fora da imagem, opcionais no catálogo (camada nativa)" bash -c '! command -v rclone >/dev/null && ! command -v cosmic-player >/dev/null && ids=$(tamagi-install ids) && grep -qx rclone <<<"$ids" && grep -qx cosmic-player <<<"$ids" && grep -qP "^rclone\t.*\trun:tamagi-layer add rclone rclone\t" /usr/share/tamagi/catalog.tsv'
+if [[ $EDITION == skl ]]; then
+    check "SKL: sem GNOME Disks nem cosmic-ext-storage" bash -c '! command -v gnome-disks >/dev/null 2>&1 && ! command -v cosmic-ext-storage >/dev/null 2>&1'
+else
+    check "armazenamento nativo em Rust: cosmic-ext-storage + rclone na imagem (sem GNOME Disks)" bash -c 'command -v cosmic-ext-storage >/dev/null && command -v rclone >/dev/null && ! command -v gnome-disks >/dev/null 2>&1 && ! command -v cosmic-player >/dev/null 2>&1'
+fi
 check "imagem enxuta: ferramentas de terminal vivem na caixa de desenvolvimento, que as exporta ao ser criada" bash -c 'for c in nvim lazygit gh uv glow hyperfine direnv yq shellcheck; do ! command -v $c >/dev/null 2>&1 || { echo "ainda na imagem: $c"; exit 1; }; done; P=/usr/libexec/tamagi/devbox-provision; for t in neovim lazygit gh uv glow hyperfine direnv yq ShellCheck; do grep -q "$t" $P || { echo "a caixa não instala $t"; exit 1; }; done; grep -q "distrobox-export --bin" /usr/bin/tamagi-devbox && grep -q "export_tools \"\$name\"" /usr/bin/tamagi-devbox && test -x /usr/libexec/tamagi/dev-tool && grep -q "dev-tool nvim" /usr/share/cosmic/com.system76.CosmicSettings.Shortcuts/v1/defaults && grep -q "dev-tool lazygit" /usr/share/cosmic/com.system76.CosmicSettings.Shortcuts/v1/defaults'
-check "GNOME Disks na imagem (discos, LUKS, SMART)" bash -c 'command -v gnome-disks >/dev/null && test -f /usr/share/applications/org.gnome.DiskUtility.desktop'
 check "lista de Flatpaks não está vazia"  grep -qE '^[a-z]' /usr/share/tamagi/flatpaks.list
 check "atualização: não baixa na bateria nem em rede limitada" bash -c 'grep -qx ON_BATTERY=skip /usr/lib/tamagi/update.conf && grep -qx ON_METERED=skip /usr/lib/tamagi/update.conf && bash -n /usr/libexec/tamagi/system-update && command -v skopeo'
 check "distrobox-create não gera volume :ro:rslave (podman 6)" bash -c '! grep -qE ":ro\\$\\{rslave\\}|:ro:rslave" /usr/bin/distrobox-create && grep -q ":ro,rslave" /usr/bin/distrobox-create'
@@ -354,10 +406,14 @@ check "idiomas: a camada de tradução responde em es e fr" bash -c 'unset TAMAG
 check "idiomas: atalhos em inglês"         bash -c 'TAMAGI_LANG=en tamagi-keys | grep -q "close window"'
 check "idiomas: tamagi-lang lista os quatro" bash -c '[[ $(tamagi-lang list | wc -l) -eq 4 ]]'
 check "idiomas: entradas do menu traduzidas" bash -c 'for f in /usr/share/applications/tamagi-agent.desktop /usr/share/applications/org.tamagi.Menu.desktop /usr/share/applications/tamagi-browser.desktop /usr/share/tamagi/desktop/claude-code.desktop /usr/share/tamagi/desktop/agy.desktop; do grep -q "\[fr\]=" $f && grep -q "\[es\]=" $f || exit 1; done'
-check "fontes: Roboto Flex (interface, Material 3), Noto Sans de reserva e Roboto Slab (serifa)" bash -c '[[ $(fc-match -f "%{family}" sans-serif) == "Roboto Flex" && $(fc-match -f "%{family}" serif) == "Roboto Slab" ]] && grep -q "Roboto Flex" /usr/share/cosmic/com.system76.CosmicTk/v1/interface_font && fc-match -s sans-serif | head -3 | grep -q "Noto Sans" && grep -q "font-name=.Roboto Flex 11" /etc/dconf/db/local.d/10-tamagi-fonts'
+check "fontes: Roboto Flex (interface, Material 3) e Noto Sans de reserva (sem Roboto Slab/Cascadia)" bash -c '[[ $(fc-match -f "%{family}" sans-serif) == "Roboto Flex" ]] && grep -q "Roboto Flex" /usr/share/cosmic/com.system76.CosmicTk/v1/interface_font && fc-match -s sans-serif | head -3 | grep -q "Noto Sans" && grep -q "font-name=.Roboto Flex 11" /etc/dconf/db/local.d/10-tamagi-fonts'
 check "Roboto Flex: um arquivo só (variável), com a licença OFL" bash -c '[[ $(fc-list "Roboto Flex" file | sort -u | wc -l) -eq 1 ]] && grep -q "SIL OPEN FONT LICENSE" /usr/share/licenses/roboto-flex/OFL.txt'
 check "barra: uma só, embaixo, apps no centro" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -q "^\[\"Panel\"\]$" /usr/share/cosmic/com.system76.CosmicPanel/v1/entries && grep -qx Bottom $P/anchor && grep -q CosmicAppList $P/plugins_center && grep -q CosmicAppletTime $P/plugins_wings'
-check "menu iniciar: applet instalado, primeiro botão da barra, layout Retro" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; M=/usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1; command -v cosmic-ext-classic-menu-applet && grep -q "^Some((\[\"com.championpeak87.cosmic-ext-classic-menu\"" $P/plugins_wings && ! grep -q CosmicPanelAppButton $P/plugins_wings && grep -qx Retro $M/menu_layout && grep -qx Places $M/side_panel'
+if [[ $EDITION == skl ]]; then
+    check "SKL: barra minimalista sem workspaces/tiling/bluetooth (só iniciar + apps escolares + relógio/rede/áudio/energia)" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -q CosmicAppList $P/plugins_center && grep -q CosmicAppletTime $P/plugins_wings && ! grep -qE "CosmicPanelWorkspacesButton|CosmicAppletTiling|CosmicAppletBluetooth" $P/plugins_wings'
+else
+    check "menu iniciar: applet instalado, primeiro botão da barra, layout Retro" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; M=/usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1; command -v cosmic-ext-classic-menu-applet && grep -q "^Some((\[\"com.championpeak87.cosmic-ext-classic-menu\"" $P/plugins_wings && ! grep -q CosmicPanelAppButton $P/plugins_wings && grep -qx Retro $M/menu_layout && grep -qx Places $M/side_panel'
+fi
 check "menu iniciar: ícone próprio do Tamagi, sem texto" bash -c 'M=/usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1; f=$(tr -d "\"" < $M/button_icon); [[ $f == /usr/share/tamagi/menu/tamagi-start-symbolic.svg && -s $f ]] && grep -qx IconOnly $M/applet_button_style && rsvg-convert "$f" -o /tmp/menu-icon.png && [[ -s /tmp/menu-icon.png ]]'
 check "Arquivos: grade, pastas primeiro" bash -c 'f=/usr/share/cosmic/com.system76.CosmicFiles/v1/tab; grep -q "view: Grid" $f && grep -q "folders_first: true" $f'
 check "menu iniciar 1.1.0: menu focado (já abre com o teclado)" bash -c 'grep -qx true /usr/share/cosmic/com.championpeak87.cosmic-ext-classic-menu/v1/focused_menu && grep -aq focused_menu /usr/bin/cosmic-ext-classic-menu-applet && [[ -x /usr/bin/cosmic-ext-classic-menu-settings ]]'
@@ -401,7 +457,7 @@ check "tamagi-capture: ajuda, menu sem tela e aviso limpo para OCR sob demanda" 
 check "atalhos enxutos: Shift/Alt+Print, Super+Shift+G/D/O/M/W, Super+Ctrl+P (sem emoji/remind)" bash -c 'D=/usr/share/cosmic/com.system76.CosmicSettings.Shortcuts/v1/defaults; grep -q "(modifiers: \[Shift\], key: \"Print\"): Spawn(\"tamagi-capture text\")" $D && grep -q "(modifiers: \[Alt\], key: \"Print\"): Spawn(\"tamagi-capture record\")" $D && for k in g d o m w; do grep -q "(modifiers: \[Super, Shift\], key: \"$k\"): Spawn" $D || exit 1; done && ! grep -q "tamagi-remind\|/emoji" $D && grep -q "open-or-install org.onlyoffice.desktopeditors" $D && [[ $(grep -c "key: \"Print\")" $D) -ge 3 ]]'
 check "tamagi-theme: cores do Neovim (LazyVim) em todos os temas" bash -c 'for th in $(tamagi-theme list); do tamagi-theme nvim $th > /tmp/n.lua && grep -q "colorscheme" /tmp/n.lua || exit 1; done; tamagi-theme nvim ipe | grep -q base16 && mkdir -p $HOME/.config/nvim/lua/plugins && tamagi-theme set gruvbox >/dev/null && grep -q "colorscheme = \"gruvbox\"" $HOME/.config/nvim/lua/plugins/tamagi-theme.lua; r=$?; rm -rf $HOME/.config/nvim; tamagi-theme set ipe >/dev/null; exit $r'
 check "linguagens: presets do mise na caixa (tamagi devbox lang)" bash -c 'o=$(tamagi-devbox lang </dev/null); grep -q "^  ruby " <<<"$o" && grep -q "^  dotnet " <<<"$o" && ! tamagi-devbox lang "x;rm" 2>/dev/null'
-check "tamagi-font: troca a fonte do foot e do COSMIC" bash -c 'tamagi-font list | grep -qx "JetBrains Mono" && GSETTINGS_BACKEND=memory tamagi-font set "Cascadia Code NF" >/dev/null && grep -q "^font=Cascadia Code NF:size=11" $HOME/.config/foot/foot.ini && grep -q "Cascadia Code NF" $HOME/.config/cosmic/com.system76.CosmicTk/v1/monospace_font && GSETTINGS_BACKEND=memory tamagi-font reset >/dev/null && grep -q "^font=JetBrains Mono" $HOME/.config/foot/foot.ini'
+check "tamagi-font: troca a fonte do foot e do COSMIC" bash -c 'tamagi-font list | grep -qx "JetBrains Mono" && alt=$(tamagi-font list | grep -vx "JetBrains Mono" | head -1) && [[ -n $alt ]] && GSETTINGS_BACKEND=memory tamagi-font set "$alt" >/dev/null && grep -q "^font=$alt:size=11" $HOME/.config/foot/foot.ini && grep -q "$alt" $HOME/.config/cosmic/com.system76.CosmicTk/v1/monospace_font && GSETTINGS_BACKEND=memory tamagi-font reset >/dev/null && grep -q "^font=JetBrains Mono" $HOME/.config/foot/foot.ini'
 check "VMs (libvirt e Windows) ficam fora dos snapshots da pasta pessoal" bash -c 'grep -q ".local/share/libvirt/images" /usr/libexec/tamagi/home-snapshots && grep -q ".local/share/tamagi-windows" /usr/libexec/tamagi/home-snapshots && grep -q ".local/share/flatpak" /usr/libexec/tamagi/home-snapshots && grep -q ".local/share/Steam" /usr/libexec/tamagi/home-snapshots && grep -q "prune_space" /usr/libexec/tamagi/home-snapshots && grep -q "flock" /usr/libexec/tamagi/system-update && grep -q "pre_update_snapshot" /usr/bin/tamagi-update'
 check "tamagi-update, snapper preservado e autorebuild de layer estão corretos" bash -c '
     for cmd in check drop rollback history "--soft-reboot"; do
@@ -421,20 +477,24 @@ check "marcas: sem logos do Fedora; os-release com o logo e os endereços do Tam
 check "Antigravity: o catálogo instala a CLI (agy) pelo instalador do Google; a IDE fica fora do catálogo" bash -c 'grep -qP "^antigravity\t.*\tagent:antigravity\tAntigravity CLI" /usr/share/tamagi/catalog.tsv && grep -q "antigravity.google/cli/install.sh" /usr/bin/tamagi-agents && grep -q "install_agy && menu_entry agy" /usr/bin/tamagi-agents && ! grep -q "tamagi-antigravity install" /usr/bin/tamagi-agents'
 check "Antigravity IDE: sob demanda na caixa de navegadores" bash -c '! rpm -q antigravity >/dev/null 2>&1 && [[ ! -e /etc/yum.repos.d/antigravity.repo ]] && grep -q "app antigravity" /usr/bin/tamagi-antigravity && grep -q "antigravity-rpm" /usr/libexec/tamagi/browser-provision && desktop-file-validate /usr/share/tamagi/desktop/agy.desktop && grep -q "install chrome --box" /usr/bin/tamagi-antigravity && grep -q "\.local/bin" /usr/lib/environment.d/50-tamagi-path.conf'
 check "primeiro boot: só Flatpaks essenciais (--user); nada é pré-marcado" bash -c 'L=/usr/share/tamagi/flatpaks.list; grep -qE "^flathub +org.onlyoffice.desktopeditors +opcional +Office" $L && grep -qE "^flathub +org.gnome.Loupe +essencial" $L && ! grep -qE "^(flathub|cosmic) +[^ ]+ +recomendado" $L && grep -E "^(flathub|cosmic) " $L | awk "NF < 6 {bad=1} END {exit bad}" && grep -q "kind:-essencial" /usr/libexec/tamagi/flatpak-setup && grep -q -- "--user" /usr/libexec/tamagi/flatpak-setup && ! grep -q -- "--system" /usr/libexec/tamagi/flatpak-setup && [[ ! -e /usr/libexec/tamagi/apps-setup ]]'
-check "catálogo único de opcionais (tamagi install): os itens pedidos, com ação válida" bash -c 'C=/usr/share/tamagi/catalog.tsv; for id in opera-gx whatsapp firefox chrome vivaldi chromium virt-manager windows steam lutris wine devbox-fedora devbox-ubuntu devbox-opensuse devbox-arch claude antigravity codex clio qwen opencode openclaw local-ai tailscale; do grep -qP "^$id\t" $C || { echo "falta $id"; exit 1; }; done; ! grep -vE "^#" $C | awk -F"\t" "NF != 5 || \$4 !~ /^(flatpak|gaming|agent|run):/ {bad=1} END {exit !bad}" && o=$(TAMAGI_LANG=en tamagi-install list) && grep -q "^  steam .*\[Games\]" <<<"$o" && grep -q "^  onlyoffice " <<<"$o" && ! TAMAGI_INSTALL_NO_FLATHUB=1 tamagi-install inexistente 2>/dev/null && grep -q "flathub.org/api/v2/search" /usr/bin/tamagi-install'
-check "primeiro login só com o básico (como no Aeon): toda linha de basics.list está no catálogo e não é navegador" bash -c 'B=/usr/share/tamagi/basics.list; ids=$(tamagi-install ids); n=0; while read -r state id _; do [[ $state == on || $state == off ]] || continue; n=$((n+1)); grep -qP "^$id\t(?!Browsers)" /usr/share/tamagi/catalog.tsv || grep -qE "^(flathub|cosmic) +$id +opcional " /usr/share/tamagi/flatpaks.list || { echo "fora do catálogo: $id"; exit 1; }; done < $B; (( n >= 5 )) && grep -q "^on " $B && grep -qE "^off +org.onlyoffice.desktopeditors" $B && grep -qE "^off +whatsapp" $B && grep -qE "^flathub +io.github.flattool.Ignition +opcional" /usr/share/tamagi/flatpaks.list'
+check "catálogo único de opcionais (tamagi install): itens essenciais, Bazzite, drivers/ROCm, Lark, Sniffnet e Flathub" bash -c 'C=/usr/share/tamagi/catalog.tsv; for id in opera-gx whatsapp lark firefox chrome vivaldi virt-manager windows steam lutris wine devbox-fedora devbox-ubuntu devbox-opensuse devbox-arch claude antigravity codex clio qwen opencode openclaw local-ai rocm video-amd video-intel video-nvidia codecs-extra lact openrgb solaar disk-tools sniffnet wireshark vpn-extra net-fs hardening-extra; do grep -qP "^$id\t" $C || { echo "falta $id"; exit 1; }; done; ! grep -vE "^#" $C | awk -F"\t" "NF != 5 || \$4 !~ /^(flatpak|gaming|agent|run):/ {bad=1} END {exit !bad}" && o=$(TAMAGI_LANG=en tamagi-install list) && grep -q "^  steam .*\[Games\]" <<<"$o" && grep -q "^  rocm .*\[Drivers\]" <<<"$o" && grep -q "^  onlyoffice " <<<"$o" && ! TAMAGI_INSTALL_NO_FLATHUB=1 tamagi-install inexistente 2>/dev/null && grep -q "flathub.org/api/v2/search" /usr/bin/tamagi-install'
+check "primeiro login com apps Rust escolhidos pelo usuário: toda linha de basics.list está no catálogo e não é navegador" bash -c 'B=/usr/share/tamagi/basics.list; n=0; while read -r state id _; do [[ $state == on || $state == off ]] || continue; n=$((n+1)); grep -qP "^$id\t(?!Browsers)" /usr/share/tamagi/catalog.tsv || grep -qE "^(flathub|cosmic) +$id +opcional " /usr/share/tamagi/flatpaks.list || { echo "fora do catálogo: $id"; exit 1; }; done < $B; (( n >= 15 )) && grep -q "^on " $B && for app in org.gnome.Papers dev.mariinkys.Cedilla com.francescogaglione.chronos com.github.flxzt.rnote app.drey.KeyRack org.gnome.Snapshot app.drey.Warp io.gitlab.adhami3310.Impression io.github.seadve.Kooha com.belmoussaoui.Authenticator sniffnet; do grep -qE "^(on|off) +$app" $B || { echo "falta app Rust: $app"; exit 1; }; done'
 check "primeiro login enxuto: navegador, o básico e pronto (tema, barra e tiling ficam no COSMIC)" bash -c 'F=/usr/bin/tamagi-firstrun; ! grep -q "Which profile?" $F && ! grep -q "tamagi apply" $F && grep -q "opera-gx  Opera GX" $F && grep -q "basics.list" $F && grep -q "Which browser?" $F && grep -q "tamagi-install --actions" $F && ! grep -qE "tamagi-theme (set|pick)|tamagi-panel|mise use|tamagi-ai setup" $F'
 check "agentes de IA sob demanda: catálogo, digest conferido e npm na caixa" bash -c 'o=$(tamagi-agents list); for a in claude antigravity codex clio qwen opencode gemini openclaw local; do grep -q "^  $a " <<<"$o" || exit 1; done; grep -q "SyntheticAutonomicMind/CLIO" /usr/bin/tamagi-agents && grep -qw perl /usr/libexec/tamagi/devbox-provision && grep -q "sha256sum -c" /usr/bin/tamagi-agents && grep -q "npm install -g --prefix" /usr/bin/tamagi-agents && ! tamagi-agents install inexistente 2>/dev/null'
 check "gamescope com HDR: sessão de jogos na tela de login, opções e detecção pelo EDID" bash -c 'F=/usr/share/tamagi/layer-overlays/gaming/usr/share/wayland-sessions/tamagi-gaming.desktop; grep -qx "Exec=/usr/libexec/tamagi/gamescope-session" $F && [[ ! -e /usr/share/wayland-sessions/tamagi-gaming.desktop ]] && grep -q -- "--overlay gaming" /usr/bin/tamagi-gaming && export TAMAGI_ASSUME_HDR=1 && export XDG_CONFIG_HOME=/tmp/gs && rm -rf /tmp/gs && tamagi-gaming hdr | grep -q "^HDR  *: on" && tamagi-gaming hdr nits 300 >/dev/null && grep -qx "SDR_NITS=300" /tmp/gs/tamagi/gamescope.conf && /usr/libexec/tamagi/gamescope-session --print-args 1 | grep -qx -- "--hdr-enabled" && tamagi-gaming hdr off >/dev/null && ! /usr/libexec/tamagi/gamescope-session --print-args 1 | grep -q hdr && ! tamagi-gaming hdr nits abc 2>/dev/null && python3 -I /usr/libexec/tamagi/hdr-displays; [[ $? -le 1 ]]'
 check "inglês é o idioma de origem: sem idioma definido sai inglês; pt, es e fr são catálogos" bash -c '[[ ! -e /usr/share/tamagi/i18n/en.tsv ]] && for l in pt es fr; do test -s /usr/share/tamagi/i18n/$l.tsv && test -s /usr/share/tamagi/keys.$l.txt || exit 1; done; env -u TAMAGI_LANG -u LANG -u LC_ALL -u LC_MESSAGES tamagi | grep -q "one command for the whole system" && TAMAGI_LANG=pt tamagi | grep -q "um comando para o sistema inteiro" && TAMAGI_LANG=de tamagi-layer --help | grep -q "Fedora packages" && TAMAGI_LANG=fr tamagi-install list | grep -q "\[Jeux\]" && ! grep -lE "\bt[l]? \"[^\"]*[áéíóúâêôãõç]" /usr/bin/tamagi-* | grep -q .'
-check "perfis prontos: ai, dev, gamer e office são TOML válido e entram no plano" bash -c 'for f in ai dev gamer office; do python3 -c "import tomllib,sys; tomllib.load(open(sys.argv[1],\"rb\"))" /usr/share/tamagi/profiles/$f.toml || exit 1; done; tamagi profiles | grep -q "tamagi apply ai" && o=$(tamagi diff ai) && grep -q "agente: codex" <<<"$o" && grep -q "caixa dev (fedora)" <<<"$o" && tamagi diff gamer | grep -q "catálogo: steam gaming-tools   \[pede senha\]" && ! tamagi diff http://exemplo.invalid/x.toml 2>/dev/null && ! tamagi diff inexistente 2>/dev/null'
-check "arquivo antigo com [packages] é lido, com aviso, e o resto vale" bash -c 'printf "[packages]\ndeb = [\"x\"]\n[appearance]\ntheme = \"nord\"\n" > /tmp/velho.toml; o=$(tamagi diff /tmp/velho.toml 2>&1) && grep -q "não existe mais" <<<"$o" && grep -q "tema: nord" <<<"$o"'
+check "perfis prontos: ai, dev, gamer e office são TOML válido e entram no plano" bash -c 'for f in ai dev gamer office; do python3 -c "import tomllib,sys; tomllib.load(open(sys.argv[1],\"rb\"))" /usr/share/tamagi/profiles/$f.toml || exit 1; done; tamagi sys profiles | grep -q "tamagi sys apply ai" && o=$(tamagi sys diff ai) && grep -q "agente: codex" <<<"$o" && grep -q "caixa dev (fedora)" <<<"$o" && tamagi sys diff gamer | grep -q "catálogo: steam gaming-tools   \[pede senha\]" && ! tamagi sys diff http://exemplo.invalid/x.toml 2>/dev/null && ! tamagi sys diff inexistente 2>/dev/null'
+check "arquivo antigo com [packages] é lido, com aviso, e o resto vale" bash -c 'printf "[packages]\ndeb = [\"x\"]\n[appearance]\ntheme = \"nord\"\n" > /tmp/velho.toml; o=$(tamagi sys diff /tmp/velho.toml 2>&1) && grep -q "não existe mais" <<<"$o" && grep -q "tema: nord" <<<"$o"'
 check "agente preso ao projeto: só a pasta do projeto, sem chaves, sistema somente-leitura, ponto de retorno no git" bash -c 'H=/tmp/jaula; rm -rf $H; mkdir -p $H/.ssh $H/proj $H/outro && echo SEGREDO > $H/.ssh/id && cd $H/proj && git init -q . && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m i && echo v1 > a && git add a && export HOME=$H && o=$(TAMAGI_LIBEXEC=/usr/libexec/tamagi tamagi-agents jail --host -- sh -c "cat ~/.ssh/id 2>/dev/null; ls ~/outro 2>/dev/null; cat a; echo novo > b; touch /usr/zz 2>/dev/null || echo ro" 2>&1) || { grep -qiE "namespace|permission|operation not permitted" <<<"$o" && git for-each-ref refs/tamagi/before-agent | grep -q . && exit 0; exit 1; }; grep -qx v1 <<<"$o" && grep -qx ro <<<"$o" && ! grep -q SEGREDO <<<"$o" && test -f $H/proj/b && git for-each-ref refs/tamagi/before-agent | grep -q . && cd $H && ! tamagi-agents jail --host -- true 2>/dev/null && ! tamagi-agents run inexistente 2>/dev/null && grep -q "bubblewrap" /usr/libexec/tamagi/devbox-provision'
-check "llm-scripts: opcional, usa o llama.cpp da imagem (sem compilar)" bash -c 'grep -qP "^llm-scripts\t" /usr/share/tamagi/catalog.tsv && bash -n /usr/libexec/tamagi/llm-scripts-setup && grep -q "llama-vulkan/bin" /usr/libexec/tamagi/llm-scripts-setup && grep -q "LLM_BUILD_DIR=" /usr/libexec/tamagi/llm-scripts-setup && test -x /usr/bin/llama-server'
+if [[ $EDITION != skl ]]; then
+    check "llm-scripts: opcional, usa o llama.cpp da imagem (sem compilar)" bash -c 'grep -qP "^llm-scripts\t" /usr/share/tamagi/catalog.tsv && bash -n /usr/libexec/tamagi/llm-scripts-setup && grep -q "llama-vulkan/bin" /usr/libexec/tamagi/llm-scripts-setup && grep -q "LLM_BUILD_DIR=" /usr/libexec/tamagi/llm-scripts-setup && test -x /usr/bin/llama-server'
+fi
 check "jaula montada onde roda: ajudante em Rust (estático), esconde as pastas pessoais, protege os hooks do git, recusa estado fora da home" bash -c 'J=/usr/libexec/tamagi/agent-jail; file -L $J | grep -Eq "static(ally|-pie) linked" && grep -q "JAIL_BOX=.*run/host/usr/libexec/tamagi" /usr/bin/tamagi-agents && mkdir -p /tmp/jp/.git/hooks && o=$(HOME=/tmp/jh $J --print --root /tmp/jp --cwd /tmp/jp -- true) && grep -qx -- "--unshare-pid" <<<"$o" && grep -qx "/tmp/jp/.git/hooks" <<<"$o" && grep -qx "/tmp/jh" <<<"$o" && ! HOME=/tmp/jp $J --print --root /tmp/jp -- true 2>/dev/null && ! HOME=/tmp/jh $J --print --root /tmp/jp --state ../fora -- true 2>/dev/null && ! $J --print --root /tmp/jp --nope -- true 2>/dev/null'
-check "Cockpit só em localhost, sem desligar a conferência de certificado" bash -c 'D=/usr/lib/systemd/system/cockpit.socket.d/10-tamagi.conf; grep -qx "ListenStream=" $D && grep -qx "ListenStream=127.0.0.1:9090" $D && [[ $(grep -c "^ListenStream=" $D) == 3 ]] && ! grep -q "ignore-certificate-errors" /usr/bin/tamagi-vm && grep -q "http://localhost:9090/machines" /usr/bin/tamagi-vm'
+if [[ $EDITION != skl ]]; then
+    check "Cockpit só em localhost, sem desligar a conferência de certificado" bash -c 'D=/usr/lib/systemd/system/cockpit.socket.d/10-tamagi.conf; grep -qx "ListenStream=" $D && grep -qx "ListenStream=127.0.0.1:9090" $D && [[ $(grep -c "^ListenStream=" $D) == 3 ]] && ! grep -q "ignore-certificate-errors" /usr/bin/tamagi-vm && grep -q "http://localhost:9090/machines" /usr/bin/tamagi-vm'
+fi
 check "instalador próprio na imagem (tamagi-welcome --install) e bootc 1.17.5 ou mais novo" bash -c 'tamagi-welcome --help | grep -q -- "--install" && v=$(rpm -q --qf "%{VERSION}" bootc) && [[ $(printf "%s\n" 1.17.5 "$v" | sort -V | head -1) == 1.17.5 ]] && ! command -v tik >/dev/null && ! rpm -q zenity >/dev/null 2>&1'
-check "tamagi status: o que roda em segundo plano, em texto e JSON" bash -c 'F=/tmp/fakectl; printf "%s\n" "#!/bin/bash" "case \"\$*\" in *is-active*fstrim*) echo activating;; *is-active*snapper-timeline*) echo active;; *is-active*) echo inactive;; *snapper*) echo exited;; *) echo running;; esac" > $F; chmod +x $F; o=$(TAMAGI_LANG=en tamagi status) && grep -q "Nothing is running in the background" <<<"$o" && o=$(TAMAGI_LANG=pt TAMAGI_STATUS_SYSTEMCTL=$F tamagi status) && grep -q "Fazendo o TRIM do SSD" <<<"$o" && ! grep -q "snapshot" <<<"$o" && [[ $(TAMAGI_STATUS_SYSTEMCTL=$F tamagi status --json | jq -r ".running | join(\",\")") == fstrim.service ]] && while IFS=$(printf "\t") read -r _ _ what; do grep -qP "^\Q$what\E\t" /usr/share/tamagi/i18n/pt.tsv || { echo "sem tradução: $what"; exit 1; }; done < <(sed -n "/^JOBS=/,/^\$/p" /usr/bin/tamagi-status | grep -P "\t")'
+check "tamagi sys status: o que roda em segundo plano, em texto e JSON" bash -c 'F=/tmp/fakectl; printf "%s\n" "#!/bin/bash" "case \"\$*\" in *is-active*fstrim*) echo activating;; *is-active*snapper-timeline*) echo active;; *is-active*) echo inactive;; *snapper*) echo exited;; *) echo running;; esac" > $F; chmod +x $F; o=$(TAMAGI_LANG=en tamagi sys status) && grep -q "Nothing is running in the background" <<<"$o" && o=$(TAMAGI_LANG=pt TAMAGI_STATUS_SYSTEMCTL=$F tamagi sys status) && grep -q "Fazendo o TRIM do SSD" <<<"$o" && ! grep -q "snapshot" <<<"$o" && [[ $(TAMAGI_STATUS_SYSTEMCTL=$F tamagi sys status --json | jq -r ".running | join(\",\")") == fstrim.service ]] && while IFS=$(printf "\t") read -r _ _ what; do grep -qP "^\Q$what\E\t" /usr/share/tamagi/i18n/pt.tsv || { echo "sem tradução: $what"; exit 1; }; done < <(sed -n "/^JOBS=/,/^\$/p" /usr/bin/tamagi-status | grep -P "\t")'
 check "egress-guard: permite APIs de IA, registries e llama.cpp local; bloqueia domínios desconhecidos e IPs crus" bash -c '
     G=/usr/libexec/tamagi/egress-guard
     test -x "$G"
@@ -445,9 +505,13 @@ check "egress-guard: permite APIs de IA, registries e llama.cpp local; bloqueia 
     ! "$G" --check-host 1.1.1.1:443 >/dev/null
     "$G" --check-host custom.internal:443 --allow custom.internal | grep -qx ALLOW
 '
-check "tamagi lease: prazo, lista fechada, vencimento e devolução (simulado)" bash -c 'export TAMAGI_LEASE_DIR=/tmp/leases TAMAGI_LEASE_DRYRUN=1 TAMAGI_LANG=en; rm -rf $TAMAGI_LEASE_DIR; H=/usr/libexec/tamagi/lease-helper; systemctl is-enabled tamagi-lease-expire.service >/dev/null && tamagi lease | grep -q "Nothing is on lease" && tamagi lease vm 30 | grep -q "On lease until" && tamagi lease port 8080 >/dev/null && [[ $($H list | wc -l) == 2 ]] && ! $H grant shell 5 2>/dev/null && ! $H grant vm 99999 2>/dev/null && ! $H grant port 5 70000 2>/dev/null && TAMAGI_LEASE_NOW=$(( $(date +%s) + 2400 )) $H expire | grep -qx "expired: vm" && [[ $($H list | cut -d" " -f1) == port-8080 ]] && tamagi lease end port 8080 | grep -q "remove-port=8080/tcp" && [[ -z $($H list) ]] && ! grep -q "security_driver" $H'
-check "tamagi vm: acesso total opcional (pen-drives e discos externos) e console Cockpit Machines" bash -c 'tamagi-vm --help | grep -q "tamagi vm access" && ! grep -q "security_driver" /usr/bin/tamagi-vm && [[ $(grep -c "label=disable\"" /usr/libexec/tamagi/gpu-args) == 1 ]] && grep -q "nvidia/version ]]; then echo \"--security-opt=label=disable" /usr/libexec/tamagi/gpu-args && grep -q ":/work:z" /usr/bin/tamagi-try && test -f /etc/libvirt/qemu/networks/autostart/default.xml && test -f /usr/share/applications/tamagi-vm.desktop && grep -q "zram-size = min(ram, 32768)" /usr/lib/systemd/zram-generator.conf.d/10-tamagi.conf && jq -e ".HighEfficiencyModeEnabled == true" /etc/chromium/policies/managed/tamagi-chromeos.json >/dev/null && [[ ! -e /usr/bin/tamagi-config && ! -e /etc/tamagi/system.toml ]] && ! tamagi-vm access inexistente 2>/dev/null'
-check "GPU nos contêineres e VS Code com Dev Containers opcional" bash -c '/usr/libexec/tamagi/gpu-args | grep -q -- "--group-add=keep-groups" && grep -q "mesa-vulkan-drivers" /usr/libexec/tamagi/devbox-provision && tamagi-devbox --help | grep -q "tamagi devbox gpu" && grep -qP "^vscode\t" /usr/share/tamagi/catalog.tsv && grep -q "packages.microsoft.com/yumrepos/vscode" /usr/libexec/tamagi/vscode-setup && grep -q "\"dev.containers.dockerPath\": \"podman\"" /usr/libexec/tamagi/vscode-setup && command -v podman-compose && ! command -v brew'
+check "tamagi shield lease: prazo, lista fechada, vencimento e devolução (simulado)" bash -c 'export TAMAGI_LEASE_DIR=/tmp/leases TAMAGI_LEASE_DRYRUN=1 TAMAGI_LANG=en; rm -rf $TAMAGI_LEASE_DIR; H=/usr/libexec/tamagi/lease-helper; systemctl is-enabled tamagi-lease-expire.service >/dev/null && tamagi shield lease | grep -q "Nothing is on lease" && tamagi shield lease vm 30 | grep -q "On lease until" && tamagi shield lease port 8080 >/dev/null && [[ $($H list | wc -l) == 2 ]] && ! $H grant shell 5 2>/dev/null && ! $H grant vm 99999 2>/dev/null && ! $H grant port 5 70000 2>/dev/null && TAMAGI_LEASE_NOW=$(( $(date +%s) + 2400 )) $H expire | grep -qx "expired: vm" && [[ $($H list | cut -d" " -f1) == port-8080 ]] && tamagi shield lease end port 8080 | grep -q "remove-port=8080/tcp" && [[ -z $($H list) ]] && ! grep -q "security_driver" $H'
+if [[ $EDITION != skl ]]; then
+    check "tamagi vm: acesso total opcional (pen-drives e discos externos) e console Cockpit Machines" bash -c 'tamagi-vm --help | grep -q "tamagi vm access" && ! grep -q "security_driver" /usr/bin/tamagi-vm && [[ $(grep -c "label=disable\"" /usr/libexec/tamagi/gpu-args) == 1 ]] && grep -q "nvidia/version ]]; then echo \"--security-opt=label=disable" /usr/libexec/tamagi/gpu-args && grep -q ":/work:z" /usr/bin/tamagi-try && test -f /etc/libvirt/qemu/networks/autostart/default.xml && test -f /usr/share/applications/tamagi-vm.desktop && grep -q "zram-size = min(ram, 32768)" /usr/lib/systemd/zram-generator.conf.d/10-tamagi.conf && jq -e ".HighEfficiencyModeEnabled == true" /etc/chromium/policies/managed/tamagi-chromeos.json >/dev/null && [[ ! -e /usr/bin/tamagi-config && ! -e /etc/tamagi/system.toml ]] && ! tamagi-vm access inexistente 2>/dev/null'
+fi
+if [[ $EDITION != skl ]]; then
+    check "GPU nos contêineres e VS Code com Dev Containers opcional" bash -c '/usr/libexec/tamagi/gpu-args | grep -q -- "--group-add=keep-groups" && grep -q "mesa-vulkan-drivers" /usr/libexec/tamagi/devbox-provision && tamagi-devbox --help | grep -q "tamagi devbox gpu" && grep -qP "^vscode\t" /usr/share/tamagi/catalog.tsv && grep -q "packages.microsoft.com/yumrepos/vscode" /usr/libexec/tamagi/vscode-setup && grep -q "\"dev.containers.dockerPath\": \"podman\"" /usr/libexec/tamagi/vscode-setup && command -v podman-compose && ! command -v brew'
+fi
 check "uma Noto Sans só (a variável): duas cópias da família faziam o texto sumir" bash -c 'rpm -q google-noto-sans-vf-fonts >/dev/null && ! rpm -q google-noto-sans-fonts >/dev/null 2>&1 && fc-match -f "%{file}" "Noto Sans" | grep -qi "vf\|variable\|\[wght\]"'
 check "btrfs com a manutenção do MicroOS/Aeon: scrub e balance em timers" bash -c 'rpm -q btrfsmaintenance >/dev/null && systemctl is-enabled btrfs-scrub.timer btrfs-balance.timer | grep -c enabled | grep -qx 2'
 check "TRIM: fstrim mensal, fora da bateria (o btrfs faz o descarte contínuo)" bash -c 'systemctl is-enabled fstrim.timer >/dev/null && grep -qx "OnCalendar=monthly" /usr/lib/systemd/system/fstrim.timer.d/10-tamagi.conf && grep -q "ConditionACPower=true" /usr/lib/systemd/system/fstrim.service.d/10-tamagi.conf && [[ $(grep -v "^#" /etc/sysconfig/btrfsmaintenance | grep -c "BTRFS_TRIM_PERIOD=\"none\"") -eq 1 ]]' 
@@ -488,16 +552,22 @@ check "shadow workspaces (CoW): isolamento da árvore ao vivo, diff, apply com s
     rm -rf "$H"
 '
 check "tamagi-menu: residente pelo autostart" bash -c 'desktop-file-validate /etc/xdg/autostart/tamagi-menu-service.desktop && grep -q "^Exec=tamagi-menu --service" /etc/xdg/autostart/tamagi-menu-service.desktop && env -u WAYLAND_DISPLAY -u DISPLAY tamagi-menu --service'
-check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep "CosmicPanel\.Dock/" | grep -q "^..5"'
+if [[ $EDITION == skl ]]; then
+    check "SKL barra: camada, medidas fixas (margin 0) e Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 0 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep "CosmicPanel\.Dock/" | grep -q "^..5"'
+else
+    check "barra: camada e medidas certas, Dock intacto" bash -c 'P=/usr/share/cosmic/com.system76.CosmicPanel.Panel/v1; grep -qx Top $P/layer && grep -qx 4 $P/margin && grep -qx 2 $P/padding && grep -qx 4 $P/spacing && ! rpm -V cosmic-panel | grep "CosmicPanel\.Dock/" | grep -q "^..5"'
+fi
 check "terminal e editor usam JetBrains Mono" bash -c 'for a in CosmicTerm CosmicEdit; do grep -qx "\"JetBrains Mono\"" /usr/share/cosmic/com.system76.$a/v1/font_name || exit 1; done'
 check "agente de IA responde no idioma do sistema" bash -c 'grep -q "Responda sempre em" /usr/bin/tamagi-agent && ! grep -q "português do Brasil," /usr/share/tamagi/agent/system.md'
 check "tamagi-panel troca o estilo da barra" bash -c 'tamagi-panel set cosmic >/dev/null && grep -q Dock ~/.config/cosmic/com.system76.CosmicPanel/v1/entries && grep -qx Top ~/.config/cosmic/com.system76.CosmicPanel.Panel/v1/anchor && tamagi-panel set classico >/dev/null && grep -qx None ~/.config/cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center && tamagi-panel set centro >/dev/null && [[ $(tamagi-panel current) == centro ]] && ! tamagi-panel set nada 2>/dev/null'
-check "Claude Code fora da imagem: atalho que baixa no primeiro uso, e no menu" bash -c '[[ $(stat -c %s /usr/bin/claude) -lt 20000 ]] && head -1 /usr/bin/claude | grep -q bash && bash -n /usr/bin/claude && grep -q "sha256sum -c" /usr/bin/claude && desktop-file-validate /usr/share/tamagi/desktop/claude-code.desktop && grep -q tamagi-agent /usr/share/cosmic/com.system76.CosmicAppList/v1/favorites'
+if [[ $EDITION != skl ]]; then
+    check "Claude Code fora da imagem: atalho que baixa no primeiro uso, e no menu" bash -c '[[ $(stat -c %s /usr/bin/claude) -lt 20000 ]] && head -1 /usr/bin/claude | grep -q bash && bash -n /usr/bin/claude && grep -q "sha256sum -c" /usr/bin/claude && desktop-file-validate /usr/share/tamagi/desktop/claude-code.desktop && grep -q tamagi-agent /usr/share/cosmic/com.system76.CosmicAppList/v1/favorites'
+fi
 check "tmpfiles cria /var/log/tuned (rótulo SELinux do tuned-ppd)" bash -c 'systemd-tmpfiles --cat-config 2>/dev/null | grep -qE "^d /var/log/tuned "'
 check "mcelog é pulado fora de processadores Intel" bash -c 'systemctl cat mcelog.service | grep -q "ExecCondition=.*GenuineIntel"'
 check "desempenho: writeback fixo, nmi_watchdog=0, NVMe none, boot enxuto" bash -c 'grep -q "^vm.dirty_bytes = 268435456" /usr/lib/sysctl.d/61-tamagi-performance.conf && grep -q "^kernel.nmi_watchdog = 0" /usr/lib/sysctl.d/61-tamagi-performance.conf && grep -q "nvme.*=\"none\"" /usr/lib/udev/rules.d/60-tamagi-ioschedulers.rules && ! systemctl is-enabled NetworkManager-wait-online.service 2>/dev/null | grep -qx enabled && ! systemctl is-enabled dnf-makecache.timer 2>/dev/null | grep -qx enabled && ! systemctl is-enabled virtqemud.service 2>/dev/null | grep -qx enabled'
 check "tamagi-devbox: Fedora, Ubuntu, openSUSE e Arch; clientes de banco, mise e ponte para o navegador" bash -c 'o=$(tamagi-devbox distros); [[ $(wc -l <<<"$o") -eq 4 ]] && for d in fedora ubuntu opensuse arch; do grep -q "^  $d " <<<"$o" || exit 1; done; P=/usr/libexec/tamagi/devbox-provision; head -1 $P | grep -qx "#!/usr/bin/env bash" && grep -q "sqlite-devel" $P && grep -q "nodejs npm" $P && grep -q "postgresql mariadb valkey" $P && grep -q "distrobox-host-exec xdg-open" $P && grep -q "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH" $P && ! tamagi-devbox create gentoo 2>/dev/null'
-check "tamagi-perf: telemetria, JSON, polkit e unit tamagi-scx válida" bash -c 'tamagi-perf --json | jq -e ".profile and .kernel and .vm" && test -x /usr/libexec/tamagi/perf-helper && grep -q "enable --now tamagi-scx.service" /usr/libexec/tamagi/perf-helper && grep -q "perf-helper" /usr/share/polkit-1/rules.d/50-tamagi-perf.rules && systemd-analyze verify /usr/lib/systemd/system/tamagi-scx.service'
+check "tamagi-perf: telemetria, JSON, polkit, perfil ai (scx_rustland) e unit tamagi-scx válida" bash -c 'tamagi-perf --json | jq -e ".profile and .kernel and .vm" && test -x /usr/libexec/tamagi/perf-helper && test -x /usr/libexec/tamagi/scx-launch && grep -q "scx_rustland" /usr/libexec/tamagi/scx-launch && grep -q "enable --now tamagi-scx.service" /usr/libexec/tamagi/perf-helper && grep -q "perf-helper" /usr/share/polkit-1/rules.d/50-tamagi-perf.rules && systemd-analyze verify /usr/lib/systemd/system/tamagi-scx.service'
 check "tamagi-workspace: detecta Rust/Node/SQLite e gera tamagi-workspace.toml" bash -c 'w=/tmp/ws-test; rm -rf "$w"; mkdir -p "$w"; printf "[dependencies]\nrusqlite = \"0.32\"\n" > "$w/Cargo.toml"; printf "{\"scripts\":{\"dev\":\"vite\"}}\n" > "$w/package.json"; tamagi-workspace -C "$w" init >/dev/null && test -f "$w/tamagi-workspace.toml" && tamagi-workspace -C "$w" status --json | jq -e ".configured == true and .distro == \"fedora\" and (.stack | index(\"rust\") != null) and (.stack | index(\"node\") != null) and (.stack | index(\"sqlite\") != null)"; rc=$?; rm -rf "$w"; exit $rc'
 check "tamagi-doctor: 12 verificações em JSON" bash -c 'tamagi-doctor --json | jq -e "(.checks | length) == 12 and all(.checks[]; .id and .status and .summary)"'
 check "tamagi-gaming: nativo sob demanda (como no Bazzite, via tamagi-layer multilib) + Flatpak + status" bash -c 'tamagi-gaming status | grep -q "gamescope" && grep -q -- "--rpmfusion" /usr/bin/tamagi-layer && grep -q "%{NAME}\.%{ARCH}" /usr/bin/tamagi-layer && grep -q "ldconfig" /usr/bin/tamagi-layer && grep -q "mesa-vulkan-drivers.i686" /usr/bin/tamagi-gaming && ! tamagi-gaming native inexistente 2>/dev/null'
@@ -512,6 +582,11 @@ check "cria o usuário pedido no instalador" bash -c 'TAMAGI_INSTALL_CONF=/tmp/f
 check "nome completo e senha gravados"    bash -c 'getent passwd maria | grep -q "Maria da Silva" && getent shadow maria | cut -d: -f2 | grep -q "^[$]6[$]"'
 check "teclado escolhido vale para o usuário" bash -c 'grep -q "layout: \"us\"" ~maria/.config/cosmic/com.system76.CosmicComp/v1/xkb_config && grep -q "variant: \"intl\"" ~maria/.config/cosmic/com.system76.CosmicComp/v1/xkb_config && [[ $(stat -c %U ~maria/.config/cosmic/com.system76.CosmicComp/v1/xkb_config) == maria ]]'
 check "arquivo de respostas é apagado"    test ! -e /tmp/fb/install.conf
+if [[ $EDITION == skl ]]; then
+    mkdir -p /tmp/fb
+    printf 'EDITION=skl\nUSER=prof\nFULLNAME=Professor\nPASSWORD_HASH=%s\nSTUDENT_USER=aluno\nSKL_HOMEPAGE=https://escola.example.edu\nXKB_LAYOUT=br\n' "$(openssl passwd -6 segredo)" > /tmp/fb/skl.conf
+    check "SKL firstboot: cria admin (wheel) + aluno (sem sudo), autologin e homepage" bash -c 'TAMAGI_INSTALL_CONF=/tmp/fb/skl.conf /usr/libexec/tamagi/firstboot && id -nG prof | grep -qw wheel && ! id -nG aluno | grep -qw wheel && grep -q "user = \"aluno\"" /etc/greetd/cosmic-greeter.toml && jq -e ".HomepageLocation == \"https://escola.example.edu\"" /etc/chromium/policies/managed/tamagi-skl.json >/dev/null'
+fi
 mkdir -p /tmp/fb; printf 'USER=Root; rm -rf /\n' > /tmp/fb/install.conf
 check "recusa nome de usuário inválido"   bash -c '! TAMAGI_INSTALL_CONF=/tmp/fb/install.conf /usr/libexec/tamagi/firstboot 2>/dev/null'
 

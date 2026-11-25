@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # perf-helper — parte privilegiada do tamagi-perf (chamada via pkexec).
-# Aceita apenas perfis conhecidos (lista fechada) e aplica tuned + sched_ext.
+# Aceita perfis fechados: eco, balanced, ai, performance, latency.
 set -euo pipefail
 
 [[ $(id -u) == 0 ]] || { echo "erro: precisa de root" >&2; exit 1; }
@@ -8,22 +8,31 @@ set -euo pipefail
 PROFILE=${1:-}
 STATE_DIR=/var/lib/tamagi
 STATE_FILE="$STATE_DIR/perf-profile"
+SCX_ENV="$STATE_DIR/scx.env"
 
 case "$PROFILE" in
     eco)
         tuned_prof=powersave
-        want_scx=0 ;;
+        want_scx=0
+        scx_sched="" ;;
     balanced)
         tuned_prof=balanced
-        want_scx=0 ;;
+        want_scx=0
+        scx_sched="" ;;
+    ai)
+        tuned_prof=throughput-performance
+        want_scx=1
+        scx_sched=scx_rustland ;;
     performance)
         tuned_prof=throughput-performance
-        want_scx=1 ;;
+        want_scx=1
+        scx_sched=scx_rusty ;;
     latency)
         tuned_prof=latency-performance
-        want_scx=1 ;;
+        want_scx=1
+        scx_sched=scx_rustland ;;
     *)
-        echo "usage: perf-helper <eco|balanced|performance|latency>" >&2
+        echo "usage: perf-helper <eco|balanced|ai|performance|latency>" >&2
         exit 2 ;;
 esac
 
@@ -32,13 +41,15 @@ if command -v tuned-adm >/dev/null 2>&1; then
     tuned-adm profile "$tuned_prof"
 fi
 
-if [[ -d /sys/kernel/sched_ext && -x /usr/bin/scx_rusty ]]; then
+mkdir -p "$STATE_DIR"
+if [[ -d /sys/kernel/sched_ext ]]; then
     if (( want_scx )); then
+        printf 'SCX_SCHED=%s\n' "$scx_sched" > "$SCX_ENV"
         systemctl enable --now tamagi-scx.service 2>/dev/null || true
+        systemctl restart tamagi-scx.service 2>/dev/null || true
     else
         systemctl disable --now tamagi-scx.service 2>/dev/null || true
     fi
 fi
 
-mkdir -p "$STATE_DIR"
 printf '%s\n' "$PROFILE" > "$STATE_FILE"

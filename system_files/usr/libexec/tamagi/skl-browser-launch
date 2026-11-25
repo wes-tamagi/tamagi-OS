@@ -1,0 +1,26 @@
+#!/usr/bin/bash
+# skl-browser-launch — inicia o Chromium automaticamente na sessão do aluno
+# (Tamagi-SKL). Antes de abrir, limpa cookies/tokens residuais de um eventual
+# desligamento forçado na tomada, preservando o histórico (gerido pela política
+# de 15 dias / 360 h em /etc/chromium/policies/managed/tamagi-skl.json).
+set -euo pipefail
+
+# Apenas na edição Tamagi-SKL e fora da mídia live.
+[[ $(cat /usr/share/tamagi/edition 2>/dev/null || echo dxai) == skl ]] || exit 0
+[[ ! -e /run/tamagi-live ]] || exit 0
+# Conta admin (grupo wheel) não abre em modo aluno automático.
+id -nG 2>/dev/null | grep -qw wheel && exit 0
+
+prof="${XDG_CONFIG_HOME:-$HOME/.config}/chromium/Default"
+if [[ -d $prof ]]; then
+    rm -f "$prof/Cookies" "$prof/Cookies-journal" \
+          "$prof/Login Data" "$prof/Login Data-journal" \
+          "$prof/Login Data For Account" "$prof/Login Data For Account-journal" \
+          "$prof/Web Data" "$prof/Web Data-journal" \
+          "$prof/Network/Cookies" "$prof/Network/Cookies-journal" \
+          "$prof/Current Session" "$prof/Current Tabs" \
+          "$prof/Last Session" "$prof/Last Tabs" 2>/dev/null || true
+    rm -rf "$prof/Sessions" "$prof/Local Storage" "$prof/Session Storage" "$prof/IndexedDB" 2>/dev/null || true
+fi
+
+exec /usr/bin/chromium-browser --no-first-run --no-default-browser-check

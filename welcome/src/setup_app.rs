@@ -72,6 +72,8 @@ pub enum Message {
     Pass1(String),
     Pass2(String),
     ShowPass,
+    StudentUser(String),
+    SklHomepage(String),
     Encrypt(bool),
     Luks1(String),
     Luks2(String),
@@ -90,6 +92,7 @@ pub enum Message {
 
 pub struct Setup {
     core: Core,
+    edition: String,
     page: Page,
     lang: usize,
     keyboard: usize,
@@ -104,6 +107,8 @@ pub struct Setup {
     pass1: String,
     pass2: String,
     show_pass: bool,
+    student_user: String,
+    skl_homepage: String,
     encrypt: bool,
     luks1: String,
     luks2: String,
@@ -159,6 +164,7 @@ impl Application for Setup {
         }
         let mut app = Setup {
             core,
+            edition: sys::edition(),
             page: Page::Welcome,
             lang,
             keyboard: default_keyboard(LANGS[lang].0),
@@ -173,6 +179,8 @@ impl Application for Setup {
             pass1: String::new(),
             pass2: String::new(),
             show_pass: false,
+            student_user: "aluno".into(),
+            skl_homepage: "https://classroom.google.com".into(),
             encrypt: false,
             luks1: String::new(),
             luks2: String::new(),
@@ -276,6 +284,8 @@ impl Application for Setup {
             Message::Pass1(p) => self.pass1 = p,
             Message::Pass2(p) => self.pass2 = p,
             Message::ShowPass => self.show_pass = !self.show_pass,
+            Message::StudentUser(u) => self.student_user = u.trim().to_string(),
+            Message::SklHomepage(u) => self.skl_homepage = u.trim().to_string(),
             Message::Encrypt(on) => self.encrypt = on,
             Message::Luks1(p) => self.luks1 = p,
             Message::Luks2(p) => self.luks2 = p,
@@ -363,8 +373,16 @@ impl Setup {
         LANGS[self.lang].0
     }
 
+    fn is_skl(&self) -> bool {
+        self.edition == "skl"
+    }
+
+    fn edition_name(&self) -> &'static str {
+        if self.is_skl() { "Tamagi-SKL" } else { "Tamagi-DxAI" }
+    }
+
     fn retitle(&mut self) -> Task<Message> {
-        let title = tr("Install Tamagi");
+        let title = format!("{} — {}", tr("Install Tamagi"), self.edition_name());
         self.set_header_title(title.clone());
         match self.core.main_window_id() {
             Some(id) => self.set_window_title(title, id),
@@ -446,6 +464,12 @@ impl Setup {
                     Some(tr("The password cannot be empty."))
                 } else if self.pass1 != self.pass2 {
                     Some(tr("The two passwords are not the same."))
+                } else if self.is_skl() && check_username(&self.student_user, sys::user_taken).is_err() {
+                    Some(tr("The username must start with a lowercase letter and contain only lowercase letters, digits, hyphen or underscore."))
+                } else if self.is_skl() && self.student_user == self.user {
+                    Some(tr("The student account must have a different username from the administrator."))
+                } else if self.is_skl() && !(self.skl_homepage.starts_with("https://") || self.skl_homepage.starts_with("http://")) {
+                    Some(tr("The school homepage URL must start with https:// or http://."))
                 } else {
                     None
                 }
@@ -527,12 +551,15 @@ impl Setup {
             return Task::none();
         };
         let mut answers = Answers {
+            edition: self.edition.clone(),
             lang: self.lang_code().to_string(),
             keyboard: self.keyboard,
             timezone: self.zones.get(self.zone).cloned().unwrap_or_else(|| "UTC".into()),
             user: self.user.clone(),
             fullname: self.fullname.clone(),
             password_hash: hash,
+            student_user: self.is_skl().then(|| self.student_user.clone()),
+            skl_homepage: self.is_skl().then(|| self.skl_homepage.clone()),
             tpm: self.tpm_mode(),
             keep: self.keeping().cloned(),
             verify_state: dir.join("verify").to_string_lossy().into_owned(),
@@ -691,13 +718,23 @@ impl Setup {
 
     fn view_account(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
-        let fields = widget::column::with_capacity(4)
+        let mut fields = widget::column::with_capacity(6)
             .spacing(spacing.space_s)
             .push(widget::text_input(tr("Full name"), &self.fullname).label(tr("Full name")).on_input(Message::FullName))
             .push(widget::text_input("maria", &self.user).label(tr("Username")).on_input(Message::User))
             .push(widget::secure_input(tr("Password"), &self.pass1, Some(Message::ShowPass), !self.show_pass).label(tr("Password")).on_input(Message::Pass1))
             .push(widget::secure_input(tr("Repeat the password"), &self.pass2, Some(Message::ShowPass), !self.show_pass).label(tr("Repeat the password")).on_input(Message::Pass2));
-        Self::page(m3::hero("system-users-symbolic", tr("Your account"), tr("This will be the administrator account of the computer.")), m3::card(fields))
+        if self.is_skl() {
+            fields = fields
+                .push(widget::text_input("aluno", &self.student_user).label(tr("Student auto-login account (no sudo)")).on_input(Message::StudentUser))
+                .push(widget::text_input("https://classroom.google.com", &self.skl_homepage).label(tr("School homepage URL (Chromium)")).on_input(Message::SklHomepage));
+        }
+        let subtitle = if self.is_skl() {
+            tr("Set the administrator password (teacher/IT) and the student auto-login account.")
+        } else {
+            tr("This will be the administrator account of the computer.")
+        };
+        Self::page(m3::hero("system-users-symbolic", tr("Your account"), subtitle), m3::card(fields))
     }
 
     fn view_encryption(&self) -> Element<'_, Message> {
@@ -801,6 +838,7 @@ impl Setup {
         let disk_name = disk.map(|d| format!("{} · {} · {}", if d.model.is_empty() { &d.path } else { &d.model }, d.path, format_bytes(d.bytes))).unwrap_or_default();
         let yes_no = |on: bool| if on { tr("yes") } else { tr("no") };
         let mut rows: Vec<(String, String)> = vec![
+            (tr("Edition"), self.edition_name().to_string()),
             (tr("Disk"), disk_name),
             (tr("Language"), LANGS[self.lang].1.to_string()),
             (tr("Keyboard"), KEYBOARDS[self.keyboard].name.to_string()),
@@ -808,6 +846,10 @@ impl Setup {
             (tr("Your account"), if self.fullname.is_empty() { self.user.clone() } else { format!("{} ({})", setup::clean_fullname(&self.fullname), self.user) }),
             (tr("Encryption"), yes_no(self.encrypted())),
         ];
+        if self.is_skl() {
+            rows.push((tr("Student account"), format!("{} (auto-login)", self.student_user)));
+            rows.push((tr("School homepage"), self.skl_homepage.clone()));
+        }
         if self.encrypted() {
             let unlock = match self.tpm_mode() {
                 TpmMode::Pin => tr("TPM chip + PIN"),
