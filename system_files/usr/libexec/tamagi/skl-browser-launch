@@ -23,4 +23,9 @@ if [[ -d $prof ]]; then
     rm -rf "$prof/Sessions" "$prof/Local Storage" "$prof/Session Storage" "$prof/IndexedDB" 2>/dev/null || true
 fi
 
-exec /usr/bin/chromium-browser --no-first-run --no-default-browser-check
+guard_args=()
+if [[ -d /usr/share/tamagi/skl-tab-guard ]]; then
+    guard_args=(--load-extension=/usr/share/tamagi/skl-tab-guard)
+fi
+
+exec /usr/bin/chromium-browser --no-first-run --no-default-browser-check "${guard_args[@]}"

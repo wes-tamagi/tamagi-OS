@@ -2,17 +2,17 @@
 # tamagi-db — development databases with one command, in rootless Podman
 # containers.
 #
-#   tamagi db                    choose and start a database (menu)
-#   tamagi db add <db>           postgres | mysql | mariadb | redis | valkey | mongo
-#   tamagi db list               installed databases and whether they are running
-#   tamagi db start|stop <db>
-#   tamagi db url <db>           connection URL (for DATABASE_URL, an ORM, a GUI)
-#   tamagi db env                `export …_URL=…` lines for every running database
-#   tamagi db shell <db>         the database's own client (psql, mysql, redis-cli, mongosh)
-#   tamagi db snapshot <db> [name]    saves the data as it is now
-#   tamagi db restore <db> [name]     brings a snapshot back (asks first)
-#   tamagi db snapshots [db]     saved snapshots
-#   tamagi db remove <db>        deletes the container and the data
+#   tamagi dev db                    choose and start a database (menu)
+#   tamagi dev db add <db>           postgres | mysql | mariadb | redis | valkey | mongo
+#   tamagi dev db list               installed databases and whether they are running
+#   tamagi dev db start|stop <db>
+#   tamagi dev db url <db>           connection URL (for DATABASE_URL, an ORM, a GUI)
+#   tamagi dev db env                `export …_URL=…` lines for every running database
+#   tamagi dev db shell <db>         the database's own client (psql, mysql, redis-cli, mongosh)
+#   tamagi dev db snapshot <db> [name]    saves the data as it is now
+#   tamagi dev db restore <db> [name]     brings a snapshot back (asks first)
+#   tamagi dev db snapshots [db]     saved snapshots
+#   tamagi dev db remove <db>        deletes the container and the data
 #
 # Each database is a Quadlet unit in ~/.config/containers/systemd/ that starts
 # with your session and listens only on 127.0.0.1 (nobody outside the machine
@@ -94,7 +94,7 @@ list() {
         any=1
         printf '  %-9s %-46s %s\n' "$db" "$(url_of "$db")" "$(running "$db" && t "running" || t "off")"
     done
-    [[ -n $any ]] || echo "$(t "No database installed"). tamagi db add <${DBS[*]// /|}>"
+    [[ -n $any ]] || echo "$(t "No database installed"). tamagi dev db add <${DBS[*]// /|}>"
 }
 
 cmd_env() {
@@ -173,7 +173,7 @@ cmd_snapshots() {
             printf '  %-9s %-28s %6s  %s\n' "$db" "$(basename "$f" .tar.zst)" "$(du -h "$f" | cut -f1)" "$(date -r "$f" '+%Y-%m-%d %H:%M')"
         done
     done
-    [[ -n $any ]] || echo "$(t "No snapshots. Create one with"): tamagi db snapshot <db>"
+    [[ -n $any ]] || echo "$(t "No snapshots. Create one with"): tamagi dev db snapshot <db>"
 }
 
 case "${1:-}" in
@@ -181,7 +181,7 @@ case "${1:-}" in
         [[ -t 0 ]] || { list; exit 0; }
         db=$(printf '%s\n' "${DBS[@]}" | gum choose --header "$(t "Development database")") || exit 0
         add "$db" ;;
-    add)       [[ -n ${2:-} ]] || die "usage: tamagi db add <${DBS[*]// /|}>"; add "$2" ;;
+    add)       [[ -n ${2:-} ]] || die "usage: tamagi dev db add <${DBS[*]// /|}>"; add "$2" ;;
     list)      list ;;
     start)     need "${2:-}"; systemctl --user start "tamagi-db-$2.service" ;;
     stop)      need "${2:-}"; systemctl --user stop "tamagi-db-$2.service" ;;
@@ -200,5 +200,5 @@ case "${1:-}" in
         podman volume rm -f "tamagi-db-$2" >/dev/null 2>&1 || true
         echo "$(t "Database removed"): $2" ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-    *) die "usage: tamagi db [add|list|start|stop|url|env|shell|snapshot|restore|snapshots|remove] <db>" ;;
+    *) die "usage: tamagi dev db [add|list|start|stop|url|env|shell|snapshot|restore|snapshots|remove] <db>" ;;
 esac

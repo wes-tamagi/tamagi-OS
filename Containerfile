@@ -45,14 +45,13 @@ RUN cmake -B build -G Ninja \
     && rm -rf /out/usr/include /out/usr/lib64/cmake /out/usr/lib64/pkgconfig \
     && install -Dm644 LICENSE /out/usr/share/licenses/llama.cpp/LICENSE
 
-# ── Estágio 1b: apps COSMIC em Rust (classic-menu, welcome, cosmic-ext-storage) ─
+# ── Estágio 1b: apps COSMIC em Rust (classic-menu, welcome) ─────────────────
 FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS rustdesk
 ARG CLASSIC_MENU_REF=1.1.0
-ARG COSMIC_STORAGE_COMMIT=0ba27cc2caac19acb7a8d98747f8b65058dab877
 RUN dnf -y install --setopt=install_weak_deps=False \
         git-core cargo rust just gcc clang clang-libs pkgconf-pkg-config \
         libxkbcommon-devel wayland-devel fontconfig-devel freetype-devel \
-        btrfs-progs-devel openssl-devel \
+        openssl-devel \
     && dnf clean all
 ENV CARGO_HOME=/cargo CARGO_TERM_COLOR=never CARGO_NET_GIT_FETCH_WITH_CLI=true
 # Menu iniciar (1.1.0: focused_menu)
@@ -68,24 +67,6 @@ RUN cd /src/welcome && CARGO_TARGET_DIR=/target-welcome cargo test --release --l
     && CARGO_TARGET_DIR=/target-welcome cargo build --release --locked \
     && install -Dm755 /target-welcome/release/tamagi-welcome /out/usr/bin/tamagi-welcome \
     && strip /out/usr/bin/tamagi-welcome
-# COSMIC Storage (gerenciador nativo de discos, Btrfs e rclone em libcosmic; só na edição DxAI)
-ARG TAMAGI_EDITION=dxai
-RUN if [ "${TAMAGI_EDITION}" = "dxai" ]; then \
-        git clone https://github.com/cosmic-utils/cosmic-ext-storage /src/storage \
-        && cd /src/storage && git checkout "${COSMIC_STORAGE_COMMIT}" \
-        && CARGO_TARGET_DIR=/src/storage/target cargo build --release --locked \
-        && install -Dm755 /src/storage/target/release/cosmic-ext-storage /out/usr/bin/cosmic-ext-storage \
-        && strip /out/usr/bin/cosmic-ext-storage \
-        && install -d /out/usr/share/applications /out/usr/share/metainfo /out/usr/share/icons/hicolor/scalable/apps \
-        && find resources -name '*.desktop' -exec install -m644 -t /out/usr/share/applications {} + 2>/dev/null || true \
-        && find resources -name '*.metainfo.xml' -exec install -m644 -t /out/usr/share/metainfo {} + 2>/dev/null || true \
-        && find resources -name '*.svg' -exec install -m644 -t /out/usr/share/icons/hicolor/scalable/apps {} + 2>/dev/null || true \
-        && if ! ls /out/usr/share/applications/*Storage*.desktop /out/usr/share/applications/*storage*.desktop >/dev/null 2>&1; then \
-            printf '[Desktop Entry]\nType=Application\nName=COSMIC Storage\nComment=Disks, Btrfs subvolumes and rclone cloud storage\nExec=cosmic-ext-storage\nIcon=drive-harddisk\nTerminal=false\nCategories=System;Utility;\n' \
-                | install -Dm644 /dev/stdin /out/usr/share/applications/com.cosmic.ext.Storage.desktop; \
-           fi \
-        && install -Dm644 LICENSE /out/usr/share/licenses/cosmic-ext-storage/LICENSE; \
-    fi
 
 # ── Estágio 1c: ferramentas CLI do Tamagi em Rust estático (rust/) ─────────
 FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS tamagitools
@@ -101,7 +82,10 @@ RUN cargo test --release --locked \
     && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-layer /out/usr/bin/tamagi-layer \
     && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-doctor /out/usr/bin/tamagi-doctor \
     && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-install /out/usr/bin/tamagi-install \
-    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-why /out/usr/bin/tamagi-why
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-why /out/usr/bin/tamagi-why \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-boot /out/usr/libexec/tamagi/tamagi-boot \
+    && ln -sf tamagi-boot /out/usr/libexec/tamagi/once-per-image \
+    && ln -sf tamagi-boot /out/usr/libexec/tamagi/loader-conf
 
 # ── Kernel e módulos assinados do Universal Blue (ublue-os/akmods) ─────────
 FROM ghcr.io/ublue-os/akmods:${AKMODS_FLAVOR}-${FEDORA_VERSION} AS akmods
@@ -119,7 +103,7 @@ FROM ${BASE_IMAGE}:${FEDORA_VERSION}
 ARG FEDORA_VERSION=45
 ARG TAMAGI_EDITION=dxai
 ARG IMAGE_NAME=tamagi
-ARG TAMAGI_VERSION=1.5
+ARG TAMAGI_VERSION=1.6
 ARG TAMAGI_CODENAME="Kazunobu M"
 ARG IMAGE_VENDOR=local
 ARG IMAGE_REF=

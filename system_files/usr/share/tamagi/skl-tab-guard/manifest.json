@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Tamagi-SKL Tab & Window Guard",
+  "version": "1.6.0",
+  "description": "Enforces at most 1 browser window and 2 open tabs in Tamagi-SKL student sessions.",
+  "permissions": ["tabs"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

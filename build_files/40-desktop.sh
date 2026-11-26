@@ -28,8 +28,20 @@ for w in ipe ipe-mon ipe-seigaiha ipe-light ipe-light-mon ipe-light-seigaiha gru
     render_wall "$w"
 done
 # Em Tamagi-SKL, remove os papéis de parede ilustrados extras para enxugar ainda mais.
+# Em Tamagi-DxAI, importa os papéis de parede espaciais sem marca Pop!_OS/COSMIC
+# (NASA/ESA) do pacote cosmic-wallpapers e remove quaisquer variantes com logo.
 if [[ $EDITION == skl ]]; then
-    rm -rf /usr/share/backgrounds/tamagi/art
+    rm -rf /usr/share/backgrounds/tamagi/art /usr/share/backgrounds/cosmic
+else
+    if [[ -d /usr/share/backgrounds/cosmic ]]; then
+        find /usr/share/backgrounds/cosmic -maxdepth 2 -type f \
+            \( -iname '*logo*' -o -iname '*pop*' -o -iname '*system76*' -o -iname '*cosmic*' \) \
+            -delete 2>/dev/null || true
+        while IFS= read -r wp; do
+            [[ -f $wp ]] || continue
+            ln -sf "$wp" "/usr/share/backgrounds/tamagi/$(basename "$wp")"
+        done < <(find /usr/share/backgrounds/cosmic -maxdepth 2 -type f \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) | sort)
+    fi
 fi
 
 cat > "$C/com.system76.CosmicBackground/v1/all" <<'RON'
@@ -113,11 +125,6 @@ text = text[:-1].rstrip() + '\n\t// Tamagi\n\t(appid: "tamagi-popup", titles: ["
 open(path, "w", encoding="utf-8").write(text)
 PY
 
-# Paleta padrão das janelas do Tamagi (foot)
-tamagi-theme foot ipe > /usr/share/tamagi/foot.ini
-foot --config=/usr/share/tamagi/foot.ini --check-config >/dev/null || { echo "foot.ini das janelas do Tamagi é inválido" >&2; exit 1; }
-tamagi-theme foot ipe > /etc/xdg/foot/foot.ini
-foot --check-config >/dev/null || { echo "foot.ini gerado pelo tamagi-theme é inválido" >&2; exit 1; }
 sed -i 's|^\(\s*Terminal: \)"cosmic-term",|\1"/usr/libexec/tamagi/term",|' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions"
 grep -q 'Terminal: "/usr/libexec/tamagi/term"' "$C/com.system76.CosmicSettings.Shortcuts/v1/system_actions" \
     || { echo "system_actions do COSMIC mudou de formato" >&2; exit 1; }
@@ -139,11 +146,12 @@ cat > "$F/tab" <<'RON'
 )
 RON
 
-# ── Fontes: Roboto Flex + Noto Sans fallback + JetBrains Mono ──
+# ── Fontes e Ícones Vetoriais (Papirus SVG + Roboto Flex / Inter + JetBrains Mono) ──
 install -d "$C/com.system76.CosmicTk/v1"
-rm -f "$C/com.system76.CosmicTk/v1/interface_font" "$C/com.system76.CosmicTk/v1/monospace_font"
+rm -f "$C/com.system76.CosmicTk/v1/interface_font" "$C/com.system76.CosmicTk/v1/monospace_font" "$C/com.system76.CosmicTk/v1/icon_theme"
 echo '(family: "Roboto Flex", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/interface_font"
 echo '(family: "JetBrains Mono", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/monospace_font"
+echo '"Papirus-Dark"' > "$C/com.system76.CosmicTk/v1/icon_theme"
 for app in CosmicTerm CosmicEdit; do
     install -d "$C/com.system76.$app/v1"
     rm -f "$C/com.system76.$app/v1/font_name"
@@ -155,6 +163,7 @@ install -Dm644 /dev/stdin /etc/dconf/db/local.d/10-tamagi-fonts <<'DCONF'
 font-name='Roboto Flex 11'
 document-font-name='Roboto Flex 11'
 monospace-font-name='JetBrains Mono 11'
+icon-theme='Papirus-Dark'
 DCONF
 [[ -e /etc/dconf/profile/user ]] || printf 'user-db:user\nsystem-db:local\n' | install -Dm644 /dev/stdin /etc/dconf/profile/user
 dconf update
@@ -268,6 +277,12 @@ DESKTOP
     install -Dm644 /dev/stdin /etc/chromium/policies/managed/tamagi-skl.json <<'JSON'
 {
   "BrowserSignin": 0,
+  "IncognitoModeAvailability": 1,
+  "DeveloperToolsAvailability": 2,
+  "URLBlocklist": [
+    "chrome://extensions",
+    "chrome://settings/extensions"
+  ],
   "PasswordManagerEnabled": false,
   "AutofillAddressEnabled": false,
   "AutofillCreditCardEnabled": false,
@@ -305,6 +320,9 @@ JSON
     cat > "$M/favorite_applications" <<'RON'
 [
     "tamagi-browser",
+    "org.onlyoffice.desktopeditors",
+    "org.turbowarp.TurboWarp",
+    "org.gnome.Papers",
     "tamagi-skl-docs",
     "tamagi-skl-sheets",
     "tamagi-skl-slides",
@@ -315,10 +333,9 @@ RON
     cat > "$C/com.system76.CosmicAppList/v1/favorites" <<'RON'
 [
     "tamagi-browser",
-    "tamagi-skl-docs",
-    "tamagi-skl-sheets",
-    "tamagi-skl-slides",
-    "tamagi-skl-gemini",
+    "org.onlyoffice.desktopeditors",
+    "org.turbowarp.TurboWarp",
+    "org.gnome.Papers",
     "com.system76.CosmicFiles",
 ]
 RON
@@ -387,7 +404,6 @@ ours = [
     ("[Super, Shift]", "d", f'Spawn("{popup} tamagi-db")'),
     ("[Super, Shift]", "o", 'Spawn("/usr/libexec/tamagi/open-or-install org.onlyoffice.desktopeditors")'),
     ("[Super, Shift]", "m", 'Spawn("/usr/libexec/tamagi/open-or-install io.missioncenter.MissionCenter")'),
-    ("[Super, Shift]", "w", 'Spawn("tamagi-windows open")'),
     ("[Super, Ctrl]", "p", 'Spawn("tamagi-privacy")'),
 ]
 
@@ -412,13 +428,8 @@ PY
 
 install -Dm644 /dev/stdin /etc/xdg/xdg-terminals.list <<'LIST'
 org.gnome.Ptyxis.desktop
-foot.desktop
 com.system76.CosmicTerm.desktop
 LIST
-for f in foot foot-server footclient; do
-    [[ -f /usr/share/applications/$f.desktop ]] && \
-        desktop-file-edit --set-key=NoDisplay --set-value=true /usr/share/applications/$f.desktop
-done
 
 if [[ -f /etc/chromium/chromium.conf ]] && ! grep -q '/etc/chromium/tamagi.conf' /etc/chromium/chromium.conf; then
     printf '\n# Tamagi OS defaults (Wayland/PipeWire, hardware decode, edition-aware OAuth2)\n[[ -f /etc/chromium/tamagi.conf ]] && . /etc/chromium/tamagi.conf\n' >> /etc/chromium/chromium.conf

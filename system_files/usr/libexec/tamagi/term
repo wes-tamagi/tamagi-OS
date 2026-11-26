@@ -2,7 +2,7 @@
 # The system terminal (Super+Enter): Ptyxis, started in your home folder (the
 # compositor would hand it its own working directory, "/"). Ptyxis knows the
 # distrobox boxes and podman containers: its menu opens a tab inside them.
-# Without Ptyxis, foot.
+# Without Ptyxis, falls back to cosmic-term.
 [[ $PWD == / ]] && { cd "$HOME" || true; }
 if command -v ptyxis >/dev/null 2>&1; then exec ptyxis --new-window -d "$PWD" "$@"; fi
-exec foot "$@"
+exec cosmic-term "$@"

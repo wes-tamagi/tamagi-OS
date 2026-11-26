@@ -1,19 +1,15 @@
-//! tamagi — 10 clean commands for the whole system (no legacy aliases).
+//! tamagi — 5 clean commands for the whole system (no legacy aliases).
 //!
-//!   1. tamagi ai       local AI, coding agents, Shadow CoW, MCP Quadlets, flights
-//!   2. tamagi dev      devboxes, local databases, workspaces, try, isolate
-//!   3. tamagi install  unified catalog (Flathub + native layers, browsers, webapps, gaming, Windows)
-//!   4. tamagi update   atomic OS updates, changes, rollback, drop, status
-//!   5. tamagi rewind   unified timeline (home snapshots + OS deployments)
-//!   6. tamagi layer    reversible systemd-sysext native layers
-//!   7. tamagi vm       virtual machines (Cockpit Machines, QEMU/KVM)
-//!   8. tamagi shield   security, leases, privacy mode, Tailscale
-//!   9. tamagi sys      doctor, setup, perf, desktop, skl, declarative tamagi.toml (init/diff/apply)
-//!  10. tamagi why      instant provenance inspector for any file, command, port, or service
+//!   1. tamagi update   atomic OS updates, layers, Flatpaks, boxes, agents, rollback
+//!   2. tamagi pkg      unified catalog (Flathub + native layers), remove, search, layer
+//!   3. tamagi ai       local AI, coding agents, Shadow CoW, MCP Quadlets, flights
+//!   4. tamagi dev      devboxes, local databases, virtual machines, workspaces, try, isolate
+//!   5. tamagi sys      doctor, status, why, rewind, shield, setup, perf, desktop, skl, tamagi.toml
 
 mod i18n;
 mod plan;
 mod state;
+mod ui;
 
 use std::collections::BTreeSet;
 use std::env;
@@ -33,19 +29,13 @@ const PROFILES: &[(&str, &str)] = &[
     ("office", "Office: Firefox, OnlyOffice and Thunderbird"),
 ];
 
-/// The 11 primary commands shown by `tamagi` (no legacy aliases).
+/// The 5 primary commands shown by `tamagi` (no legacy aliases).
 const COMMANDS: &[(&str, &str)] = &[
-    ("ai", "AI agents, Shadow CoW, Egress Guard, flights, MCP Quadlets, local llama.cpp"),
-    ("dev", "development boxes, local databases, workspaces, disposable try and isolate"),
-    ("install", "catalog + Flathub + native layers (drivers, ROCm, Bazzite), browsers, webapps"),
-    ("remove", "remove installed apps, browsers, native layers, or AI agents"),
     ("update", "atomic updates: OS image, layers, Flatpaks, boxes, agents, rollback"),
-    ("rewind", "unified timeline: home snapshots (snap) and OS deployments"),
-    ("layer", "reversible systemd-sysext native Fedora packages over /usr"),
-    ("vm", "virtual machines (Cockpit Machines, QEMU/KVM)"),
-    ("shield", "security hardening, time-limited leases, privacy mode, Tailscale"),
-    ("sys", "doctor, status, setup, perf, desktop, skl, and declarative state (init/diff/apply)"),
-    ("why", "explain where any file, command, port, or service came from"),
+    ("pkg", "install, remove, search catalog/Flathub, and reversible sysext layers"),
+    ("ai", "AI agents, Shadow CoW, Egress Guard, flights, MCP Quadlets, local llama.cpp"),
+    ("dev", "development boxes, local databases, VMs, workspaces, try and isolate"),
+    ("sys", "doctor, status, why, rewind, shield, setup, perf, desktop, skl, state"),
 ];
 
 const FILE_COMMANDS: &[(&str, &str)] = &[
@@ -108,19 +98,20 @@ fn cmd_list() {
     let width = COMMANDS.iter().map(|(name, _)| name.len()).max().unwrap_or(0);
     let edition = fs::read_to_string("/usr/share/tamagi/edition").unwrap_or_else(|_| "dxai".into());
     let label = if edition.trim() == "skl" { "Tamagi-SKL" } else { "Tamagi-DxAI" };
-    println!("tamagi ({label}) — {}\n", t("one command for the whole system"));
+    ui::phase(&format!("tamagi ({label}) — {}", t("one command for the whole system")));
+    println!();
     for (name, desc) in COMMANDS {
-        println!("  tamagi {name:<width$}  {}", t(desc));
+        println!("  tamagi {}  {}", ui::bold(&format!("{name:<width$}")), t(desc));
     }
-    println!("\n{}: tamagi sys profiles  ·  tamagi sys apply ai | dev | gamer | office", t("Ready-made profiles"));
+    println!("\n{}: tamagi sys profiles  ·  tamagi sys apply ai | dev | gamer | office", ui::dim(&t("Ready-made profiles")));
 }
 
-// ── Subcommand routers (the 10 commands) ────────────────────────────────────
+// ── Subcommand routers (the 8 commands) ─────────────────────────────────────
 
 fn route_ai(args: &[String]) -> ! {
     match args.first().map(String::as_str) {
         None | Some("-h" | "--help" | "help") => {
-            println!("tamagi ai — {}", t("AI agents, Shadow CoW, flights, MCP Quadlets, and local llama.cpp"));
+            ui::phase(&format!("tamagi ai — {}", t("AI agents, Shadow CoW, flights, MCP Quadlets, and local llama.cpp")));
             println!();
             println!("  tamagi ai run [opts] <agent>       run coding agent jailed (--shadow, --egress-guard)");
             println!("  tamagi ai flights [list|show|clear] agent flight recorder (audit + rollback)");
@@ -132,10 +123,15 @@ fn route_ai(args: &[String]) -> ! {
             println!("  tamagi ai local <setup|presets|chat|status|rm>  local llama.cpp models");
             exit(0);
         }
-        Some("run" | "jail" | "shadow" | "shadows" | "flights") => exec_helper("tamagi-agents", args),
-        Some("agents") => exec_helper("tamagi-agents", &args[1..]),
+        Some("run" | "jail" | "shadow" | "shadows" | "flights") => exec_helper("tamagi-agent", args),
+        Some("agents") => exec_helper("tamagi-agent", &args[1..]),
         Some("mcp") => exec_helper("tamagi-mcp", &args[1..]),
-        Some("ask") => exec_helper("tamagi-agent", &args[1..]),
+        Some("ask") => {
+            let mut forwarded = Vec::with_capacity(args.len());
+            forwarded.push("ask".into());
+            forwarded.extend_from_slice(&args[1..]);
+            exec_helper("tamagi-agent", &forwarded)
+        }
         Some("local") => exec_helper("tamagi-ai", &args[1..]),
         Some(_) => exec_helper("tamagi-ai", args),
     }
@@ -144,10 +140,11 @@ fn route_ai(args: &[String]) -> ! {
 fn route_dev(args: &[String]) -> ! {
     match args.first().map(String::as_str) {
         None | Some("-h" | "--help" | "help") => {
-            println!("tamagi dev — {}", t("development boxes, databases, workspaces, try, and isolate"));
+            ui::phase(&format!("tamagi dev — {}", t("development boxes, local databases, VMs, workspaces, try and isolate")));
             println!();
             println!("  tamagi dev box [create|enter|lang|list|update|remove]  distrobox dev environments");
             println!("  tamagi dev db [add|url|shell|snapshot|restore]         local Podman Quadlet databases");
+            println!("  tamagi dev vm [install|status|open]                    virtual machines (QEMU/KVM + Cockpit)");
             println!("  tamagi dev workspace [init|status|up|enter|run]        per-project workspaces");
             println!("  tamagi dev try <pkg> [opts]                            disposable package container");
             println!("  tamagi dev isolate <file> [opts]                       disposable untrusted sandbox");
@@ -155,15 +152,35 @@ fn route_dev(args: &[String]) -> ! {
         }
         Some("box") => exec_helper("tamagi-devbox", &args[1..]),
         Some("db") => exec_helper("tamagi-db", &args[1..]),
+        Some("vm") => exec_helper("tamagi-vm", &args[1..]),
         Some("workspace") => exec_helper("tamagi-workspace", &args[1..]),
         Some("try") => exec_helper("tamagi-try", &args[1..]),
         Some("isolate") => exec_helper("tamagi-isolate", &args[1..]),
-        Some(other) => die(&format!("tamagi dev: {}: {other} (box | db | workspace | try | isolate)", t("unknown command"))),
+        Some(other) => die(&format!("tamagi dev: {}: {other} (box | db | vm | workspace | try | isolate)", t("unknown command"))),
     }
 }
 
-fn route_install(args: &[String]) -> ! {
+fn route_pkg(args: &[String]) -> ! {
     match args.first().map(String::as_str) {
+        Some("-h" | "--help" | "help") => {
+            ui::phase(&format!("tamagi pkg — {}", t("install, remove, search catalog/Flathub, and reversible sysext layers")));
+            println!();
+            println!("  tamagi pkg [install|add] [opts] <id|app>…  install from catalog, Flathub or --native");
+            println!("  tamagi pkg remove|rm [id|pkg|app]…         remove Flatpak, browser, agent or layer");
+            println!("  tamagi pkg search <text>                   search curated catalog + Flathub");
+            println!("  tamagi pkg list                            list curated catalog");
+            println!("  tamagi pkg layer [add|remove|list|rebuild] reversible systemd-sysext layers");
+            println!("  tamagi pkg browser|webapp|gaming|windows   specialized installers");
+            exit(0);
+        }
+        Some("install" | "add") => exec_helper("tamagi-install", &args[1..]),
+        Some("remove" | "uninstall" | "rm") => {
+            let mut forwarded = Vec::with_capacity(args.len());
+            forwarded.push("remove".into());
+            forwarded.extend_from_slice(&args[1..]);
+            exec_helper("tamagi-install", &forwarded)
+        }
+        Some("layer" | "layers") => exec_helper("tamagi-layer", &args[1..]),
         Some("browser") => exec_helper("tamagi-browser", &args[1..]),
         Some("webapp") => exec_helper("tamagi-webapp", &args[1..]),
         Some("gaming") => exec_helper("tamagi-gaming", &args[1..]),
@@ -223,10 +240,13 @@ fn route_desktop(args: &[String]) -> ! {
 fn route_sys(args: &[String]) {
     match args.first().map(String::as_str) {
         None | Some("-h" | "--help" | "help") => {
-            println!("tamagi sys — {}", t("health, setup, performance, desktop, school admin, and declarative state"));
+            ui::phase(&format!("tamagi sys — {}", t("health, setup, performance, desktop, school admin, and declarative state")));
             println!();
-            println!("  tamagi sys doctor [--json|--fix|--explain]  system health diagnostics");
+            println!("  tamagi sys doctor [--json|--fix|--explain|--report]  system health diagnostics");
             println!("  tamagi sys status [--json]                  background jobs and pending updates");
+            println!("  tamagi sys why <path|cmd|port|service>      provenance inspector");
+            println!("  tamagi sys rewind [snap|list|restore]       unified timeline (home + OS)");
+            println!("  tamagi sys shield <harden|lease|privacy|tailscale>  security & Tailscale");
             println!("  tamagi sys boot-report [show]               boot health and rollback reports");
             println!("  tamagi sys setup <tpm-unlock|firmware|bios|clean|switch-image>");
             println!("  tamagi sys perf [status|set|pick|bench]     CPU & sched_ext (scx_rustland / scx_rusty)");
@@ -238,6 +258,9 @@ fn route_sys(args: &[String]) {
         }
         Some("doctor") => exec_helper("tamagi-doctor", &args[1..]),
         Some("status") => exec_helper("tamagi-status", &args[1..]),
+        Some("why") => exec_helper("tamagi-why", &args[1..]),
+        Some("rewind") => route_rewind(&args[1..]),
+        Some("shield") => route_shield(&args[1..]),
         Some("boot-report") => exec_helper("tamagi-boot-report", &args[1..]),
         Some("setup") => exec_helper("tamagi-setup", &args[1..]),
         Some("perf") => exec_helper("tamagi-perf", &args[1..]),
@@ -510,22 +533,11 @@ fn main() {
     }
     let rest = &argv[1..];
     match first {
+        "update" => exec_helper("tamagi-update", rest),
+        "pkg" => route_pkg(rest),
         "ai" => route_ai(rest),
         "dev" => route_dev(rest),
-        "install" => route_install(rest),
-        "remove" | "uninstall" | "rm" => {
-            let mut forwarded = Vec::with_capacity(rest.len() + 1);
-            forwarded.push("remove".into());
-            forwarded.extend_from_slice(rest);
-            exec_helper("tamagi-install", &forwarded)
-        }
-        "update" => exec_helper("tamagi-update", rest),
-        "rewind" => route_rewind(rest),
-        "layer" => exec_helper("tamagi-layer", rest),
-        "vm" => exec_helper("tamagi-vm", rest),
-        "shield" => route_shield(rest),
         "sys" => route_sys(rest),
-        "why" => exec_helper("tamagi-why", rest),
         _ => die(&format!("tamagi: {}: {first}  ({}: tamagi)", t("unknown command"), t("see"))),
     }
 }
@@ -535,8 +547,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn command_count_is_eleven_and_valid() {
-        assert_eq!(COMMANDS.len(), 11);
+    fn command_count_is_five_and_valid() {
+        assert_eq!(COMMANDS.len(), 5);
         for (name, _) in COMMANDS {
             assert!(is_command_name(name), "{name}");
         }

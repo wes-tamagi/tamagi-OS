@@ -14,13 +14,14 @@ import tomllib
 
 SCRIPTS = [
     "tamagi", "tamagi-firstrun", "tamagi-keys", "tamagi-lang", "tamagi-install",
-    "tamagi-panel", "tamagi-theme", "tamagi-ai", "tamagi-update", "tamagi-agents",
+    "tamagi-panel", "tamagi-theme", "tamagi-ai", "tamagi-update", "tamagi-agent",
     "tamagi-mcp", "tamagi-boot-report", "tamagi-windows", "tamagi-db", "tamagi-vm",
     "tamagi-devbox", "tamagi-font", "tamagi-antigravity", "tamagi-try",
     "tamagi-isolate", "tamagi-privacy",
     "tamagi-browser", "tamagi-harden", "tamagi-layer", "tamagi-webapp",
     "tamagi-perf", "tamagi-workspace", "tamagi-doctor", "tamagi-gaming",
 ]
+LIBEXEC_SCRIPTS = ["agent-manager", "flatpak-setup", "skl-browser-launch"]
 STR = r'"((?:[^"\\$]|\\.)*)"'
 CALLS = re.compile(r'(?:\$\(|\b)(?:tl?|step|confirm|input|timer_line)\s+' + STR)
 PY_CALLS_DQ = re.compile(r'\bt\(\s*"((?:[^"\\]|\\.)*)"\s*(?:,|\))')
@@ -32,8 +33,8 @@ HEADER = re.compile(r'\bpick\s+' + STR)
 
 def strings(root):
     found = []
-    for name in SCRIPTS:
-        p = root / "usr/bin" / name
+    paths = [root / "usr/bin" / name for name in SCRIPTS] + [root / "usr/libexec/tamagi" / name for name in LIBEXEC_SCRIPTS]
+    for p in paths:
         if not p.is_file() or p.read_bytes()[:4] == b"\x7fELF":   # a Rust program: see below
             continue
         text = p.read_text(encoding="utf-8")

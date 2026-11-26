@@ -49,13 +49,10 @@ if [[ $EDITION == skl ]]; then
     rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover cosmic-store levou parte do COSMIC junto" >&2; exit 1; }
     rm -rf /usr/bin/llama-* /usr/lib64/ggml /usr/lib64/libllama* /usr/lib64/libggml* \
            /usr/share/licenses/llama.cpp /usr/bin/claude \
-           /usr/bin/cosmic-ext-storage /usr/share/applications/com.cosmic.ext.Storage.desktop \
-           /usr/share/appdata/com.cosmic.ext.Storage.metainfo.xml \
-           /usr/share/icons/hicolor/scalable/apps/com.cosmic.ext.Storage.svg \
            /usr/lib/systemd/user/llama-server.service
     echo "Tamagi-SKL: cosmic-store, llama.cpp e extras de IA removidos da imagem"
 else
-    command -v cosmic-ext-storage >/dev/null || { echo "cosmic-ext-storage ausente no Tamagi-DxAI" >&2; exit 1; }
+    command -v gnome-disks >/dev/null || { echo "gnome-disk-utility ausente no Tamagi-DxAI" >&2; exit 1; }
     command -v rclone >/dev/null || { echo "rclone ausente no Tamagi-DxAI" >&2; exit 1; }
 fi
 

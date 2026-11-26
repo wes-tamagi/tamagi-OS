@@ -181,7 +181,7 @@ fn inspect_path(raw: &str, path: &Path) -> Vec<Finding> {
     }
     if s.starts_with(&format!("{home}/.local/bin/")) {
         let content = fs::read_to_string(&real).unwrap_or_default();
-        if content.contains("tamagi-agents") {
+        if content.contains("tamagi-agent") {
             out.push(Finding { kind: "command".into(), origin: "AI agent launcher (tamagi ai)".into(), detail: s });
         } else if content.contains("distrobox enter") {
             out.push(Finding { kind: "command".into(), origin: "devbox exported binary (distrobox)".into(), detail: s });

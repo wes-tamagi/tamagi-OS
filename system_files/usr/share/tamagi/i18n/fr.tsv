@@ -1269,3 +1269,16 @@ Homebrew	Homebrew
 host (mise)	hôte (mise)
 
 optional	optionnel
+No active shadow workspaces. Start one with: tamagi ai run --shadow <agent>	Aucun espace shadow actif. Lancez-en un avec : tamagi ai run --shadow <agent>
+sanitized Markdown soak-test report	rapport de test matériel assaini en Markdown
+Transaction summary	Résumé de la transaction
+install, remove, search catalog/Flathub, and reversible sysext layers	installer, supprimer, rechercher dans le catalogue/Flathub et couches sysext réversibles
+Education	Éducation
+TurboWarp — visual block programming (Scratch)	TurboWarp — programmation visuelle par blocs (Scratch)
+Qwen Code — Alibaba's coding agent (native via mise)	Qwen Code — agent de code d'Alibaba (natif via mise)
+Gemini CLI — Google's agent (native via mise)	Gemini CLI — agent de Google (natif via mise)
+OpenClaw — open-source personal assistant (native via mise)	OpenClaw — assistant personnel open-source (natif via mise)
+Local PostgreSQL inspector (connects to tamagi dev db on 127.0.0.1:5432)	Inspecteur PostgreSQL local (connecté à tamagi dev db sur 127.0.0.1:5432)
+development boxes, local databases, VMs, workspaces, try and isolate	boîtes de développement, bases locales, VMs, espaces, try et isolate
+doctor, status, why, rewind, shield, setup, perf, desktop, skl, state	doctor, status, why, rewind, shield, setup, perf, desktop, skl et état
+Popsicle — COSMIC USB image flasher (Rust)	Popsicle — graveur d'images ISO USB de COSMIC (Rust)

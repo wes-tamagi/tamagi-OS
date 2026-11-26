@@ -21,7 +21,16 @@ set -uo pipefail
 
 QUARANTINE="${TAMAGI_QUARANTINE:-/var/lib/tamagi/quarantine.list}"
 
-step() { echo; echo -e "\033[1;34m── $(t "$1")\033[0m"; }
+step() { echo; echo -e "\033[1;36m::\033[0m \033[1m$(t "$1")\033[0m"; }
+SPIN=/usr/libexec/tamagi/ui-spinner
+run_anim() {
+    local label=$1; shift
+    if [[ -t 1 && -x $SPIN && -z ${NO_COLOR:-} ]]; then
+        "$SPIN" "$label" "$@"
+    else
+        "$@"
+    fi
+}
 failed=()
 
 STATUS="${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}"
@@ -101,7 +110,7 @@ update_arch() {
             distrobox enter "$box" -- yay -Sua --noconfirm || failed+=("aur:$box")
         fi
     done
-    (( found )) || echo "$(t "No Arch box. Create one with"): tamagi devbox create arch"
+    (( found )) || echo "$(t "No Arch box. Create one with"): tamagi dev box create arch"
 }
 
 on_battery() { # só a bateria do computador conta: a de mouse, teclado ou fone sem fio (scope=Device) não
@@ -167,7 +176,7 @@ status_auto() {
     fi
     if [[ -f /var/lib/tamagi/secureboot-blocked ]]; then
         tl "Update cancelled by Secure Boot: the Universal Blue key is missing."
-        echo "  tamagi setup secure-boot-key   ($(t "password"): universalblue)"
+        echo "  tamagi sys setup secure-boot-key   ($(t "password"): universalblue)"
     fi
     # Installed before the systemd-boot layout (GRUB, ostree backend of bootc).
     if jq -e '.status.booted != null and .status.booted.composefs == null' "$STATUS" >/dev/null 2>&1; then
@@ -267,29 +276,35 @@ run_all() {
     update_system
     update_layers
     step "Flatpaks"
-    flatpak update -y || failed+=(flatpak)
-    step "Distrobox boxes"
-    archs=$(arch_boxes)
-    for box in $(all_boxes); do
-        grep -qx "$box" <<<"$archs" && continue
-        distrobox upgrade "$box" || failed+=("caixa:$box")
-    done
-    update_arch
-    if [[ -n $(tamagi-agents installed 2>/dev/null) ]]; then
+    run_anim "flatpak update" flatpak update -y || failed+=(flatpak)
+    local boxes archs
+    boxes=$(all_boxes)
+    if [[ -n $boxes ]]; then
+        step "Distrobox boxes"
+        archs=$(arch_boxes)
+        for box in $boxes; do
+            grep -qx "$box" <<<"$archs" && continue
+            distrobox upgrade "$box" || failed+=("caixa:$box")
+        done
+        if [[ -n $archs ]]; then
+            update_arch
+        fi
+    fi
+    if [[ -n $(tamagi-agent installed 2>/dev/null) ]]; then
         step "AI agents"
-        tamagi-agents update || failed+=(agents)
+        run_anim "tamagi-agent update" tamagi-agent update || failed+=(agents)
     fi
     if command -v mise >/dev/null 2>&1 && [[ -s "${XDG_CONFIG_HOME:-$HOME/.config}/mise/config.toml" ]]; then
         step "Runtimes (mise)"
-        mise upgrade || failed+=(mise)
+        run_anim "mise upgrade" mise upgrade || failed+=(mise)
     fi
     if [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
         step "Homebrew"
-        /home/linuxbrew/.linuxbrew/bin/brew upgrade || failed+=(brew)
+        run_anim "brew upgrade" /home/linuxbrew/.linuxbrew/bin/brew upgrade || failed+=(brew)
     fi
     if compgen -G "${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd/*.image" >/dev/null || compgen -G "${XDG_CONFIG_HOME:-$HOME/.config}/containers/systemd/*.container" >/dev/null; then
         step "Podman Quadlets (MCP & containers)"
-        podman auto-update || failed+=(quadlets)
+        run_anim "podman auto-update" podman auto-update || failed+=(quadlets)
     fi
 }
 

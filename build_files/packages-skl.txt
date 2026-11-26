@@ -20,9 +20,12 @@ wl-clipboard
 librsvg2-tools
 desktop-file-utils
 
-# ── Fontes ──
+# ── Ícones vetoriais (SVG puro, sem serrilhado) & Fontes ──
+papirus-icon-theme
+rsms-inter-fonts
 jetbrains-mono-fonts
 google-noto-sans-vf-fonts
+google-noto-serif-vf-fonts
 google-noto-color-emoji-fonts
 
 # ── Idiomas do produto: en, pt_BR, es, fr ──
@@ -31,7 +34,6 @@ langpacks-core-es
 langpacks-core-fr
 
 # ── Terminal escolhido + utilitários mínimos ──
-foot
 ptyxis
 gum
 

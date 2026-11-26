@@ -35,7 +35,7 @@ declare -A SUMMARY=(
     [fetch]="Clean web/docs HTTP reader (isolated container, no disk access)"
     [memory]="Persistent local knowledge graph (isolated Podman volume)"
     [git]="Read-only Git repository inspector (current project :ro, offline)"
-    [postgres]="Local PostgreSQL inspector (connects to tamagi db on 127.0.0.1:5432)"
+    [postgres]="Local PostgreSQL inspector (connects to tamagi dev db on 127.0.0.1:5432)"
     [playwright]="Headless browser automation (isolated from personal profiles)"
     [filesystem]="Scoped workspace-only file access (current project only, offline)"
 )

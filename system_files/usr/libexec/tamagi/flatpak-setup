@@ -28,12 +28,20 @@ SAID=${XDG_RUNTIME_DIR:-/tmp}/tamagi-flatpak-setup.said
 [[ -e $SAID ]] || note "$(t "Installing the essential apps in the background")"
 : > "$SAID"
 
+EDITION=$(cat /usr/share/tamagi/edition 2>/dev/null || echo dxai)
 failed=0
-while read -r remote app kind _; do
-    [[ -z $remote || $remote == \#* ]] && continue
-    [[ ${kind:-essencial} == essencial ]] || continue
-    flatpak install --user --noninteractive --or-update "$remote" "$app" || failed=1
-done < "$LIST"
+if [[ $EDITION == skl ]]; then
+    # Tamagi-SKL: OnlyOffice, TurboWarp and Papers for student sessions.
+    for app in org.onlyoffice.desktopeditors org.turbowarp.TurboWarp org.gnome.Papers; do
+        flatpak install --user --noninteractive --or-update flathub "$app" || failed=1
+    done
+else
+    while read -r remote app kind _; do
+        [[ -z $remote || $remote == \#* ]] && continue
+        [[ ${kind:-essencial} == essencial ]] || continue
+        flatpak install --user --noninteractive --or-update "$remote" "$app" || failed=1
+    done < "$LIST"
+fi
 
 # Sem o carimbo o serviço tenta de novo no próximo login.
 (( failed )) && exit 1

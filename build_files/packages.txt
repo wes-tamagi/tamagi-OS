@@ -6,8 +6,9 @@
 chromium
 chromedriver
 
-# ── Desktop COSMIC (System76, Rust; tiling nativo) ──
+# ── Desktop COSMIC (System76, Rust; tiling nativo + papéis espaciais sem marca) ──
 @cosmic-desktop
+cosmic-wallpapers
 cosmic-greeter
 xdg-desktop-portal-cosmic
 cosmic-osd
@@ -20,9 +21,12 @@ wl-clipboard
 librsvg2-tools
 desktop-file-utils
 
-# ── Fontes (enxuto: Roboto Flex via 10-packages.sh + Noto fallback + JetBrains Mono) ──
+# ── Ícones vetoriais (SVG puro, HiDPI sem serrilhado) & Fontes agradáveis ──
+papirus-icon-theme
+rsms-inter-fonts
 jetbrains-mono-fonts
 google-noto-sans-vf-fonts
+google-noto-serif-vf-fonts
 google-noto-color-emoji-fonts
 
 # ── Idiomas do produto: en, pt_BR, es, fr ──
@@ -30,16 +34,16 @@ langpacks-core-pt_BR
 langpacks-core-es
 langpacks-core-fr
 
-# ── Armazenamento nativo (pareado com cosmic-ext-storage compilado no Containerfile) ──
+# ── Armazenamento nativo (GNOME Disks + rclone) ──
+gnome-disk-utility
 rclone
 
-# ── Ferramentas de terminal em Rust + terminais escolhidos ──
+# ── Ferramentas de terminal em Rust + terminal padrão (Ptyxis) ──
 ripgrep
 fd-find
 bat
 eza
 zoxide
-foot
 ptyxis
 git
 gum

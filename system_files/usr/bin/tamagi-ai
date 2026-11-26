@@ -314,7 +314,7 @@ case "${1:-}" in
     logs)     journalctl --user -u "$UNIT" -n 80 --no-pager ;;
     chat)     systemctl --user start "$UNIT"; wait_ready || die "$(t "llama-server did not respond; check 'tamagi-ai logs'")"; xdg-open "$URL" ;;
     agent)    shift; exec tamagi-agent "$@" ;;
-    code)     shift; command -v opencode >/dev/null 2>&1 || tamagi-agents install opencode
+    code)     shift; command -v opencode >/dev/null 2>&1 || tamagi-agent install opencode
               sync_agents; systemctl --user start "$UNIT" || true; exec opencode "$@" ;;
     serve)    cmd_serve ;;
     sync)     sync_agents ;;

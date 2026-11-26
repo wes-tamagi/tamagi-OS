@@ -31,7 +31,7 @@ declare -A LABEL=(
     [opensuse]="openSUSE Tumbleweed (rolling — zypper)"
     [arch]="Arch Linux (rolling — pacman)"
 )
-# Language presets for `tamagi devbox lang` (installed by mise inside the box).
+# Language presets for `tamagi dev box lang` (installed by mise inside the box).
 declare -A PRESET=(
     [web]="node@lts pnpm@latest" [bun]="bun@latest" [deno]="deno@latest" [python]="python@3.13"
     [ruby]="ruby@latest" [go]="go@latest" [rust]="rust@latest" [java]="java@temurin-25"
@@ -51,16 +51,16 @@ is_system_box() { [[ $1 == browsers || $1 == navegadores || $1 == "${TAMAGI_BROW
 usage() {
     echo "tamagi-devbox — $(t "development boxes (Fedora, Ubuntu, openSUSE, Arch)")"
     echo
-    echo "  tamagi devbox                                   $(t "choose a distro and create the box")"
-    echo "  tamagi devbox create [distro] [--name N] [--minimal] [--extra go,zig,clang,browser]"
-    echo "  tamagi devbox enter [name|distro]               $(t "enter the box (default: dev)")"
-    echo "  tamagi devbox lang [box] <preset|tool@version>… $(t "languages via mise, inside the box")"
-    echo "  tamagi devbox browser [box]                     $(t "Chromium in the box for tests (Playwright, Puppeteer)")"
-    echo "  tamagi devbox gpu [box]                         $(t "what the box sees of the GPUs (Vulkan, video, OpenCL)")"
-    echo "  tamagi devbox provision <name> [--extra …]      $(t "reinstalls the tools")"
-    echo "  tamagi devbox distros | list                    $(t "supported distros / boxes created")"
-    echo "  tamagi devbox update [name]                     $(t "update packages in box(es)")"
-    echo "  tamagi devbox remove <name>                     $(t "remove the box (home files stay)")"
+    echo "  tamagi dev box                                   $(t "choose a distro and create the box")"
+    echo "  tamagi dev box create [distro] [--name N] [--minimal] [--extra go,zig,clang,browser]"
+    echo "  tamagi dev box enter [name|distro]               $(t "enter the box (default: dev)")"
+    echo "  tamagi dev box lang [box] <preset|tool@version>… $(t "languages via mise, inside the box")"
+    echo "  tamagi dev box browser [box]                     $(t "Chromium in the box for tests (Playwright, Puppeteer)")"
+    echo "  tamagi dev box gpu [box]                         $(t "what the box sees of the GPUs (Vulkan, video, OpenCL)")"
+    echo "  tamagi dev box provision <name> [--extra …]      $(t "reinstalls the tools")"
+    echo "  tamagi dev box distros | list                    $(t "supported distros / boxes created")"
+    echo "  tamagi dev box update [name]                     $(t "update packages in box(es)")"
+    echo "  tamagi dev box remove <name>                     $(t "remove the box (home files stay)")"
     echo
     echo "$(t "Distros"): ${DISTRO_ORDER[*]}    $(t "Languages"): ${PRESET_ORDER[*]}"
 }
@@ -135,7 +135,7 @@ cmd_create() {
     valid_name "$name"
 
     if box_exists "$name"; then
-        echo "$(t "Box already exists"): $name — tamagi devbox enter $name"
+        echo "$(t "Box already exists"): $name — tamagi dev box enter $name"
         return 0
     fi
     info "$(t "Creating development box") '$name' ($distro · ${IMAGE[$distro]})"
@@ -150,7 +150,7 @@ cmd_create() {
     fi
     echo
     echo "$(t "Box ready"): $name"
-    echo "$(t "Enter"): tamagi devbox enter $name"
+    echo "$(t "Enter"): tamagi dev box enter $name"
 }
 
 cmd_provision() {
@@ -253,7 +253,7 @@ cmd_list() {
         found=1
         printf '  %-18s %-10s %s\n' "$name" "$(distro_of "$name")" "$(podman inspect --format '{{.State.Status}}' "$name" 2>/dev/null)"
     done < <(each_box)
-    (( found )) || echo "$(t "No development box created yet. Create one with"): tamagi devbox create"
+    (( found )) || echo "$(t "No development box created yet. Create one with"): tamagi dev box create"
 }
 
 cmd_update() {
@@ -271,7 +271,7 @@ cmd_update() {
 
 cmd_remove() {
     local name=${1:-}
-    [[ -n $name ]] || die "usage: tamagi devbox remove <name>"
+    [[ -n $name ]] || die "usage: tamagi dev box remove <name>"
     box_exists "$name" || die "$(t "Box does not exist"): $name"
     if [[ -t 0 ]]; then
         gum confirm "$(t "Delete this box? Files in your home folder stay.") ($name)" \

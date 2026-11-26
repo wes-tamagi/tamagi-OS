@@ -11,7 +11,7 @@
 #   llm-scripts-setup            install or update   (catalog: tamagi install llm-scripts)
 #   llm-scripts-setup remove
 # Its other engine (gufo, for AMD APUs) and the ROCm build need compilers:
-# do those inside the development box (`tamagi devbox enter`, then `llm build`).
+# do those inside the development box (`tamagi dev box enter`, then `llm build`).
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 

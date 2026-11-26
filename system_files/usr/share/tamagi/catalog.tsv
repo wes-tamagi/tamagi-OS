@@ -41,10 +41,10 @@ claude	AI agents	220MB	agent:claude	Claude Code — Anthropic's coding agent
 antigravity	AI agents	80MB	agent:antigravity	Antigravity CLI — Google's coding agent in the terminal (agy)
 codex	AI agents	320MB	agent:codex	Codex CLI — OpenAI's coding agent
 clio	AI agents	50MB	agent:clio	CLIO — coding agent in pure Perl, works with the local model (in the dev box)
-qwen	AI agents	150MB	agent:qwen	Qwen Code — Alibaba's coding agent (in the dev box)
+qwen	AI agents	150MB	agent:qwen	Qwen Code — Alibaba's coding agent (native via mise)
 opencode	AI agents	120MB	agent:opencode	opencode — open-source coding agent
-gemini	AI agents	150MB	agent:gemini	Gemini CLI — Google's agent (in the dev box)
-openclaw	AI agents	300MB	agent:openclaw	OpenClaw — open-source personal assistant (in the dev box)
+gemini	AI agents	150MB	agent:gemini	Gemini CLI — Google's agent (native via mise)
+openclaw	AI agents	300MB	agent:openclaw	OpenClaw — open-source personal assistant (native via mise)
 local-ai	AI agents	2-9GB	agent:local	Local AI — the Tamagi agent with a model on your computer (llama.cpp)
 llm-scripts	AI agents	1MB	run:/usr/libexec/tamagi/llm-scripts-setup	llm-scripts — works out the best launch profile of a local model for your GPU
 cosmic-player	Creative	30MB	run:tamagi-layer add cosmic-player cosmic-player	COSMIC Player — the COSMIC video player, native (asks for the password)

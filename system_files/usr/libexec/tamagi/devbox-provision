@@ -13,7 +13,7 @@
 #   database clients: psql, mariadb, valkey-cli/redis-cli
 #   the GPU stack: Vulkan, VA-API and OpenCL drivers and tools (NVIDIA comes
 #   from the host through `distrobox --nvidia`)
-#   bubblewrap (the jail of `tamagi agents run`)
+#   bubblewrap (the jail of `tamagi ai run`)
 #   the terminal tools that used to ship in the image and now live here:
 #   neovim, lazygit, gh, uv, glow, hyperfine, direnv, yq, ShellCheck
 #   (tamagi-devbox exports them to the host: see DEV_TOOLS there)
