@@ -8,9 +8,9 @@ set -euo pipefail
 
 CTX=/ctx/live
 
-# ── Pacotes só da mídia: dracut-live (boot pela ISO) e xorriso (o gerador
+# ── Pacotes só da mídia: dracut-live (boot pela ISO), xorriso e mtools (o gerador
 #    da ISO roda dentro desta mesma imagem) ──
-dnf5 -y install --setopt=install_weak_deps=False dracut-live xorriso
+dnf5 -y install --setopt=install_weak_deps=False dracut-live xorriso mtools
 command -v tamagi-welcome >/dev/null || { echo "a janela do instalador (tamagi-welcome) não está na imagem" >&2; exit 1; }
 
 # ── Arquivos da sessão live ─────────────────────────────────────────────
@@ -102,8 +102,9 @@ dracut --force --no-hostonly --reproducible --zstd \
     --add "dmsquash-live pollcdrom" \
     --add-drivers "usb-storage uas sd_mod sr_mod isofs squashfs overlay loop" \
     --omit "ostree bootc plymouth drm network network-manager nfs cifs nvmf iscsi fcoe fcoe-uefi \
-            crypt systemd-cryptsetup fido2 pcsc pkcs11 tpm2-tss fips fips-crypto-policies \
-            nss-softokn lvm mdraid resume lunmask nvdimm" \
+            crypt systemd-cryptsetup fido2 pcsc pkcs11 tpm2-tss systemd-pcrextend \
+            clevis clevis-pin-file clevis-pin-null clevis-pin-sss clevis-pin-tang clevis-pin-tpm2 \
+            fips fips-crypto-policies nss-softokn lvm mdraid resume lunmask nvdimm" \
     --kver "$kver" "/usr/lib/modules/$kver/initramfs-live.img"
 ls -lh "/usr/lib/modules/$kver/initramfs-live.img"
 
