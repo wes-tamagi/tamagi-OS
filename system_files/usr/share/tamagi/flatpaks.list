@@ -9,7 +9,7 @@ cosmic  io.github.cosmic_utils.weather-applet    essencial   Sistema         5MB
 cosmic  io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager essencial Sistema 5MB Histórico da área de transferência
 flathub io.github.flattool.Warehouse             opcional    System          2MB    Warehouse — manage Flatpak apps
 flathub org.turbowarp.TurboWarp                  opcional    Education       120MB  TurboWarp — visual block programming (Scratch)
-flathub org.gnome.Papers                         opcional    Office          35MB   Papers — PDF and document viewer (Rust)
+flathub org.kde.okular                           opcional    Office          90MB   Okular — universal PDF and document viewer
 flathub dev.mariinkys.Cedilla                    opcional    COSMIC          25MB   Cedilla — native Markdown notes for COSMIC (Rust)
 flathub com.francescogaglione.chronos            opcional    COSMIC          20MB   Chronos — Pomodoro timer for COSMIC (Rust)
 flathub com.github.flxzt.rnote                   opcional    Creative        65MB   Rnote — vector sketching and handwritten notes (Rust)
@@ -23,7 +23,7 @@ flathub com.belmoussaoui.Authenticator           opcional    System          20M
 flathub io.missioncenter.MissionCenter           opcional    System          35MB   Mission Center — system monitor (Rust)
 flathub io.github.flattool.Ignition              opcional    System          5MB    Ignition — apps and scripts that start with the session
 flathub org.gnome.World.PikaBackup               opcional    System          45MB   Pika Backup — backups to a disk or server (Rust)
-flathub org.onlyoffice.desktopeditors            opcional    Office          1.1GB  OnlyOffice — documents, spreadsheets and presentations
+flathub org.onlyoffice.desktopeditors            essencial   Office          1.1GB  OnlyOffice — documents, spreadsheets and presentations
 flathub org.libreoffice.LibreOffice              opcional    Office          800MB  LibreOffice — documents, spreadsheets and presentations
 flathub org.mozilla.Thunderbird                  opcional    Office          300MB  Thunderbird — email and calendar
 flathub com.bitwarden.desktop                    opcional    Office          560MB  Bitwarden — password manager

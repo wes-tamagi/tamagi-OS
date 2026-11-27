@@ -10,7 +10,22 @@ case "$EDITION" in
 esac
 
 mapfile -t PACKAGES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$PKG_FILE" | grep -v '^$')
-dnf5 -y install --setopt=install_weak_deps=False "${PACKAGES[@]}"
+dnf5 -y install --setopt=install_weak_deps=False --allowerasing "${PACKAGES[@]}"
+
+# Codecs multimídia completos via RPM Fusion Free (desabilitado após o build
+# para a imagem não consultar repos externos em runtime).
+dnf5 -y install --setopt=install_weak_deps=False \
+    "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm"
+dnf5 -y install --setopt=install_weak_deps=False --allowerasing \
+    ffmpeg mesa-va-drivers-freeworld gstreamer1-plugins-bad-free gstreamer1-plugins-ugly-free
+for r in /etc/yum.repos.d/*rpmfusion*.repo /usr/lib/yum.repos.d/*rpmfusion*.repo; do
+    [[ -f $r ]] && sed -i 's/^enabled=1/enabled=0/' "$r"
+done
+
+# 100% Flathub: remove quaisquer remotes Fedora Flatpak e garante o remote oficial do Flathub.
+rm -f /etc/flatpak/remotes.d/fedora*.flatpakrepo
+install -d /etc/flatpak/remotes.d
+curl -fsSL -o /etc/flatpak/remotes.d/flathub.flatpakrepo https://dl.flathub.org/repo/flathub.flatpakrepo
 
 # Tailscale pré-disponível (repositório oficial assinado; desabilitado após o
 # build para a imagem não consultar repos externos em runtime; serviço desligado
@@ -39,7 +54,7 @@ dnf5 -y remove firefox firefox-langpacks 2>/dev/null || true
 dnf5 -y remove --no-autoremove cosmic-player
 rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover cosmic-player levou parte do COSMIC junto" >&2; exit 1; }
 # Um comando só: `tamagi` (sem ujust).
-dnf5 -y remove --no-autoremove ublue-os-just
+dnf5 -y remove --no-autoremove ublue-os-just 2>/dev/null || true
 if command -v ujust >/dev/null 2>&1; then echo "ujust ainda está na imagem" >&2; exit 1; fi
 
 # Edição Tamagi-SKL (Escola): sem loja gráfica (Flatpaks só via terminal),

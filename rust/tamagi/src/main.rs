@@ -170,6 +170,7 @@ fn route_pkg(args: &[String]) -> ! {
             println!("  tamagi pkg search <text>                   search curated catalog + Flathub");
             println!("  tamagi pkg list                            list curated catalog");
             println!("  tamagi pkg layer [add|remove|list|rebuild] reversible systemd-sysext layers");
+            println!("  tamagi pkg copr <user/repo> <pkg>…         install COPR package(s) as a reversible layer");
             println!("  tamagi pkg browser|webapp|gaming|windows   specialized installers");
             exit(0);
         }
@@ -181,6 +182,19 @@ fn route_pkg(args: &[String]) -> ! {
             exec_helper("tamagi-install", &forwarded)
         }
         Some("layer" | "layers") => exec_helper("tamagi-layer", &args[1..]),
+        Some("copr") => {
+            if args.len() < 3 || !args[1].contains('/') {
+                die("usage: tamagi pkg copr <user/repo> <pkg>…");
+            }
+            let slug: String = args[1]
+                .chars()
+                .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+                .take(28)
+                .collect();
+            let mut forwarded = vec!["add".into(), format!("copr-{slug}"), "--copr".into(), args[1].clone()];
+            forwarded.extend_from_slice(&args[2..]);
+            exec_helper("tamagi-layer", &forwarded)
+        }
         Some("browser") => exec_helper("tamagi-browser", &args[1..]),
         Some("webapp") => exec_helper("tamagi-webapp", &args[1..]),
         Some("gaming") => exec_helper("tamagi-gaming", &args[1..]),

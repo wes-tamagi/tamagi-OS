@@ -45,8 +45,9 @@ test -f /usr/lib/systemd/boot/efi/systemd-bootx64.efi || { echo "systemd-boot n�
 systemctl enable tamagi-boot-check.service
 systemctl enable tamagi-lease-expire.service
 
-# Snapshots da pasta pessoal + manutenção Btrfs (estilo Aeon)
+# Snapshots da pasta pessoal + manutenção Btrfs (estilo Aeon) + /etc drift journal
 systemctl enable snapper-timeline.timer snapper-cleanup.timer tamagi-home-snapshots.service
+systemctl enable tamagi-etc-drift.timer
 systemctl enable btrfs-scrub.timer btrfs-balance.timer
 install -Dm644 /dev/stdin /usr/lib/systemd/system/fstrim.timer.d/10-tamagi.conf <<'UNIT'
 [Timer]
@@ -79,7 +80,7 @@ systemctl enable tamagi-layer-units.service tamagi-layer-rebuild.service
 systemctl disable NetworkManager-wait-online.service dnf-makecache.timer 2>/dev/null || true
 
 # Timers do usuário
-systemctl --global enable tamagi-autoupdate.timer
+systemctl --global enable tamagi-autoupdate.timer flatpak-user-update.timer
 systemctl --global enable tamagi-theme-sync.path
 
 rm -f /etc/ld.so.preload

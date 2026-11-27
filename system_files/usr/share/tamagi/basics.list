@@ -4,7 +4,7 @@
 on  dev.edfloreshz.Calculator
 on  dev.edfloreshz.CosmicTweaks
 on  dev.mariinkys.Cedilla
-on  org.gnome.Papers
+on  org.kde.okular
 off io.github.cosmic_utils.Examine
 off dev.edfloreshz.Tasks
 off com.jwestall.Forecast
@@ -19,5 +19,7 @@ off io.github.seadve.Kooha
 off com.belmoussaoui.Authenticator
 off io.github.flattool.Ignition
 off io.missioncenter.MissionCenter
-off org.onlyoffice.desktopeditors
+off org.videolan.VLC
+off org.inkscape.Inkscape
+off org.gimp.GIMP
 off whatsapp

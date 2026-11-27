@@ -1193,6 +1193,7 @@ Run `tamagi sys diff` to see what is still missing.	Lancez `tamagi sys diff` pou
 explain where any file, command, port, or service came from	explique l'origine de tout fichier, commande, port ou service
 Target	Cible
 Papers — PDF and document viewer (Rust)	Papers — visionneuse PDF et documents (Rust)
+Okular — universal PDF and document viewer	Okular — visionneuse universelle de PDF et documents
 Cedilla — native Markdown notes for COSMIC (Rust)	Cedilla — notes Markdown natives pour COSMIC (Rust)
 Chronos — Pomodoro timer for COSMIC (Rust)	Chronos — minuteur Pomodoro pour COSMIC (Rust)
 Rnote — vector sketching and handwritten notes (Rust)	Rnote — notes vectorielles et dessin à main levée (Rust)

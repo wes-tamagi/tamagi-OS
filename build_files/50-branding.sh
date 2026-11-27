@@ -29,7 +29,7 @@ esac
 mkdir -p /usr/share/tamagi
 echo "$EDITION" > /usr/share/tamagi/edition
 
-dnf5 -y swap fedora-logos generic-logos
+dnf5 -y swap fedora-logos generic-logos 2>/dev/null || true
 dnf5 -y remove fedora-workstation-backgrounds 2>/dev/null || true
 rpm -q fedora-logos >/dev/null 2>&1 && { echo "fedora-logos continua na imagem" >&2; exit 1; }
 
@@ -65,7 +65,7 @@ cat > /usr/share/ublue-os/image-info.json <<JSON
   "image-vendor": "${IMAGE_VENDOR}",
   "image-ref": "${IMAGE_REF}",
   "image-tag": "latest",
-  "base-image-name": "base-main",
+  "base-image-name": "fedora-bootc",
   "desktop": "cosmic",
   "version": "${TAMAGI_VERSION}",
   "codename": "${TAMAGI_CODENAME}",
@@ -173,7 +173,15 @@ echo "Plymouth: tema tamagi no initramfs ($(wc -l <<<"$after") módulos do dracu
 
 # ── Só imagens do Tamagi assinadas ──
 POLICY=/etc/containers/policy.json
-jq '.transports.docker["ghcr.io/wes-tamagi"] = [{"type": "sigstoreSigned", "keyPaths": ["/etc/pki/containers/tamagi.pub", "/etc/pki/containers/tamagi-2.pub"], "signedIdentity": {"type": "matchRepository"}}]' \
+if [[ ! -f $POLICY ]]; then
+    install -d /etc/containers
+    if [[ -f /usr/share/containers/policy.json ]]; then
+        cp /usr/share/containers/policy.json "$POLICY"
+    else
+        printf '{"default":[{"type":"insecureAcceptAnything"}],"transports":{"docker":{}}}\n' > "$POLICY"
+    fi
+fi
+jq '.transports //= {} | .transports.docker //= {} | .transports.docker["ghcr.io/wes-tamagi"] = [{"type": "sigstoreSigned", "keyPaths": ["/etc/pki/containers/tamagi.pub", "/etc/pki/containers/tamagi-2.pub"], "signedIdentity": {"type": "matchRepository"}}]' \
     "$POLICY" > "$POLICY.new"
 mv "$POLICY.new" "$POLICY"
 jq -e '.transports.docker["ghcr.io/wes-tamagi"][0].type == "sigstoreSigned"' "$POLICY" >/dev/null

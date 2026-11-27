@@ -7,7 +7,7 @@
 #   just build-skl          (Tamagi-SKL)
 
 ARG FEDORA_VERSION=45
-ARG BASE_IMAGE=ghcr.io/ublue-os/base-main
+ARG BASE_IMAGE=quay.io/fedora/fedora-bootc
 ARG TAMAGI_EDITION=dxai
 ARG KERNEL_FLAVOR=ogc
 ARG TAMAGI_DEFAULT_LANG=en

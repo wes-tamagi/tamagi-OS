@@ -1,0 +1,26 @@
+#!/usr/bin/bash
+# etc-drift — records host /etc changes outside the immutable image into a
+# local git repository (/var/lib/tamagi/etc-drift) for dated, revertible history.
+set -euo pipefail
+
+REPO="${TAMAGI_ETC_DRIFT_DIR:-/var/lib/tamagi/etc-drift}"
+mkdir -p "$REPO"
+
+if [[ ! -d $REPO/.git ]]; then
+    git -C "$REPO" init -q
+    git -C "$REPO" config user.name "Tamagi etc-drift"
+    git -C "$REPO" config user.email "root@localhost"
+fi
+
+if command -v ostree >/dev/null 2>&1 && ostree admin config-diff > "$REPO/config-diff.txt" 2>/dev/null; then
+    :
+elif [[ -d /usr/etc ]]; then
+    diff -rq --no-dereference /usr/etc /etc > "$REPO/config-diff.txt" 2>/dev/null || true
+else
+    exit 0
+fi
+
+git -C "$REPO" add config-diff.txt
+if ! git -C "$REPO" diff --cached --quiet; then
+    git -C "$REPO" commit -q -m "etc-drift $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+fi

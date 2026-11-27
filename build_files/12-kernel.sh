@@ -84,6 +84,17 @@ if [[ ${#KMODS[@]} -gt 0 ]]; then
     done
 fi
 
+# Em fedora-bootc puro, garante a chave MOK do akmods (usada pelo secureboot-guard).
+if [[ ! -s /etc/pki/akmods/certs/akmods-ublue.der ]]; then
+    addons=$(compgen -G '/akmods/rpms/ublue-os/ublue-os-akmods-addons-*.rpm' | head -1 || true)
+    if [[ -n $addons ]]; then
+        dnf5 -y install --setopt=install_weak_deps=False "$addons"
+        sed -i 's/^enabled=1/enabled=0/' /etc/yum.repos.d/_copr_ublue-os-akmods.repo 2>/dev/null || true
+    elif [[ -s /akmods/certs/public_key.der ]]; then
+        install -Dm644 /akmods/certs/public_key.der /etc/pki/akmods/certs/akmods-ublue.der
+    fi
+fi
+
 # O que o Tamagi espera de qualquer kernel (os mesmos pontos de tests/image.sh).
 conf=/usr/lib/modules/$kver/config
 for opt in CONFIG_SCHED_CLASS_EXT=y CONFIG_SECURITY_SELINUX=y CONFIG_RUST=y CONFIG_DRM_ACCEL=y; do

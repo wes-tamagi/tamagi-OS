@@ -322,7 +322,7 @@ JSON
     "tamagi-browser",
     "org.onlyoffice.desktopeditors",
     "org.turbowarp.TurboWarp",
-    "org.gnome.Papers",
+    "org.kde.okular",
     "tamagi-skl-docs",
     "tamagi-skl-sheets",
     "tamagi-skl-slides",
@@ -335,7 +335,7 @@ RON
     "tamagi-browser",
     "org.onlyoffice.desktopeditors",
     "org.turbowarp.TurboWarp",
-    "org.gnome.Papers",
+    "org.kde.okular",
     "com.system76.CosmicFiles",
 ]
 RON
