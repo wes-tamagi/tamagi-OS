@@ -1,9 +1,53 @@
-# Pacotes RPM adicionados à base ghcr.io/ublue-os/base-main para Tamagi-SKL (Escola).
-# Edição ultra-enxuta: apenas Chromium nativo (sem chromedriver, sem OAuth2),
-# COSMIC minimalista travado (sem cosmic-store), codecs completos (já na base),
-# SSH + Cockpit (somente admin) e Tailscale pré-disponível (desligado).
+# Pacotes RPM adicionados à base quay.io/fedora/fedora-bootc para Tamagi-SKL (Escola).
+# Edição ultra-enxuta: 100% Fedora oficial + RPM Fusion Free (codecs no build) +
+# 100% Flathub (sem fedora-flatpak), apenas Chromium nativo (sem chromedriver/OAuth2),
+# COSMIC minimalista travado (sem cosmic-store), SSH + Cockpit (somente admin) e Tailscale.
 
-# ── Navegador nativo (codecs de áudio/vídeo/WebRTC já vêm na base: ffmpeg, openh264, gstreamer, pipewire) ──
+# ── Base Desktop, Áudio, Contêineres, Flatpak, Boot e Energia ──
+pipewire
+pipewire-pulseaudio
+pipewire-alsa
+pipewire-jack-audio-connection-kit
+wireplumber
+flatpak
+podman
+distrobox
+skopeo
+jq
+just
+bubblewrap
+openssl
+libnotify
+xdg-utils
+plymouth
+plymouth-theme-spinner
+tuned
+tuned-ppd
+zram-generator
+btrfs-progs
+firewalld
+wireguard-tools
+NetworkManager-wifi
+NetworkManager-wwan
+NetworkManager-bluetooth
+ModemManager
+avahi
+nss-mdns
+cups
+cups-browsed
+ipp-usb
+sane-airscan
+cifs-utils
+samba-client
+usb_modeswitch
+iwlwifi-mvm-firmware
+realtek-firmware
+mt7xxx-firmware
+atheros-firmware
+brcmfmac-firmware
+generic-logos
+
+# ── Navegador nativo (codecs completos via RPM Fusion Free em 10-packages.sh) ──
 chromium
 
 # ── Desktop COSMIC enxuto (cosmic-store e cosmic-player são removidos em 10-packages.sh) ──
@@ -20,9 +64,12 @@ wl-clipboard
 librsvg2-tools
 desktop-file-utils
 
-# ── Fontes ──
+# ── Ícones vetoriais (SVG puro, sem serrilhado) & Fontes ──
+papirus-icon-theme
+rsms-inter-fonts
 jetbrains-mono-fonts
 google-noto-sans-vf-fonts
+google-noto-serif-vf-fonts
 google-noto-color-emoji-fonts
 
 # ── Idiomas do produto: en, pt_BR, es, fr ──
@@ -31,8 +78,8 @@ langpacks-core-es
 langpacks-core-fr
 
 # ── Terminal escolhido + utilitários mínimos ──
-foot
 ptyxis
+git-core
 gum
 
 # ── Bootloader, camadas e manutenção Btrfs ──

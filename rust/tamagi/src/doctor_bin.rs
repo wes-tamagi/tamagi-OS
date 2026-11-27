@@ -505,12 +505,50 @@ fn explain_with_ai(results: &[CheckItem]) -> String {
     t("Local AI unavailable (start with: tamagi-ai start).")
 }
 
+fn check_network() -> CheckItem {
+    let bbr = fs::read_to_string("/proc/sys/net/ipv4/tcp_congestion_control")
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    let wifi_ps = fs::read_to_string("/usr/lib/NetworkManager/conf.d/51-tamagi-network-perf.conf")
+        .map(|s| s.contains("wifi.powersave = 2"))
+        .unwrap_or(false);
+    let npu = if Path::new("/dev/accel/accel0").exists() {
+        " · NPU detected"
+    } else {
+        ""
+    };
+    let status = if bbr == "bbr" { "OK" } else { "WARN" };
+    let ps_label = if wifi_ps { "wifi-powersave=off" } else { "wifi-powersave=default" };
+    CheckItem {
+        id: "network",
+        status,
+        summary: format!("TCP={}, {ps_label}{npu}", if bbr.is_empty() { "?" } else { &bbr }),
+        fix: if status == "OK" { String::new() } else { "sysctl -w net.ipv4.tcp_congestion_control=bbr".into() },
+    }
+}
+
+fn format_report(checks: &[CheckItem]) -> String {
+    let edition = fs::read_to_string("/usr/share/tamagi/edition").unwrap_or_else(|_| "dxai".into());
+    let kernel = run_out("uname", &["-r"]).1;
+    let mut out = String::new();
+    out.push_str("# Tamagi Soak-Test Report\n\n");
+    out.push_str(&format!("- **Edition:** {}\n", edition.trim()));
+    out.push_str(&format!("- **Kernel:** {}\n", if kernel.is_empty() { "?" } else { &kernel }));
+    out.push_str(&format!("- **NPU (/dev/accel/accel0):** {}\n\n", if Path::new("/dev/accel/accel0").exists() { "present" } else { "none" }));
+    out.push_str("| Check | Status | Summary |\n|---|---|---|\n");
+    for c in checks {
+        out.push_str(&format!("| `{}` | **{}** | {} |\n", c.id, c.status, c.summary.replace('|', "/")));
+    }
+    out
+}
+
 fn run_all_checks() -> Vec<CheckItem> {
-    let fns: [fn() -> CheckItem; 12] = [
+    let fns: [fn() -> CheckItem; 13] = [
         check_image,
         check_kernel,
         check_storage,
         check_performance,
+        check_network,
         check_systemd,
         check_layers,
         check_containers,
@@ -531,15 +569,18 @@ fn print_help() {
     println!("  --explain\n    \t{}", t("ask local AI (llama.cpp) for an explanation"));
     println!("  --fix\n    \t{}", t("apply safe user-level fixes"));
     println!("  --json\n    \t{}", t("structured JSON output"));
+    println!("  --report\n    \t{}", t("sanitized Markdown soak-test report"));
 }
 
 fn main() {
     let mut json_out = false;
+    let mut report_out = false;
     let mut do_fix = false;
     let mut do_explain = false;
     for arg in env::args().skip(1) {
         match arg.as_str() {
             "--json" | "-json" => json_out = true,
+            "--report" | "-report" => report_out = true,
             "--fix" | "-fix" => do_fix = true,
             "--explain" | "-explain" => do_explain = true,
             "-h" | "--help" | "help" => {
@@ -558,6 +599,10 @@ fn main() {
 
     if json_out {
         print!("{}", format_json(&results, &fixed));
+        return;
+    }
+    if report_out {
+        print!("{}", format_report(&results));
         return;
     }
 

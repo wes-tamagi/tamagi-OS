@@ -1,0 +1,675 @@
+#!/usr/bin/python3
+"""tamagi-agent — agente de IA local do Tamagi.
+
+Conversa com o llama-server (llama.cpp) local pela API compatível com OpenAI
+e usa ferramentas (tamagi_action, shell, leitura e escrita de arquivos) para
+agir no sistema. Só depende da biblioteca padrão do Python.
+
+Segurança: comandos somente-leitura conhecidos e ações de risco 'read' rodam
+direto; todo o resto pede confirmação. Nada roda como root sem confirmação.
+"""
+
+import argparse
+import json
+import os
+import pathlib
+import re
+import shlex
+import subprocess
+import sys
+import time
+import tomllib
+import urllib.error
+import urllib.request
+
+DEFAULT_URL = "http://127.0.0.1:9931/v1"
+CONFIG_DIR = pathlib.Path(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))) / "tamagi"
+CONFIG_ENV = str(CONFIG_DIR / "ai.env")
+CONFIG_TOML = CONFIG_DIR / "ai.toml"
+SYSTEM_PROMPT_FILE = "/usr/share/tamagi/agent/system.md"
+ACTIONS_FILE = pathlib.Path(os.environ.get("TAMAGI_ACTIONS", "/usr/share/tamagi/actions.toml"))
+QUARANTINE_FILE = pathlib.Path(os.environ.get("TAMAGI_QUARANTINE", "/var/lib/tamagi/quarantine.list"))
+MAX_TOOL_OUTPUT = 6000
+MAX_STEPS = 25
+
+# Comandos que só leem estado: executados sem perguntar.
+READ_ONLY = {
+    "ls", "cat", "head", "tail", "wc", "grep", "rg", "fd", "find", "stat",
+    "file", "df", "du", "free", "uptime", "uname", "date", "whoami", "id",
+    "pwd", "echo", "which", "type", "lsblk", "lscpu", "lspci", "lsusb",
+    "lsmod", "ss", "ps", "pgrep", "nproc", "printenv", "sensors",
+    "sort", "cut", "tr", "jq", "awk", "sed", "realpath", "basename", "dirname",
+    "tree", "bat", "eza", "vulkaninfo",
+}
+# Programas com subcomandos: só os listados são leitura (None = sem subcomando).
+READ_ONLY_SUB = {
+    "systemctl": {"status", "is-active", "is-enabled", "is-failed", "list-units",
+                  "list-unit-files", "list-timers", "show", "cat", "--failed"},
+    "journalctl": {None},
+    "bootc": {"status"},
+    "rpm": {"-q", "-qa", "-qi", "-ql", "-qf", "--query"},
+    "flatpak": {"list", "info", "remotes", "search", "history"},
+    "distrobox": {"list", "ls"},
+    "podman": {"ps", "images", "info", "version", "inspect", "logs"},
+    "docker": {"ps", "images", "info", "version", "inspect", "logs"},
+    "git": {"status", "log", "diff", "show"},
+    "brew": {"list", "info", "search"},
+    "tamagi-ai": {"status", "list", "presets", "recommend"},
+    "tamagi-theme": {"list", "current", "styles"},
+    "tamagi-update": {"status", "quarantine"},
+    "tamagi": {"sys", "update", "rewind"},
+    "tamagi-boot-report": {"list", "status"},
+    "virsh": {"list", "dominfo", "nodeinfo", "net-list", "pool-list", "version"},
+    "mise": {"ls", "list", "current", "doctor", "settings", "version", "--version"},
+    "tamagi-browser": {"status", "fido"},
+    "tamagi-harden": {None, "status"},
+    "tamagi-perf": {None, "status", "--json"},
+    "tamagi-doctor": {None, "--json"},
+    "tamagi-devbox": {"list", "status", "distros"},
+    "tamagi-workspace": {None, "status", "tasks"},
+    "tamagi-gaming": {"status"},
+    "dnf": {"list", "info", "search", "repoquery", "provides"},
+    "gsettings": {"get", "list-keys", "list-schemas"},
+    "dconf": {"read", "list", "dump"},
+    "fastfetch": {None},
+    "hostnamectl": {None, "status"},
+    "timedatectl": {None, "status", "show"},
+    "localectl": {None, "status"},
+    "loginctl": {None, "list-sessions", "list-users", "session-status", "user-status"},
+    "resolvectl": {None, "status", "query"},
+    "ip": {None, "a", "addr", "address", "link", "r", "route", "neigh", "rule"},
+    "nmcli": {None, "device", "connection", "general", "radio"},
+}
+# Argumentos que transformam um comando "de leitura" em escrita ou execução.
+WRITE_ARGS = {
+    "sed": ("-i", "--in-place"),
+    "find": ("-delete", "-exec", "-execdir", "-ok", "-okdir", "-fprint", "-fprint0",
+             "-fprintf", "-fls"),
+    "fd": ("-x", "--exec", "-X", "--exec-batch"),
+    "rg": ("--pre",),
+    "bat": ("--pager",),
+    "git": ("--output", "--ext-diff"),
+    "sort": ("-o", "--output", "--compress-program"),
+    "tree": ("-o",),
+    "date": ("-s", "--set"),
+    "journalctl": ("--rotate", "--flush", "--sync", "--relinquish-var", "--setup-keys",
+                   "--update-catalog", "--vacuum-size", "--vacuum-time", "--vacuum-files"),
+    "ip": ("add", "del", "delete", "set", "flush", "change", "replace", "append"),
+    "nmcli": ("add", "delete", "modify", "edit", "up", "down", "connect", "disconnect",
+              "on", "off", "import", "reload", "reapply", "set", "wifi", "clone", "load"),
+    "tamagi-doctor": ("--fix",),
+}
+
+C = {"dim": "\033[2m", "bold": "\033[1m", "cyan": "\033[36m", "yellow": "\033[33m",
+     "red": "\033[31m", "green": "\033[32m", "reset": "\033[0m"}
+if not sys.stdout.isatty() or os.environ.get("NO_COLOR"):
+    C = {k: "" for k in C}
+
+REPLY_LANG = {"pt": "português do Brasil", "en": "English", "es": "español", "fr": "français"}
+
+MESSAGES = {
+    "pt": {
+        "no_server": "Não consegui falar com o servidor de IA em {base}.\nRode `tamagi-ai setup` para baixar um modelo e ligar o llama-server.",
+        "no_model": "Nenhum modelo instalado. Rode `tamagi-ai setup` primeiro.",
+        "run_cmd": "Executar este comando?",
+        "run_action": "Executar a ação '{id}'?",
+        "write_file": "Gravar este arquivo?",
+        "thinking": "(pensando…)",
+        "banner": "Tamagi · agente local",
+        "banner_hint": "/sair para encerrar, /limpar para recomeçar",
+        "interrupted": "(interrompido)",
+        "stopped": "Parei após {n} passos; diga 'continue' para seguir.",
+        "yn": "[s/N]",
+    },
+    "en": {
+        "no_server": "Could not reach the local AI server at {base}.\nRun `tamagi-ai setup` to download a model and start llama-server.",
+        "no_model": "No local models installed. Run `tamagi-ai setup` first.",
+        "run_cmd": "Run this command?",
+        "run_action": "Run action '{id}'?",
+        "write_file": "Write this file?",
+        "thinking": "(thinking…)",
+        "banner": "Tamagi · local agent",
+        "banner_hint": "/exit to quit, /clear to reset",
+        "interrupted": "(interrupted)",
+        "stopped": "Stopped after {n} steps; say 'continue' to keep going.",
+        "yn": "[y/N]",
+    },
+    "es": {
+        "no_server": "No pude conectar con el servidor de IA en {base}.\nEjecute `tamagi-ai setup` para descargar un modelo e iniciar llama-server.",
+        "no_model": "Ningún modelo instalado. Ejecute `tamagi-ai setup` primero.",
+        "run_cmd": "¿Ejecutar este comando?",
+        "run_action": "¿Ejecutar la acción '{id}'?",
+        "write_file": "¿Guardar este archivo?",
+        "thinking": "(pensando…)",
+        "banner": "Tamagi · agente local",
+        "banner_hint": "/exit para salir, /clear para reiniciar",
+        "interrupted": "(interrumpido)",
+        "stopped": "Detenido tras {n} pasos; diga 'continue' para seguir.",
+        "yn": "[s/N]",
+    },
+    "fr": {
+        "no_server": "Impossible de joindre le serveur d'IA sur {base}.\nLancez `tamagi-ai setup` pour télécharger un modèle et démarrer llama-server.",
+        "no_model": "Aucun modèle installé. Lancez d'abord `tamagi-ai setup`.",
+        "run_cmd": "Exécuter cette commande ?",
+        "run_action": "Exécuter l'action '{id}' ?",
+        "write_file": "Écrire ce fichier ?",
+        "thinking": "(réflexion…)",
+        "banner": "Tamagi · agent local",
+        "banner_hint": "/exit pour quitter, /clear pour réinitialiser",
+        "interrupted": "(interrompu)",
+        "stopped": "Arrêté après {n} étapes ; dites 'continue' pour poursuivre.",
+        "yn": "[o/N]",
+    },
+}
+
+
+def lang_code():
+    raw = os.environ.get("TAMAGI_LANG") or os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES")
+    if not raw:
+        try:
+            raw = (pathlib.Path(os.environ.get("XDG_CONFIG_HOME", pathlib.Path.home() / ".config")) / "tamagi" / "lang").read_text(encoding="utf-8").strip().splitlines()[0]
+        except (OSError, IndexError):
+            raw = ""
+    if not raw:
+        raw = os.environ.get("LANG") or "en"
+    code = raw.split("_")[0].split(".")[0].lower()
+    return code if code in REPLY_LANG else "en"
+
+
+def msg(key, **kw):
+    return MESSAGES[lang_code()][key].format(**kw)
+
+
+def load_actions():
+    """Carrega ações estruturadas elegíveis ao agente a partir de actions.toml."""
+    if not ACTIONS_FILE.is_file():
+        return {}
+    try:
+        with open(ACTIONS_FILE, "rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+    out = {}
+    for a in data.get("action", []):
+        if a.get("agent") and a.get("id") and a.get("command"):
+            out[a["id"]] = a
+    return out
+
+
+AGENT_ACTIONS = load_actions()
+
+
+def build_tools():
+    tools = [
+        {"type": "function", "function": {
+            "name": "shell",
+            "description": "Runs a bash command on the user's computer and returns "
+                           "stdout, stderr and exit code. One command per call.",
+            "parameters": {"type": "object", "properties": {
+                "command": {"type": "string", "description": "Bash command to run."},
+                "why": {"type": "string", "description": "One short sentence explaining why."}},
+                "required": ["command"]}}},
+        {"type": "function", "function": {
+            "name": "read_file",
+            "description": "Reads a text file (up to 400 lines starting at 'offset').",
+            "parameters": {"type": "object", "properties": {
+                "path": {"type": "string"},
+                "offset": {"type": "integer", "description": "Start line (1 = first)."}},
+                "required": ["path"]}}},
+        {"type": "function", "function": {
+            "name": "write_file",
+            "description": "Creates or overwrites a text file with the given content.",
+            "parameters": {"type": "object", "properties": {
+                "path": {"type": "string"},
+                "content": {"type": "string"}},
+                "required": ["path", "content"]}}},
+    ]
+    if AGENT_ACTIONS:
+        tools.insert(0, {"type": "function", "function": {
+            "name": "tamagi_action",
+            "description": "Runs a curated built-in Tamagi system action by ID from actions.toml "
+                           "(prefer this over raw shell for system status, updates, diff, hardening, "
+                           "boot health, themes, or Rust toolchain setup).",
+            "parameters": {"type": "object", "properties": {
+                "action_id": {"type": "string", "enum": sorted(AGENT_ACTIONS.keys())},
+                "why": {"type": "string", "description": "One short sentence explaining why."}},
+                "required": ["action_id"]}}})
+    return tools
+
+
+TOOLS = build_tools()
+
+
+def load_env_file(path):
+    out = {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    out[k.strip()] = v.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return out
+
+
+def http_json(url, payload=None, timeout=10):
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(url, data=data,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode())
+
+
+def server_alive(base):
+    try:
+        http_json(base + "/models", timeout=3)
+        return True
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
+
+
+def ensure_server(base):
+    """Sobe o llama-server do usuário se ele não estiver respondendo."""
+    if server_alive(base):
+        return
+    is_local = re.match(r"https?://(127\.0\.0\.1|localhost)[:/]", base)
+    if is_local:
+        subprocess.run(["systemctl", "--user", "start", "llama-server.service"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        for _ in range(40):
+            if server_alive(base):
+                return
+            time.sleep(0.5)
+    sys.exit(f"{C['red']}{msg('no_server', base=base)}{C['reset']}")
+
+
+def pick_model(base, wanted):
+    try:
+        models = [m["id"] for m in http_json(base + "/models").get("data", [])]
+    except (urllib.error.URLError, OSError, ValueError, KeyError):
+        models = []
+    if wanted:
+        if wanted in models or not models:
+            return wanted
+        # aceita prefixo/trecho ("gemma" -> "gemma-4-E4B-it-Q4_0")
+        for m in models:
+            if wanted.lower() in m.lower():
+                return m
+        return wanted
+    if not models:
+        sys.exit(msg("no_model"))
+    return models[0]
+
+
+def is_read_only(command):
+    """True se o comando é comprovadamente só leitura (pode rodar sem perguntar)."""
+    if re.search(r"[;&`<>\n]|\$\(|\|\|", command):
+        return False
+    for segment in command.split("|"):
+        try:
+            argv = shlex.split(segment)
+        except ValueError:
+            return False
+        if not argv or "=" in argv[0]:
+            return False
+        prog, rest = os.path.basename(argv[0]), argv[1:]
+        if any(a == w or a.startswith(w + "=") for a in rest for w in WRITE_ARGS.get(prog, ())):
+            return False
+        if prog in READ_ONLY_SUB:
+            words = [a for a in rest if a not in ("--user", "--system", "--no-pager", "--no-color")]
+            sub = words[0] if words and not (prog == "journalctl") else None
+            if prog != "journalctl" and words and words[0].startswith("-") \
+                    and words[0] not in READ_ONLY_SUB[prog]:
+                plain = [w for w in words if not w.startswith("-")]
+                sub = plain[0] if plain else None
+            if sub not in READ_ONLY_SUB[prog]:
+                return False
+            continue
+        if prog not in READ_ONLY:
+            return False
+        if prog == "awk" and re.search(r"system\s*\(|getline|>|\|", " ".join(rest)):
+            return False
+        if prog == "sed":
+            script = [a for a in rest if not a.startswith("-")][:1]
+            if "-n" not in rest or not script or not re.fullmatch(r"[0-9,$~+]*p", script[0]):
+                return False
+    return True
+
+
+def ask(question, auto_yes):
+    if auto_yes:
+        return True
+    if not sys.stdin.isatty():
+        return False
+    try:
+        with open("/dev/tty", "r+", encoding="utf-8") as tty:
+            tty.write(f"{C['yellow']}{question} {msg('yn')} {C['reset']}")
+            tty.flush()
+            return tty.readline().strip().lower() in ("s", "sim", "y", "yes", "o", "oui")
+    except OSError:
+        return False
+
+
+def clip(text):
+    if len(text) <= MAX_TOOL_OUTPUT:
+        return text
+    half = MAX_TOOL_OUTPUT // 2
+    return (text[:half] + f"\n[... {len(text) - MAX_TOOL_OUTPUT} chars omitted ...]\n"
+            + text[-half:])
+
+
+SANDBOX = "/usr/libexec/tamagi/sandbox"
+
+
+def sandboxed(argv, mode):
+    """Prende o comando com o Landlock (pledge/unveil do Linux; veja
+    /usr/libexec/tamagi/sandbox). mode=None ou TAMAGI_AGENT_SANDBOX=0: sem prisão."""
+    if not mode or os.environ.get("TAMAGI_AGENT_SANDBOX") == "0" or not os.access(SANDBOX, os.X_OK):
+        return argv
+    return [SANDBOX, "--mode", mode, "--se-possivel", "--"] + argv
+
+
+def exec_bash(command, needs_root=False, sandbox=None):
+    try:
+        proc = subprocess.run(sandboxed(["bash", "-c", command], sandbox), capture_output=True, text=True,
+                              timeout=300, stdin=None if needs_root else subprocess.DEVNULL,
+                              errors="replace", check=False)
+    except subprocess.TimeoutExpired:
+        return "error: command timed out after 300s"
+    out = proc.stdout
+    if proc.stderr.strip():
+        out += ("\n[stderr]\n" + proc.stderr)
+    shown = out.strip().splitlines()
+    for line in shown[:12]:
+        print(f"{C['dim']}  {line[:200]}{C['reset']}")
+    if len(shown) > 12:
+        print(f"{C['dim']}  … (+{len(shown) - 12} lines){C['reset']}")
+    return clip(f"[exit {proc.returncode}]\n{out}".rstrip())
+
+
+def tool_action(args, auto_yes):
+    aid = str(args.get("action_id", "")).strip()
+    action = AGENT_ACTIONS.get(aid)
+    if not action:
+        return f"error: unknown action_id '{aid}'"
+    cmd = action["command"]
+    risk = action.get("risk", "user")
+    why = args.get("why")
+    print(f"{C['cyan']}$ [{aid}] {cmd}{C['reset']}" + (f"  {C['dim']}# {why}{C['reset']}" if why else ""))
+    needs_root = risk == "system" or bool(re.search(r"(^|[\s;&|(])(sudo|pkexec|run0|su)\b", cmd))
+    # As ações do actions.toml são do próprio Tamagi: as de leitura rodam
+    # presas como os comandos de leitura; as outras, só com confirmação.
+    sandbox = "leitura" if risk == "read" else None
+    if risk != "read":
+        if not ask(msg("run_action", id=aid), auto_yes and not needs_root):
+            return "User declined this action. Do not retry; ask how to proceed."
+    return exec_bash(cmd, needs_root=needs_root, sandbox=sandbox)
+
+
+def tool_shell(args, auto_yes):
+    command = str(args.get("command", "")).strip()
+    if not command:
+        return "error: empty command"
+    why = args.get("why")
+    print(f"{C['cyan']}$ {command}{C['reset']}" + (f"  {C['dim']}# {why}{C['reset']}" if why else ""))
+    needs_root = bool(re.search(r"(^|[\s;&|(])(sudo|pkexec|run0|su)\b", command))
+    # Quem roda sem um humano olhar fica preso pelo Landlock:
+    #   só leitura (roda sem perguntar)  -> modo "leitura": sem gravar, sem
+    #       rede, sem os segredos (chaves, tokens, perfis de navegador);
+    #   aprovado sozinho pelo -y          -> modo "usuario": grava na pasta
+    #       pessoal, segredos só leitura;
+    #   confirmado por você               -> roda normal (você leu o comando).
+    if is_read_only(command):
+        sandbox = "leitura"
+    else:
+        # -y nunca aprova sozinho um comando com privilégio de root.
+        if auto_yes and not needs_root:
+            sandbox = "usuario"
+        elif ask(msg("run_cmd"), False):
+            sandbox = None
+        else:
+            return "User declined this command. Do not retry; ask how to proceed."
+    return exec_bash(command, needs_root=needs_root, sandbox=sandbox)
+
+
+def tool_read_file(args):
+    path = os.path.expanduser(str(args.get("path", "")))
+    offset = max(int(args.get("offset") or 1), 1)
+    print(f"{C['cyan']}ler {path}{C['reset']}")
+    # Lido pelo sandbox no modo "leitura": os segredos ficam de fora também aqui.
+    proc = subprocess.run(sandboxed(["cat", "--", path], "leitura"), capture_output=True,
+                          text=True, errors="replace", check=False)
+    if proc.returncode != 0:
+        return f"error: {proc.stderr.strip() or 'cannot read ' + path}"
+    lines = proc.stdout.splitlines(keepends=True)
+    chunk = lines[offset - 1: offset - 1 + 400]
+    more = len(lines) - (offset - 1 + len(chunk))
+    text = "".join(chunk)
+    if more > 0:
+        text += f"\n[... {more} more lines; use offset={offset + len(chunk)}]"
+    return clip(text) if text else "(empty file)"
+
+
+def tool_write_file(args, auto_yes):
+    path = os.path.expanduser(str(args.get("path", "")))
+    content = str(args.get("content", ""))
+    exists = os.path.exists(path)
+    verb = "overwrite" if exists else "create"
+    print(f"{C['cyan']}{verb} {path} ({len(content.splitlines())} lines){C['reset']}")
+    if not ask(msg("write_file"), auto_yes):
+        return "User declined writing this file."
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+    except OSError as exc:
+        return f"error: {exc}"
+    return f"ok: {len(content)} bytes written to {path}"
+
+
+def run_tool(name, raw_args, auto_yes):
+    try:
+        args = json.loads(raw_args) if raw_args and raw_args.strip() else {}
+        if not isinstance(args, dict):
+            raise ValueError("arguments must be a JSON object")
+    except ValueError as exc:
+        return f"error: invalid arguments for {name}: {exc}"
+    if name == "tamagi_action":
+        return tool_action(args, auto_yes)
+    if name == "shell":
+        return tool_shell(args, auto_yes)
+    if name == "read_file":
+        return tool_read_file(args)
+    if name == "write_file":
+        return tool_write_file(args, auto_yes)
+    return f"error: unknown tool '{name}'"
+
+
+def chat_stream(base, model, messages):
+    """Uma rodada de chat com streaming. Devolve (texto, tool_calls)."""
+    payload = {"model": model, "messages": messages, "tools": TOOLS, "stream": True}
+    req = urllib.request.Request(base + "/chat/completions",
+                                 data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json"})
+    text, calls, thinking = [], {}, False
+    with urllib.request.urlopen(req, timeout=900) as resp:
+        for raw in resp:
+            line = raw.decode("utf-8", errors="replace").strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            try:
+                event = json.loads(data)
+            except ValueError:
+                continue
+            if event.get("error"):
+                raise RuntimeError(str(event["error"]))
+            for choice in event.get("choices", []):
+                delta = choice.get("delta") or {}
+                if delta.get("reasoning_content") and not thinking:
+                    thinking = True
+                    print(f"{C['dim']}{msg('thinking')}{C['reset']}", flush=True)
+                piece = delta.get("content")
+                if piece:
+                    text.append(piece)
+                    sys.stdout.write(piece)
+                    sys.stdout.flush()
+                for tc in delta.get("tool_calls") or []:
+                    slot = calls.setdefault(tc.get("index", 0),
+                                            {"id": "", "name": "", "arguments": ""})
+                    slot["id"] = tc.get("id") or slot["id"]
+                    fn = tc.get("function") or {}
+                    slot["name"] += fn.get("name") or ""
+                    slot["arguments"] += fn.get("arguments") or ""
+    if text:
+        print()
+    ordered = [calls[i] for i in sorted(calls)]
+    return "".join(text), ordered
+
+
+def run_turn(base, model, messages, auto_yes):
+    for _ in range(MAX_STEPS):
+        try:
+            content, calls = chat_stream(base, model, messages)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:500]
+            print(f"{C['red']}Server error ({exc.code}): {body}{C['reset']}")
+            return
+        except (urllib.error.URLError, OSError, RuntimeError) as exc:
+            print(f"{C['red']}Model error: {exc}{C['reset']}")
+            return
+        msg_obj = {"role": "assistant", "content": content or None}
+        if calls:
+            msg_obj["tool_calls"] = [
+                {"id": c["id"] or f"call_{i}", "type": "function",
+                 "function": {"name": c["name"], "arguments": c["arguments"] or "{}"}}
+                for i, c in enumerate(calls)]
+        messages.append(msg_obj)
+        if not calls:
+            return
+        for call in msg_obj["tool_calls"]:
+            result = run_tool(call["function"]["name"], call["function"]["arguments"], auto_yes)
+            messages.append({"role": "tool", "tool_call_id": call["id"], "content": result})
+    print(f"{C['yellow']}{msg('stopped', n=MAX_STEPS)}{C['reset']}")
+
+
+def reply_language():
+    """Idioma das respostas: o do sistema (ou TAMAGI_LANG); outros idiomas caem no inglês."""
+    return REPLY_LANG[lang_code()]
+
+
+def machine_snapshot():
+    """Snapshot determinístico curto do estado do Tamagi para reduzir alucinação."""
+    lines = [
+        f"User: {os.environ.get('USER', '?')}",
+        f"CWD: {os.getcwd()}",
+        f"Date: {time.strftime('%Y-%m-%d %H:%M')}",
+    ]
+    try:
+        theme = (CONFIG_DIR / "theme").read_text(encoding="utf-8").strip()
+        if theme:
+            lines.append(f"Active theme: {theme}")
+    except OSError:
+        pass
+    if (CONFIG_DIR / "tamagi.toml").is_file():
+        lines.append(f"Declarative manifest: {CONFIG_DIR / 'tamagi.toml'} (present)")
+    try:
+        if QUARANTINE_FILE.is_file():
+            qs = [ln.strip() for ln in QUARANTINE_FILE.read_text(encoding="utf-8").splitlines()
+                  if ln.strip() and not ln.strip().startswith("#")]
+            if qs:
+                lines.append(f"Quarantined image digests: {len(qs)}")
+    except OSError:
+        pass
+    if AGENT_ACTIONS:
+        summary = ", ".join(f"{aid} ({a.get('risk', 'user')})" for aid, a in sorted(AGENT_ACTIONS.items()))
+        lines.append(f"Built-in tamagi_action IDs: {summary}")
+    return "\n".join(lines)
+
+
+def system_prompt():
+    try:
+        with open(SYSTEM_PROMPT_FILE, encoding="utf-8") as fh:
+            base = fh.read()
+    except OSError:
+        base = "Você é o assistente do sistema Tamagi."
+    # O idioma vai no fim do prompt, onde os modelos locais pequenos obedecem melhor.
+    return (base.rstrip() + "\n\n## Contexto desta sessão\n" + machine_snapshot()
+            + f"\n\n## Idioma\nResponda sempre em {reply_language()}.\n")
+
+
+def load_ai_toml(path):
+    """Lê ~/.config/tamagi/ai.toml (perfil unificado local/cloud)."""
+    if not path.is_file():
+        return {}
+    try:
+        with open(path, "rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+    out = {}
+    ai = data.get("ai") if isinstance(data.get("ai"), dict) else data
+    if isinstance(ai.get("url"), str) and ai["url"].strip():
+        out["TAMAGI_AI_URL"] = ai["url"].strip()
+    if isinstance(ai.get("model"), str) and ai["model"].strip():
+        out["TAMAGI_AI_MODEL"] = ai["model"].strip()
+    return out
+
+
+def main():
+    env = load_env_file(CONFIG_ENV)
+    env.update(load_ai_toml(CONFIG_TOML))
+    parser = argparse.ArgumentParser(
+        prog="tamagi-agent", description="Tamagi local AI agent (llama.cpp).")
+    parser.add_argument("prompt", nargs="*", help="prompt; omit for interactive chat")
+    parser.add_argument("-y", "--yes", action="store_true",
+                        help="auto-confirm non-root commands (sudo/system always asks)")
+    parser.add_argument("-m", "--model",
+                        default=os.environ.get("TAMAGI_AI_MODEL") or env.get("TAMAGI_AI_MODEL"))
+    parser.add_argument("-u", "--url",
+                        default=os.environ.get("TAMAGI_AI_URL") or env.get("TAMAGI_AI_URL")
+                        or DEFAULT_URL)
+    opts = parser.parse_args()
+    base = opts.url.rstrip("/")
+
+    ensure_server(base)
+    model = pick_model(base, opts.model)
+    messages = [{"role": "system", "content": system_prompt()}]
+
+    prompt = " ".join(opts.prompt).strip()
+    if not sys.stdin.isatty():
+        piped = sys.stdin.read().strip()
+        if piped:
+            prompt = (prompt + "\n\n" + piped).strip()
+    if prompt:
+        messages.append({"role": "user", "content": prompt})
+        run_turn(base, model, messages, opts.yes)
+        return
+
+    print(f"{C['bold']}{msg('banner')}{C['reset']} {C['dim']}({model}) — {msg('banner_hint')}{C['reset']}")
+    while True:
+        try:
+            line = input(f"{C['green']}› {C['reset']}").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not line:
+            continue
+        if line in ("/sair", "/exit", "/quit", "sair"):
+            return
+        if line in ("/limpar", "/clear"):
+            del messages[1:]
+            continue
+        messages.append({"role": "user", "content": line})
+        try:
+            run_turn(base, model, messages, opts.yes)
+        except KeyboardInterrupt:
+            print(f"\n{C['yellow']}{msg('interrupted')}{C['reset']}")
+
+
+if __name__ == "__main__":
+    main()

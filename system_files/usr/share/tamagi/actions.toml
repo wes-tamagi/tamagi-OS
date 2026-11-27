@@ -250,7 +250,7 @@ risk = "read"
 terminal = true
 confirm = false
 agent = true
-command = "tamagi-agents shadow list"
+command = "tamagi-agent shadow list"
 keywords = "shadow workspaces cow btrfs reflink agents paralelo especulativo egress guard"
 [action.title]
 pt = "Shadow Workspaces dos agentes (CoW)"
@@ -546,7 +546,7 @@ risk = "user"
 terminal = true
 confirm = false
 agent = false
-command = "tamagi-agents"
+command = "tamagi-agent"
 keywords = "agent agente ia ai claude codex qwen opencode gemini openclaw antigravity"
 [action.title]
 pt = "Instalar agentes de IA"

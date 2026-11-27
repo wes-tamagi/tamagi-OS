@@ -1,7 +1,6 @@
 #!/usr/bin/bash
-# tamagi-font — changes the monospace font everywhere at once: terminal
-# and Tamagi windows (foot), COSMIC (terminal, editor and the mono
-# font of the interface) and GTK apps.
+# tamagi-font — changes the monospace font everywhere at once: Ptyxis,
+# COSMIC (terminal, editor and the mono font of the interface) and GTK apps.
 #
 #   tamagi font                 choose from a list (installed mono fonts)
 #   tamagi font set "<family>"  e.g.: tamagi font set "CaskaydiaCove Nerd Font"
@@ -32,7 +31,6 @@ apply() {
         echo "\"$font\"" > "$CONFIG/cosmic/com.system76.$app/v1/font_name"
     done
     gsettings set org.gnome.desktop.interface monospace-font-name "$font 11" 2>/dev/null || true
-    # foot (terminal and Tamagi windows): tamagi-theme writes them again with the new font.
     tamagi-theme apps >/dev/null
     echo "$(t "Font"): $font  ($(t "new terminals already use it"))"
 }

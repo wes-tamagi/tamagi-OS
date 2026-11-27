@@ -1193,6 +1193,7 @@ Run `tamagi sys diff` to see what is still missing.	Rode `tamagi sys diff` para 
 explain where any file, command, port, or service came from	explica de onde veio qualquer arquivo, comando, porta ou serviço
 Target	Alvo
 Papers — PDF and document viewer (Rust)	Papers — leitor de PDF e documentos (Rust)
+Okular — universal PDF and document viewer	Okular — leitor universal de PDF e documentos
 Cedilla — native Markdown notes for COSMIC (Rust)	Cedilla — notas Markdown nativas para COSMIC (Rust)
 Chronos — Pomodoro timer for COSMIC (Rust)	Chronos — temporizador Pomodoro para COSMIC (Rust)
 Rnote — vector sketching and handwritten notes (Rust)	Rnote — notas vetoriais e desenho à mão livre (Rust)
@@ -1269,3 +1270,16 @@ Homebrew	Homebrew
 host (mise)	host (mise)
 
 optional	opcional
+No active shadow workspaces. Start one with: tamagi ai run --shadow <agent>	Nenhum workspace shadow ativo. Crie um com: tamagi ai run --shadow <agent>
+sanitized Markdown soak-test report	relatório sanitizado de soak-test em Markdown
+Transaction summary	Resumo da transação
+install, remove, search catalog/Flathub, and reversible sysext layers	instalar, remover, buscar catálogo/Flathub e camadas sysext reversíveis
+Education	Educação
+TurboWarp — visual block programming (Scratch)	TurboWarp — programação visual em blocos (Scratch)
+Qwen Code — Alibaba's coding agent (native via mise)	Qwen Code — agente de código da Alibaba (nativo via mise)
+Gemini CLI — Google's agent (native via mise)	Gemini CLI — agente do Google (nativo via mise)
+OpenClaw — open-source personal assistant (native via mise)	OpenClaw — assistente pessoal open-source (nativo via mise)
+Local PostgreSQL inspector (connects to tamagi dev db on 127.0.0.1:5432)	Inspetor local de PostgreSQL (conecta ao tamagi dev db em 127.0.0.1:5432)
+development boxes, local databases, VMs, workspaces, try and isolate	caixas de desenvolvimento, bancos locais, VMs, workspaces, try e isolate
+doctor, status, why, rewind, shield, setup, perf, desktop, skl, state	doctor, status, why, rewind, shield, setup, perf, desktop, skl e estado
+Popsicle — COSMIC USB image flasher (Rust)	Popsicle — gravador de imagens ISO em USB do COSMIC (Rust)

@@ -4,9 +4,9 @@
 # Themes and wallpapers are chosen the normal way, in COSMIC Settings
 # (Appearance and Wallpaper): the Tamagi themes are there to import
 # (/usr/share/cosmic-themes) and the wallpapers are in the system list.
-# What COSMIC does not reach — the terminal and the Tamagi windows (foot),
-# btop and Neovim — is kept in step by `tamagi theme sync`, which
-# a user unit runs whenever the COSMIC theme changes.
+# What COSMIC does not reach — Ptyxis and Neovim — is kept in step by
+# `tamagi sys desktop theme sync`, which a user unit runs whenever the COSMIC
+# theme changes. Also keeps Papirus-Dark / Papirus-Light icon theme in sync.
 #
 #   tamagi theme                 current theme
 #   tamagi theme list            Tamagi themes
@@ -58,33 +58,6 @@ load() {
     source "$conf"
 }
 
-foot_config() { # configuração do foot (terminal padrão) com a paleta do tema
-    local i
-    cat <<INI
-# Gerado por tamagi-theme ($NAME). Enquanto esta primeira linha existir, trocar
-# de tema reescreve este arquivo; para personalizar o foot, apague-a.
-[main]
-font=$(mono_font):size=11
-pad=12x10
-term=xterm-256color
-
-[scrollback]
-lines=10000
-
-[mouse]
-hide-when-typing=yes
-
-[colors-dark]
-background=${BG#\#}
-foreground=${FG#\#}
-cursor=${BG#\#} ${CURSOR#\#}
-selection-background=${WALL[2]#\#}
-selection-foreground=${BG#\#}
-INI
-    for i in 0 1 2 3 4 5 6 7; do echo "regular$i=${PALETTE[$i]#\#}"; done
-    for i in 0 1 2 3 4 5 6 7; do echo "bright$i=${PALETTE[$((i + 8))]#\#}"; done
-}
-
 apply_ptyxis() { # the terminal of the system: a palette "Tamagi" with the colours of the theme
     local dir="${XDG_DATA_HOME:-$HOME/.local/share}/org.gnome.Ptyxis/palettes" i section uuid
     mkdir -p "$dir"
@@ -99,76 +72,6 @@ apply_ptyxis() { # the terminal of the system: a palette "Tamagi" with the colou
     uuid=$(gsettings get org.gnome.Ptyxis default-profile-uuid 2>/dev/null | tr -d "'") || true
     if [[ -n $uuid ]]; then
         gsettings set "org.gnome.Ptyxis.Profile:/org/gnome/Ptyxis/Profiles/$uuid/" palette tamagi 2>/dev/null || true
-    fi
-}
-
-apply_foot() { # só reescreve o foot.ini que o próprio tamagi-theme gerou
-    local ini="$CONFIG/foot/foot.ini"
-    if [[ ! -e $ini ]] || head -1 "$ini" | grep -q '^# Gerado por tamagi-theme'; then
-        mkdir -p "$CONFIG/foot"
-        foot_config > "$ini"
-    fi
-}
-
-btop_theme() { # tema do btop com a paleta do tema (como no Omarchy)
-    local accent=${WALL[2]} red=${PALETTE[1]} green=${PALETTE[2]} yellow=${PALETTE[3]}
-    local blue=${PALETTE[4]} magenta=${PALETTE[5]} cyan=${PALETTE[6]} gray=${PALETTE[8]}
-    cat <<THEME
-# Gerado por tamagi-theme ($NAME).
-theme[main_bg]="$BG"
-theme[main_fg]="$FG"
-theme[title]="$FG"
-theme[hi_fg]="$accent"
-theme[selected_bg]="$gray"
-theme[selected_fg]="$FG"
-theme[inactive_fg]="$gray"
-theme[graph_text]="$FG"
-theme[meter_bg]="$gray"
-theme[proc_misc]="$cyan"
-theme[cpu_box]="$blue"
-theme[mem_box]="$green"
-theme[net_box]="$magenta"
-theme[proc_box]="$accent"
-theme[div_line]="$gray"
-theme[temp_start]="$green"
-theme[temp_mid]="$yellow"
-theme[temp_end]="$red"
-theme[cpu_start]="$cyan"
-theme[cpu_mid]="$blue"
-theme[cpu_end]="$magenta"
-theme[free_start]="$green"
-theme[free_mid]="$green"
-theme[free_end]="$green"
-theme[cached_start]="$cyan"
-theme[cached_mid]="$cyan"
-theme[cached_end]="$blue"
-theme[available_start]="$yellow"
-theme[available_mid]="$yellow"
-theme[available_end]="$yellow"
-theme[used_start]="$red"
-theme[used_mid]="$red"
-theme[used_end]="$red"
-theme[download_start]="$blue"
-theme[download_mid]="$cyan"
-theme[download_end]="$green"
-theme[upload_start]="$magenta"
-theme[upload_mid]="$red"
-theme[upload_end]="$yellow"
-theme[process_start]="$cyan"
-theme[process_mid]="$blue"
-theme[process_end]="$magenta"
-THEME
-}
-
-apply_btop() { # escreve o tema e o escolhe, se você não escolheu outro
-    local dir="$CONFIG/btop" conf
-    mkdir -p "$dir/themes"
-    btop_theme > "$dir/themes/tamagi.theme"
-    conf="$dir/btop.conf"
-    if [[ ! -f $conf ]]; then
-        echo 'color_theme = "tamagi"' > "$conf"
-    elif grep -qE '^color_theme = "(Default|tamagi|)"' "$conf"; then
-        sed -i 's/^color_theme = .*/color_theme = "tamagi"/' "$conf"
     fi
 }
 
@@ -235,20 +138,22 @@ RON
     if [[ -r $ron ]] && command -v cosmic-settings >/dev/null 2>&1; then
         timeout 20 cosmic-settings appearance import "$ron" >/dev/null 2>&1 || true
     fi
-    # GTK apps and the browser follow light/dark through the portal.
+    # GTK apps, icon theme (Papirus SVG) and the browser follow light/dark.
+    local icons
+    icons=$([[ $SCHEME == dark ]] && echo Papirus-Dark || echo Papirus-Light)
+    mkdir -p "$cfg/com.system76.CosmicTk/v1"
+    printf '"%s"\n' "$icons" > "$cfg/com.system76.CosmicTk/v1/icon_theme"
+    gsettings set org.gnome.desktop.interface icon-theme "$icons" 2>/dev/null || true
     gsettings set org.gnome.desktop.interface color-scheme \
         "$([[ $SCHEME == dark ]] && echo prefer-dark || echo default)" 2>/dev/null || true
 }
 
-apply_terminal() { # foot (terminal and Tamagi windows), btop and Neovim
+apply_terminal() { # Ptyxis and Neovim
     local name=$1
     load "$name"
     mkdir -p "$CONFIG/tamagi"
-    foot_config > "$CONFIG/tamagi/foot.ini"      # the Tamagi windows (/usr/libexec/tamagi/popup)
-    rm -f "$CONFIG/tamagi/alacritty.toml"        # from when those windows were alacritty
-    apply_foot
+    rm -f "$CONFIG/tamagi/alacritty.toml" "$CONFIG/tamagi/foot.ini"
     apply_ptyxis
-    apply_btop
     apply_nvim "$name"
     echo "$name" > "$STATE"
 }
@@ -347,7 +252,6 @@ case "${1:-}" in
     apps)    # re-applies the current theme to the terminal apps only
              apply_terminal "$(current)" ;;
     nvim)    load "${2:-$DEFAULT_DARK}"; nvim_spec "${2:-$DEFAULT_DARK}" ;;
-    foot)    load "${2:-$DEFAULT_DARK}"; foot_config ;;
     -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
     *)       echo "usage: tamagi theme [list|current|set <theme>|next|pick|sync|settings|wallpaper]" >&2; exit 2 ;;
 esac

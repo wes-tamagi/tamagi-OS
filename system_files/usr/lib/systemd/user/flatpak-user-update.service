@@ -1,0 +1,9 @@
+[Unit]
+Description=Update user Flatpaks
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flatpak update --user -y --noninteractive
+Nice=19
+IOSchedulingClass=idle

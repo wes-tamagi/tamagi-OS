@@ -2,6 +2,7 @@
 //! Static Rust binary (replaces the former Go build stage).
 
 mod i18n;
+mod ui;
 
 use std::collections::HashMap;
 use std::env;
@@ -11,7 +12,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{exit, Command, Stdio};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use i18n::t;
 
@@ -188,7 +189,7 @@ fn is_installed(it: &CatalogItem) -> bool {
         return false;
     }
     if let Some(want) = a.strip_prefix("agent:") {
-        let (rc, out) = run_out(&[], "tamagi-agents", &["installed"]);
+        let (rc, out) = run_out(&[], "tamagi-agent", &["installed"]);
         return rc == 0 && out.lines().any(|l| l.trim() == want);
     }
     if let Some(rest) = a.strip_prefix("run:tamagi-browser install ") {
@@ -609,7 +610,7 @@ fn remove_one(items: &[CatalogItem], target: &str) -> bool {
             return Command::new("tamagi-gaming").arg("remove").status().is_ok_and(|s| s.success());
         }
         if let Some(agent) = it.action.strip_prefix("agent:") {
-            return Command::new("tamagi-agents").args(["remove", agent]).status().is_ok_and(|s| s.success());
+            return Command::new("tamagi-agent").args(["remove", agent]).status().is_ok_and(|s| s.success());
         }
     }
     if ALL_BROWSERS.contains(&target) {
@@ -839,6 +840,23 @@ fn run_actions(actions: &[String]) -> i32 {
         }
     }
 
+    let started = Instant::now();
+    let mut tx_rows: Vec<(String, String, String, String)> = Vec::new();
+    for app in &flatpak_apps {
+        tx_rows.push((app.clone(), "Flatpak".into(), "user".into(), "install".into()));
+    }
+    for g in &gaming {
+        tx_rows.push((g.clone(), "Gaming".into(), "layer".into(), "install".into()));
+    }
+    for ag in &agents {
+        tx_rows.push((ag.clone(), "AI Agent".into(), "user".into(), "install".into()));
+    }
+    for rcmd in &runs {
+        let label = rcmd.split_whitespace().take(3).collect::<Vec<_>>().join(" ");
+        tx_rows.push((label, "Native".into(), "system".into(), "install".into()));
+    }
+    ui::print_tx_table(&t("Transaction summary"), &tx_rows);
+
     let mut total = 0;
     if !remote_order.is_empty() {
         total += 1;
@@ -847,15 +865,12 @@ fn run_actions(actions: &[String]) -> i32 {
         total += 1;
     }
     total += runs.len() + agents.len();
-    let mut n = 0;
+    let mut n: usize = 0;
     let mut step = |msg: &str| {
         n += 1;
         println!();
-        let banner = format!("── [{n}/{total}] {msg}");
-        if which("gum") && Command::new("gum").args(["style", "--foreground", "4", "--bold", &banner]).status().is_ok_and(|s| s.success()) {
-            return;
-        }
-        println!("{banner}");
+        let bar = ui::progress_bar(n.saturating_sub(1), total, 14);
+        ui::step_progress(n, total, &format!("{bar} {msg}"));
     };
 
     let mut failed: Vec<String> = Vec::new();
@@ -928,7 +943,7 @@ fn run_actions(actions: &[String]) -> i32 {
 
     for ag in &agents {
         step(&format!("{}: {ag}", t("AI agent")));
-        if !Command::new("tamagi-agents").args(["install", ag]).status().is_ok_and(|s| s.success()) {
+        if !Command::new("tamagi-agent").args(["install", ag]).status().is_ok_and(|s| s.success()) {
             failed.push(ag.clone());
         }
     }
@@ -943,30 +958,14 @@ fn run_actions(actions: &[String]) -> i32 {
             }
             _ => {
                 println!();
-                tl("Waiting for the Flatpaks still downloading…");
-                let tty = io::stdout().is_terminal();
-                loop {
-                    match child.try_wait() {
-                        Ok(Some(status)) => {
-                            if tty {
-                                print!("\r{:80}\r", "");
-                                let _ = io::stdout().flush();
-                            }
-                            if !status.success() {
-                                failed.extend(flatpak_apps.iter().cloned());
-                                print_tail(&fp_log_path, 5);
-                            }
-                            break;
-                        }
-                        _ => {
-                            thread::sleep(Duration::from_secs(1));
-                            if tty {
-                                let last = last_line(&fp_log_path);
-                                let short: String = last.chars().take(76).collect();
-                                print!("\r  {short:<76}");
-                                let _ = io::stdout().flush();
-                            }
-                        }
+                let sp = ui::Spinner::start(t("Waiting for the Flatpaks still downloading…"));
+                let status = child.wait();
+                match status {
+                    Ok(st) if st.success() => sp.finish_ok(Some("Flatpak")),
+                    _ => {
+                        sp.finish_err(Some("Flatpak"));
+                        failed.extend(flatpak_apps.iter().cloned());
+                        print_tail(&fp_log_path, 5);
                     }
                 }
             }
@@ -975,11 +974,12 @@ fn run_actions(actions: &[String]) -> i32 {
 
     println!();
     if !failed.is_empty() {
-        println!("{}: {}", t("Could not install"), failed.join(" "));
-        println!("{}: tamagi install", t("Try again with"));
+        println!("{} {}: {}", ui::red("✗"), t("Could not install"), failed.join(" "));
+        println!("{}: tamagi pkg", t("Try again with"));
         return 1;
     }
-    tl("Everything installed.");
+    let secs = started.elapsed().as_secs_f32();
+    println!("{} {} {}", ui::green("✓"), t("Everything installed."), ui::dim(&format!("({secs:.1}s)")));
     0
 }
 

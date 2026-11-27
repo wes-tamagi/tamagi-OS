@@ -1,0 +1,9 @@
+[Unit]
+Description=Tamagi /etc drift journal snapshot
+ConditionPathExists=!/run/tamagi-live
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tamagi/etc-drift
+Nice=19
+IOSchedulingClass=idle

@@ -109,7 +109,7 @@ UI = {
 INTERACTIVE_NO_PAUSE = {
     "tamagi-agent", "claude", "agy", "tamagi-ai code", "tamagi-firstrun --force", "tamagi-fboot",
     "tamagi-keys", "tamagi-theme pick", "tamagi-panel pick", "tamagi-lang pick",
-    "tamagi-devbox", "tamagi-perf pick", "tamagi-gaming", "tamagi-install", "tamagi-remove", "tamagi-agents",
+    "tamagi-devbox", "tamagi-perf pick", "tamagi-gaming", "tamagi-install", "tamagi-remove", "tamagi-agent",
     "tamagi-browser install", "tamagi-devbox lang", "tamagi-mcp",
 }
 

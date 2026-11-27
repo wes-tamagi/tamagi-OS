@@ -38,7 +38,7 @@ switch atomically, and the previous deployment stays on disk for rollback.
 ## Contents
 
 - [Quick start](#quick-start)
-- [One command: `tamagi`](#one-command-tamagi)
+- [Tamagi CLI (`tamagi-cli`)](#tamagi-cli-tamagi-cli)
 - [AI agents: project-jailed and reversible](#ai-agents-project-jailed-and-reversible)
 - [First login and ready-made profiles](#first-login-and-ready-made-profiles)
 - [Three core ideas](#three-core-ideas)
@@ -69,25 +69,29 @@ Related documents: [tamagiguide.md](tamagiguide.md) (install, migrate, update),
 
 ```bash
 tamagi                                       # list all commands
-tamagi update                                # update system, Flatpaks and boxes
-tamagi doctor                                # run system diagnostics
-tamagi install                               # open the optional software catalog
-tamagi browser install firefox --flatpak     # or --native, or --box
-tamagi agents install claude codex qwen      # install AI coding agents
-tamagi mcp add memory git playwright         # sandboxed MCP servers in Podman Quadlets
-tamagi devbox create ubuntu                  # create a dev container
-tamagi db add postgres                       # start a local development database
+tamagi update                                # update system, Flatpaks, boxes, and agents
+tamagi sys doctor                            # run system & network diagnostics (--report)
+tamagi pkg                                   # open the optional software catalog
+tamagi pkg browser install firefox --flatpak # or --native, or --box
+tamagi ai agents install claude codex qwen   # install AI coding agents
+tamagi ai mcp add memory git playwright      # sandboxed MCP servers in Podman Quadlets
+tamagi dev box create ubuntu                 # create a dev container
+tamagi dev db add postgres                   # start a local development database
 ```
 
-## One command: `tamagi`
+## Tamagi CLI (`tamagi-cli`)
 
-`tamagi` replaces Universal Blue's `ujust`, which is removed from the image,
-and puts all system administration behind one CLI.
+The static Rust CLI suite (`tamagi`, `tamagi-install`, `tamagi-doctor`, `tamagi-why`, `tamagi-layer`, `agent-jail`) lives in its own standalone workspace and repository:
+
+- **Standalone repository:** [github.com/wes-tamagi/tamagi-cli](https://github.com/wes-tamagi/tamagi-cli) (source tree in [`rust/`](rust/README.md))
+- **Tamagi OS:** [github.com/wes-tamagi/tamagi-OS](https://github.com/wes-tamagi/tamagi-OS)
+
+`tamagi` replaces Universal Blue's `ujust`, which is removed from the image, and puts all system administration behind one modern CLI (with `dnf5`-style transaction tables, `pacman`-style `::` phase headers, and TTY animations).
 
 - **Subcommands are always in English.** Output messages are English (the
   source language), Brazilian Portuguese, Spanish and French, from
   `/usr/share/tamagi/i18n`; other locales get English.
-- **Dispatch:** `tamagi <command>` runs the program `tamagi-<command>`.
+- **Unified agents:** `tamagi ai` and `/usr/bin/tamagi-agent` unify the local `llama.cpp` agent (`ask`) and third-party coding agents (`install`, `run`, `shadow`, `flights`).
 - **Languages used:** the entry point (`tamagi`), native layering
   (`tamagi layer`) and the agent jail are static Rust binaries (`rust/`, unit
   tested during the image build). Commands that only chain other commands are

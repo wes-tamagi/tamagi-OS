@@ -1,0 +1,305 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2220" viewBox="0 0 1600 2220">
+  <defs>
+    <linearGradient id="bgLight" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#FAF6EC"/>
+      <stop offset="55%" stop-color="#F7F2E4"/>
+      <stop offset="100%" stop-color="#F2ECDC"/>
+    </linearGradient>
+    <radialGradient id="sunGlow" cx="0.10" cy="0.05" r="0.36">
+      <stop offset="0%" stop-color="#F2C14E" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#F2C14E" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="leafGlow" cx="0.90" cy="0.22" r="0.34">
+      <stop offset="0%" stop-color="#6FC3B3" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#6FC3B3" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="crestGlowLight">
+      <stop offset="0" stop-color="#6FC3B3" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#6FC3B3" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#8B6200"/>
+    </marker>
+    <style>
+      .sans { font-family: "Roboto Flex", "Noto Sans", sans-serif; }
+      .mono { font-family: "JetBrains Mono", monospace; }
+    </style>
+  </defs>
+
+  <!-- Warm Ivory Background (Tamagi Ipê Claro) -->
+  <rect width="1600" height="2220" fill="url(#bgLight)"/>
+  <rect width="1600" height="2220" fill="url(#sunGlow)"/>
+  <rect width="1600" height="2220" fill="url(#leafGlow)"/>
+
+  <!-- ── HEADER ───────────────────────────────────────────────────────────── -->
+  <g transform="translate(64, 46) scale(0.72)">
+    <rect width="192" height="192" rx="42" fill="#16211C" stroke="#8B6200" stroke-opacity="0.45" stroke-width="3"/>
+    <circle cx="96" cy="96" r="48.58" fill="url(#crestGlowLight)"/>
+    <circle cx="96" cy="96" r="82.58" fill="none" stroke="#F2C14E" stroke-width="11.48"/>
+    <circle cx="96" cy="96" r="68.23" fill="none" stroke="#F2C14E" stroke-opacity="0.55" stroke-width="2.53"/>
+    <g fill="#F2C14E">
+      <path d="M0,-29.81 C5.25,-19.08 23.85,-13.12 23.85,2.38 A23.85,23.85 0 1 1 -23.85,2.38 C-23.85,-13.12 -5.25,-19.08 0,-29.81 Z" transform="rotate(0 96 96) translate(96 59.04)"/>
+      <path d="M0,-29.81 C5.25,-19.08 23.85,-13.12 23.85,2.38 A23.85,23.85 0 1 1 -23.85,2.38 C-23.85,-13.12 -5.25,-19.08 0,-29.81 Z" transform="rotate(120 96 96) translate(96 59.04)"/>
+      <path d="M0,-29.81 C5.25,-19.08 23.85,-13.12 23.85,2.38 A23.85,23.85 0 1 1 -23.85,2.38 C-23.85,-13.12 -5.25,-19.08 0,-29.81 Z" transform="rotate(240 96 96) translate(96 59.04)"/>
+    </g>
+    <circle cx="96" cy="96" r="9.54" fill="#6FC3B3"/>
+  </g>
+
+  <text x="230" y="96" class="sans" font-size="42" font-weight="800" fill="#1C1D18">Conheça o Tamagi OS — Simples, Rápido e Seguro</text>
+  <text x="230" y="135" class="sans" font-size="20.5" fill="#4D5147">Veio do Windows e só quer um computador que funcione bem todos os dias? Esse sistema foi feito para você.</text>
+
+  <!-- Friendly Pills -->
+  <g transform="translate(230, 155)" class="sans" font-size="14.5" font-weight="700">
+    <rect x="0" y="0" width="150" height="32" rx="16" fill="#FFE08D" stroke="#D49B1A" stroke-opacity="0.5"/>
+    <text x="75" y="21" text-anchor="middle" fill="#2B1D00">100% Gratuito</text>
+
+    <rect x="164" y="0" width="154" height="32" rx="16" fill="#CBECC7" stroke="#36683B" stroke-opacity="0.4"/>
+    <text x="241" y="21" text-anchor="middle" fill="#0C2912">Sem Anúncios</text>
+
+    <rect x="332" y="0" width="218" height="32" rx="16" fill="#B6EFE3" stroke="#1F6B5E" stroke-opacity="0.4"/>
+    <text x="441" y="21" text-anchor="middle" fill="#093029">Atualiza sem Quebrar</text>
+
+    <rect x="564" y="0" width="232" height="32" rx="16" fill="#FFFFFF" stroke="#B8B7AA"/>
+    <text x="680" y="21" text-anchor="middle" fill="#1C1D18">Fácil para Quem Usa Windows</text>
+
+    <rect x="810" y="0" width="184" height="32" rx="16" fill="#FFE08D" stroke="#D49B1A" stroke-opacity="0.5"/>
+    <text x="902" y="21" text-anchor="middle" fill="#2B1D00">Em Português (BR)</text>
+  </g>
+
+  <!-- ── SECTION 1: VIM DO WINDOWS — O QUE MUDA? ─────────────────────────── -->
+  <text x="64" y="250" class="sans" font-size="25" font-weight="800" fill="#8B6200">1. VIM DO WINDOWS: COMO É USAR O TAMAGI NO DIA A DIA?</text>
+  <line x1="64" y1="264" x2="1536" y2="264" stroke="#D0D2C5" stroke-width="2"/>
+
+  <!-- Comparison Table Card -->
+  <rect x="64" y="284" width="1472" height="466" rx="22" fill="#FFFFFF" stroke="#D0D2C5" stroke-width="1.5"/>
+
+  <!-- Table Header -->
+  <rect x="64" y="284" width="1472" height="58" rx="22" fill="#16211C"/>
+  <rect x="64" y="320" width="1472" height="22" fill="#16211C"/>
+  <text x="104" y="321" class="sans" font-size="18" font-weight="800" fill="#FFE08D">NO DIA A DIA</text>
+  <text x="430" y="321" class="sans" font-size="18" font-weight="800" fill="#D5D8CE">O QUE COSTUMA INCOMODAR NO WINDOWS</text>
+  <text x="980" y="321" class="sans" font-size="18" font-weight="800" fill="#6FC3B3">COMO FUNCIONA NO TAMAGI OS</text>
+
+  <!-- Row 1 -->
+  <text x="104" y="388" class="sans" font-size="18" font-weight="800" fill="#1C1D18">Tela e Menu Iniciar</text>
+  <text x="430" y="382" class="sans" font-size="16" fill="#4D5147">Anúncios no menu Iniciar, notícias e sugestões</text>
+  <text x="430" y="405" class="sans" font-size="16" fill="#4D5147">que você não pediu.</text>
+  <text x="980" y="382" class="sans" font-size="16.5" font-weight="700" fill="#1F6B5E">Barra embaixo igual você já conhece, só que limpa.</text>
+  <text x="980" y="405" class="sans" font-size="15.5" fill="#4D5147">Menu Iniciar à esquerda, apps no centro, relógio/Wi-Fi à direita.</text>
+  <line x1="94" y1="426" x2="1506" y2="426" stroke="#EAE6D9" stroke-width="1.5"/>
+
+  <!-- Row 2 -->
+  <text x="104" y="470" class="sans" font-size="18" font-weight="800" fill="#1C1D18">Atualizações</text>
+  <text x="430" y="464" class="sans" font-size="16" fill="#4D5147">Tela azul "Atualizando 30%, não desligue" bem</text>
+  <text x="430" y="487" class="sans" font-size="16" fill="#4D5147">na hora que você precisa trabalhar ou sair.</text>
+  <text x="980" y="464" class="sans" font-size="16.5" font-weight="700" fill="#1F6B5E">Atualiza em silêncio em segundo plano.</text>
+  <text x="980" y="487" class="sans" font-size="15.5" fill="#4D5147">Fica pronto quando você reiniciar — e se falhar, volta sozinho!</text>
+  <line x1="94" y1="508" x2="1506" y2="508" stroke="#EAE6D9" stroke-width="1.5"/>
+
+  <!-- Row 3 -->
+  <text x="104" y="552" class="sans" font-size="18" font-weight="800" fill="#1C1D18">Instalar Programas</text>
+  <text x="430" y="546" class="sans" font-size="16" fill="#4D5147">Buscar no Google, baixar instalador .exe e torcer</text>
+  <text x="430" y="569" class="sans" font-size="16" fill="#4D5147">para não vir vírus ou barra extra junto.</text>
+  <text x="980" y="546" class="sans" font-size="16.5" font-weight="700" fill="#1F6B5E">Loja de aplicativos e catálogo verificado.</text>
+  <text x="980" y="569" class="sans" font-size="15.5" fill="#4D5147">Chrome, Firefox, WhatsApp, Spotify, OnlyOffice e Steam em 1 clique.</text>
+  <line x1="94" y1="590" x2="1506" y2="590" stroke="#EAE6D9" stroke-width="1.5"/>
+
+  <!-- Row 4 -->
+  <text x="104" y="634" class="sans" font-size="18" font-weight="800" fill="#1C1D18">Vírus e Lentidão</text>
+  <text x="430" y="628" class="sans" font-size="16" fill="#4D5147">Com o tempo o PC vai ficando lento e exige</text>
+  <text x="430" y="651" class="sans" font-size="16" fill="#4D5147">antivírus pesado ou "formatar de novo".</text>
+  <text x="980" y="628" class="sans" font-size="16.5" font-weight="700" fill="#1F6B5E">Sistema blindado: não acumula sujeira.</text>
+  <text x="980" y="651" class="sans" font-size="15.5" fill="#4D5147">Continua leve como no primeiro dia e protege seus arquivos pessoais.</text>
+  <line x1="94" y1="672" x2="1506" y2="672" stroke="#EAE6D9" stroke-width="1.5"/>
+
+  <!-- Row 5 -->
+  <text x="104" y="716" class="sans" font-size="18" font-weight="800" fill="#1C1D18">Documentos e Web</text>
+  <text x="430" y="710" class="sans" font-size="16" fill="#4D5147">Assinatura paga do Microsoft 365 e cobrança</text>
+  <text x="430" y="733" class="sans" font-size="16" fill="#4D5147">para usar conta online obrigatória.</text>
+  <text x="980" y="710" class="sans" font-size="16.5" font-weight="700" fill="#1F6B5E">Tudo funciona sem conta obrigatória.</text>
+  <text x="980" y="733" class="sans" font-size="15.5" fill="#4D5147">Abre Word/Excel/PowerPoint (OnlyOffice), Google Docs, YouTube e mais.</text>
+
+  <!-- ── SECTION 2: 6 MOTIVOS PARA SE SENTIR EM CASA ─────────────────────── -->
+  <text x="64" y="814" class="sans" font-size="25" font-weight="800" fill="#8B6200">2. SEIS MOTIVOS PARA VOCÊ FICAR TRANQUILO COM O TAMAGI</text>
+  <line x1="64" y1="828" x2="1536" y2="828" stroke="#D0D2C5" stroke-width="2"/>
+
+  <!-- Row 1 of 3 cards -->
+  <!-- Card 1 -->
+  <rect x="64" y="850" width="470" height="240" rx="22" fill="#FFFFFF" stroke="#D0D2C5" stroke-width="1.5"/>
+  <circle cx="114" cy="902" r="28" fill="#FFE08D"/>
+  <!-- Lightning icon -->
+  <path d="M117 886 L103 905 H114 L111 919 L125 899 H114 Z" fill="#8B6200"/>
+  <text x="158" y="908" class="sans" font-size="21" font-weight="800" fill="#1C1D18">Liga rápido e não trava</text>
+  <text x="92" y="958" class="sans" font-size="16" fill="#4D5147">Feito para ser leve desde o primeiro segundo.</text>
+  <text x="92" y="984" class="sans" font-size="16" fill="#4D5147">Não abre dezenas de programas escondidos ao</text>
+  <text x="92" y="1010" class="sans" font-size="16" fill="#4D5147">ligar o PC e usa menos memória para deixar</text>
+  <text x="92" y="1036" class="sans" font-size="16" fill="#4D5147">navegador, vídeos e trabalho mais fluidos.</text>
+
+  <!-- Card 2 -->
+  <rect x="565" y="850" width="470" height="240" rx="22" fill="#FFFFFF" stroke="#D0D2C5" stroke-width="1.5"/>
+  <circle cx="615" cy="902" r="28" fill="#B6EFE3"/>
+  <!-- Shield icon -->
+  <path d="M615 886 L629 892 V903 C629 912 622 918 615 921 C608 918 601 912 601 903 V892 Z" fill="none" stroke="#1F6B5E" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M609 903 L613 907 L622 898" fill="none" stroke="#1F6B5E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="659" y="908" class="sans" font-size="21" font-weight="800" fill="#1C1D18">Se der problema, ele conserta</text>
+  <text x="593" y="958" class="sans" font-size="16" fill="#4D5147">Se uma atualização falhar ao ligar, você não</text>
+  <text x="593" y="984" class="sans" font-size="16" fill="#4D5147">precisa chamar técnico: o Tamagi percebe o</text>
+  <text x="593" y="1010" class="sans" font-size="16" fill="#4D5147">erro sozinho e volta para a versão anterior</text>
+  <text x="593" y="1036" class="sans" font-size="16" fill="#4D5147">que estava funcionando perfeitamente.</text>
+
+  <!-- Card 3 -->
+  <rect x="1066" y="850" width="470" height="240" rx="22" fill="#FFFFFF" stroke="#D0D2C5" stroke-width="1.5"/>
+  <circle cx="1116" cy="902" r="28" fill="#CBECC7"/>
+  <!-- Clock rewind icon -->
+  <circle cx="1116" cy="902" r="13" fill="none" stroke="#36683B" stroke-width="3"/>
+  <path d="M1116 895 V902 L1122 905" fill="none" stroke="#36683B" stroke-width="2.8" stroke-linecap="round"/>
+  <text x="1160" y="908" class="sans" font-size="21" font-weight="800" fill="#1C1D18">Volte no tempo nos arquivos</text>
+  <text x="1094" y="958" class="sans" font-size="16" fill="#4D5147">Apagou uma foto ou alterou um documento</text>
+  <text x="1094" y="984" class="sans" font-size="16" fill="#4D5147">importante sem querer? O sistema salva</text>
+  <text x="1094" y="1010" class="sans" font-size="16" fill="#4D5147">pontos automáticos da sua pasta pessoal</text>
+  <text x="1094" y="1036" class="sans" font-size="16" fill="#4D5147">para você recuperar versões anteriores.</text>
+
+  <!-- Row 2 of 3 cards -->
+  <!-- Card 4 -->
+  <rect x="64" y="1118" width="470" height="240" rx="22" fill="#FFFFFF" stroke="#D0D2C5" stroke-width="1.5"/>
+  <circle cx="114" cy="1170" r="28" fill="#CBECC7"/>
+  <!-- Lock icon -->
+  <rect x="104" y="1168" width="20" height="15" rx="3" fill="none" stroke="#36683B" stroke-width="2.8"/>
+  <path d="M108 1168 V1163 A6 6 0 0 1 120 1163 V1168" fill="none" stroke="#36683B" stroke-width="2.8"/>
+  <text x="158" y="1176" class="sans" font-size="21" font-weight="800" fill="#1C1D18">Privacidade sem espiões</text>
+  <text x="92" y="1226" class="sans" font-size="16" fill="#4D5147">Nenhum anúncio na tela, nenhuma coleta de</text>
+  <text x="92" y="1252" class="sans" font-size="16" fill="#4D5147">dados sobre o que você faz e opção de</text>
+  <text x="92" y="1278" class="sans" font-size="16" fill="#4D5147">proteger o disco com um PIN curto (usando</text>
+  <text x="92" y="1304" class="sans" font-size="16" fill="#4D5147">o chip de segurança do seu computador).</text>
+
+  <!-- Card 5 -->
+  <rect x="565" y="1118" width="470" height="240" rx="22" fill="#FFFFFF" stroke="#D0D2C5" stroke-width="1.5"/>
+  <circle cx="615" cy="1170" r="28" fill="#FFE08D"/>
+  <!-- Sun/Theme icon -->
+  <circle cx="615" cy="1170" r="7" fill="#8B6200"/>
+  <g stroke="#8B6200" stroke-width="2.5" stroke-linecap="round">
+    <line x1="615" y1="1154" x2="615" y2="1159"/><line x1="615" y1="1181" x2="615" y2="1186"/>
+    <line x1="599" y1="1170" x2="604" y2="1170"/><line x1="626" y1="1170" x2="631" y2="1170"/>
+  </g>
+  <text x="659" y="1176" class="sans" font-size="21" font-weight="800" fill="#1C1D18">Visual bonito, claro ou escuro</text>
+  <text x="593" y="1226" class="sans" font-size="16" fill="#4D5147">Interface moderna com letras fáceis de ler,</text>
+  <text x="593" y="1252" class="sans" font-size="16" fill="#4D5147">janelas organizadas e temas elegantes (Ipê</text>
+  <text x="593" y="1278" class="sans" font-size="16" fill="#4D5147">Claro, Ipê Escuro e mais) — tudo fácil de</text>
+  <text x="593" y="1304" class="sans" font-size="16" fill="#4D5147">ajustar em Configurações, sem complicação.</text>
+
+  <!-- Card 6 -->
+  <rect x="1066" y="1118" width="470" height="240" rx="22" fill="#FFFFFF" stroke="#D0D2C5" stroke-width="1.5"/>
+  <circle cx="1116" cy="1170" r="28" fill="#B6EFE3"/>
+  <!-- Book/School icon -->
+  <path d="M1103 1164 L1116 1158 L1129 1164 L1116 1170 Z" fill="#1F6B5E"/>
+  <path d="M1107 1168 V1177 C1111 1181 1121 1181 1125 1177 V1168" fill="none" stroke="#1F6B5E" stroke-width="2.5"/>
+  <text x="1160" y="1176" class="sans" font-size="21" font-weight="800" fill="#1C1D18">Pronto para Casa e Escola</text>
+  <text x="1094" y="1226" class="sans" font-size="16" fill="#4D5147">Além da versão completa para uso pessoal,</text>
+  <text x="1094" y="1252" class="sans" font-size="16" fill="#4D5147">o mesmo pendrive traz o <tspan font-weight="700" fill="#1F6B5E">Tamagi-SKL</tspan>:</text>
+  <text x="1094" y="1278" class="sans" font-size="16" fill="#4D5147">edição escolar leve que limpa logins ao</text>
+  <text x="1094" y="1304" class="sans" font-size="16" fill="#4D5147">fechar o navegador e evita desconfigurar o PC.</text>
+
+  <!-- ── SECTION 3: SEUS PRIMEIROS 5 MINUTOS ─────────────────────────────── -->
+  <text x="64" y="1424" class="sans" font-size="25" font-weight="800" fill="#8B6200">3. SEUS PRIMEIROS 5 MINUTOS NO TAMAGI (SEM USAR TERMINAL)</text>
+  <line x1="64" y1="1438" x2="1536" y2="1438" stroke="#D0D2C5" stroke-width="2"/>
+
+  <g transform="translate(64, 1462)">
+    <!-- Step 1 -->
+    <rect x="0" y="0" width="334" height="226" rx="20" fill="#FFFFFF" stroke="#D49B1A" stroke-width="1.8"/>
+    <circle cx="46" cy="46" r="22" fill="#8B6200"/>
+    <text x="46" y="53" text-anchor="middle" class="sans" font-size="20" font-weight="800" fill="#FFFFFF">1</text>
+    <text x="82" y="53" class="sans" font-size="20" font-weight="800" fill="#1C1D18">Ligue e conecte</text>
+    <text x="26" y="102" class="sans" font-size="15.5" fill="#4D5147">Escolha Português, conecte</text>
+    <text x="26" y="126" class="sans" font-size="15.5" fill="#4D5147">seu Wi-Fi e entre na sua conta.</text>
+    <text x="26" y="158" class="sans" font-size="15.5" fill="#4D5147">Uma janela de boas-vindas</text>
+    <text x="26" y="182" class="sans" font-size="15.5" fill="#4D5147">aparece sozinha para te guiar.</text>
+
+    <line x1="338" y1="113" x2="374" y2="113" stroke="#8B6200" stroke-width="2.5" marker-end="url(#arrowAmber)"/>
+
+    <!-- Step 2 -->
+    <rect x="379" y="0" width="334" height="226" rx="20" fill="#FFFFFF" stroke="#1F6B5E" stroke-width="1.8"/>
+    <circle cx="425" cy="46" r="22" fill="#1F6B5E"/>
+    <text x="425" y="53" text-anchor="middle" class="sans" font-size="20" font-weight="800" fill="#FFFFFF">2</text>
+    <text x="461" y="53" class="sans" font-size="20" font-weight="800" fill="#1C1D18">Escolha o navegador</text>
+    <text x="405" y="102" class="sans" font-size="15.5" fill="#4D5147">Ele já vem com o Chromium</text>
+    <text x="405" y="126" class="sans" font-size="15.5" fill="#4D5147">pronto para conta Google.</text>
+    <text x="405" y="158" class="sans" font-size="15.5" fill="#4D5147">Prefere Chrome, Firefox ou</text>
+    <text x="405" y="182" class="sans" font-size="15.5" fill="#4D5147">Opera GX? Só marcar na tela!</text>
+
+    <line x1="717" y1="113" x2="753" y2="113" stroke="#8B6200" stroke-width="2.5" marker-end="url(#arrowAmber)"/>
+
+    <!-- Step 3 -->
+    <rect x="758" y="0" width="334" height="226" rx="20" fill="#FFFFFF" stroke="#36683B" stroke-width="1.8"/>
+    <circle cx="804" cy="46" r="22" fill="#36683B"/>
+    <text x="804" y="53" text-anchor="middle" class="sans" font-size="20" font-weight="800" fill="#FFFFFF">3</text>
+    <text x="840" y="53" class="sans" font-size="20" font-weight="800" fill="#1C1D18">Marque seus apps</text>
+    <text x="784" y="102" class="sans" font-size="15.5" fill="#4D5147">Marque o que você precisa:</text>
+    <text x="784" y="126" class="sans" font-size="15.5" fill="#4D5147">OnlyOffice (Word/Excel), PDF,</text>
+    <text x="784" y="158" class="sans" font-size="15.5" fill="#4D5147">WhatsApp, câmera, jogos.</text>
+    <text x="784" y="182" class="sans" font-size="15.5" fill="#4D5147">Nada entra sem sua permissão.</text>
+
+    <line x1="1096" y1="113" x2="1132" y2="113" stroke="#8B6200" stroke-width="2.5" marker-end="url(#arrowAmber)"/>
+
+    <!-- Step 4 -->
+    <rect x="1137" y="0" width="335" height="226" rx="20" fill="#16211C" stroke="#8B6200" stroke-width="2"/>
+    <circle cx="1183" cy="46" r="22" fill="#F2C14E"/>
+    <text x="1183" y="53" text-anchor="middle" class="sans" font-size="20" font-weight="800" fill="#241A00">4</text>
+    <text x="1219" y="53" class="sans" font-size="20" font-weight="800" fill="#FFE08D">Só usar!</text>
+    <text x="1163" y="102" class="sans" font-size="15.5" fill="#E8E3D0">Tudo pronto para trabalhar,</text>
+    <text x="1163" y="126" class="sans" font-size="15.5" fill="#E8E3D0">estudar, assistir vídeos ou jogar.</text>
+    <text x="1163" y="162" class="mono" font-size="13.5" fill="#6FC3B3">Super + Espaço</text>
+    <text x="1298" y="162" class="sans" font-size="14.5" fill="#B8BAA9">→ Menu Iniciar</text>
+    <text x="1163" y="188" class="mono" font-size="13.5" fill="#F2C14E">Super + K</text>
+    <text x="1298" y="188" class="sans" font-size="14.5" fill="#B8BAA9">→ Ver atalhos</text>
+  </g>
+
+  <!-- ── SECTION 4: DICIONÁRIO RÁPIDO WINDOWS → TAMAGI ───────────────────── -->
+  <text x="64" y="1756" class="sans" font-size="25" font-weight="800" fill="#8B6200">4. DICIONÁRIO RÁPIDO: O QUE EU USAVA NO WINDOWS → ONDE ESTÁ NO TAMAGI</text>
+  <line x1="64" y1="1770" x2="1536" y2="1770" stroke="#D0D2C5" stroke-width="2"/>
+
+  <rect x="64" y="1792" width="1472" height="292" rx="22" fill="#FFFFFF" stroke="#D0D2C5" stroke-width="1.5"/>
+
+  <!-- 2 Columns of 4 mappings -->
+  <g transform="translate(100, 1844)">
+    <text x="0" y="0" class="sans" font-size="17" fill="#4D5147">Explorador de Arquivos</text>
+    <text x="290" y="0" class="sans" font-size="17" font-weight="800" fill="#8B6200">→</text>
+    <text x="326" y="0" class="sans" font-size="17.5" font-weight="800" fill="#1C1D18">Arquivos (ícone na barra inferior)</text>
+
+    <text x="0" y="60" class="sans" font-size="17" fill="#4D5147">Microsoft Store / Baixar apps</text>
+    <text x="290" y="60" class="sans" font-size="17" font-weight="800" fill="#8B6200">→</text>
+    <text x="326" y="60" class="sans" font-size="17.5" font-weight="800" fill="#1C1D18">Loja COSMIC (milhares de apps grátis)</text>
+
+    <text x="0" y="120" class="sans" font-size="17" fill="#4D5147">Word, Excel e PowerPoint</text>
+    <text x="290" y="120" class="sans" font-size="17" font-weight="800" fill="#8B6200">→</text>
+    <text x="326" y="120" class="sans" font-size="17.5" font-weight="800" fill="#1C1D18">OnlyOffice ou Google Docs</text>
+
+    <text x="0" y="180" class="sans" font-size="17" fill="#4D5147">Painel de Controle</text>
+    <text x="290" y="180" class="sans" font-size="17" font-weight="800" fill="#8B6200">→</text>
+    <text x="326" y="180" class="sans" font-size="17.5" font-weight="800" fill="#1C1D18">Configurações (tema, Wi-Fi, som, tela)</text>
+  </g>
+
+  <line x1="816" y1="1818" x2="816" y2="2056" stroke="#EAE6D9" stroke-width="2"/>
+
+  <g transform="translate(852, 1844)">
+    <text x="0" y="0" class="sans" font-size="17" fill="#4D5147">Windows Update</text>
+    <text x="266" y="0" class="sans" font-size="17" font-weight="800" fill="#1F6B5E">→</text>
+    <text x="302" y="0" class="sans" font-size="17.5" font-weight="800" fill="#1C1D18">Automático e silencioso (sem tela azul)</text>
+
+    <text x="0" y="60" class="sans" font-size="17" fill="#4D5147">Ponto de Restauração</text>
+    <text x="266" y="60" class="sans" font-size="17" font-weight="800" fill="#1F6B5E">→</text>
+    <text x="302" y="60" class="sans" font-size="17.5" font-weight="800" fill="#1C1D18">Voltar no Tempo (arquivos e sistema)</text>
+
+    <text x="0" y="120" class="sans" font-size="17" fill="#4D5147">Arquivos .exe do Windows</text>
+    <text x="266" y="120" class="sans" font-size="17" font-weight="800" fill="#1F6B5E">→</text>
+    <text x="302" y="120" class="sans" font-size="17.5" font-weight="800" fill="#1C1D18">Bottles (abre muitos apps Windows)</text>
+
+    <text x="0" y="180" class="sans" font-size="17" fill="#4D5147">Jogos da Steam / Epic</text>
+    <text x="266" y="180" class="sans" font-size="17" font-weight="800" fill="#1F6B5E">→</text>
+    <text x="302" y="180" class="sans" font-size="17.5" font-weight="800" fill="#1C1D18">Steam nativa + Heroic / Lutris prontos</text>
+  </g>
+
+  <!-- ── FOOTER ───────────────────────────────────────────────────────────── -->
+  <line x1="64" y1="2128" x2="1536" y2="2128" stroke="#D0D2C5" stroke-width="1.5"/>
+  <text x="64" y="2170" class="sans" font-size="16.5" font-weight="700" fill="#1C1D18">Tamagi OS 1.5 · Sistema gratuito, aberto e feito para durar — sem anúncios e sem dor de cabeça</text>
+  <text x="1536" y="2170" text-anchor="end" class="mono" font-size="15" font-weight="700" fill="#8B6200">github.com/wes-tamagi/tamagi-OS</text>
+</svg>

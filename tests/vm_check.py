@@ -285,8 +285,8 @@ def main():
         out, _ = sudo("sh -c 'tamagi-skl status; lsattr -d /var/home/aluno/.config/cosmic/com.system76.CosmicPanel.Panel/v1/anchor 2>&1'")
         check("SKL: painel minimalista do aluno travado (chattr +i)", "Panel locked  : yes" in out and "----i" in out, out)
     else:
-        out, _ = run("command -v virsh qemu-kvm cockpit-bridge cosmic-ext-storage rclone btm gamescope >/dev/null && systemctl is-enabled cockpit.socket virtqemud.socket tamagi-layer-units.service | tr '\\n' ' '")
-        check("DxAI nativo (Cockpit/libvirt/QEMU, cosmic-ext-storage, rclone, btm, gamescope) e camadas ligadas", out.strip() == "enabled enabled enabled", out)
+        out, _ = run("command -v virsh qemu-kvm cockpit-bridge gnome-disks rclone btm gamescope >/dev/null && systemctl is-enabled cockpit.socket virtqemud.socket tamagi-layer-units.service | tr '\\n' ' '")
+        check("DxAI nativo (Cockpit/libvirt/QEMU, gnome-disks, rclone, btm, gamescope) e camadas ligadas", out.strip() == "enabled enabled enabled", out)
     # Uma camada de verdade, de ponta a ponta (tamagi-layer em Rust): instala um
     # pacote pequeno por cima da imagem, confere que aparece e desfaz.
     sudo("-v")

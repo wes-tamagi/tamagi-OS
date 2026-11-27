@@ -223,7 +223,7 @@ pub fn plan(wanted: &Table, now: &State, probe: &dyn Probe) -> Vec<Step> {
     for name in list(wanted, "agents", "install") {
         if !name.as_str().is_some_and(|n| now.agents.iter().any(|x| x == n)) {
             let name = pystr(name);
-            steps.push(step(format!("{}: {name}", t("agent")), &["tamagi-agents", "install", &name], false));
+            steps.push(step(format!("{}: {name}", t("agent")), &["tamagi-agent", "install", &name], false));
         }
     }
 

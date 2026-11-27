@@ -1,0 +1,36 @@
+#!/usr/bin/bash
+# ui-spinner — compact pacman/dnf5-style TTY animation helper for Tamagi shell tools.
+# Usage: ui-spinner "<label>" <command> [args...]
+set -uo pipefail
+label=${1:?usage: ui-spinner <label> <cmd...>}
+shift
+
+if [[ ! -t 1 || -n ${NO_COLOR:-} ]]; then
+    "$@"
+    exit $?
+fi
+
+frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+log=$(mktemp "${TMPDIR:-/tmp}/tamagi-spin.XXXXXX")
+trap 'rm -f "$log"' EXIT
+
+start_ts=$(date +%s)
+"$@" >"$log" 2>&1 &
+pid=$!
+i=0
+while kill -0 "$pid" 2>/dev/null; do
+    printf '\r  \033[1;36m%s\033[0m %s   ' "${frames[$((i % ${#frames[@]}))]}" "$label"
+    i=$((i + 1))
+    sleep 0.08
+done
+wait "$pid"
+rc=$?
+elapsed=$(( $(date +%s) - start_ts ))
+printf '\r%80s\r' ''
+if (( rc == 0 )); then
+    printf '  \033[1;32m✓\033[0m %s \033[2m(%ss)\033[0m\n' "$label" "$elapsed"
+else
+    printf '  \033[1;31m✗\033[0m %s \033[2m(%ss)\033[0m\n' "$label" "$elapsed"
+    tail -n 20 "$log" >&2
+fi
+exit "$rc"

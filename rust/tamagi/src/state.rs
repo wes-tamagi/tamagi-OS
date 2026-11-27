@@ -165,7 +165,7 @@ fn browsers_installed() -> Vec<String> {
 }
 
 fn agents_installed() -> Vec<String> {
-    out(&["tamagi-agents", "installed"]).split_whitespace().filter(|a| AGENTS.contains(a)).map(String::from).collect()
+    out(&["tamagi-agent", "installed"]).split_whitespace().filter(|a| AGENTS.contains(a)).map(String::from).collect()
 }
 
 fn mcp_installed() -> Vec<String> {

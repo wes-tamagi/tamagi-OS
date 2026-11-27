@@ -3,25 +3,27 @@
 #   essencial  instalado automaticamente no 1º login (Tamagi-DxAI)
 #   opcional   oferecido no 1º login (basics.list) e em `tamagi install`
 flathub com.github.tchx84.Flatseal               essencial   Sistema         2MB    Flatseal — permissões dos apps Flatpak
-flathub io.github.flattool.Warehouse             essencial   Sistema         2MB    Warehouse — gerenciar apps Flatpak
 flathub org.gnome.Loupe                          essencial   Sistema         15MB   Loupe — imagens (Rust)
 cosmic  io.github.cosmic_utils.minimon-applet    essencial   Sistema         5MB    Monitor de CPU e memória na barra
 cosmic  io.github.cosmic_utils.weather-applet    essencial   Sistema         5MB    Clima na barra
 cosmic  io.github.cosmic_utils.cosmic-ext-applet-clipboard-manager essencial Sistema 5MB Histórico da área de transferência
-flathub org.gnome.Papers                         opcional    Office          35MB   Papers — PDF and document viewer (Rust)
+flathub io.github.flattool.Warehouse             opcional    System          2MB    Warehouse — manage Flatpak apps
+flathub org.turbowarp.TurboWarp                  opcional    Education       120MB  TurboWarp — visual block programming (Scratch)
+flathub org.kde.okular                           opcional    Office          90MB   Okular — universal PDF and document viewer
 flathub dev.mariinkys.Cedilla                    opcional    COSMIC          25MB   Cedilla — native Markdown notes for COSMIC (Rust)
 flathub com.francescogaglione.chronos            opcional    COSMIC          20MB   Chronos — Pomodoro timer for COSMIC (Rust)
 flathub com.github.flxzt.rnote                   opcional    Creative        65MB   Rnote — vector sketching and handwritten notes (Rust)
 flathub app.drey.KeyRack                         opcional    System          15MB   Key Rack — view and manage system secrets and keys (Rust)
 flathub org.gnome.Snapshot                       opcional    Creative        20MB   Snapshot — camera app for photos and video (Rust)
 flathub app.drey.Warp                            opcional    Networks        15MB   Warp — encrypted peer-to-peer file transfer (Rust)
+flathub com.system76.Popsicle                    opcional    COSMIC          20MB   Popsicle — COSMIC USB image flasher (Rust)
 flathub io.gitlab.adhami3310.Impression          opcional    System          15MB   Impression — write ISO images to USB drives (Rust)
 flathub io.github.seadve.Kooha                   opcional    Creative        20MB   Kooha — minimalist Wayland screen recorder (Rust)
 flathub com.belmoussaoui.Authenticator           opcional    System          20MB   Authenticator — two-factor authentication (2FA) codes (Rust)
 flathub io.missioncenter.MissionCenter           opcional    System          35MB   Mission Center — system monitor (Rust)
 flathub io.github.flattool.Ignition              opcional    System          5MB    Ignition — apps and scripts that start with the session
 flathub org.gnome.World.PikaBackup               opcional    System          45MB   Pika Backup — backups to a disk or server (Rust)
-flathub org.onlyoffice.desktopeditors            opcional    Office          1.1GB  OnlyOffice — documents, spreadsheets and presentations
+flathub org.onlyoffice.desktopeditors            essencial   Office          1.1GB  OnlyOffice — documents, spreadsheets and presentations
 flathub org.libreoffice.LibreOffice              opcional    Office          800MB  LibreOffice — documents, spreadsheets and presentations
 flathub org.mozilla.Thunderbird                  opcional    Office          300MB  Thunderbird — email and calendar
 flathub com.bitwarden.desktop                    opcional    Office          560MB  Bitwarden — password manager

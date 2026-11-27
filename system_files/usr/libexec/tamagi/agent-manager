@@ -1,19 +1,20 @@
 #!/usr/bin/bash
-# tamagi-agents — AI coding agents, installed on demand in your user, with
+# agent-manager — AI coding agents, installed on demand in your user, with
 # Copy-on-Write Shadow Workspaces and kernel-enforced Egress Guard.
 #
 # None ships in the image: they are third-party software, downloaded from the
 # vendor on your machine when you choose them.
 #
-#   tamagi agents                       choose from a list
-#   tamagi agents list                  what exists and what is installed
-#   tamagi agents install <name>…       claude antigravity codex clio qwen opencode gemini openclaw local
-#   tamagi agents remove <name>
-#   tamagi agents update                updates the installed ones
-#   tamagi agents run [opts] <name> …   runs the agent JAILED in the current project
-#   tamagi agents jail [opts] [-- cmd]  a shell in the same jail (see what the agent sees)
-#   tamagi agents shadow <subcommand>   speculative CoW shadow workspaces:
-#                                         list | run | diff <id> | apply <id> | drop <id|--all>
+#   tamagi ai agents                       choose from a list
+#   tamagi ai agents list                  what exists and what is installed
+#   tamagi ai agents install <name>…       claude antigravity codex clio qwen opencode gemini openclaw local
+#   tamagi ai agents remove <name>
+#   tamagi ai agents update                updates the installed ones
+#   tamagi ai run [opts] <name> …          runs the agent JAILED in the current project
+#   tamagi ai jail [opts] [-- cmd]         a shell in the same jail (see what the agent sees)
+#   tamagi ai shadow <subcommand>          speculative CoW shadow workspaces:
+#                                            list | run | diff <id> | apply <id> | drop <id|--all>
+#   tamagi ai flights [list|show|clear]    agent flight recorder (audit)
 #
 # Options of run/jail:
 #   --shadow [--shadow-id <id>]   run on an instant Copy-on-Write reflink clone
@@ -24,7 +25,7 @@
 #   --allow-domain <domain>       add an extra allowed domain to --egress-guard
 #   --full-net                    disable automatic --egress-guard when using --shadow
 #   --offline                     cut all network access inside the jail
-#   --db                          snapshot running `tamagi db` databases before launch
+#   --db                          snapshot running `tamagi dev db` databases before launch
 #   --no-snapshot                 skip pre-agent git/Btrfs save point
 #   --host                        run on the host instead of the development box
 set -euo pipefail
@@ -134,7 +135,7 @@ install_github() {
         mv "$(dirname "$bin")" "$CLIO_DIR"
         ensure_box
         distrobox enter "$BOX" -- perl -MFindBin -e1 2>/dev/null \
-            || echo "$name: $(t "the box has no complete Perl; run"): tamagi devbox provision $BOX" >&2
+            || echo "$name: $(t "the box has no complete Perl; run"): tamagi dev box provision $BOX" >&2
         write_launcher clio "$CLIO_DIR/clio"
     else
         bin=$(find "$tmp/x" -type f -perm -u+x \( -name "$name" -o -name "$name-*" \) | head -1)
@@ -334,8 +335,8 @@ cmd_run() {
         cmd=("$@"); (( ${#cmd[@]} )) || cmd=(bash)
     else
         agent=$(canon "${1:-}"); shift || true
-        known "$agent" && [[ -n ${STATE[$agent]} ]] || die "usage: tamagi agents run [options] <claude|antigravity|codex|clio|qwen|opencode|gemini|openclaw> [args]"
-        is_installed "$agent" || die "$agent $(t "is not installed"): tamagi agents install $agent"
+        known "$agent" && [[ -n ${STATE[$agent]} ]] || die "usage: tamagi ai run [options] <claude|antigravity|codex|clio|qwen|opencode|gemini|openclaw> [args]"
+        is_installed "$agent" || die "$agent $(t "is not installed"): tamagi ai agents install $agent"
         cmd=("$home/.local/bin/$agent" "$@")
         [[ $agent == antigravity ]] && cmd=("$home/.local/bin/agy" "$@")
         [[ -n ${NPM[$agent]:-} ]] && cmd=("$PREFIX/bin/$agent" "$@")
@@ -350,6 +351,24 @@ cmd_run() {
     fi
 
     root=$(project_root)
+    # Declarative per-project egress allowlist from tamagi-workspace.toml ([egress] allow = [...])
+    if [[ -f $root/tamagi-workspace.toml ]]; then
+        local ws_domains
+        ws_domains=$(python3 - "$root/tamagi-workspace.toml" <<'PY' 2>/dev/null || true
+import sys, tomllib
+try:
+    data = tomllib.load(open(sys.argv[1], "rb"))
+    allow = data.get("egress", {}).get("allow", [])
+    if isinstance(allow, list):
+        print(",".join(str(x).strip() for x in allow if str(x).strip()))
+except Exception:
+    pass
+PY
+)
+        if [[ -n $ws_domains ]]; then
+            allow_domains="${allow_domains:+$allow_domains,}$ws_domains"
+        fi
+    fi
     local sdir=""
     if (( shadow )); then
         [[ -n $shadow_id ]] || shadow_id="${agent:-jail}-$(date +%Y%m%d-%H%M%S)"
@@ -388,7 +407,7 @@ cmd_run() {
     local in_box=0
     if (( use_box )) && podman container exists "$BOX" 2>/dev/null; then in_box=1; fi
     if [[ -n $agent ]] && needs_box "$agent" && (( ! in_box )); then
-        die "$agent $(t "runs in the development box"): tamagi devbox create"
+        die "$agent $(t "runs in the development box"): tamagi dev box create"
     fi
 
     if (( ! print )); then
@@ -462,7 +481,7 @@ cmd_shadow() {
                 [[ -d $SHADOW_ROOT ]] && nchg=$(shadow_changes_count "$SHADOW_ROOT" "$SHADOWS_DIR/$SHADOW_ID/work")
                 printf '  %-26s %-10s %4s %-16s %s\n' "$SHADOW_ID" "$SHADOW_AGENT" "$nchg" "$(t "changed files")" "$SHADOW_ROOT"
             done
-            (( any )) || tl "No active shadow workspaces. Start one with: tamagi agents run --shadow <agent>"
+            (( any )) || tl "No active shadow workspaces. Start one with: tamagi ai run --shadow <agent>"
             ;;
         run)
             cmd_run 0 --shadow "$@"
@@ -471,7 +490,7 @@ cmd_shadow() {
             cmd_run 1 --shadow "$@"
             ;;
         diff)
-            local id=${1:?usage: tamagi agents shadow diff <id>}
+            local id=${1:?usage: tamagi ai shadow diff <id>}
             load_shadow_meta "$id"
             [[ -d $SHADOW_ROOT ]] || die "$(t "original project folder is missing"): $SHADOW_ROOT"
             diff -ruN \
@@ -480,7 +499,7 @@ cmd_shadow() {
                 "$SHADOW_ROOT" "$SHADOWS_DIR/$id/work" || true
             ;;
         apply)
-            local id=${1:?usage: tamagi agents shadow apply <id>}
+            local id=${1:?usage: tamagi ai shadow apply <id>}
             load_shadow_meta "$id"
             [[ -d $SHADOW_ROOT ]] || die "$(t "original project folder is missing"): $SHADOW_ROOT"
             save_point "$SHADOW_ROOT" "shadow-apply-$id" 0
@@ -530,7 +549,7 @@ PY
             echo "$(t "Shadow workspace applied and cleaned up"): $id → $SHADOW_ROOT"
             ;;
         drop)
-            local target=${1:?usage: tamagi agents shadow drop <id|--all>}
+            local target=${1:?usage: tamagi ai shadow drop <id|--all>}
             if [[ $target == --all ]]; then
                 rm -rf -- "${SHADOWS_DIR:?}"
                 tl "All shadow workspaces removed."
@@ -541,7 +560,7 @@ PY
             fi
             ;;
         *)
-            die "usage: tamagi agents shadow [list|run|jail|diff <id>|apply <id>|drop <id|--all>]"
+            die "usage: tamagi ai shadow [list|run|jail|diff <id>|apply <id>|drop <id|--all>]"
             ;;
     esac
 }
@@ -629,16 +648,37 @@ cmd_flights() {
             (( any )) || tl "No agent flights recorded yet. Run: tamagi ai run --shadow <agent>"
             ;;
         show)
-            local fid=${1:?usage: tamagi ai flights show <id>}
+            local fid=${1:?usage: tamagi ai flights show <id> [--json]}
             [[ -f $FLIGHTS_DIR/$fid.json ]] || die "$(t "flight not found"): $fid"
-            cat "$FLIGHTS_DIR/$fid.json"
+            if [[ ${2:-} == --json ]]; then
+                cat "$FLIGHTS_DIR/$fid.json"
+            else
+                python3 - "$FLIGHTS_DIR/$fid.json" <<'PY'
+import datetime, json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+dur = "?"
+try:
+    t0 = datetime.datetime.fromisoformat(d["started"])
+    t1 = datetime.datetime.fromisoformat(d["ended"])
+    dur = f"{int((t1 - t0).total_seconds())}s"
+except Exception:
+    pass
+print(f":: Flight {d.get('id', '?')}")
+print(f"   Agent         : {d.get('agent', '?')}")
+print(f"   Project       : {d.get('root', '?')}")
+print(f"   Duration      : {dur} (exit {d.get('exit_code', '?')})")
+print(f"   Shadow ID     : {d.get('shadow_id') or '-'} ({d.get('changed_files', 0)} changed files)")
+print(f"   Egress allow  : {', '.join(d.get('egress_allowed') or []) or '-'}")
+print(f"   Egress block  : {', '.join(d.get('egress_blocked') or []) or '-'}")
+PY
+            fi
             ;;
         clear)
             rm -rf -- "${FLIGHTS_DIR:?}"
             tl "Flight recorder history cleared."
             ;;
         *)
-            die "usage: tamagi ai flights [list|show <id>|clear]"
+            die "usage: tamagi ai flights [list|show <id> [--json]|clear]"
             ;;
     esac
 }
@@ -647,9 +687,9 @@ case "${1:-}" in
     "")              pick ;;
     list)            cmd_list ;;
     installed)       for n in "${ORDER[@]}"; do [[ $n != local ]] && is_installed "$n" && echo "$n"; done; exit 0 ;;
-    install)         shift; (( $# )) || die "usage: tamagi agents install <${ORDER[*]}>"
+    install)         shift; (( $# )) || die "usage: tamagi ai agents install <${ORDER[*]}>"
                      for a in "$@"; do install_one "$a"; done ;;
-    remove)          shift; (( $# )) || die "usage: tamagi agents remove <name>"
+    remove)          shift; (( $# )) || die "usage: tamagi ai agents remove <name>"
                      for a in "$@"; do remove_one "$a"; done ;;
     update)          cmd_update ;;
     run)             shift; cmd_run 0 "$@" ;;
@@ -657,5 +697,5 @@ case "${1:-}" in
     shadow|shadows)  shift; cmd_shadow "$@" ;;
     flights)         shift; cmd_flights "$@" ;;
     -h|--help|help)  sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//' ;;
-    *)               die "usage: tamagi agents [list|install <name>…|remove <name>|update|run <name>|jail|shadow|flights]" ;;
+    *)               die "usage: tamagi ai agents [list|install <name>…|remove <name>|update|run <name>|jail|shadow|flights]" ;;
 esac

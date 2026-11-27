@@ -141,10 +141,23 @@ def crest(colors, cx, cy, radius, opacity=1.0):
   </g>'''
 
 
-def svg_mon(colors):
+def wordmark(colors, cx, y):
+    """Assinatura tipográfica minimalista 'TAMAGI' (usada apenas em 2 papéis de parede)."""
+    _deep, _base, c1, _c2, c3 = colors
+    return (f'  <text x="{cx}" y="{y}" text-anchor="middle" '
+            f'font-family="Roboto Flex, Inter, Noto Sans, sans-serif" '
+            f'font-size="92" font-weight="600" letter-spacing="38" '
+            f'fill="{c3}" fill-opacity="0.88">TAMAGI</text>\n'
+            f'  <line x1="{cx - 210}" y1="{y + 38}" x2="{cx + 210}" y2="{y + 38}" '
+            f'stroke="{c1}" stroke-width="4" stroke-opacity="0.65"/>\n')
+
+
+def svg_mon(colors, branded=False):
+    cx, cy = int(W * 0.72), int(H * 0.42)
+    mark = wordmark(colors, cx, cy + 560) if branded else ""
     return (head(colors)
             + f'  <g mask="url(#mfade)">\n{seigaiha_group(colors, 150, H * 0.52, H, 0.55)}\n  </g>\n'
-            + crest(colors, int(W * 0.72), int(H * 0.42), 430) + "\n</svg>\n")
+            + crest(colors, cx, cy, 430) + "\n" + mark + "</svg>\n")
 
 
 def svg_seigaiha(colors):
@@ -279,7 +292,13 @@ def main():
         target = out / f"{conf.stem}.svg"
         target.write_text(svg(wall), encoding="utf-8")       # estilo "ondas"
         for style, draw in STYLES.items():
-            (out / f"{conf.stem}-{style}.svg").write_text(draw(wall), encoding="utf-8")
+            if style == "mon":
+                # Apenas 2 papéis de parede (ipe-mon e ipe-light-mon) trazem 'TAMAGI' escrito;
+                # os outros 4 do conjunto Ipê (ondas e seigaiha) ficam limpos, sem texto.
+                branded = conf.stem in ("ipe", "ipe-light")
+                (out / f"{conf.stem}-{style}.svg").write_text(draw(wall, branded=branded), encoding="utf-8")
+            else:
+                (out / f"{conf.stem}-{style}.svg").write_text(draw(wall), encoding="utf-8")
         entries.append(f'''  <wallpaper deleted="false">
     <name>Tamagi {name}</name>
     <filename>{target}</filename>
