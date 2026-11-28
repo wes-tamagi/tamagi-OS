@@ -1,0 +1,12 @@
+# Tamagi — GPU, compute & media drivers offered at first login (tamagi-welcome / tamagi-firstrun).
+# Open-source Mesa + Vulkan (32/64-bit) for AMD & Intel already ship in the base image.
+#   <on|off> <id>   id from catalog.tsv
+off video-nvidia
+off nvidia-cuda
+off video-amd
+off rocm
+off video-intel
+off intel-compute
+off codecs-extra
+off lact
+off vulkan-tools

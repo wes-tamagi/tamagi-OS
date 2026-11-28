@@ -8,7 +8,7 @@ systemctl enable tamagi-firstboot.service tamagi-tpm-seal.service tamagi-combust
 # Tailscale pré-disponível na imagem, mas desligado por padrão (0 MB RAM em idle).
 systemctl disable tailscaled.service 2>/dev/null || true
 
-if [[ $EDITION == skl ]]; then
+if [[ $EDITION == skl || $EDITION == skl-os ]]; then
     # Edição Tamagi-SKL (Escola):
     # - Sem loja gráfica nem autoinstalação de Flatpaks (Flatpaks somente via terminal);
     # - SSH + Cockpit web habilitados para monitoramento e gestão do professor/diretor (grupo wheel).
@@ -76,8 +76,8 @@ systemctl enable tamagi-loader-conf.service
 systemctl enable systemd-sysext.service
 systemctl enable tamagi-layer-units.service tamagi-layer-rebuild.service
 
-# Boot rápido
-systemctl disable NetworkManager-wait-online.service dnf-makecache.timer 2>/dev/null || true
+# Boot rápido (systemd-homed não é usado; contas ficam em /etc/passwd + subvolume /var/home)
+systemctl disable NetworkManager-wait-online.service dnf-makecache.timer systemd-homed.service 2>/dev/null || true
 
 # Timers do usuário
 systemctl --global enable tamagi-autoupdate.timer flatpak-user-update.timer

@@ -3,8 +3,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
     Welcome,
-    /// The basics: a short list to tick.
+    /// The basics: a short list to tick (including LibreOffice, GE-Proton, OpenCode).
     Apps,
+    /// GPU, compute & media drivers for NVIDIA, AMD, and Intel.
+    Drivers,
     Browser,
     /// Only with an encrypted disk and a TPM not used yet.
     Disk,
@@ -19,6 +21,7 @@ impl Page {
         match self {
             Page::Welcome => "Welcome",
             Page::Apps => "Apps",
+            Page::Drivers => "GPU & drivers",
             Page::Browser => "Browser",
             Page::Disk => "Encrypted disk",
             Page::Review => "Review",
@@ -30,7 +33,7 @@ impl Page {
 
 /// The pages of this run, in order.
 pub fn pages(disk_question: bool) -> Vec<Page> {
-    let mut pages = vec![Page::Welcome, Page::Apps, Page::Browser];
+    let mut pages = vec![Page::Welcome, Page::Apps, Page::Drivers, Page::Browser];
     if disk_question {
         pages.push(Page::Disk);
     }
@@ -64,15 +67,16 @@ mod tests {
 
     #[test]
     fn page_lists() {
-        assert_eq!(pages(false), [Welcome, Apps, Browser, Review, Installing, Done]);
-        assert_eq!(pages(true), [Welcome, Apps, Browser, Disk, Review, Installing, Done]);
+        assert_eq!(pages(false), [Welcome, Apps, Drivers, Browser, Review, Installing, Done]);
+        assert_eq!(pages(true), [Welcome, Apps, Drivers, Browser, Disk, Review, Installing, Done]);
     }
 
     #[test]
     fn forward() {
         let p = pages(true);
         assert_eq!(next(&p, Welcome), Some(Apps));
-        assert_eq!(next(&p, Apps), Some(Browser));
+        assert_eq!(next(&p, Apps), Some(Drivers));
+        assert_eq!(next(&p, Drivers), Some(Browser));
         assert_eq!(next(&p, Browser), Some(Disk));
         assert_eq!(next(&p, Disk), Some(Review));
         assert_eq!(next(&p, Review), None);
@@ -86,7 +90,8 @@ mod tests {
         let p = pages(false);
         assert_eq!(back(&p, Welcome), None);
         assert_eq!(back(&p, Review), Some(Browser));
-        assert_eq!(back(&p, Browser), Some(Apps));
+        assert_eq!(back(&p, Browser), Some(Drivers));
+        assert_eq!(back(&p, Drivers), Some(Apps));
         assert_eq!(back(&p, Installing), None);
         assert_eq!(back(&p, Done), None);
         assert_eq!(back(&pages(true), Review), Some(Disk));

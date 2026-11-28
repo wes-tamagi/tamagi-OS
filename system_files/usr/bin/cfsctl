@@ -1,0 +1,4 @@
+#!/usr/bin/bash
+# cfsctl — direct CLI wrapper over bootc's compiled-in composefs-rs (cfsctl) engine.
+set -euo pipefail
+exec bootc internals cfs "$@"

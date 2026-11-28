@@ -67,6 +67,7 @@ desktop-file-utils
 
 # ── Ícones vetoriais (SVG puro, HiDPI sem serrilhado) & Fontes agradáveis ──
 papirus-icon-theme
+adwaita-icon-theme
 rsms-inter-fonts
 jetbrains-mono-fonts
 google-noto-sans-vf-fonts
@@ -82,13 +83,14 @@ langpacks-core-fr
 gnome-disk-utility
 rclone
 
-# ── Ferramentas de terminal em Rust + terminal padrão (Ptyxis) ──
+# ── Ferramentas de terminal em Rust + terminais (Ptyxis padrão + foot leve) ──
 ripgrep
 fd-find
 bat
 eza
 zoxide
 ptyxis
+foot
 git
 gum
 podman-compose

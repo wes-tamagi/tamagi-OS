@@ -9,6 +9,7 @@ pub const DEFAULT_CATALOG: &str = "/usr/share/tamagi/catalog.tsv";
 pub const DEFAULT_FLATPAKS: &str = "/usr/share/tamagi/flatpaks.list";
 
 pub const DEFAULT_BASICS: &str = "/usr/share/tamagi/basics.list";
+pub const DEFAULT_DRIVERS: &str = "/usr/share/tamagi/drivers.list";
 
 /// The category of the browsers: they have a page of their own.
 pub const BROWSERS: &str = "Browsers";
@@ -147,6 +148,14 @@ pub fn resolve_basics(basics: &[(bool, String)], items: &[Item]) -> Vec<(usize, 
 /// The basics of this system; empty when the file cannot be read.
 pub fn load_basics(items: &[Item]) -> Vec<(usize, bool)> {
     match std::fs::read_to_string(path_from_env("TAMAGI_BASICS", DEFAULT_BASICS)) {
+        Ok(text) => resolve_basics(&parse_basics(&text), items),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// The GPU, compute, and media drivers offered at first login.
+pub fn load_drivers(items: &[Item]) -> Vec<(usize, bool)> {
+    match std::fs::read_to_string(path_from_env("TAMAGI_DRIVERS", DEFAULT_DRIVERS)) {
         Ok(text) => resolve_basics(&parse_basics(&text), items),
         Err(_) => Vec::new(),
     }
@@ -346,5 +355,8 @@ flathub short.line opcional\n";
         assert!(!basics.is_empty());
         assert_eq!(resolve_basics(&basics, &all).len(), basics.len(), "an id of basics.list is not in the catalog (or is a browser, or repeated)");
         assert!(basics.iter().any(|(on, _)| *on) && basics.iter().any(|(on, _)| !*on));
+        let drivers = parse_basics(&std::fs::read_to_string(share.join("drivers.list")).unwrap());
+        assert!(!drivers.is_empty());
+        assert_eq!(resolve_basics(&drivers, &all).len(), drivers.len(), "an id of drivers.list is not in the catalog (or is repeated)");
     }
 }

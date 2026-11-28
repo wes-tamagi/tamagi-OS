@@ -116,7 +116,8 @@ save_packages() {
     [[ -n $id && -e /sysroot/composefs/images/$id ]] || return 1
     mkdir -p "$dir"
     mnt=$(mktemp -d /run/tamagi/staged.XXXXXX) || return 1
-    if mount -t composefs -o ro,basedir=/sysroot/composefs/objects "/sysroot/composefs/images/$id" "$mnt"; then
+    if bootc internals cfs --system mount "$id" "$mnt" 2>/dev/null \
+            || mount -t composefs -o ro,basedir=/sysroot/composefs/objects "/sysroot/composefs/images/$id" "$mnt"; then
         rpm -qa --root "$mnt" --dbpath /usr/lib/sysimage/rpm --qf "$q" 2>/dev/null | sort > "$dir/staged.pkgs.new"
         umount "$mnt"
     fi

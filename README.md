@@ -1,6 +1,6 @@
 # Tamagi
 
-**Tamagi 1.0 "Kazunobu M"** is an atomic, immutable Linux distribution designed
+**Tamagi 1.7 "Kazunobu M"** is an atomic, immutable Linux distribution designed
 for AI workflows and coding agents.
 
 Coding agents (Claude Code, Codex, CLIO, opencode, Qwen Code, Gemini CLI,
@@ -128,15 +128,15 @@ workspace) and its own configuration.
 
 ## First login and ready-made profiles
 
-Like openSUSE Aeon, the installer puts only the base system on disk. On first
-login a native COSMIC window (`tamagi-welcome`, Rust + libcosmic) offers only
-the basics: a short list to tick (`/usr/share/tamagi/basics.list`: the COSMIC
-apps, the Flatpak start-up manager Ignition, Mission Center, OnlyOffice and
-WhatsApp as a web app) and optional extra browsers (native Chromium ships
-pre-installed with ChromeDriver and Google Account sign-in; Opera GX, Chrome,
-Firefox and Vivaldi can be added on demand). Everything else, including the
-ready-made profiles, comes later
-with `tamagi install`. **Every item shows how it is installed:**
+On first login a native COSMIC window (`tamagi-welcome`, Rust + libcosmic)
+walks through starter apps (`/usr/share/tamagi/basics.list`: COSMIC Rust apps,
+LibreOffice, Okular, GE-Proton, OpenCode, Ignition, Mission Center, Sniffnet
+and WhatsApp), a hardware-aware **GPU & drivers** page (`/usr/share/tamagi/drivers.list`:
+NVIDIA GeForce/RTX, CUDA, AMD ROCm, Intel Arc/Core Ultra oneAPI compute, LACT,
+Vulkan diagnostics and extra codecs), and optional extra browsers (native
+Chromium ships pre-installed with ChromeDriver and Google Account sign-in;
+Opera GX, Chrome, Firefox and Vivaldi can be added on demand). Everything else
+stays one command away in `tamagi install`. **Every item shows how it is installed:**
 
 | Badge | Meaning |
 |---|---|
@@ -234,6 +234,14 @@ The UEFI-only ISO boots a dedicated live COSMIC session (with pre-built linker/h
   `NoBlockIOProtocol` flag so firmware ignores it during copying or a power
   loss; the flag is cleared in one final partition-table write after full
   verification. Failed installs clean up the partitions they created.
+- **Secondary HDDs/SSDs:** when additional internal drives are detected during
+  installation, the Disk step asks whether to keep them on demand in
+  `/run/media` (COSMIC Files) or mount existing partitions automatically in
+  `/mnt/<label-or-disk>` (`/etc/fstab` with `nofail`, never erasing their data).
+- **Editions (`Tamagi-DxAI`, `Tamagi-SKL`, and `SKL` fork):** the multi-edition
+  ISO embeds `:dxai`, `:skl`, and the standalone `:skl-os` (`SKL` school fork,
+  built from [`skl/`](skl/README.md) via `just build-skl-fork`) deduplicated in
+  `tamagi-oci/`.
 - **TPM 2.0 disk encryption:** with a TPM 2.0 chip the installer asks how
   the disk opens at startup:
   - **TPM + PIN (recommended, default):** a short PIN, bound to no PCR. The
@@ -496,19 +504,21 @@ kernel-level anti-cheat is unsupported on both paths.
 
 ### Gaming
 
-Only kernel-level parts ship in the base image: the OGC kernel and
-`scx_rusty`. Steam, steam-devices,
-gamescope, MangoHud, GameMode, 32-bit Mesa/Vulkan, Lutris, Wine, Winetricks,
-GOverlay, vkBasalt and Protontricks install on demand, as a reversible native
-layer or through Flatpak:
+In `Tamagi-DxAI`, **native Steam**, `steam-devices`, `gamescope` (including the
+**Tamagi Gaming** login session), **MangoHud**, **GameMode**, 32-bit Mesa/Vulkan,
+the OGC kernel and `scx_rusty` ship built in for zero-friction compatibility with
+**GE-Proton**, `gamescope` and MangoHud. Lutris, Wine, Winetricks, GOverlay,
+vkBasalt and Protontricks install on demand as a reversible native layer or
+through Flatpak:
 
 ```bash
-tamagi gaming                                              # interactive menu
-tamagi gaming native steam                                 # Steam + gamescope, MangoHud, GameMode, 32-bit
-tamagi gaming native lutris wine overlay protontricks      # added to the same layer
-tamagi gaming flatpak                                      # Flatpak gaming stack
-tamagi gaming latency                                      # tuned + scx_rusty low-latency profile
-tamagi gaming status | remove
+tamagi pkg gaming                                          # interactive menu
+tamagi pkg gaming ge-proton install                        # SHA-512 verified GloriousEggroll Proton for native Steam
+tamagi pkg gaming mangohud preset                          # FPS, frametime & GPU/CPU telemetry (Right_Shift+F12)
+tamagi pkg gaming native lutris wine overlay protontricks  # extra native tools in a reversible layer
+tamagi pkg gaming flatpak                                  # Heroic (Epic/GOG), ProtonUp-Qt, Bottles
+tamagi pkg gaming latency                                  # tuned + scx_rusty low-latency profile
+tamagi pkg gaming status | remove
 ```
 
 **gamescope with HDR.** HDR runs on DRM through gamescope, outside COSMIC (as
@@ -581,13 +591,14 @@ tamagi agents install claude antigravity codex clio qwen opencode gemini opencla
 
 | Command | What it does |
 |---|---|
-| `tamagi doctor` | 12 checks (bootc, kernel/Secure Boot, Btrfs, zram, systemd, sysext layers, containers, GPU, KVM, SELinux, `.desktop` entries, local AI); `--json`, `--fix` (safe user-level fixes), `--explain` (local-LLM summary) |
+| `tamagi sys doctor` | 14 checks (`bootc`, `composefs` + `fs-verity`, kernel/Secure Boot, Btrfs, zram, systemd, sysext layers, containers, GPU/NPU, KVM, SELinux, `.desktop` entries, network, local AI); `--json`, `--report`, `--fix`, `--explain` |
+| `tamagi sys cfs` | `composefs-rs` (`cfsctl`) & `bootc` integrity inspector: `status [--json]`, `fsck` (`--require-verity`), `images`, `measure <file>` (`fs-verity` SHA-256/512), `gc` |
 | `tamagi rewind` | one timeline of OS deployments, dated registry images (`tamagi:45.YYYYMMDD`) and home snapshots; restore a file, reapply a past `tamagi.toml`, or roll the OS back. The current deployment stays in the boot menu; `tamagi rewind follow` resumes updates |
 | `tamagi snap` | history of `$HOME`: hourly Btrfs snapshots (24 hourly, 7 daily, 4 weekly), excluding `~/.cache` and container storage |
 | `tamagi perf` | CPU/EPP profiles (`eco`, `balanced`, `performance`, `latency`) coordinated with `scx_rusty`; `tamagi perf status`, `tamagi perf bench` |
 | `tamagi setup` | machine chores: `secure-boot-key`, `tpm-unlock pin|auto|off|reseal`, `firmware`, `bios`, `clean`, `lazyvim`, `switch-image <ref>` |
 | `tamagi isolate <file>` | runs an untrusted script, AppImage or binary in a disposable jail: no network, empty `$HOME`, read-only OS, no D-Bus; display, audio and GPU kept. `--keep` keeps the jail, `--net` allows networking. Also in COSMIC Files → Open With → "Run Isolated" |
-| `tamagi mcp` | sandboxed MCP servers in rootless Podman Quadlets (`fetch`, `memory`, `git`, `postgres`, `playwright`, `filesystem`) with 0 MB idle RAM and automatic agent config sync |
+| `tamagi ai mcp` | sandboxed MCP servers (`os` built-in read-only Tamagi OS inspector, plus `fetch`, `memory`, `git`, `postgres`, `playwright`, `filesystem` in rootless Podman Quadlets) with 0 MB idle RAM and automatic agent config sync |
 | `tamagi privacy` | one-touch privacy mode (`Super+Ctrl+P`): camera drivers unbound, microphones muted, Bluetooth blocked, mDNS off, firewall zone `drop`, random Wi-Fi MAC, optional Tailscale exit node, Do Not Disturb |
 | `tamagi capture` | `text` (region OCR to the clipboard, via optional `tamagi install ocr`), `record` (screen recording) |
 | `tamagi font` | monospace font across terminal, editor and desktop |
@@ -665,8 +676,9 @@ and always ask for confirmation.
 
 - **COSMIC 1.11** with tiling on and one floating bottom panel (apps centred,
   tray and clock on the right). Other layouts: `tamagi panel set centro|classico|cosmic`.
-- **Terminal:** Ptyxis is the system terminal (container-aware,
-  theme-synced); foot runs Tamagi's own windows; cosmic-term stays installed.
+- **Terminal:** Ptyxis is the system terminal (`Super+Enter`, container-aware,
+  theme-synced, single-tab cold start); lightweight `foot` runs Tamagi's
+  floating/tiled popups and serves as fallback (`cosmic-term` is removed).
 - **Start menu:** `cosmic-ext-classic-menu` 1.1.0, compiled in the image, on
   `Super+Space`. Command palette on `Super+A`; COSMIC launcher on `Super+Alt+Space`.
 - **Themes:** choose themes and wallpapers in COSMIC Settings. Tamagi's 5

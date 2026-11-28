@@ -1,0 +1,3 @@
+#!/usr/bin/bash
+# skl — CLI alias for the SKL standalone school fork (delegates to tamagi-skl).
+exec /usr/bin/tamagi-skl "$@"

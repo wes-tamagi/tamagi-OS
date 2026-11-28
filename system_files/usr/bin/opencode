@@ -1,0 +1,28 @@
+#!/usr/bin/bash
+# opencode — anomalyco/opencode, open-source coding agent wired to Tamagi AI & MCP.
+#
+# Downloaded and SHA-256 verified on first run into ~/.local/bin/opencode (selecting
+# the AVX2 build when supported by the CPU, or baseline otherwise), then automatically
+# connected to Tamagi's local llama.cpp router, MCP servers, and active desktop theme.
+set -euo pipefail
+
+USER_BIN="${HOME}/.local/bin/opencode"
+SELF=$(readlink -f "$0")
+
+if [[ -x $USER_BIN && $(readlink -f "$USER_BIN") != "$SELF" ]]; then
+    exec "$USER_BIN" "$@"
+fi
+
+if [[ ${1:-} == --tamagi-stub-check ]]; then
+    echo "opencode-stub-ok"
+    exit 0
+fi
+
+. /usr/libexec/tamagi/i18n
+echo "$(t "Downloading OpenCode (anomalyco/opencode) with SHA-256 verification…")"
+/usr/libexec/tamagi/agent-manager install opencode
+[[ -x $USER_BIN && $(readlink -f "$USER_BIN") != "$SELF" ]] || {
+    echo "$(t "error"): OpenCode was not installed in $USER_BIN" >&2
+    exit 1
+}
+exec "$USER_BIN" "$@"

@@ -9,6 +9,7 @@ IMAGE=${1:?imagem Tamagi-DxAI}
 LIVE=${2:?imagem live}
 OUT=${3:?arquivo .iso de saída}
 SKL_IMAGE=${4:-}
+SKL_FORK_IMAGE=${5:-}
 LABEL=TAMAGI_LIVE
 
 mkdir -p "$(dirname "$OUT")"
@@ -35,7 +36,14 @@ if [[ ${TAMAGI_ISO_NO_PAYLOAD:-0} != 1 ]]; then
         podman push --quiet --compression-format zstd --compression-level "${TAMAGI_ISO_ZSTD_LEVEL:-19}" \
             "$SKL_IMAGE" "oci:$WORK/tree/tamagi-oci:skl"
     else
-        echo "aviso: imagem Tamagi-SKL ($SKL_IMAGE) não encontrada; a ISO conterá apenas Tamagi-DxAI" >&2
+        echo "aviso: imagem Tamagi-SKL ($SKL_IMAGE) não encontrada; pulando tag :skl" >&2
+    fi
+    if [[ -n $SKL_FORK_IMAGE ]] && podman image exists "$SKL_FORK_IMAGE"; then
+        step "Imagem SKL (fork) em formato OCI (tag :skl-os, camadas compartilhadas deduplicadas)"
+        podman push --quiet --compression-format zstd --compression-level "${TAMAGI_ISO_ZSTD_LEVEL:-19}" \
+            "$SKL_FORK_IMAGE" "oci:$WORK/tree/tamagi-oci:skl-os"
+    else
+        echo "aviso: imagem SKL fork ($SKL_FORK_IMAGE) não encontrada; pulando tag :skl-os" >&2
     fi
     du -sh "$WORK/tree/tamagi-oci"
 fi

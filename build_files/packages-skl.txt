@@ -66,6 +66,7 @@ desktop-file-utils
 
 # ── Ícones vetoriais (SVG puro, sem serrilhado) & Fontes ──
 papirus-icon-theme
+adwaita-icon-theme
 rsms-inter-fonts
 jetbrains-mono-fonts
 google-noto-sans-vf-fonts
@@ -77,8 +78,9 @@ langpacks-core-pt_BR
 langpacks-core-es
 langpacks-core-fr
 
-# ── Terminal escolhido + utilitários mínimos ──
+# ── Terminais escolhidos (Ptyxis + foot leve) + utilitários mínimos ──
 ptyxis
+foot
 git-core
 gum
 

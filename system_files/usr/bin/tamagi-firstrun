@@ -1,9 +1,8 @@
 #!/usr/bin/bash
 # tamagi-firstrun — first login of a user (runs once), in the terminal: the
-# same choices as the window (tamagi-welcome), for when it cannot open. Like
-# the first boot of openSUSE Aeon: a short list of basics (basics.list) and a
-# browser. Everything else is installed later with `tamagi install`; themes,
-# wallpaper, bar and tiling are changed in COSMIC Settings. Texts in pt/en/es/fr.
+# same choices as the window (tamagi-welcome), for when it cannot open.
+# Offers starter apps (including LibreOffice, GE-Proton, OpenCode), GPU &
+# hardware drivers, and a browser. Everything else stays in `tamagi install`.
 #   tamagi-firstrun --force     runs it again
 set -uo pipefail
 . /usr/libexec/tamagi/i18n
@@ -13,6 +12,7 @@ MULTI=/usr/libexec/tamagi/gum-multi
 CATALOG=/usr/share/tamagi/catalog.tsv
 FLATPAKS=/usr/share/tamagi/flatpaks.list
 BASICS=${TAMAGI_BASICS:-/usr/share/tamagi/basics.list}
+DRIVERS=${TAMAGI_DRIVERS:-/usr/share/tamagi/drivers.list}
 
 STAMP="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/firstrun-done"
 if [[ ${1:-} != --force && -f $STAMP ]]; then exit 0; fi
@@ -22,6 +22,37 @@ ask() { # ask [--no] <question>: Yes/No in the system language
     local def=()
     [[ $1 == --no ]] && { def=(--default=false); shift; }
     gum confirm "$(t "$1")" --affirmative "$(t "Yes")" --negative "$(t "No")" "${def[@]}"
+}
+
+pick_from_list() {
+    local list_file=$1 height=${2:-14}
+    [[ -r $list_file ]] || return 0
+    local labels=() actions=() preselected=() state want label action id cat size act desc remote app kind
+    while read -r state want _; do
+        [[ $state == on || $state == off ]] || continue
+        label="" action=""
+        while IFS=$'\t' read -r id cat size act desc; do
+            [[ $id == "$want" && $cat != Browsers ]] && { label="[$(t "$cat")] $(t "$desc") (≈ $size)"; action=$act; break; }
+        done < "$CATALOG"
+        if [[ -z $action ]]; then
+            while read -r remote app kind cat size desc; do
+                [[ $app == "$want" && $kind == opcional ]] && { label="[$(t "$cat")] $(t "$desc") (≈ $size)"; action="flatpak:$remote:$app"; break; }
+            done < "$FLATPAKS"
+        fi
+        [[ -n $action ]] || continue
+        labels+=("$label"); actions+=("$action")
+        [[ $state == on ]] && preselected+=(--selected "$label")
+    done < "$list_file"
+    if (( ${#labels[@]} )); then
+        local chosen line i
+        chosen=$(printf '%s\n' "${labels[@]}" | "$MULTI" --height "$height" "${preselected[@]}" \
+            --header "$(t "Space toggles · Enter installs · nothing selected: installs nothing")") || chosen=""
+        if [[ -n $chosen ]]; then
+            while IFS= read -r line; do
+                for i in "${!labels[@]}"; do [[ ${labels[$i]} == "$line" ]] && picked+=("${actions[$i]}"); done
+            done <<<"$chosen"
+        fi
+    fi
 }
 
 clear
@@ -66,33 +97,12 @@ if [[ $browser != "$keep" ]]; then
 fi
 
 step "Apps to start with"
-tl "Tick what you want now. Everything else is one command away: tamagi install"
-# The basics: the lines of basics.list, found in the catalog.
-labels=() actions=() preselected=()
-while read -r state want _; do
-    [[ $state == on || $state == off ]] || continue
-    label="" action=""
-    while IFS=$'\t' read -r id cat size act desc; do
-        [[ $id == "$want" && $cat != Browsers ]] && { label="[$(t "$cat")] $(t "$desc") (≈ $size)"; action=$act; break; }
-    done < "$CATALOG"
-    if [[ -z $action ]]; then
-        while read -r remote app kind cat size desc; do
-            [[ $app == "$want" && $kind == opcional ]] && { label="[$(t "$cat")] $(t "$desc") (≈ $size)"; action="flatpak:$remote:$app"; break; }
-        done < "$FLATPAKS"
-    fi
-    [[ -n $action ]] || continue
-    labels+=("$label"); actions+=("$action")
-    [[ $state == on ]] && preselected+=(--selected "$label")
-done < "$BASICS"
-if (( ${#labels[@]} )); then
-    chosen=$(printf '%s\n' "${labels[@]}" | "$MULTI" --height 14 "${preselected[@]}" \
-        --header "$(t "Space toggles · Enter installs · nothing selected: installs nothing")") || chosen=""
-    if [[ -n $chosen ]]; then
-        while IFS= read -r line; do
-            for i in "${!labels[@]}"; do [[ ${labels[$i]} == "$line" ]] && picked+=("${actions[$i]}"); done
-        done <<<"$chosen"
-    fi
-fi
+tl "Tick what you want now (including LibreOffice, GE-Proton, or OpenCode). Everything else is one command away: tamagi install"
+pick_from_list "$BASICS" 14
+
+step "GPU & hardware drivers"
+tl "Open-source AMD Radeon and Intel Mesa/Vulkan drivers ship built in. Select NVIDIA drivers, GPU compute stacks (CUDA / ROCm / oneAPI), or extra codecs if needed."
+pick_from_list "$DRIVERS" 12
 
 if lsblk -no TYPE 2>/dev/null | grep -qx crypt && [[ -e /sys/class/tpm/tpm0 ]] \
         && ! grep -qw 'tpm2-device=auto' /proc/cmdline; then

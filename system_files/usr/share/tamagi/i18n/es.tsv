@@ -1283,3 +1283,68 @@ Local PostgreSQL inspector (connects to tamagi dev db on 127.0.0.1:5432)	Inspect
 development boxes, local databases, VMs, workspaces, try and isolate	cajas de desarrollo, bases locales, VMs, workspaces, try e isolate
 doctor, status, why, rewind, shield, setup, perf, desktop, skl, state	doctor, status, why, rewind, shield, setup, perf, desktop, skl y estado
 Popsicle — COSMIC USB image flasher (Rust)	Popsicle — grabador de imágenes ISO en USB de COSMIC (Rust)
+Add existing partitions to /etc/fstab (nofail, automount) under /mnt/<label-or-disk>. Their files are never erased.	Añade las particiones existentes a /etc/fstab (nofail, automount) en /mnt/<etiqueta-o-disco>. Sus archivos nunca se borran.
+Detected hardware	Hardware detectado
+Filter apps…	Filtrar aplicaciones…
+GPU & drivers	GPU y controladores
+GPU & hardware drivers	GPU y controladores de hardware
+Graphics hardware: standard Mesa & Vulkan drivers are active. Tick extra GPU compute or codec layers below only if your workload needs them.	Hardware gráfico: los controladores estándar Mesa y Vulkan ya están activos. Marca capas adicionales de cómputo GPU o códecs abajo solo si las necesitas.
+Keep in /run/media (on demand)	Mantener en /run/media (bajo demanda)
+Leave secondary disks untouched; mount them when clicked in COSMIC Files.	Deja los discos secundarios intactos; se montan al hacer clic en COSMIC Archivos.
+/mnt/… (mounted automatically, files kept)	/mnt/… (montado automáticamente, archivos conservados)
+Mount permanently in /mnt/…	Montar permanentemente en /mnt/…
+No matching apps in this list. Search the full catalog anytime with: tamagi install	No hay aplicaciones que coincidan en esta lista. Busca en todo el catálogo en cualquier momento con: tamagi install
+Open-source AMD Radeon and Intel Mesa/Vulkan drivers ship built in. Select NVIDIA drivers, GPU compute stacks (CUDA / ROCm / oneAPI), or extra codecs if needed.	Los controladores libres Mesa/Vulkan para AMD Radeon e Intel ya vienen integrados. Selecciona controladores NVIDIA, pilas de cómputo GPU (CUDA / ROCm / oneAPI) o códecs extra si los necesitas.
+open-source Mesa & 32/64-bit Vulkan are already active; compute stacks (ROCm / oneAPI) and extra codecs below are optional.	Mesa libre y Vulkan de 32/64 bits ya están activos; las pilas de cómputo (ROCm / oneAPI) y los códecs adicionales abajo son opcionales.
+Other disks	Otros discos
+Other disks detected	Otros discos detectados
+/run/media (on demand)	/run/media (bajo demanda)
+Secondary HDD/SSD	HDD/SSD secundario
+Standalone school & institutional fork: student auto-login, locked panel, managed Chromium and teacher SSH.	Fork escolar e institucional independiente: inicio automático del alumno, panel bloqueado, Chromium gestionado y SSH docente.
+Tamagi school edition with classroom policies and remote administration.	Edición escolar de Tamagi con políticas de aula y administración remota.
+tick NVIDIA GeForce / RTX drivers below for full Wayland, Vulkan, and NVENC acceleration.	marca los controladores NVIDIA GeForce / RTX abajo para aceleración completa en Wayland, Vulkan y NVENC.
+Tick the basics, GPU drivers, and a browser, then review. Nothing is installed before you confirm.	Marca las aplicaciones iniciales, los controladores GPU y un navegador, luego revisa. Nada se instala antes de confirmar.
+Tick what you want now (including LibreOffice, GE-Proton, or OpenCode). Everything else is one command away: tamagi install	Marca lo que quieras ahora (incluidos LibreOffice, GE-Proton u OpenCode). Todo lo demás está a un comando: tamagi install
+Workstation, local AI, OpenCode, containers, VMs and native Steam gaming.	Estación de trabajo, IA local, OpenCode, contenedores, MV y juegos con Steam nativo.
+gaming on Tamagi (Bazzite-style: native Steam, GE-Proton, gamescope & MangoHud)	juegos en Tamagi (estilo Bazzite: Steam nativo, GE-Proton, gamescope y MangoHud)
+gaming menu: GE-Proton, MangoHud preset, extra native tools, or latency profile	menú de juegos: GE-Proton, ajuste de MangoHud, herramientas nativas extra o perfil de latencia
+install/update SHA-512 verified GE-Proton for native Steam	instala/actualiza GE-Proton verificado por SHA-512 para Steam nativo
+configure MangoHud overlay preset (Right_Shift+F12 toggle)	configura la superposición MangoHud (atajo Right_Shift+F12)
+install extra native gaming tools (Lutris, Wine, GOverlay, vkBasalt, Protontricks)	instala herramientas nativas extra de juegos (Lutris, Wine, GOverlay, vkBasalt, Protontricks)
+install Lutris, Heroic, ProtonUp-Qt, and Bottles via Flatpak	instala Lutris, Heroic, ProtonUp-Qt y Bottles vía Flatpak
+runs a game in gamescope + MangoHud (Steam launch option)	ejecuta un juego en gamescope + MangoHud (opción de lanzamiento de Steam)
+remove the extra native gaming layer	elimina la capa nativa adicional de juegos
+MangoHud preset written to	Ajuste de MangoHud guardado en
+MangoHud config reset to upstream defaults.	Configuración de MangoHud restablecida a los valores originales.
+default	predeterminado
+No GE-Proton versions installed yet. Install with: tamagi pkg gaming ge-proton	Aún no hay versiones de GE-Proton instaladas. Instala con: tamagi pkg gaming ge-proton
+Fetching latest GE-Proton release from GloriousEggroll/proton-ge-custom…	Obteniendo la última versión de GE-Proton desde GloriousEggroll/proton-ge-custom…
+could not resolve latest GE-Proton release	no se pudo consultar la última versión de GE-Proton
+Restart Steam and choose GE-Proton under Properties > Compatibility.	Reinicia Steam y elige GE-Proton en Propiedades › Compatibilidad.
+Native Steam, gamescope, MangoHud, GameMode and 32-bit Vulkan are already built into Tamagi-DxAI.	Steam nativo, gamescope, MangoHud, GameMode y Vulkan de 32 bits ya vienen integrados en Tamagi-DxAI.
+Install GE-Proton anytime with	Instala GE-Proton en cualquier momento con
+Requested gaming packages are already present in the base image.	Los paquetes de juegos solicitados ya están presentes en la imagen base.
+OGC kernel, scx_rusty, native Steam, gamescope, MangoHud, GameMode	kernel OGC, scx_rusty, Steam nativo, gamescope, MangoHud, GameMode
+Native Steam, gamescope, MangoHud, GameMode, and the OGC kernel ship built in.	Steam nativo, gamescope, MangoHud, GameMode y el kernel OGC ya vienen integrados.
+GE-Proton — install/update latest GloriousEggroll Proton for native Steam	GE-Proton — instalar/actualizar el último GloriousEggroll Proton en Steam nativo
+MangoHud preset — configure FPS, frametime, and GPU/CPU telemetry (Right_Shift+F12)	Ajuste de MangoHud — configurar FPS, frametime y telemetría de GPU/CPU (Right_Shift+F12)
+Extra native tools — Lutris, Wine, GOverlay, vkBasalt, Protontricks	Herramientas nativas extra — Lutris, Wine, GOverlay, vkBasalt, Protontricks
+Launcher Flatpaks — Heroic (Epic/GOG), ProtonUp-Qt, Bottles	Lanzadores Flatpak — Heroic (Epic/GOG), ProtonUp-Qt, Bottles
+Gaming setup (native Steam + gamescope + MangoHud ready)	Configuración de juegos (Steam nativo + gamescope + MangoHud listos)
+Composefs & bootc integrity	Integridad de composefs y bootc
+Verifying composefs-rs repository & fs-verity digests	Verificando el repositorio composefs-rs y los resúmenes fs-verity
+Composefs and bootc consistency checks passed.	Comprobaciones de consistencia de composefs y bootc superadas.
+Pruning unreferenced composefs objects	Limpiando objetos composefs no referenciados
+Composefs garbage collection complete.	Recolección de basura de composefs completada.
+Downloading OpenCode (anomalyco/opencode) with SHA-256 verification…	Descargando OpenCode (anomalyco/opencode) con verificación SHA-256…
+bootc missing from system image	falta bootc en la imagen del sistema
+composefs.digest not active on kernel cmdline	composefs.digest no está activo en la línea de comandos del kernel
+Steam — native in Tamagi-DxAI (or RPM Fusion layer), ready for GE-Proton, gamescope and MangoHud (asks for the password)	Steam — nativo en Tamagi-DxAI (o capa RPM Fusion), listo para GE-Proton, gamescope y MangoHud (pide la contraseña)
+GE-Proton — community Proton build for Windows games in native Steam	GE-Proton — compilación comunitaria de Proton para juegos de Windows en Steam nativo
+NVIDIA GeForce / RTX drivers — proprietary userspace, NVENC/VA-API and 32-bit gaming libs, native (asks for the password)	Controladores NVIDIA GeForce / RTX — espacio de usuario propietario, NVENC/VA-API y librerías de 32 bits para juegos, nativo (pide la contraseña)
+NVIDIA CUDA compute — CUDA runtime and libraries for local AI, PyTorch and Blender, native (asks for the password)	Cómputo NVIDIA CUDA — entorno y librerías CUDA para IA local, PyTorch y Blender, nativo (pide la contraseña)
+AMD Radeon video extras — VA-API/VDPAU diagnostics and GPU telemetry, native (asks for the password)	Extras de vídeo AMD Radeon — diagnóstico VA-API/VDPAU y telemetría de GPU, nativo (pide la contraseña)
+Intel Arc / Iris Xe video — Quick Sync VA-API media acceleration and GPU telemetry, native (asks for the password)	Vídeo Intel Arc / Iris Xe — aceleración multimedia Quick Sync VA-API y telemetría de GPU, nativo (pide la contraseña)
+Intel Arc / Core Ultra compute — OpenCL and oneAPI Level Zero runtime for AI and media, native (asks for the password)	Cómputo Intel Arc / Core Ultra — entorno OpenCL y oneAPI Level Zero para IA y multimedia, nativo (pide la contraseña)
+Vulkan diagnostics & validation — vulkaninfo, vkcube and validation layers, native (asks for the password)	Diagnóstico y validación Vulkan — vulkaninfo, vkcube y capas de validación, nativo (pide la contraseña)
+Read-only Tamagi OS inspector (bootc, composefs, doctor, why; 0 MB idle)	Inspector de solo lectura de Tamagi OS (bootc, composefs, doctor, why; 0 MB en reposo)

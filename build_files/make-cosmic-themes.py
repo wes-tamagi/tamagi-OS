@@ -16,7 +16,9 @@ import pathlib
 import re
 import sys
 
+HERE = pathlib.Path(__file__).resolve().parent
 TEMPLATES = {"dark": "/usr/share/cosmic-themes/nebula-dark.ron", "light": "/usr/share/cosmic-themes/comet-light.ron"}
+FALLBACK_TEMPLATES = {"dark": str(HERE / "templates/nebula-dark.ron"), "light": str(HERE / "templates/comet-light.ron")}
 
 
 def conf(path):
@@ -61,6 +63,10 @@ def main():
     templates = dict(TEMPLATES)
     if len(sys.argv) > 4:
         templates = {"dark": sys.argv[3], "light": sys.argv[4]}
+    else:
+        for scheme, p in list(templates.items()):
+            if not pathlib.Path(p).is_file():
+                templates[scheme] = FALLBACK_TEMPLATES[scheme]
     out.mkdir(parents=True, exist_ok=True)
     count = 0
     for path in sorted(themes.glob("*.conf")):

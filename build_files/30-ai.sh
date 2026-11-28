@@ -1,8 +1,8 @@
 #!/usr/bin/bash
 # IA local: confere o llama.cpp vindo do estágio de compilação (apenas Tamagi-DxAI).
 
-if [[ ${TAMAGI_EDITION:-dxai} == skl ]]; then
-    echo "Tamagi-SKL: sem llama.cpp local (edição escolar enxuta)"
+if [[ ${TAMAGI_EDITION:-dxai} == skl || ${TAMAGI_EDITION:-dxai} == skl-os ]]; then
+    echo "${TAMAGI_EDITION}: sem llama.cpp local (edição escolar enxuta)"
     exit 0
 fi
 

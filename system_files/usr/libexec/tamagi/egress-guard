@@ -39,6 +39,8 @@ DEFAULT_ALLOW = (
     "oauth2.googleapis.com",
     "www.googleapis.com",
     "antigravity.google",
+    "opencode.ai",
+    "api.opencode.ai",
     "openrouter.ai",
     "dashscope.aliyuncs.com",
     "api.mistral.ai",

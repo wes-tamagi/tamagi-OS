@@ -21,15 +21,12 @@ list() { fc-list :spacing=mono family | cut -d, -f1 | sort -u; }
 current() { head -1 "$STATE" 2>/dev/null || echo "$DEFAULT"; }
 
 apply() {
-    local font=$1 tk="$CONFIG/cosmic/com.system76.CosmicTk/v1" app
+    local font=$1 tk="$CONFIG/cosmic/com.system76.CosmicTk/v1"
     list | grep -qxF "$font" || { echo "$(t "monospace font not found"): $font (tamagi-font list)" >&2; exit 1; }
-    mkdir -p "$CONFIG/tamagi" "$tk"
+    mkdir -p "$CONFIG/tamagi" "$tk" "$CONFIG/cosmic/com.system76.CosmicEdit/v1"
     if [[ $font == "$DEFAULT" ]]; then rm -f "$STATE"; else echo "$font" > "$STATE"; fi
     echo "(family: \"$font\", weight: Normal, stretch: Normal, style: Normal)" > "$tk/monospace_font"
-    for app in CosmicTerm CosmicEdit; do
-        mkdir -p "$CONFIG/cosmic/com.system76.$app/v1"
-        echo "\"$font\"" > "$CONFIG/cosmic/com.system76.$app/v1/font_name"
-    done
+    echo "\"$font\"" > "$CONFIG/cosmic/com.system76.CosmicEdit/v1/font_name"
     gsettings set org.gnome.desktop.interface monospace-font-name "$font 11" 2>/dev/null || true
     tamagi-theme apps >/dev/null
     echo "$(t "Font"): $font  ($(t "new terminals already use it"))"

@@ -325,7 +325,63 @@ fn check_gpu() -> CheckItem {
 }
 
 fn is_skl() -> bool {
-    fs::read_to_string("/usr/share/tamagi/edition").map(|s| s.trim() == "skl").unwrap_or(false)
+    fs::read_to_string("/usr/share/tamagi/edition")
+        .map(|s| matches!(s.trim(), "skl" | "skl-os"))
+        .unwrap_or(false)
+}
+
+fn check_composefs() -> CheckItem {
+    let in_container = Path::new("/run/.containerenv").exists() || Path::new("/.dockerenv").exists();
+    let has_bootc = which("bootc");
+    let has_cfsctl = which("cfsctl") || has_bootc;
+    if !has_bootc {
+        return CheckItem {
+            id: "composefs",
+            status: "FAIL",
+            summary: t("bootc missing from system image"),
+            fix: String::new(),
+        };
+    }
+    if in_container {
+        let detail = if has_cfsctl {
+            "bootc + composefs-rs (cfsctl) ready"
+        } else {
+            "bootc ready"
+        };
+        return CheckItem { id: "composefs", status: "OK", summary: detail.into(), fix: String::new() };
+    }
+    let cmdline = fs::read_to_string("/proc/cmdline").unwrap_or_default();
+    let digest = cmdline
+        .split_whitespace()
+        .find_map(|tok| tok.strip_prefix("composefs.digest=").or_else(|| tok.strip_prefix("composefs=")));
+    let usr_ro = Command::new("findmnt")
+        .args(["-rno", "FSTYPE,OPTIONS", "/"])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+        .map(|o| {
+            let s = String::from_utf8_lossy(&o.stdout);
+            s.contains("ro") || s.contains("composefs") || s.contains("overlay")
+        })
+        .unwrap_or(false);
+    if let Some(d) = digest {
+        let short = &d[..d.len().min(12)];
+        let verity = if Path::new("/sysroot/composefs/images").is_dir() { "fs-verity" } else { "active" };
+        let ro_note = if usr_ro { "ro" } else { "rw-overlay" };
+        return CheckItem {
+            id: "composefs",
+            status: "OK",
+            summary: format!("composefs-rs ({verity}, {ro_note}, {short}…)"),
+            fix: String::new(),
+        };
+    }
+    CheckItem {
+        id: "composefs",
+        status: "WARN",
+        summary: t("composefs.digest not active on kernel cmdline"),
+        fix: "tamagi sys cfs status".into(),
+    }
 }
 
 fn check_kvm() -> CheckItem {
@@ -543,8 +599,9 @@ fn format_report(checks: &[CheckItem]) -> String {
 }
 
 fn run_all_checks() -> Vec<CheckItem> {
-    let fns: [fn() -> CheckItem; 13] = [
+    let fns: [fn() -> CheckItem; 14] = [
         check_image,
+        check_composefs,
         check_kernel,
         check_storage,
         check_performance,

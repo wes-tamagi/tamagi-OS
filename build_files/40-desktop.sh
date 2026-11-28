@@ -30,7 +30,7 @@ done
 # Em Tamagi-SKL, remove os papéis de parede ilustrados extras para enxugar ainda mais.
 # Em Tamagi-DxAI, importa os papéis de parede espaciais sem marca Pop!_OS/COSMIC
 # (NASA/ESA) do pacote cosmic-wallpapers e remove quaisquer variantes com logo.
-if [[ $EDITION == skl ]]; then
+if [[ $EDITION == skl || $EDITION == skl-os ]]; then
     rm -rf /usr/share/backgrounds/tamagi/art /usr/share/backgrounds/cosmic
 else
     if [[ -d /usr/share/backgrounds/cosmic ]]; then
@@ -83,7 +83,7 @@ done
 echo "tema padrão do COSMIC: Tamagi Ipê (escuro) e Ipê Claro"
 
 # ── Janelas & Teclado ──
-if [[ $EDITION == skl ]]; then
+if [[ $EDITION == skl || $EDITION == skl-os ]]; then
     echo false > "$C/com.system76.CosmicComp/v1/autotile"
 else
     echo true > "$C/com.system76.CosmicComp/v1/autotile"
@@ -146,17 +146,37 @@ cat > "$F/tab" <<'RON'
 )
 RON
 
-# ── Fontes e Ícones Vetoriais (Papirus SVG + Roboto Flex / Inter + JetBrains Mono) ──
+# ── Fontes e Ícones Vetoriais (Papirus SVG + Cosmic/Adwaita fallback + Roboto Flex + JetBrains Mono) ──
+# Garante que Papirus, Papirus-Dark e Papirus-Light existam e herdem Cosmic, Pop, Adwaita e hicolor
+# (corrige ícones faltando / triângulo com exclamação no painel, configurações e paleta).
+for ptheme in Papirus Papirus-Dark Papirus-Light; do
+    tidx="/usr/share/icons/$ptheme/index.theme"
+    if [[ ! -f $tidx && -d /usr/share/icons/Papirus ]]; then
+        install -d "/usr/share/icons/$ptheme"
+        cat > "$tidx" <<EOF
+[Icon Theme]
+Name=$ptheme
+Comment=$ptheme icon theme
+Inherits=Papirus,Cosmic,Pop,Adwaita,hicolor
+Directories=
+EOF
+    elif [[ -f $tidx ]]; then
+        if [[ $ptheme == Papirus ]]; then
+            sed -i 's|^Inherits=.*|Inherits=Cosmic,Pop,Adwaita,hicolor|' "$tidx"
+        else
+            sed -i 's|^Inherits=.*|Inherits=Papirus,Cosmic,Pop,Adwaita,hicolor|' "$tidx"
+        fi
+    fi
+done
+
 install -d "$C/com.system76.CosmicTk/v1"
 rm -f "$C/com.system76.CosmicTk/v1/interface_font" "$C/com.system76.CosmicTk/v1/monospace_font" "$C/com.system76.CosmicTk/v1/icon_theme"
 echo '(family: "Roboto Flex", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/interface_font"
 echo '(family: "JetBrains Mono", weight: Normal, stretch: Normal, style: Normal)' > "$C/com.system76.CosmicTk/v1/monospace_font"
 echo '"Papirus-Dark"' > "$C/com.system76.CosmicTk/v1/icon_theme"
-for app in CosmicTerm CosmicEdit; do
-    install -d "$C/com.system76.$app/v1"
-    rm -f "$C/com.system76.$app/v1/font_name"
-    echo '"JetBrains Mono"' > "$C/com.system76.$app/v1/font_name"
-done
+install -d "$C/com.system76.CosmicEdit/v1"
+rm -f "$C/com.system76.CosmicEdit/v1/font_name"
+echo '"JetBrains Mono"' > "$C/com.system76.CosmicEdit/v1/font_name"
 grep -aq interface_font /usr/bin/cosmic-settings || { echo "o libcosmic desta versão não lê mais CosmicTk/interface_font" >&2; exit 1; }
 install -Dm644 /dev/stdin /etc/dconf/db/local.d/10-tamagi-fonts <<'DCONF'
 [org/gnome/desktop/interface]
@@ -164,6 +184,11 @@ font-name='Roboto Flex 11'
 document-font-name='Roboto Flex 11'
 monospace-font-name='JetBrains Mono 11'
 icon-theme='Papirus-Dark'
+
+[org/gnome/Ptyxis]
+restore-session=false
+interface-style='system'
+use-system-font=true
 DCONF
 [[ -e /etc/dconf/profile/user ]] || printf 'user-db:user\nsystem-db:local\n' | install -Dm644 /dev/stdin /etc/dconf/profile/user
 dconf update
@@ -174,7 +199,7 @@ fc-cache -f >/dev/null
 [[ $(fc-match -f '%{family}' 'sans-serif:lang=ja') != "Roboto Flex" ]] || { echo "sem fonte de reserva para japonês" >&2; exit 1; }
 
 # ── Barra e Menu Iniciar ──
-if [[ $EDITION == skl ]]; then
+if [[ $EDITION == skl || $EDITION == skl-os ]]; then
     tamagi-panel defaults-skl "$C"
 else
     tamagi-panel defaults "$C"
@@ -204,7 +229,7 @@ mkdir -p "$C/com.system76.CosmicAppletTime/v1"
 echo true > "$C/com.system76.CosmicAppletTime/v1/military_time"
 
 # ── WebApps de sistema e favoritos por edição ──
-if [[ $EDITION == skl ]]; then
+if [[ $EDITION == skl || $EDITION == skl-os ]]; then
     # Tamagi-SKL: atalhos WebApp (Google Docs, Planilhas, Apresentações e Gemini)
     # no menu e fixados no painel travado + abertura automática do Chromium.
     cat > /usr/share/applications/tamagi-skl-docs.desktop <<'DESKTOP'
@@ -348,7 +373,7 @@ Type=Application
 Name=Lark Suite
 Comment=Lark Suite workspace (WebApp; native RPM via tamagi install lark)
 Exec=/usr/bin/tamagi-browser app --app=https://www.larksuite.com --class=tamagi-lark
-Icon=internet-chat
+Icon=tamagi-lark
 Terminal=false
 Categories=Office;Network;InstantMessaging;
 StartupWMClass=tamagi-lark
@@ -374,6 +399,11 @@ RON
     "com.system76.CosmicSettings",
 ]
 RON
+    # Tamagi-DxAI traz Steam e gamescope nativos: registra a sessão Tamagi Gaming (HDR) no login.
+    if [[ -f /usr/share/tamagi/layer-overlays/gaming/usr/share/wayland-sessions/tamagi-gaming.desktop ]]; then
+        install -Dm644 /usr/share/tamagi/layer-overlays/gaming/usr/share/wayland-sessions/tamagi-gaming.desktop \
+            /usr/share/wayland-sessions/tamagi-gaming.desktop
+    fi
 fi
 
 # ── Atalhos do Tamagi por cima dos padrões do COSMIC ──
@@ -428,7 +458,7 @@ PY
 
 install -Dm644 /dev/stdin /etc/xdg/xdg-terminals.list <<'LIST'
 org.gnome.Ptyxis.desktop
-com.system76.CosmicTerm.desktop
+foot.desktop
 LIST
 
 if [[ -f /etc/chromium/chromium.conf ]] && ! grep -q '/etc/chromium/tamagi.conf' /etc/chromium/chromium.conf; then
@@ -436,7 +466,9 @@ if [[ -f /etc/chromium/chromium.conf ]] && ! grep -q '/etc/chromium/tamagi.conf'
 fi
 bash -n /etc/chromium/chromium.conf /etc/chromium/tamagi.conf
 
-gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
+for icondir in /usr/share/icons/hicolor /usr/share/icons/Papirus /usr/share/icons/Papirus-Dark /usr/share/icons/Papirus-Light; do
+    [[ -d $icondir ]] && gtk-update-icon-cache -f "$icondir" 2>/dev/null || true
+done
 
 for f in /usr/share/applications/tamagi-*.desktop /usr/share/applications/org.tamagi.Menu.desktop \
          /usr/share/tamagi/desktop/*.desktop \

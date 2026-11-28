@@ -1,13 +1,14 @@
 #!/usr/bin/bash
-# Opens a terminal command in a window of its own (Ptyxis, with cosmic-term fallback).
-#   popup <command...>          floating/standalone window
+# Opens a terminal command in a lightweight window of its own (foot primary, Ptyxis fallback).
+#   popup <command...>          floating/standalone window (app-id: tamagi-popup)
 #   popup --tile <command...>   ordinary window, joins the tiling
-#   popup --class <id> --title <text> <command...>   window with custom title
+#   popup --class <id> --title <text> <command...>   window with custom app-id and title
 title=Tamagi
+app_id=tamagi-popup
 while [[ ${1:-} == --* ]]; do
     case $1 in
-        --tile)  shift ;;
-        --class) shift 2 ;;
+        --tile)  app_id=tamagi-tile; shift ;;
+        --class) app_id=$2; shift 2 ;;
         --title) title=$2; shift 2 ;;
         *) break ;;
     esac
@@ -15,11 +16,11 @@ done
 # gum buttons (Yes/No) readable in any theme.
 # shellcheck source=/dev/null
 . /usr/share/tamagi/gum.env
-# ~/.local/bin in the PATH (the user's tools, such as claude and codex, opened from the menu).
+# ~/.local/bin in the PATH (the user's tools, such as claude, opencode and codex, opened from the menu).
 if [[ -d $HOME/.local/bin ]]; then
     case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
 fi
-if command -v ptyxis >/dev/null 2>&1; then
-    exec ptyxis --new-window --title="$title" -- "$@"
+if command -v foot >/dev/null 2>&1; then
+    exec foot --app-id="$app_id" --title="$title" -- "$@"
 fi
-exec cosmic-term -e "$@"
+exec ptyxis --new-window --title="$title" -- "$@"

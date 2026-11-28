@@ -83,7 +83,7 @@ case "$MODE" in
         [[ -f $DISK ]] || { echo "sem disco instalado: rode antes just test-iso" >&2; exit 1; }
         qemu "${disk_args[@]}" "${window[@]}"
         exit ;;
-    auto|--skl|--luks|--tpm|--tpm-pin|--upgrade|--preserve-home|--pt|--en|--es|--fr|--verify|--verify-skl|--verify-luks|--verify-tpm|--rollback) ;;
+    auto|--skl|--skl-os|--extra-disks|--luks|--tpm|--tpm-pin|--upgrade|--preserve-home|--pt|--en|--es|--fr|--verify|--verify-skl|--verify-skl-os|--verify-luks|--verify-tpm|--rollback) ;;
     *) echo "modo desconhecido: $MODE" >&2; exit 2 ;;
 esac
 
@@ -122,6 +122,25 @@ GPT
     rm -rf "$work"
 }
 
+EXTRA_DISK="$OUT/vm-extra.img"
+extra_disk_args=()
+if [[ $MODE == --extra-disks ]]; then
+    rm -f "$EXTRA_DISK"
+    exwork=$(mktemp -d)
+    mkdir -p "$exwork/data"
+    echo "EXTRA-DISK-PRESERVED-OK" > "$exwork/data/extra-marker.txt"
+    truncate -s 2G "$EXTRA_DISK"
+    sfdisk -q "$EXTRA_DISK" <<'GPT'
+label: gpt
+size=1900M, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="dados"
+GPT
+    part_img="$exwork/part.img"
+    truncate -s 1900M "$part_img"
+    mke2fs -q -t ext4 -F -L dados -d "$exwork/data" "$part_img" >/dev/null
+    dd if="$part_img" of="$EXTRA_DISK" bs=1M seek=1 conv=notrunc,sparse status=none
+    rm -rf "$exwork"
+    extra_disk_args=(-drive "file=$EXTRA_DISK,if=virtio,format=raw")
+fi
 if [[ $MODE != --verify* && $MODE != --rollback ]]; then
 echo "── 1/2  Instalação sem perguntas (${MODE#--})"
 rm -f -- "$DISK" "$VARS" "$OUT/vm-install.log" "$OUT/vm-serial.sock" "$OUT/vm-qmp.sock"
@@ -145,6 +164,8 @@ append+=" tamagi.autoinstall=/dev/vda tamagi.autoinstall.kargs=console=tty0,cons
 [[ $MODE == --tpm-pin ]] && append+=" tamagi.autoinstall.tpm=pin tamagi.autoinstall.tpmpin=$TPM_PIN"
 [[ $MODE == --preserve-home ]] && append+=" tamagi.autoinstall.preserve_home=1"
 [[ $MODE == --skl ]] && append+=" tamagi.edition=skl tamagi.autoinstall.student=aluno tamagi.autoinstall.homepage=https://escola.tamagi.test"
+[[ $MODE == --skl-os ]] && append+=" tamagi.edition=skl-os tamagi.autoinstall.student=aluno tamagi.autoinstall.homepage=https://escola.tamagi.test"
+[[ $MODE == --extra-disks ]] && append+=" tamagi.autoinstall.extra_disks=mnt"
 if [[ $MODE == --upgrade ]]; then
     # Registry local (sem TLS) com a "v2": a imagem do Tamagi + um arquivo. Da VM,
     # o computador que a roda é 10.0.2.2.
@@ -170,7 +191,7 @@ timeout 3600 qemu-system-x86_64 -enable-kvm -machine q35 -cpu host -smp "$CPUS" 
     -drive if=pflash,format=raw,readonly=on,file="$CODE" \
     -drive if=pflash,format=raw,file="$VARS" \
     -device virtio-net-pci,netdev=n0 -netdev user,id=n0 \
-    "${disk_args[@]}" "${tpm_args[@]}" -cdrom "$ISO" \
+    "${disk_args[@]}" "${extra_disk_args[@]}" "${tpm_args[@]}" -cdrom "$ISO" \
     -kernel "$boot/vmlinuz" -initrd "$boot/initrd.img" -append "$append" \
     -display none -serial "file:$OUT/vm-install.log" -no-reboot || true
 rm -f -- "$boot/vmlinuz" "$boot/initrd.img"; rmdir "$boot"
@@ -202,14 +223,19 @@ SCRIPT
     rm -f "$OUT/vm-combustion.img"
     truncate -s 8M "$OUT/vm-combustion.img"
     mkfs.vfat -n combustion "$OUT/vm-combustion.img" >/dev/null
-    mcopy -i "$OUT/vm-combustion.img" -s "$stick/combustion" ::/combustion
+    if command -v mcopy >/dev/null 2>&1; then
+        mcopy -i "$OUT/vm-combustion.img" -s "$stick/combustion" ::/combustion
+    else
+        podman run --rm -v "$OUT:/out:Z" -v "$stick:/stick:ro,Z" "${TAMAGI_IMAGE:-localhost/tamagi}-live:${TAMAGI_TAG:-latest}" \
+            mcopy -i /out/vm-combustion.img -s /stick/combustion ::/combustion
+    fi
     rm -rf "$stick"
     combustion_args=(-drive "file=$OUT/vm-combustion.img,if=virtio,format=raw,readonly=on")
 fi
 
 echo "── 2/2  Primeiro boot do sistema instalado"
 [[ $MODE == *tpm || $MODE == --tpm-pin ]] && start_tpm
-qemu "${disk_args[@]}" "${combustion_args[@]}" "${tpm_args[@]}" -device virtio-vga -display none \
+qemu "${disk_args[@]}" "${extra_disk_args[@]}" "${combustion_args[@]}" "${tpm_args[@]}" -device virtio-vga -display none \
     -serial "unix:$OUT/vm-serial.sock,server=on,wait=off" \
     -qmp "unix:$OUT/vm-qmp.sock,server=on,wait=off" &
 vm=$!
@@ -230,6 +256,8 @@ luks=()
 [[ $MODE == --tpm-pin ]] && luks=(--tpm-pin "$TPM_PIN")
 [[ $MODE == --preserve-home ]] && luks+=(--preserved-file /var/home/tamagi/preserved-marker.txt)
 [[ $MODE == --skl || $MODE == --verify-skl ]] && luks+=(--skl)
+[[ $MODE == --skl-os || $MODE == --verify-skl-os ]] && luks+=(--skl --skl-name SKL)
+[[ $MODE == --extra-disks ]] && luks+=(--extra-mount /mnt/dados/extra-marker.txt)
 [[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] && luks+=(--lang "${MODE#--}")
 # Sem opção de idioma, a ISO instala no idioma padrão da imagem (en; pt na variante :ptbr).
 [[ $MODE == --en || $MODE == --pt || $MODE == --es || $MODE == --fr ]] || luks+=(--lang "${TAMAGI_DEFAULT_LANG:-en}")

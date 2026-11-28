@@ -30,7 +30,7 @@ fn fnv1a_hex(data: &[u8]) -> String {
 
 fn image_id_from(cmdline: &str, os_release: &[u8]) -> String {
     for tok in cmdline.split_whitespace() {
-        if tok.starts_with("composefs=") || tok.starts_with("ostree=") {
+        if tok.starts_with("composefs.digest=") || tok.starts_with("composefs=") || tok.starts_with("ostree=") {
             return tok.to_string();
         }
     }
@@ -161,6 +161,7 @@ mod tests {
 
     #[test]
     fn extracts_composefs_or_falls_back_to_os_release() {
+        assert_eq!(image_id_from("quiet composefs.digest=deadbeef rhgb", b"x"), "composefs.digest=deadbeef");
         assert_eq!(image_id_from("quiet composefs=abc123 rhgb", b"x"), "composefs=abc123");
         assert_eq!(image_id_from("ostree=/ostree/boot.1/fedora/0", b"x"), "ostree=/ostree/boot.1/fedora/0");
         assert!(image_id_from("quiet rhgb", b"PRETTY_NAME=Tamagi").starts_with("os-release:"));

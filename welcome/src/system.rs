@@ -146,6 +146,53 @@ pub fn cmdline_unlocks_with_tpm(cmdline: &str) -> bool {
     })
 }
 
+/// Maps a PCI vendor hex ID (`/sys/class/drm/card*/device/vendor`) to a friendly GPU vendor label.
+pub fn gpu_vendor_name(vendor_hex: &str) -> Option<&'static str> {
+    match vendor_hex.trim().to_ascii_lowercase().as_str() {
+        "0x10de" => Some("NVIDIA"),
+        "0x1002" | "0x1022" => Some("AMD Radeon"),
+        "0x8086" => Some("Intel"),
+        "0x1af4" | "0x1b36" | "0x1234" => Some("Virtual GPU"),
+        _ => None,
+    }
+}
+
+/// Detects active GPU vendors on the system for the First Boot GPU & Drivers page.
+/// `TAMAGI_WELCOME_GPUS` overrides detection for deterministic tests and screenshots.
+pub fn detect_gpus() -> Vec<String> {
+    if let Ok(forced) = std::env::var("TAMAGI_WELCOME_GPUS") {
+        return forced
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .collect();
+    }
+    let mut gpus: Vec<String> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir("/sys/class/drm") {
+        let mut names: Vec<String> = entries
+            .flatten()
+            .filter_map(|e| e.file_name().into_string().ok())
+            .filter(|name| name.starts_with("card") && !name.contains('-'))
+            .collect();
+        names.sort();
+        for card in names {
+            let vendor_path = format!("/sys/class/drm/{card}/device/vendor");
+            if let Ok(vendor) = std::fs::read_to_string(vendor_path) {
+                if let Some(label) = gpu_vendor_name(&vendor) {
+                    if !gpus.iter().any(|g| g == label) {
+                        gpus.push(label.to_string());
+                    }
+                }
+            }
+        }
+    }
+    if std::path::Path::new("/dev/accel/accel0").exists() {
+        gpus.push("NPU".to_string());
+    }
+    gpus
+}
+
 /// Whether to ask about unlocking the encrypted disk with the TPM chip: an
 /// encrypted disk, a TPM, and not unlocking with it yet.
 /// `TAMAGI_WELCOME_TPM=1|0` forces the answer (tests, screenshots).
@@ -262,6 +309,15 @@ mod tests {
         assert_eq!(military_time("en"), "false");
         assert_eq!(military_time("pt"), "true");
         assert_eq!(military_time("fr"), "true");
+    }
+
+    #[test]
+    fn gpu_vendors() {
+        assert_eq!(gpu_vendor_name("0x10de\n"), Some("NVIDIA"));
+        assert_eq!(gpu_vendor_name("0x1002"), Some("AMD Radeon"));
+        assert_eq!(gpu_vendor_name("0x8086"), Some("Intel"));
+        assert_eq!(gpu_vendor_name("0x1af4"), Some("Virtual GPU"));
+        assert_eq!(gpu_vendor_name("0x9999"), None);
     }
 
     #[test]

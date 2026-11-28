@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=OpenCode
+GenericName=Open-source AI coding agent
+GenericName[pt_BR]=Agente de IA open-source para programar
+GenericName[pt]=Agente de IA open-source para programar
+GenericName[es]=Agente de IA de código abierto para programar
+GenericName[fr]=Agent d'IA open source pour programmer
+Comment=OpenCode (anomalyco/opencode) connected to Tamagi local AI and MCP servers
+Comment[pt_BR]=OpenCode (anomalyco/opencode) conectado à IA local e aos servidores MCP do Tamagi
+Comment[pt]=OpenCode (anomalyco/opencode) conectado à IA local e aos servidores MCP do Tamagi
+Comment[es]=OpenCode (anomalyco/opencode) conectado a la IA local y a los servidores MCP de Tamagi
+Comment[fr]=OpenCode (anomalyco/opencode) connecté à l'IA locale et aux serveurs MCP de Tamagi
+Exec=/usr/libexec/tamagi/popup --class opencode --title "OpenCode" opencode
+StartupWMClass=opencode
+Icon=opencode
+Terminal=false
+Categories=Development;
+Keywords=opencode;anomalyco;ia;ai;agente;agent;code;llama;mcp;

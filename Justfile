@@ -1,20 +1,22 @@
-# Tamagi — tarefas de desenvolvimento das imagens (Tamagi-DxAI e Tamagi-SKL). `just` lista tudo.
+# Tamagi — tarefas de desenvolvimento das imagens (Tamagi-DxAI, Tamagi-SKL e fork SKL). `just` lista tudo.
 
 image := env("TAMAGI_IMAGE", "localhost/tamagi")
 skl_image := env("TAMAGI_SKL_IMAGE", "localhost/tamagi-skl")
+skl_fork_image := env("SKL_FORK_IMAGE", "localhost/skl")
 tag := env("TAMAGI_TAG", "latest")
 fedora := env("FEDORA_VERSION", "45")
 kernel := env("KERNEL_FLAVOR", "ogc")
 akmods := kernel
 target := env("TAMAGI_TARGET_IMGREF", "ghcr.io/wes-tamagi/tamagi:latest")
 skl_target := env("TAMAGI_SKL_TARGET_IMGREF", "ghcr.io/wes-tamagi/tamagi-skl:latest")
+skl_fork_target := env("SKL_FORK_TARGET_IMGREF", "ghcr.io/wes-tamagi/skl:latest")
 iso := "output/imagens_iso/tamagi_nova.iso"
 bib := "quay.io/centos-bootc/bootc-image-builder:latest"
 
 _default:
     @just --list
 
-# Constrói a imagem OCI do Tamagi-DxAI (edição regular: IA, containers, VM, gaming base)
+# Constrói a imagem OCI do Tamagi-DxAI (edição regular: IA, containers, VM, Steam nativo + gaming)
 build *ARGS:
     podman build --pull=newer \
         --build-arg FEDORA_VERSION={{ fedora }} \
@@ -40,8 +42,21 @@ build-skl *ARGS:
         -t {{ skl_image }}:{{ tag }}-layers {{ ARGS }} .
     if [ "${TAMAGI_RECHUNK:-1}" = 1 ]; then bash rechunk.sh {{ skl_image }}:{{ tag }}-layers {{ skl_image }}:{{ tag }} "$(pwd)/output/rechunk-skl"; else podman tag {{ skl_image }}:{{ tag }}-layers {{ skl_image }}:{{ tag }}; fi
 
-# Constrói ambas as edições (Tamagi-DxAI + Tamagi-SKL)
-build-all: build build-skl
+# Constrói a imagem OCI do fork SKL (nome temporário: SKL, edição skl-os)
+build-skl-fork *ARGS:
+    podman build --pull=newer \
+        --build-arg FEDORA_VERSION={{ fedora }} \
+        --build-arg IMAGE_NAME=skl \
+        --build-arg IMAGE_REF={{ skl_fork_image }} \
+        --build-arg KERNEL_FLAVOR={{ kernel }} \
+        --build-arg TAMAGI_DEFAULT_LANG={{ env("TAMAGI_DEFAULT_LANG", "en") }} \
+        --build-arg AKMODS_FLAVOR={{ akmods }} \
+        -f skl/Containerfile \
+        -t {{ skl_fork_image }}:{{ tag }}-layers {{ ARGS }} .
+    if [ "${TAMAGI_RECHUNK:-1}" = 1 ]; then bash rechunk.sh {{ skl_fork_image }}:{{ tag }}-layers {{ skl_fork_image }}:{{ tag }} "$(pwd)/output/rechunk-skl-fork"; else podman tag {{ skl_fork_image }}:{{ tag }}-layers {{ skl_fork_image }}:{{ tag }}; fi
+
+# Constrói todas as edições (Tamagi-DxAI + Tamagi-SKL + fork SKL)
+build-all: build build-skl build-skl-fork
 
 # Testes da imagem Tamagi-DxAI
 test:
@@ -50,6 +65,10 @@ test:
 # Testes da imagem Tamagi-SKL
 test-skl:
     podman run --rm -v ./tests:/tests:ro,Z {{ skl_image }}:{{ tag }} bash /tests/image.sh
+
+# Testes da imagem do fork SKL
+test-skl-fork:
+    podman run --rm -v ./tests:/tests:ro,Z {{ skl_fork_image }}:{{ tag }} bash /tests/image.sh
 
 # Teste de ponta a ponta do agente local
 test-agent:
@@ -86,31 +105,36 @@ lint:
             system_files/usr/bin/tamagi-snap system_files/usr/bin/tamagi-capture system_files/usr/bin/tamagi-rewind \
             system_files/usr/bin/tamagi-workspace \
             system_files/usr/libexec/tamagi/egress-guard \
+            system_files/usr/libexec/tamagi/mcp-tamagi-os \
             system_files/usr/libexec/tamagi/tamagi_i18n.py system_files/usr/libexec/tamagi/gum-multi \
             system_files/usr/libexec/tamagi/update-changes \
         && ! grep -rnE "tamagi (agents|devbox|db) " system_files/usr/bin/ system_files/usr/libexec/tamagi/ \
         && python3 tests/i18n-strings.py system_files --check \
         && echo "lint ok"'
 
-# ── Instalador: ISO live multi-edição (Tamagi-DxAI + Tamagi-SKL) ──
+# ── Instalador: ISO live multi-edição (Tamagi-DxAI + Tamagi-SKL + SKL) ──
 
 build-live *ARGS:
     podman build --build-arg IMAGE={{ image }}:{{ tag }} \
         --build-arg TARGET_IMGREF={{ target }} \
         --build-arg SKL_TARGET_IMGREF={{ skl_target }} \
+        --build-arg SKL_FORK_TARGET_IMGREF={{ skl_fork_target }} \
         -t {{ image }}-live:{{ tag }} {{ ARGS }} -f live/Containerfile .
 
-# Gera output/imagens_iso/tamagi_nova.iso com Tamagi-DxAI e Tamagi-SKL deduplicadas em tamagi-oci/
+# Gera output/imagens_iso/tamagi_nova.iso com Tamagi-DxAI, Tamagi-SKL e SKL deduplicadas em tamagi-oci/
 build-iso: build-live
     mkdir -p output/imagens_iso
-    bash live/build-iso.sh {{ image }}:{{ tag }} {{ image }}-live:{{ tag }} {{ iso }} {{ skl_image }}:{{ tag }}
+    bash live/build-iso.sh {{ image }}:{{ tag }} {{ image }}-live:{{ tag }} {{ iso }} {{ skl_image }}:{{ tag }} {{ skl_fork_image }}:{{ tag }}
 
-# Instala a ISO numa VM (DxAI por padrão; passe --skl para testar Tamagi-SKL)
+# Instala a ISO numa VM (DxAI por padrão; passe --skl ou --skl-os para testar Tamagi-SKL ou SKL)
 test-iso *ARGS:
     bash tests/iso.sh {{ iso }} {{ ARGS }}
 
 test-iso-skl:
     bash tests/iso.sh {{ iso }} --skl
+
+test-iso-skl-fork:
+    bash tests/iso.sh {{ iso }} --skl-os
 
 test-preserve-home:
     bash tests/iso.sh {{ iso }} --preserve-home

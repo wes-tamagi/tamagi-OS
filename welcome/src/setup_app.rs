@@ -9,7 +9,7 @@
 //! `/usr/libexec/tamagi-install` (see `setup` for the answers it gets).
 
 use crate::i18n::{self, tr};
-use crate::setup::{self, check_username, default_keyboard, default_timezone, filter_zones, format_bytes, suggest_username, Answers, Disk, Found, TpmMode, KEYBOARDS, LANGS, MIN_DISK_PASSWORD, MIN_TPM_PIN};
+use crate::setup::{self, check_username, default_keyboard, default_timezone, filter_zones, format_bytes, suggest_username, Answers, Disk, ExtraDisksMount, Found, TpmMode, KEYBOARDS, LANGS, MIN_DISK_PASSWORD, MIN_TPM_PIN};
 use crate::setup_system::{self as sys, Event};
 use crate::m3;
 use crate::ui::SMALL;
@@ -64,6 +64,7 @@ pub enum Message {
     Back,
     Close,
     Lang(usize),
+    Edition(&'static str),
     Keyboard(usize),
     ZoneQuery(String),
     Zone(usize),
@@ -85,6 +86,7 @@ pub enum Message {
     OldLuks(String),
     Unlock,
     Keep(bool),
+    ExtraDisksMount(ExtraDisksMount),
     Run(Event),
     ToggleLog,
     Reboot,
@@ -123,6 +125,7 @@ pub struct Setup {
     old_luks: String,
     unlock_error: bool,
     keep: bool,
+    extra_disks_mount: ExtraDisksMount,
     error: Option<String>,
     // Installing
     progress: u8,
@@ -195,6 +198,7 @@ impl Application for Setup {
             old_luks: String::new(),
             unlock_error: false,
             keep: false,
+            extra_disks_mount: ExtraDisksMount::RunMedia,
             error: None,
             progress: 0,
             stage: String::new(),
@@ -262,6 +266,10 @@ impl Application for Setup {
                 }
                 return self.retitle();
             }
+            Message::Edition(ed) => {
+                self.edition = ed.to_string();
+                return self.retitle();
+            }
             Message::Keyboard(index) => {
                 self.keyboard = index.min(KEYBOARDS.len() - 1);
                 self.keyboard_touched = true;
@@ -324,6 +332,7 @@ impl Application for Setup {
                 }
             }
             Message::Keep(on) => self.keep = on,
+            Message::ExtraDisksMount(mode) => self.extra_disks_mount = mode,
             Message::Run(event) => match event {
                 Event::Line(line) => {
                     if let Some((value, message)) = setup::parse_progress(&line) {
@@ -374,11 +383,26 @@ impl Setup {
     }
 
     fn is_skl(&self) -> bool {
-        self.edition == "skl"
+        matches!(self.edition.as_str(), "skl" | "skl-os")
     }
 
     fn edition_name(&self) -> &'static str {
-        if self.is_skl() { "Tamagi-SKL" } else { "Tamagi-DxAI" }
+        match self.edition.as_str() {
+            "skl-os" => "SKL",
+            "skl" => "Tamagi-SKL",
+            _ => "Tamagi-DxAI",
+        }
+    }
+
+    /// Other internal HDDs/SSDs detected on the machine besides the selected installation target.
+    fn other_disks(&self) -> Vec<&Disk> {
+        let Some(selected) = self.disk else { return Vec::new() };
+        self.disks
+            .iter()
+            .enumerate()
+            .filter(|(idx, d)| *idx != selected && !d.removable)
+            .map(|(_, d)| d)
+            .collect()
     }
 
     fn retitle(&mut self) -> Task<Message> {
@@ -562,6 +586,7 @@ impl Setup {
             skl_homepage: self.is_skl().then(|| self.skl_homepage.clone()),
             tpm: self.tpm_mode(),
             keep: self.keeping().cloned(),
+            extra_disks_mount: if self.other_disks().is_empty() { ExtraDisksMount::RunMedia } else { self.extra_disks_mount },
             verify_state: dir.join("verify").to_string_lossy().into_owned(),
             ..Answers::default()
         };
@@ -666,9 +691,34 @@ impl Setup {
                 tr("Secure Boot is enabled in UEFI firmware. Turn Secure Boot off before installing: the installed system uses unsigned systemd-boot and will not start while Secure Boot is on."),
             ));
         }
+        let editions = vec![
+            m3::list_item(
+                self.edition == "dxai",
+                "Tamagi-DxAI".into(),
+                Some(tr("Workstation, local AI, OpenCode, containers, VMs and native Steam gaming.")),
+                None,
+                Message::Edition("dxai"),
+            ),
+            m3::list_item(
+                self.edition == "skl-os",
+                "SKL".into(),
+                Some(tr("Standalone school & institutional fork: student auto-login, locked panel, managed Chromium and teacher SSH.")),
+                Some("Fork".into()),
+                Message::Edition("skl-os"),
+            ),
+            m3::list_item(
+                self.edition == "skl",
+                "Tamagi-SKL".into(),
+                Some(tr("Tamagi school edition with classroom policies and remote administration.")),
+                None,
+                Message::Edition("skl"),
+            ),
+        ];
         body = body
             .push(m3::label("Language · Idioma · Langue"))
             .push(m3::list(items))
+            .push(m3::label(tr("Edition")))
+            .push(m3::list(editions))
             .push(widget::space::vertical().height(Length::Fixed(spacing.space_xxs.into())))
             .push(m3::supporting(format!(
                 "{} {}",
@@ -829,6 +879,39 @@ impl Setup {
                 )));
             }
         }
+        let others = self.other_disks();
+        if !others.is_empty() {
+            let names: Vec<String> = others
+                .iter()
+                .map(|d| {
+                    let label = if d.model.is_empty() { d.path.clone() } else { format!("{} ({})", d.model, d.path) };
+                    format!("{label} · {}", format_bytes(d.bytes))
+                })
+                .collect();
+            let mount_items = vec![
+                m3::list_item(
+                    self.extra_disks_mount == ExtraDisksMount::RunMedia,
+                    tr("Keep in /run/media (on demand)"),
+                    Some(tr("Leave secondary disks untouched; mount them when clicked in COSMIC Files.")),
+                    Some("/run/media".into()),
+                    Message::ExtraDisksMount(ExtraDisksMount::RunMedia),
+                ),
+                m3::list_item(
+                    self.extra_disks_mount == ExtraDisksMount::Mnt,
+                    tr("Mount permanently in /mnt/…"),
+                    Some(tr("Add existing partitions to /etc/fstab (nofail, automount) under /mnt/<label-or-disk>. Their files are never erased.")),
+                    Some("/mnt/…".into()),
+                    Message::ExtraDisksMount(ExtraDisksMount::Mnt),
+                ),
+            ];
+            body = body.push(
+                widget::column::with_capacity(3)
+                    .spacing(spacing.space_xs)
+                    .push(m3::label(tr("Other disks detected")))
+                    .push(m3::supporting(format!("{}: {}", tr("Secondary HDD/SSD"), names.join(", "))))
+                    .push(m3::list(mount_items)),
+            );
+        }
         Self::page(m3::hero("drive-harddisk-symbolic", tr("Disk"), tr("Choose the disk where Tamagi will be installed. Everything on it will be erased, unless you keep your files below.")), body)
     }
 
@@ -846,6 +929,13 @@ impl Setup {
             (tr("Your account"), if self.fullname.is_empty() { self.user.clone() } else { format!("{} ({})", setup::clean_fullname(&self.fullname), self.user) }),
             (tr("Encryption"), yes_no(self.encrypted())),
         ];
+        if !self.other_disks().is_empty() {
+            let extra_desc = match self.extra_disks_mount {
+                ExtraDisksMount::RunMedia => tr("/run/media (on demand)"),
+                ExtraDisksMount::Mnt => tr("/mnt/… (mounted automatically, files kept)"),
+            };
+            rows.push((tr("Other disks"), extra_desc));
+        }
         if self.is_skl() {
             rows.push((tr("Student account"), format!("{} (auto-login)", self.student_user)));
             rows.push((tr("School homepage"), self.skl_homepage.clone()));

@@ -30,7 +30,7 @@ SAID=${XDG_RUNTIME_DIR:-/tmp}/tamagi-flatpak-setup.said
 
 EDITION=$(cat /usr/share/tamagi/edition 2>/dev/null || echo dxai)
 failed=0
-if [[ $EDITION == skl ]]; then
+if [[ $EDITION == skl || $EDITION == skl-os ]]; then
     # Tamagi-SKL: OnlyOffice, TurboWarp and Okular for student sessions.
     for app in org.onlyoffice.desktopeditors org.turbowarp.TurboWarp org.kde.okular; do
         flatpak install --user --noninteractive --or-update flathub "$app" || failed=1

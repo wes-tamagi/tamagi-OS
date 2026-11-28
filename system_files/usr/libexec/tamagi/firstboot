@@ -70,13 +70,15 @@ create_account() { # create_account <user> <fullname> <pass_hash> <is_admin:1|0>
 }
 
 user=${C[USER]:-}
+command -v restorecon >/dev/null && restorecon /var/home 2>/dev/null || true
 if [[ -n $user ]]; then
     create_account "$user" "${C[FULLNAME]:-$user}" "${C[PASSWORD_HASH]:-!}" 1
 fi
+command -v restorecon >/dev/null && restorecon /var/home 2>/dev/null || true
 
-# ── Provisionamento específico do Tamagi-SKL (2 contas: admin + aluno) ─────
+# ── Provisionamento específico do Tamagi-SKL / SKL (2 contas: admin + aluno) ──
 student=""
-if [[ $EDITION == skl ]]; then
+if [[ $EDITION == skl || $EDITION == skl-os ]]; then
     student=${C[STUDENT_USER]:-aluno}
     [[ $student == "$user" ]] && student=aluno
     create_account "$student" "Aluno" "!" 0

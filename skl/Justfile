@@ -1,0 +1,21 @@
+# SKL — Standalone fork tasks (wraps the root repository build with SKL defaults)
+
+root := justfile_directory() + "/.."
+image := env("SKL_FORK_IMAGE", "localhost/skl")
+tag := env("SKL_TAG", "latest")
+fedora := env("FEDORA_VERSION", "45")
+
+_default:
+    @just --list
+
+# Build the standalone SKL OCI image (composefs + bootc)
+build *ARGS:
+    cd "{{ root }}" && just build-skl-fork {{ ARGS }}
+
+# Run image validation suite against SKL
+test:
+    cd "{{ root }}" && just test-skl-fork
+
+# Build multi-edition ISO including SKL (:skl-os)
+iso:
+    cd "{{ root }}" && just build-iso

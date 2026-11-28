@@ -127,3 +127,26 @@ With encryption, nobody can read your files if the computer is lost or stolen.
 Without the disk password there is no way to recover the files.
 yes
 Your account
+Add existing partitions to /etc/fstab (nofail, automount) under /mnt/<label-or-disk>. Their files are never erased.
+Detected hardware
+Filter apps…
+GPU & drivers
+GPU & hardware drivers
+Graphics hardware: standard Mesa & Vulkan drivers are active. Tick extra GPU compute or codec layers below only if your workload needs them.
+Keep in /run/media (on demand)
+Leave secondary disks untouched; mount them when clicked in COSMIC Files.
+/mnt/… (mounted automatically, files kept)
+Mount permanently in /mnt/…
+No matching apps in this list. Search the full catalog anytime with: tamagi install
+Open-source AMD Radeon and Intel Mesa/Vulkan drivers ship built in. Select NVIDIA drivers, GPU compute stacks (CUDA / ROCm / oneAPI), or extra codecs if needed.
+open-source Mesa & 32/64-bit Vulkan are already active; compute stacks (ROCm / oneAPI) and extra codecs below are optional.
+Other disks
+Other disks detected
+/run/media (on demand)
+Secondary HDD/SSD
+Standalone school & institutional fork: student auto-login, locked panel, managed Chromium and teacher SSH.
+Tamagi school edition with classroom policies and remote administration.
+tick NVIDIA GeForce / RTX drivers below for full Wayland, Vulkan, and NVENC acceleration.
+Tick the basics, GPU drivers, and a browser, then review. Nothing is installed before you confirm.
+Tick what you want now (including LibreOffice, GE-Proton, or OpenCode). Everything else is one command away: tamagi install
+Workstation, local AI, OpenCode, containers, VMs and native Steam gaming.

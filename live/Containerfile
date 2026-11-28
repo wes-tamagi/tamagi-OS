@@ -1,14 +1,16 @@
-# Tamagi — ambiente live da mídia de instalação multi-edição (Tamagi-DxAI + Tamagi-SKL).
+# Tamagi — ambiente live da mídia de instalação multi-edição (Tamagi-DxAI + Tamagi-SKL + SKL).
 
 ARG IMAGE=localhost/tamagi:latest
 FROM ${IMAGE}
 
 ARG TARGET_IMGREF=
 ARG SKL_TARGET_IMGREF=
+ARG SKL_FORK_TARGET_IMGREF=
 
 RUN --mount=type=bind,source=live,target=/ctx/live \
     --mount=type=cache,dst=/var/cache/libdnf5 \
     --mount=type=tmpfs,dst=/tmp \
     TARGET_IMGREF=${TARGET_IMGREF} \
     SKL_TARGET_IMGREF=${SKL_TARGET_IMGREF} \
+    SKL_FORK_TARGET_IMGREF=${SKL_FORK_TARGET_IMGREF} \
     bash /ctx/live/build-live.sh

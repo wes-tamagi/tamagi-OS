@@ -97,7 +97,11 @@ fn cmd_profiles() {
 fn cmd_list() {
     let width = COMMANDS.iter().map(|(name, _)| name.len()).max().unwrap_or(0);
     let edition = fs::read_to_string("/usr/share/tamagi/edition").unwrap_or_else(|_| "dxai".into());
-    let label = if edition.trim() == "skl" { "Tamagi-SKL" } else { "Tamagi-DxAI" };
+    let label = match edition.trim() {
+        "skl" => "Tamagi-SKL",
+        "skl-os" => "SKL",
+        _ => "Tamagi-DxAI",
+    };
     ui::phase(&format!("tamagi ({label}) — {}", t("one command for the whole system")));
     println!();
     for (name, desc) in COMMANDS {
@@ -120,12 +124,19 @@ fn route_ai(args: &[String]) -> ! {
             println!("  tamagi ai agents [list|install|remove|update]");
             println!("  tamagi ai mcp [list|add|remove|sync|status]");
             println!("  tamagi ai ask [prompt]             chat with local system agent");
+            println!("  tamagi ai code [args]              launch OpenCode connected to Tamagi AI & MCP");
             println!("  tamagi ai local <setup|presets|chat|status|rm>  local llama.cpp models");
             exit(0);
         }
         Some("run" | "jail" | "shadow" | "shadows" | "flights") => exec_helper("tamagi-agent", args),
         Some("agents") => exec_helper("tamagi-agent", &args[1..]),
         Some("mcp") => exec_helper("tamagi-mcp", &args[1..]),
+        Some("opencode") => {
+            let mut forwarded = Vec::with_capacity(args.len());
+            forwarded.push("code".into());
+            forwarded.extend_from_slice(&args[1..]);
+            exec_helper("tamagi-ai", &forwarded)
+        }
         Some("ask") => {
             let mut forwarded = Vec::with_capacity(args.len());
             forwarded.push("ask".into());
@@ -257,6 +268,7 @@ fn route_sys(args: &[String]) {
             ui::phase(&format!("tamagi sys — {}", t("health, setup, performance, desktop, school admin, and declarative state")));
             println!();
             println!("  tamagi sys doctor [--json|--fix|--explain|--report]  system health diagnostics");
+            println!("  tamagi sys cfs [status|fsck|images|measure|gc]  composefs-rs & bootc verity");
             println!("  tamagi sys status [--json]                  background jobs and pending updates");
             println!("  tamagi sys why <path|cmd|port|service>      provenance inspector");
             println!("  tamagi sys rewind [snap|list|restore]       unified timeline (home + OS)");
@@ -271,6 +283,7 @@ fn route_sys(args: &[String]) {
             return;
         }
         Some("doctor") => exec_helper("tamagi-doctor", &args[1..]),
+        Some("cfs" | "composefs") => exec_helper("tamagi-cfs", &args[1..]),
         Some("status") => exec_helper("tamagi-status", &args[1..]),
         Some("why") => exec_helper("tamagi-why", &args[1..]),
         Some("rewind") => route_rewind(&args[1..]),

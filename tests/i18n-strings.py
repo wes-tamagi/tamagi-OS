@@ -20,8 +20,9 @@ SCRIPTS = [
     "tamagi-isolate", "tamagi-privacy",
     "tamagi-browser", "tamagi-harden", "tamagi-layer", "tamagi-webapp",
     "tamagi-perf", "tamagi-workspace", "tamagi-doctor", "tamagi-gaming",
+    "tamagi-cfs", "tamagi-skl", "opencode",
 ]
-LIBEXEC_SCRIPTS = ["agent-manager", "flatpak-setup", "skl-browser-launch"]
+LIBEXEC_SCRIPTS = ["agent-manager", "flatpak-setup", "skl-browser-launch", "nvidia-setup"]
 STR = r'"((?:[^"\\$]|\\.)*)"'
 CALLS = re.compile(r'(?:\$\(|\b)(?:tl?|step|confirm|input|timer_line)\s+' + STR)
 PY_CALLS_DQ = re.compile(r'\bt\(\s*"((?:[^"\\]|\\.)*)"\s*(?:,|\))')

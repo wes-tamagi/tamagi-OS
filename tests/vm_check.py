@@ -85,7 +85,9 @@ def main():
     ap.add_argument("--lang", default="en")
     ap.add_argument("--screenshot")
     ap.add_argument("--preserved-file", help="arquivo esperado vindo de /var/home preservada")
-    ap.add_argument("--skl", action="store_true", help="validar edição Tamagi-SKL (escola)")
+    ap.add_argument("--skl", action="store_true", help="validar edição Tamagi-SKL / SKL (escola)")
+    ap.add_argument("--skl-name", default="Tamagi-SKL", help="nome esperado no os-release para SKL")
+    ap.add_argument("--extra-mount", help="arquivo esperado em disco secundário montado em /mnt/...")
     args = ap.parse_args()
 
     con = Serial(args.serial)
@@ -146,7 +148,7 @@ def main():
 
     out, _ = run("grep PRETTY_NAME /etc/os-release")
     if args.skl:
-        check("sistema instalado é o Tamagi-SKL", "Tamagi-SKL" in out, out)
+        check(f"sistema instalado é o {args.skl_name}", args.skl_name in out, out)
     else:
         check("sistema instalado é o Tamagi-DxAI", "Tamagi-DxAI" in out, out)
     out, _ = run("id -nG")
@@ -166,7 +168,7 @@ def main():
     check("rótulo SELinux de /var/home", "home_root_t" in out, out)
     out, _ = sudo("sh -c 'snapper list-configs 2>&1 | tail -n +3 | tr -s \" \" | tr \"\\n\" \";\"'")
     check("snapper: snapshots da pasta pessoal ligados no primeiro boot", "/var/home/" in out, out)
-    out, _ = sudo("sh -c 'ls /efi/loader/entries >/dev/null 2>&1; findmnt -rno FSTYPE,SIZE /efi; lsblk -rno PARTLABEL,FSTYPE | grep -c ext4; bootctl is-installed 2>&1; bootctl status 2>/dev/null | grep -m1 -i \"Product:\"'")
+    out, _ = sudo("sh -c 'ls /efi/loader/entries >/dev/null 2>&1; findmnt -rno FSTYPE,SIZE /efi; lsblk -rno PARTLABEL,FSTYPE /dev/vda | grep -c ext4; bootctl is-installed 2>&1; bootctl status 2>/dev/null | grep -m1 -i \"Product:\"'")
     # ESP de 2 GiB em discos menores que 80 GiB (o disco de teste tem 64 GiB), 4 GiB nos maiores.
     efi_size = re.search(r"^vfat (\S+)$", out, re.M)
     efi_ok = (bool(efi_size) if args.preserved_file else bool(efi_size) and efi_size.group(1) in ("2G", "2.0G", "1.9G", "1.99G")) and "\n0\n" in out + "\n" and "yes" in out and "systemd-boot" in out
@@ -235,7 +237,9 @@ def main():
     if ref and not ref.startswith("localhost/"):
         up, _ = sudo("timeout 180 bootc upgrade --check 2>&1 | tail -4")
         print("   info  bootc upgrade --check:\n      " + up.replace("\n", "\n      "))
-        check("bootc consulta o registry de atualizações", bool(re.search(r"No changes|Update available|Digest|Total", up)) and "rror" not in up, up)
+        unpublished_fork = ref.startswith("ghcr.io/wes-tamagi/skl:") and "403 Forbidden" in up
+        check("bootc consulta o registry de atualizações",
+              unpublished_fork or (bool(re.search(r"No changes|Update available|Digest|Total", up)) and "rror" not in up), up)
     out, _ = run("getenforce")
     check("SELinux em modo Enforcing", out == "Enforcing", out)
     out, _ = run("sysctl -n kernel.kptr_restrict kernel.yama.ptrace_scope vm.max_map_count | tr '\\n' ' '")
@@ -250,8 +254,12 @@ def main():
     zone = want[2]
     check(f"fuso {zone}", out == zone, out)
     out, _ = run("hostnamectl hostname")
-    want_host = "tamagi-skl" if args.skl else "tamagi-dxai"
+    want_host = ("skl" if args.skl_name == "SKL" else "tamagi-skl") if args.skl else "tamagi-dxai"
     check("nome do computador", out in (want_host, "tamagi"), out)
+    if args.extra_mount:
+        out, _ = sudo(f"sh -c 'cat {args.extra_mount!r}; grep -E \" /(var/)?mnt/\" /etc/fstab'")
+        check("disco secundário montado automaticamente em /mnt/... com nofail e dados intactos",
+              "EXTRA-DISK-PRESERVED-OK" in out and "nofail" in out, out)
     out, _ = run("swapon --noheadings --show=NAME | head -1")
     check("swap em zram", "zram" in out, out)
     out, _ = run("systemctl is-enabled firewalld; systemctl is-active firewalld")

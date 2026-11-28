@@ -140,6 +140,16 @@ pub enum TpmMode {
     Off,
 }
 
+/// Where secondary HDDs/SSDs detected during installation are mounted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExtraDisksMount {
+    /// Keep secondary disks on demand in `/run/media` (mounted when clicked in COSMIC Files).
+    #[default]
+    RunMedia,
+    /// Mount existing partitions automatically at boot in `/mnt/<label-or-disk>` (`/etc/fstab` with `nofail`).
+    Mnt,
+}
+
 /// A disk offered for the installation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Disk {
@@ -280,6 +290,8 @@ pub struct Answers {
     pub keep: Option<Found>,
     /// The file with the password of the existing encrypted partition kept.
     pub existing_keyfile: Option<String>,
+    /// Where other internal HDDs/SSDs found on the machine should live (`/run/media` vs `/mnt/...`).
+    pub extra_disks_mount: ExtraDisksMount,
     pub verify_state: String,
 }
 
@@ -288,11 +300,20 @@ impl Answers {
     /// left out, so nothing can add a line of its own.
     pub fn to_text(&self) -> String {
         let keyboard = KEYBOARDS.get(self.keyboard).copied().unwrap_or(KEYBOARDS[0]);
-        let is_skl = self.edition == "skl";
-        let host = if is_skl { "tamagi-skl" } else { "tamagi" };
+        let is_skl = matches!(self.edition.as_str(), "skl" | "skl-os");
+        let host = match self.edition.as_str() {
+            "skl-os" => "skl",
+            "skl" => "tamagi-skl",
+            _ => "tamagi",
+        };
         let mut lines: Vec<(String, String)> = Vec::new();
         if !self.edition.is_empty() {
-            lines.push(("EDITION".into(), if is_skl { "skl" } else { "dxai" }.into()));
+            let ed = match self.edition.as_str() {
+                "skl-os" => "skl-os",
+                "skl" => "skl",
+                _ => "dxai",
+            };
+            lines.push(("EDITION".into(), ed.into()));
         }
         lines.extend([
             ("LOCALE".into(), locale_of(&self.lang).into()),
@@ -331,6 +352,9 @@ impl Answers {
                 (TpmMode::Auto, _) => lines.push(("LUKS_TPM".into(), "auto".into())),
                 _ => {}
             }
+        }
+        if self.extra_disks_mount == ExtraDisksMount::Mnt {
+            lines.push(("EXTRA_DISKS_MOUNT".into(), "mnt".into()));
         }
         lines.push(("VERIFY_STATE".into(), self.verify_state.clone()));
         if let Some(found) = &self.keep {
@@ -500,6 +524,20 @@ mod tests {
         assert_eq!(text.lines().filter(|l| l.starts_with("USER=")).count(), 1);
         assert!(!text.contains("TIMEZONE="));
         assert!(text.contains("FULLNAME=AnaUSER=root\n"));
+    }
+
+    #[test]
+    fn skl_fork_and_extra_disks() {
+        let mut a = base();
+        a.edition = "skl-os".into();
+        a.student_user = Some("aluno".into());
+        a.skl_homepage = Some("https://classroom.google.com".into());
+        a.extra_disks_mount = ExtraDisksMount::Mnt;
+        let text = a.to_text();
+        assert!(text.contains("EDITION=skl-os\n"));
+        assert!(text.contains("HOSTNAME=skl\n"));
+        assert!(text.contains("STUDENT_USER=aluno\n"));
+        assert!(text.contains("EXTRA_DISKS_MOUNT=mnt\n"));
     }
 
     #[test]

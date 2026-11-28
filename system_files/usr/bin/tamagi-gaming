@@ -1,12 +1,12 @@
 #!/usr/bin/bash
-# tamagi-gaming — games on Tamagi, native like on Bazzite, on demand.
+# tamagi-gaming — native gaming on Tamagi-DxAI (Steam + GE-Proton + gamescope + MangoHud).
 #
-# The image brings only what must be in the kernel: the OGC kernel (the one
-# Bazzite uses) and scx_rusty.
-# Everything else is optional and installed natively in a reversible layer
-# over /usr (tamagi-layer), with the same packages Bazzite ships built in —
-# Steam, steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine — or by
-# Flatpak.
+# Tamagi-DxAI ships the OGC kernel, scx_rusty, native Steam, steam-devices,
+# gamescope, MangoHud, GameMode, and 32-bit Mesa/Vulkan built in for zero-friction
+# compatibility with GE-Proton, HDR gamescope sessions, and MangoHud overlays.
+# Extra tools (Lutris, Wine, GOverlay, vkBasalt, Protontricks) install in a
+# reversible layer over /usr (tamagi-layer), and GE-Proton installs directly
+# into ~/.local/share/Steam/compatibilitytools.d with SHA-512 verification.
 set -euo pipefail
 . /usr/libexec/tamagi/i18n
 # shellcheck source=/dev/null
@@ -14,35 +14,140 @@ set -euo pipefail
 
 MULTI=/usr/libexec/tamagi/gum-multi
 LAYER=gaming
+COMPAT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/Steam/compatibilitytools.d"
+LEGACY_COMPAT_DIR="$HOME/.steam/root/compatibilitytools.d"
+MANGO_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/MangoHud/MangoHud.conf"
 
 die() { echo "$(t "error"): $*" >&2; exit 1; }
 info() { echo -e "\033[1m$*\033[0m"; }
 
-# Native packages, as on Bazzite (sysext layer over /usr, fully reversible).
-# The base of every choice: controller rules, gamescope, MangoHud and GameMode.
 NATIVE_BASE=(steam-devices gamescope mangohud gamemode)
 NATIVE_32=(mesa-dri-drivers.i686 mesa-vulkan-drivers.i686 vulkan-loader.i686 gamemode.i686 mangohud.i686)
-ALL_KEYS=(steam lutris wine overlay protontricks)
+ALL_KEYS=(lutris wine overlay protontricks)
 
 usage() {
-    echo "tamagi-gaming — $(t "gaming on Tamagi (Bazzite-style: native or Flatpak)")"
+    echo "tamagi-gaming — $(t "gaming on Tamagi (Bazzite-style: native Steam, GE-Proton, gamescope & MangoHud)")"
     echo
-    echo "  tamagi-gaming            $(t "choose between native mode (Bazzite-style), Flatpak, or both")"
+    echo "  tamagi-gaming                        $(t "gaming menu: GE-Proton, MangoHud preset, extra native tools, or latency profile")"
+    echo "  tamagi-gaming ge-proton [install|update|list|remove]"
+    echo "                                       $(t "install/update SHA-512 verified GE-Proton for native Steam")"
+    echo "  tamagi-gaming mangohud [preset|status|reset]"
+    echo "                                       $(t "configure MangoHud overlay preset (Right_Shift+F12 toggle)")"
     echo "  tamagi-gaming native [steam lutris wine overlay protontricks | --all]"
-    echo "                           $(t "installs natively: Steam + steam-devices, gamescope, MangoHud, GameMode, Lutris, Wine")"
-    echo "  tamagi-gaming flatpak    $(t "install Steam, Lutris, Heroic, ProtonUp-Qt, and Bottles via Flatpak")"
+    echo "                                       $(t "install extra native gaming tools (Lutris, Wine, GOverlay, vkBasalt, Protontricks)")"
+    echo "  tamagi-gaming flatpak                $(t "install Lutris, Heroic, ProtonUp-Qt, and Bottles via Flatpak")"
     echo "  tamagi-gaming hdr [on|off|status|nits N|itm on|off|vrr on|off]"
-    echo "                           $(t "gamescope HDR (the Tamagi Gaming session of the login screen)")"
-    echo "  tamagi-gaming run -- <command>   $(t "runs a game in gamescope (Steam launch option)")"
-    echo "  tamagi-gaming latency    $(t "enable the low-latency profile (tuned + scx_rusty)")"
-    echo "  tamagi-gaming status     $(t "show installed gaming components")"
-    echo "  tamagi-gaming remove     $(t "remove the native gaming layer")"
+    echo "                                       $(t "gamescope HDR (the Tamagi Gaming session of the login screen)")"
+    echo "  tamagi-gaming run -- <command>       $(t "runs a game in gamescope + MangoHud (Steam launch option)")"
+    echo "  tamagi-gaming latency                $(t "enable the low-latency profile (tuned + scx_rusty)")"
+    echo "  tamagi-gaming status                 $(t "show installed gaming components")"
+    echo "  tamagi-gaming remove                 $(t "remove the extra native gaming layer")"
+}
+
+ensure_mangohud_preset() {
+    local force=${1:-0}
+    if [[ -f $MANGO_CONF && $force != 1 ]]; then
+        return 0
+    fi
+    mkdir -p "$(dirname "$MANGO_CONF")"
+    cat > "$MANGO_CONF" <<'CONF'
+### Tamagi OS MangoHud Preset (toggle with Right_Shift+F12)
+legacy_layout=false
+horizontal=false
+background_alpha=0.45
+round_corners=10
+font_size=20
+toggle_hud=Shift_R+F12
+fps
+frametime
+frame_timing=1
+gpu_stats
+gpu_temp
+gpu_power
+cpu_stats
+cpu_temp
+ram
+vram
+vulkan_driver
+wine
+gamemode
+CONF
+    echo "$(t "MangoHud preset written to"): $MANGO_CONF (Right_Shift+F12)"
+}
+
+cmd_mangohud() {
+    case "${1:-status}" in
+        preset|init) ensure_mangohud_preset 1 ;;
+        reset)       rm -f "$MANGO_CONF"; tl "MangoHud config reset to upstream defaults." ;;
+        status)
+            echo "MangoHud (64-bit) : $(command -v mangohud >/dev/null 2>&1 && t "installed" || t "not installed")"
+            echo "MangoHud (32-bit) : $(rpm -q mangohud.i686 >/dev/null 2>&1 && t "installed" || t "not installed")"
+            echo "Config            : $([[ -f $MANGO_CONF ]] && echo "$MANGO_CONF" || t "default")"
+            ;;
+        *) die "usage: tamagi gaming mangohud [preset|status|reset]" ;;
+    esac
+}
+
+cmd_ge_proton() {
+    local sub=${1:-install}
+    case "$sub" in
+        list|ls)
+            mkdir -p "$COMPAT_DIR"
+            local d any=0
+            for d in "$COMPAT_DIR"/GE-Proton* "$LEGACY_COMPAT_DIR"/GE-Proton*; do
+                [[ -d $d ]] || continue
+                any=1
+                echo "  $(basename "$d")  ($d)"
+            done
+            (( any )) || tl "No GE-Proton versions installed yet. Install with: tamagi pkg gaming ge-proton"
+            ;;
+        install|update)
+            local json tag tar_url sum_url tar_name tmp
+            info "$(t "Fetching latest GE-Proton release from GloriousEggroll/proton-ge-custom…")"
+            json=$(curl -fsSL -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest")
+            tag=$(jq -r '.tag_name // empty' <<<"$json")
+            tar_url=$(jq -r '.assets[] | select(.name | endswith(".tar.gz")) | .browser_download_url' <<<"$json" | head -1)
+            sum_url=$(jq -r '.assets[] | select(.name | endswith(".sha512sum")) | .browser_download_url' <<<"$json" | head -1)
+            [[ -n $tag && -n $tar_url && -n $sum_url ]] || die "$(t "could not resolve latest GE-Proton release")"
+            mkdir -p "$COMPAT_DIR"
+            if [[ -d "$COMPAT_DIR/$tag" ]]; then
+                echo "$(t "Already installed"): $tag ($COMPAT_DIR/$tag)"
+                ensure_mangohud_preset 0
+                return 0
+            fi
+            tmp=$(mktemp -d)
+            trap 'rm -rf "$tmp"' RETURN
+            tar_name=$(basename "$tar_url")
+            curl -fL --progress-bar -o "$tmp/$tar_name" "$tar_url"
+            curl -fsSL -o "$tmp/checksum.sha512" "$sum_url"
+            ( cd "$tmp" && sha512sum -c --quiet checksum.sha512 ) \
+                || die "GE-Proton: $(t "the downloaded file does not match the published digest")"
+            tar -xzf "$tmp/$tar_name" -C "$COMPAT_DIR"
+            # Symlink into ~/.steam/root/compatibilitytools.d when ~/.steam/root exists and differs
+            if [[ -d "$HOME/.steam/root" && $(realpath -m "$LEGACY_COMPAT_DIR") != $(realpath -m "$COMPAT_DIR") ]]; then
+                mkdir -p "$LEGACY_COMPAT_DIR"
+                ln -sfn "$COMPAT_DIR/$tag" "$LEGACY_COMPAT_DIR/$tag"
+            fi
+            ensure_mangohud_preset 0
+            echo "$(t "Installed"): $tag → $COMPAT_DIR/$tag"
+            tl "Restart Steam and choose GE-Proton under Properties > Compatibility."
+            ;;
+        remove|rm)
+            local target=${2:-}
+            if [[ -z $target ]]; then
+                target=$(find "$COMPAT_DIR" -mindepth 1 -maxdepth 1 -type d -name 'GE-Proton*' -printf '%f\n' 2>/dev/null | sort -V | tail -1 || true)
+            fi
+            [[ -n $target && $target == GE-Proton* && $target != *..* && $target != */* ]] \
+                || die "usage: tamagi gaming ge-proton remove <GE-ProtonX-Y>"
+            rm -rf "${COMPAT_DIR:?}/$target" "${LEGACY_COMPAT_DIR:?}/$target"
+            echo "$(t "Removed"): $target"
+            ;;
+        *) die "usage: tamagi gaming ge-proton [install|update|list|remove]" ;;
+    esac
 }
 
 cmd_native() {
-    # Bibliotecas 32-bit (.i686) exigem versão exata igual à contraparte .x86_64
-    # nos repositórios do Fedora; --allow-upgrade alinha pacotes pontuais na
-    # camada reversível sem precisar baixar ~350 MB duas vezes.
     local allow_upgrade=1 keys=() key picked=""
     while (( $# )); do
         case "$1" in
@@ -57,12 +162,11 @@ cmd_native() {
     if (( ${#keys[@]} == 0 )); then
         if [[ -t 0 ]]; then
             picked=$(printf '%s\n' \
-                "steam       $(t "Native Steam + steam-devices + 32-bit libraries (RPM Fusion)")" \
-                "lutris      $(t "Native Lutris (game manager)")" \
-                "wine        $(t "Native Wine + Winetricks (Windows games)")" \
-                "overlay     $(t "GOverlay + vkBasalt (MangoHud UI and post-processing)")" \
+                "lutris       $(t "Native Lutris (game manager)")" \
+                "wine         $(t "Native Wine + Winetricks (Windows games)")" \
+                "overlay      $(t "GOverlay + vkBasalt (MangoHud UI and post-processing)")" \
                 "protontricks $(t "Protontricks (Proton prefix tweaks)")" \
-                | "$MULTI" --selected "steam       $(t "Native Steam + steam-devices + 32-bit libraries (RPM Fusion)")" \
+                | "$MULTI" --selected "overlay      $(t "GOverlay + vkBasalt (MangoHud UI and post-processing)")" \
                     --height 10 --header "$(t "Space/Tab toggles · Enter installs natively (reversible layer)")") || exit 0
             [[ -n $picked ]] || { tl "Nothing selected."; return 0; }
             while read -r key _; do keys+=("$key"); done <<<"$picked"
@@ -70,30 +174,48 @@ cmd_native() {
             keys=("${ALL_KEYS[@]}")
         fi
     fi
-    # What an earlier run put in the layer stays: choices add up.
-    local pkgs=("${NATIVE_BASE[@]}") use_rpmfusion=0 old
+
+    local pkgs=() use_rpmfusion=0 old need_steam=0
     while read -r old; do [[ -n $old ]] && pkgs+=("$old"); done < <(cat "/var/lib/tamagi/layers/$LAYER.request" 2>/dev/null || true)
     [[ $(cat "/var/lib/tamagi/layers/$LAYER.rpmfusion" 2>/dev/null) == 1 ]] && use_rpmfusion=1
     for key in "${keys[@]}"; do
         case "$key" in
-            steam)        pkgs+=(steam "${NATIVE_32[@]}"); use_rpmfusion=1 ;;
+            steam)
+                if ! command -v steam >/dev/null 2>&1; then
+                    pkgs+=("${NATIVE_BASE[@]}" steam "${NATIVE_32[@]}")
+                    use_rpmfusion=1
+                    need_steam=1
+                fi ;;
             lutris)       pkgs+=(lutris "${NATIVE_32[@]}") ;;
             wine)         pkgs+=(wine winetricks) ;;
             overlay)      pkgs+=(goverlay vkBasalt) ;;
             protontricks) pkgs+=(protontricks) ;;
-            base)         ;;
+            base)
+                if ! command -v gamescope >/dev/null 2>&1; then
+                    pkgs+=("${NATIVE_BASE[@]}")
+                fi ;;
         esac
     done
-    mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | awk '!seen[$0]++')
+    mapfile -t pkgs < <(printf '%s\n' "${pkgs[@]}" | awk 'NF && !seen[$0]++')
+
+    ensure_mangohud_preset 0
+    if (( ${#pkgs[@]} == 0 )); then
+        tl "Native Steam, gamescope, MangoHud, GameMode and 32-bit Vulkan are already built into Tamagi-DxAI."
+        echo "$(t "Install GE-Proton anytime with"): tamagi pkg gaming ge-proton"
+        return 0
+    fi
+    (( need_steam )) || true
 
     local flags=() rc=0
     (( use_rpmfusion )) && flags+=(--rpmfusion)
     (( allow_upgrade )) && flags+=(--allow-upgrade)
     info "$(t "Building native gaming layer") ($LAYER)…"
-    # The "Tamagi Gaming" login session goes in with the layer (the login
-    # screen would list it even without gamescope if it were in the image).
     flags+=(--overlay gaming)
     tamagi-layer add "$LAYER" "${flags[@]}" "${pkgs[@]}" || rc=$?
+    if (( rc == 3 )); then
+        tl "Requested gaming packages are already present in the base image."
+        return 0
+    fi
     if (( rc == 4 && ! allow_upgrade )) && [[ -t 0 ]]; then
         if gum confirm "$(t "Retry with --allow-upgrade to align 32-bit libraries with the current Fedora version?")" \
                 --affirmative "$(t "Yes")" --negative "$(t "No")"; then
@@ -106,23 +228,17 @@ cmd_native() {
     tl "Native gaming ready ('gaming' layer over /usr). To undo: tamagi-gaming remove"
     tl "HDR: at the login screen, choose the Tamagi Gaming session (gamescope + Steam Big Picture)."
     echo "$(t "Steam tip (launch options)"): gamemoderun mangohud tamagi gaming run -- %command%"
-    if [[ -t 0 ]]; then
-        if gum confirm "$(t "Also enable the low-latency profile (tuned + scx_rusty)?")" \
-                --affirmative "$(t "Yes")" --negative "$(t "No")"; then
-            tamagi-perf set latency || true
-        fi
-    fi
 }
 
 cmd_flatpak() {
     local apps ids=()
     if [[ -t 0 ]]; then
         apps=$(printf '%s\n' \
-            "Steam" "Lutris" "Heroic (Epic/GOG)" "ProtonUp-Qt" "Bottles" \
-            | "$MULTI" --selected "Steam" --height 10 \
+            "Heroic (Epic/GOG)" "ProtonUp-Qt" "Bottles" "Lutris" \
+            | "$MULTI" --selected "Heroic (Epic/GOG)" --height 10 \
                 --header "$(t "Space/Tab toggles · Enter installs (Flatpak)")") || exit 0
     else
-        apps=$'Steam\nHeroic (Epic/GOG)\nProtonUp-Qt'
+        apps=$'Heroic (Epic/GOG)\nProtonUp-Qt'
     fi
     while read -r app; do
         case "$app" in
@@ -141,13 +257,16 @@ cmd_flatpak() {
 }
 
 cmd_status() {
+    local ge_list
+    ge_list=$(find "$COMPAT_DIR" -mindepth 1 -maxdepth 1 -type d -name 'GE-Proton*' -printf '%f ' 2>/dev/null || true)
     echo "$(t "Kernel")               : $(uname -r) ($(cat /usr/share/tamagi/kernel-flavor 2>/dev/null || echo -))"
-    echo "$(t "In the image")            : $(t "OGC kernel, scx_rusty")"
+    echo "$(t "In the image")            : $(t "OGC kernel, scx_rusty, native Steam, gamescope, MangoHud, GameMode")"
+    echo "$(t "Native Steam")         : $(command -v steam >/dev/null 2>&1 && t "yes" || t "no")"
     echo "gamescope / MangoHud  : $(command -v gamescope >/dev/null 2>&1 && t "yes" || t "no") / $(command -v mangohud >/dev/null 2>&1 && t "yes" || t "no")"
+    echo "GE-Proton             : ${ge_list:-$(t "not installed")} (tamagi gaming ge-proton)"
     local layer_st
     layer_st=$(tamagi-layer list 2>/dev/null | awk -v l="$LAYER" '$1 == l {print $2; exit}')
     echo "$(t "Native gaming layer") : ${layer_st:-$(t "not installed")} (tamagi-gaming native)"
-    echo "$(t "Native Steam")         : $(command -v steam >/dev/null 2>&1 && t "yes" || t "no")"
     echo "$(t "Native Lutris / Wine") : $(command -v lutris >/dev/null 2>&1 && t "yes" || t "no") / $(command -v wine >/dev/null 2>&1 && t "yes" || t "no")"
     local fp_games=() app
     for app in com.valvesoftware.Steam net.lutris.Lutris com.heroicgameslauncher.hgl net.davidotek.pupgui2 com.usebottles.bottles; do
@@ -158,10 +277,6 @@ cmd_status() {
     echo "$(t "Performance profile") : $(tamagi-perf --json 2>/dev/null | jq -r '.profile + " (sched_ext: " + .sched_ext + ")"' 2>/dev/null || echo -)"
 }
 
-# ── gamescope + HDR ────────────────────────────────────────────────────────
-# HDR works where gamescope drives the display itself: the "Tamagi Gaming"
-# session of the login screen. Inside COSMIC, gamescope is a window: it asks
-# for HDR too, and gets it when the desktop compositor supports HDR.
 GS_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/tamagi/gamescope.conf"
 GS_SESSION=/usr/libexec/tamagi/gamescope-session
 
@@ -194,10 +309,11 @@ cmd_run() {
     [[ ${1:-} == -- ]] && shift
     (( $# )) || die "usage: tamagi gaming run -- <command>   (Steam: tamagi gaming run -- %command%)"
     command -v gamescope >/dev/null 2>&1 || die "$(t "gamescope is not installed"): tamagi gaming native"
+    ensure_mangohud_preset 0 >/dev/null
     local args=()
     mapfile -t args < <("$GS_SESSION" --print-args 1)
-    export ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1
-    exec gamescope -f "${args[@]}" -- "$@"
+    export ENABLE_GAMESCOPE_WSI=1 DXVK_HDR=1 STEAM_MULTIPLE_XWAYLANDS=1
+    exec gamescope -f -e "${args[@]}" -- "$@"
 }
 
 cmd_remove() {
@@ -206,13 +322,18 @@ cmd_remove() {
 
 cmd_setup() {
     if [[ ! -t 0 ]]; then cmd_status; return 0; fi
-    tl "The OGC kernel and scx_rusty ship in the image; the rest is optional."
-    local opt_nat opt_fp opt_lat choice
-    opt_nat=$(t "Native (like Bazzite) — Steam, steam-devices, gamescope, MangoHud, Lutris, Wine")
-    opt_fp=$(t "Flatpak (sandbox) — Steam, Lutris, Heroic, ProtonUp-Qt, Bottles")
+    tl "Native Steam, gamescope, MangoHud, GameMode, and the OGC kernel ship built in."
+    local opt_ge opt_mh opt_nat opt_fp opt_lat choice
+    opt_ge=$(t "GE-Proton — install/update latest GloriousEggroll Proton for native Steam")
+    opt_mh=$(t "MangoHud preset — configure FPS, frametime, and GPU/CPU telemetry (Right_Shift+F12)")
+    opt_nat=$(t "Extra native tools — Lutris, Wine, GOverlay, vkBasalt, Protontricks")
+    opt_fp=$(t "Launcher Flatpaks — Heroic (Epic/GOG), ProtonUp-Qt, Bottles")
     opt_lat=$(t "Low-latency profile — tuned + scx_rusty BPF scheduler")
-    choice=$(gum choose --header "$(t "How would you like to install gaming tools?")" "$opt_nat" "$opt_fp" "$opt_lat") || exit 0
+    choice=$(gum choose --header "$(t "Gaming setup (native Steam + gamescope + MangoHud ready)")" \
+        "$opt_ge" "$opt_mh" "$opt_nat" "$opt_fp" "$opt_lat") || exit 0
     case "$choice" in
+        "$opt_ge")  cmd_ge_proton install ;;
+        "$opt_mh")  cmd_mangohud preset ;;
         "$opt_nat") cmd_native ;;
         "$opt_fp")  cmd_flatpak ;;
         "$opt_lat") tamagi-perf set latency ;;
@@ -221,6 +342,8 @@ cmd_setup() {
 
 case "${1:-setup}" in
     setup)                cmd_setup ;;
+    ge-proton|proton-ge)  shift; cmd_ge_proton "$@" ;;
+    mangohud)             shift; cmd_mangohud "$@" ;;
     native)               shift; cmd_native "$@" ;;
     flatpak)              cmd_flatpak ;;
     hdr)                  shift; cmd_hdr "$@" ;;
@@ -228,6 +351,6 @@ case "${1:-setup}" in
     latency)              tamagi-perf set latency ;;
     status)               cmd_status ;;
     remove)               cmd_remove ;;
-    -h|--help|help) usage ;;
+    -h|--help|help)       usage ;;
     *)                    usage >&2; exit 2 ;;
 esac
