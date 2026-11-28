@@ -1,8 +1,9 @@
-//! The window: Welcome → Apps → Browser → Review → Installing → Done.
+//! The window: Welcome → Apps → GPU & drivers → Browser → Review → Installing → Done.
 //!
-//! Like the first boot of openSUSE Aeon: a short list of basics to tick and a
-//! browser to choose. Everything else in the catalog is installed later with
-//! `tamagi install`.
+//! Like the first boot of openSUSE Aeon, expanded for workstations and gaming:
+//! a curated list of basics (including LibreOffice, GE-Proton, and OpenCode),
+//! hardware-aware GPU & compute drivers, and a browser choice. Everything else
+//! in the catalog stays one command away in `tamagi install`.
 
 use crate::catalog::{self, format_size, pretty_size, short_name, tagline, Item};
 use crate::flow::{self, Page};
@@ -28,7 +29,9 @@ const CONTENT_WIDTH: f32 = 900.0;
 pub fn run() -> cosmic::iced::Result {
     let catalog = catalog::load();
     let basics = catalog::load_basics(&catalog);
-    let flags = Flags { catalog, basics, disk_question: system::tpm_question_applies() };
+    let drivers = catalog::load_drivers(&catalog);
+    let gpus = system::detect_gpus();
+    let flags = Flags { catalog, basics, drivers, gpus, disk_question: system::tpm_question_applies() };
     let settings = Settings::default().size(Size::new(960.0, 740.0)).size_limits(cosmic::iced::Limits::NONE.min_width(640.0).min_height(480.0));
     cosmic::app::run::<Welcome>(settings, flags)
 }
@@ -37,6 +40,10 @@ pub struct Flags {
     catalog: Vec<Item>,
     /// The basics: (index in `catalog`, ticked by default).
     basics: Vec<(usize, bool)>,
+    /// The GPU & hardware drivers: (index in `catalog`, ticked by default).
+    drivers: Vec<(usize, bool)>,
+    /// Detected GPU vendor names (e.g., "NVIDIA", "AMD Radeon", "Intel").
+    gpus: Vec<String>,
     disk_question: bool,
 }
 
@@ -46,6 +53,8 @@ pub enum Message {
     Back,
     Skip,
     Close,
+    /// Search query on the Apps page.
+    Filter(String),
     /// Index in `plan::BROWSERS`; `BROWSERS.len()` is "not now".
     Browser(usize),
     /// Index in `plan::methods_for` of the browser chosen.
@@ -63,6 +72,10 @@ pub struct Welcome {
     catalog: Vec<Item>,
     /// The basics offered, as indices in `catalog`, in the order shown.
     basics: Vec<usize>,
+    /// The GPU & hardware drivers offered, as indices in `catalog`, in the order shown.
+    drivers: Vec<usize>,
+    gpus: Vec<String>,
+    filter: String,
     browser: usize,
     browser_method: usize,
     checked: BTreeSet<usize>,
@@ -99,14 +112,19 @@ impl Application for Welcome {
     }
 
     fn init(core: Core, flags: Self::Flags) -> (Self, Task<Self::Message>) {
+        let mut checked: BTreeSet<usize> = flags.basics.iter().filter(|(_, on)| *on).map(|(index, _)| *index).collect();
+        checked.extend(flags.drivers.iter().filter(|(_, on)| *on).map(|(index, _)| *index));
         let mut app = Welcome {
             core,
             page: Page::Welcome,
             catalog: flags.catalog,
             basics: flags.basics.iter().map(|(index, _)| *index).collect(),
+            drivers: flags.drivers.iter().map(|(index, _)| *index).collect(),
+            gpus: flags.gpus,
+            filter: String::new(),
             browser: BROWSERS.len(),
             browser_method: 0,
-            checked: flags.basics.iter().filter(|(_, on)| *on).map(|(index, _)| *index).collect(),
+            checked,
             disk_question: flags.disk_question,
             tpm: false,
             steps: Vec::new(),
@@ -178,6 +196,7 @@ impl Application for Welcome {
                 }
             }
             Message::Close => return cosmic::iced::exit(),
+            Message::Filter(query) => self.filter = query,
             Message::Browser(index) => {
                 self.browser = index.min(BROWSERS.len());
                 // A browser with fewer ways to install keeps a valid one.
@@ -203,6 +222,7 @@ impl Application for Welcome {
         let page = match self.page {
             Page::Welcome => self.view_welcome(),
             Page::Apps => self.view_apps(),
+            Page::Drivers => self.view_drivers(),
             Page::Browser => self.view_browser(),
             Page::Disk => self.view_disk(),
             Page::Review => self.view_review(),
@@ -217,7 +237,7 @@ impl Application for Welcome {
             .max_width(CONTENT_WIDTH)
             .push(widget::container(self.view_steps()).padding(gutter))
             .push(widget::container(page).width(Length::Fill).height(Length::Fill));
-        if self.page == Page::Apps {
+        if matches!(self.page, Page::Apps | Page::Drivers) {
             content = content.push(widget::container(legend()).padding(gutter));
         }
         content = content.push(widget::container(self.view_footer()).padding(gutter));
@@ -298,14 +318,29 @@ impl Welcome {
         self.methods().get(self.browser_method).map(|(flag, _)| *flag).unwrap_or("flatpak")
     }
 
-    fn picked(&self) -> impl Iterator<Item = &Item> {
-        self.basics.iter().filter(|index| self.checked.contains(index)).filter_map(|index| self.catalog.get(*index))
+    /// Every catalog index offered across Apps and Drivers, in display order without duplicates.
+    fn offered_indices(&self) -> Vec<usize> {
+        let mut out = Vec::with_capacity(self.basics.len() + self.drivers.len());
+        for &idx in self.basics.iter().chain(self.drivers.iter()) {
+            if !out.contains(&idx) {
+                out.push(idx);
+            }
+        }
+        out
+    }
+
+    fn picked(&self) -> Vec<&Item> {
+        self.offered_indices()
+            .into_iter()
+            .filter(|index| self.checked.contains(index))
+            .filter_map(|index| self.catalog.get(index))
+            .collect()
     }
 
     fn choices(&self) -> Choices {
         Choices {
             browser: BROWSERS.get(self.browser).map(|(id, _)| (id.to_string(), self.method_flag().to_string())),
-            picked: self.picked().map(|item| item.action.clone()).collect(),
+            picked: self.picked().into_iter().map(|item| item.action.clone()).collect(),
             tpm: self.disk_question && self.tpm,
         }
     }
@@ -322,6 +357,51 @@ impl Welcome {
             rows.push(Row { name: short_name(&tr(&item.desc)), method: item.method(), size_mb: item.size_mb() });
         }
         review::dedup(rows)
+    }
+
+    /// Renders a multi-select catalog list grouped by category, with optional text filter.
+    fn render_catalog_sections(&self, indices: &[usize], query: &str) -> (Element<'_, Message>, usize) {
+        let spacing = theme::spacing();
+        let needle = query.trim().to_lowercase();
+        let mut sections = widget::column::with_capacity(6).spacing(spacing.space_m);
+        let mut matched = 0usize;
+        for category in catalog::categories(&self.catalog, indices) {
+            let cat_tr = tr(category);
+            let mut section = widget::settings::section().title(cat_tr.clone());
+            let mut in_section = 0usize;
+            for &index in indices {
+                let Some(item) = self.catalog.get(index).filter(|item| item.category == category) else {
+                    continue;
+                };
+                let desc = tr(&item.desc);
+                if !needle.is_empty()
+                    && !desc.to_lowercase().contains(&needle)
+                    && !item.id.to_lowercase().contains(&needle)
+                    && !cat_tr.to_lowercase().contains(&needle)
+                {
+                    continue;
+                }
+                in_section += 1;
+                matched += 1;
+                let checked = self.checked.contains(&index);
+                let mut name = widget::column::with_capacity(2).spacing(spacing.space_xxxs).width(Length::Fill).push(text(short_name(&desc)));
+                if let Some(tagline) = tagline(&desc) {
+                    name = name.push(note(capitalized(&tagline)).class(dim_class()));
+                }
+                let row = widget::row::with_capacity(4)
+                    .spacing(spacing.space_m)
+                    .align_y(Alignment::Center)
+                    .push(widget::checkbox(checked).size(22).on_toggle(move |on| Message::Toggle(index, on)))
+                    .push(name)
+                    .push(badge(item.method()))
+                    .push(small(pretty_size(&item.size)).class(dim_class()).width(Length::Fixed(72.0)).align_x(Alignment::End));
+                section = section.add(widget::list::button(widget::container(row).padding([spacing.space_xs, 0])).on_press(Message::Toggle(index, !checked)));
+            }
+            if in_section > 0 {
+                sections = sections.push(section);
+            }
+        }
+        (sections.into(), matched)
     }
 
     /// Starts the installation (or just finishes, when nothing was chosen).
@@ -398,7 +478,7 @@ impl Welcome {
 
     // ── Pieces around the page ─────────────────────────────────────────────
 
-    /// Where we are: "Step 2/6 · Apps" over the progress track (the
+    /// Where we are: "Step 2/7 · Apps" over the progress track (the
     /// Material 3 step header of the installer).
     fn view_steps(&self) -> Element<'_, Message> {
         let pages = self.pages();
@@ -462,52 +542,93 @@ impl Welcome {
                 format!("{} {}", tr("Atomic, lean system: the host is read-only and updates itself."), tr("Almost nothing comes installed: you choose what you want, now or later.")),
             ))
             .push(panel(methods).padding(spacing.space_m))
-            .push(note(tr("Tick the basics and pick a browser, then review. Nothing is installed before you confirm.")).class(dim_class()));
+            .push(note(tr("Tick the basics, GPU drivers, and a browser, then review. Nothing is installed before you confirm.")).class(dim_class()));
         scrolling(column)
     }
 
-    /// The basics: one large row per app, grouped by category. The whole row
-    /// is the control (click, or Tab and Enter).
+    /// The basics: one large row per app, grouped by category, with a quick search filter.
     fn view_apps(&self) -> Element<'_, Message> {
         let spacing = theme::spacing();
-        let total: f64 = self.picked().filter_map(Item::size_mb).sum();
-        let count = self.picked().count();
+        let picked = self.picked();
+        let total: f64 = picked.iter().filter_map(|i| i.size_mb()).sum();
+        let count = picked.len();
         let summary = if count == 0 { tr("Nothing selected") } else { format!("{count} {} · {}", tr("selected"), approx(total)) };
         let title = widget::row::with_capacity(2)
             .spacing(spacing.space_s)
             .align_y(Alignment::End)
-            .push(widget::container(heading(tr("Apps to start with"), tr("Tick what you want now. Everything else is one command away: tamagi install"))).width(Length::Fill))
+            .push(widget::container(heading(tr("Apps to start with"), tr("Tick what you want now (including LibreOffice, GE-Proton, or OpenCode). Everything else is one command away: tamagi install"))).width(Length::Fill))
             .push(widget::text::heading(summary).size(NOTE));
 
-        let mut sections = widget::column::with_capacity(6).spacing(spacing.space_m);
-        for category in catalog::categories(&self.catalog, &self.basics) {
-            let mut section = widget::settings::section().title(tr(category));
-            for &index in &self.basics {
-                let Some(item) = self.catalog.get(index).filter(|item| item.category == category) else {
-                    continue;
-                };
-                let desc = tr(&item.desc);
-                let checked = self.checked.contains(&index);
-                let mut name = widget::column::with_capacity(2).spacing(spacing.space_xxxs).width(Length::Fill).push(text(short_name(&desc)));
-                if let Some(tagline) = tagline(&desc) {
-                    name = name.push(note(capitalized(&tagline)).class(dim_class()));
-                }
-                let row = widget::row::with_capacity(4)
-                    .spacing(spacing.space_m)
-                    .align_y(Alignment::Center)
-                    .push(widget::checkbox(checked).size(22).on_toggle(move |on| Message::Toggle(index, on)))
-                    .push(name)
-                    .push(badge(item.method()))
-                    .push(small(pretty_size(&item.size)).class(dim_class()).width(Length::Fixed(72.0)).align_x(Alignment::End));
-                section = section.add(widget::list::button(widget::container(row).padding([spacing.space_xs, 0])).on_press(Message::Toggle(index, !checked)));
-            }
-            sections = sections.push(section);
-        }
-        if self.basics.is_empty() {
-            sections = sections.push(panel(text(tr("Nothing to offer here. Later: tamagi install")).class(dim_class())));
-        }
+        let search = widget::text_input::search_input(tr("Filter apps…"), &self.filter)
+            .on_input(Message::Filter)
+            .on_clear(Message::Filter(String::new()));
 
-        widget::column::with_capacity(2).spacing(spacing.space_s).push(fixed(title)).push(scrolling(sections)).into()
+        let (sections, matched) = self.render_catalog_sections(&self.basics, &self.filter);
+        let body: Element<'_, Message> = if self.basics.is_empty() {
+            panel(text(tr("Nothing to offer here. Later: tamagi install")).class(dim_class())).into()
+        } else if matched == 0 {
+            panel(text(tr("No matching apps in this list. Search the full catalog anytime with: tamagi install")).class(dim_class())).into()
+        } else {
+            sections
+        };
+
+        widget::column::with_capacity(3)
+            .spacing(spacing.space_s)
+            .push(fixed(title))
+            .push(fixed(search))
+            .push(scrolling(body))
+            .into()
+    }
+
+    /// Hardware-aware GPU, compute & media drivers page.
+    fn view_drivers(&self) -> Element<'_, Message> {
+        let spacing = theme::spacing();
+        let picked = self.picked();
+        let total: f64 = picked.iter().filter_map(|i| i.size_mb()).sum();
+        let count = picked.len();
+        let summary = if count == 0 { tr("Nothing selected") } else { format!("{count} {} · {}", tr("selected"), approx(total)) };
+        let title = widget::row::with_capacity(2)
+            .spacing(spacing.space_s)
+            .align_y(Alignment::End)
+            .push(
+                widget::container(heading(
+                    tr("GPU & hardware drivers"),
+                    tr("Open-source AMD Radeon and Intel Mesa/Vulkan drivers ship built in. Select NVIDIA drivers, GPU compute stacks (CUDA / ROCm / oneAPI), or extra codecs if needed."),
+                ))
+                .width(Length::Fill),
+            )
+            .push(widget::text::heading(summary).size(NOTE));
+
+        let has_nvidia = self.gpus.iter().any(|g| g.contains("NVIDIA"));
+        let gpu_notice = if self.gpus.is_empty() {
+            tr("Graphics hardware: standard Mesa & Vulkan drivers are active. Tick extra GPU compute or codec layers below only if your workload needs them.")
+        } else if has_nvidia {
+            format!(
+                "{}: {} — {}",
+                tr("Detected hardware"),
+                self.gpus.join(", "),
+                tr("tick NVIDIA GeForce / RTX drivers below for full Wayland, Vulkan, and NVENC acceleration.")
+            )
+        } else {
+            format!(
+                "{}: {} — {}",
+                tr("Detected hardware"),
+                self.gpus.join(", "),
+                tr("open-source Mesa & 32/64-bit Vulkan are already active; compute stacks (ROCm / oneAPI) and extra codecs below are optional.")
+            )
+        };
+
+        let (sections, _) = self.render_catalog_sections(&self.drivers, "");
+        let content = widget::column::with_capacity(2)
+            .spacing(spacing.space_m)
+            .push(crate::m3::notice_card("video-display-symbolic", gpu_notice))
+            .push(if self.drivers.is_empty() {
+                panel(text(tr("Nothing to offer here. Later: tamagi install")).class(dim_class())).into()
+            } else {
+                sections
+            });
+
+        widget::column::with_capacity(2).spacing(spacing.space_s).push(fixed(title)).push(scrolling(content)).into()
     }
 
     /// The browser on the left, how to install it on the right.

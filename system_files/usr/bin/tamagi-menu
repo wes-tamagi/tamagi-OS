@@ -430,7 +430,12 @@ def run_gui(cats, actions, lang, initial_cat, service=False):
             fg = colors["fg"]
             accent = colors["accent"]
             border = colors["border"]
-            row_sel = "rgba(122, 162, 247, 0.22)" if is_dark else "rgba(30, 102, 245, 0.14)"
+            acc_hex = accent.lstrip("#")
+            if len(acc_hex) == 6:
+                ar, ag, ab = int(acc_hex[0:2], 16), int(acc_hex[2:4], 16), int(acc_hex[4:6], 16)
+                row_sel = f"rgba({ar}, {ag}, {ab}, {'0.24' if is_dark else '0.16'})"
+            else:
+                row_sel = "rgba(156, 102, 11, 0.24)" if is_dark else "rgba(115, 79, 0, 0.16)"
             row_hov = "rgba(255, 255, 255, 0.06)" if is_dark else "rgba(0, 0, 0, 0.05)"
             pill_bg = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(0, 0, 0, 0.06)"
             css = f"""

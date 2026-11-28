@@ -415,7 +415,7 @@ fr = "Fedora par défaut (sqlite, rust/cargo, node/npm, python) ou Arch, Pop!_OS
 [[action]]
 id = "dev.workspace"
 category = "install"
-icon = "folder-code-symbolic"
+icon = "applications-development-symbolic"
 risk = "read"
 terminal = true
 confirm = false
@@ -518,6 +518,48 @@ es = "Documentos, hojas de cálculo y presentaciones (abre si está instalado; i
 fr = "Documents, tableurs et présentations (ouvre si installé ; installe via Flatpak à la demande)"
 
 [[action]]
+id = "install.libreoffice"
+category = "install"
+icon = "x-office-document-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "/usr/libexec/tamagi/open-or-install org.libreoffice.LibreOffice"
+keywords = "libreoffice writer calc impress office escritorio documentos word excel powerpoint"
+[action.title]
+pt = "LibreOffice (Escritório — opcional)"
+en = "LibreOffice (Office — optional)"
+es = "LibreOffice (Oficina — opcional)"
+fr = "LibreOffice (Bureautique — optionnel)"
+[action.subtitle]
+pt = "Suíte de escritório livre completa (Writer, Calc, Impress; instala via Flatpak sob demanda)"
+en = "Full open-source office suite (Writer, Calc, Impress; installs via Flatpak on demand)"
+es = "Suite ofimática libre completa (Writer, Calc, Impress; instala vía Flatpak)"
+fr = "Suite bureautique libre complète (Writer, Calc, Impress ; installe via Flatpak)"
+
+[[action]]
+id = "install.ge_proton"
+category = "install"
+icon = "input-gaming-symbolic"
+risk = "user"
+terminal = true
+confirm = false
+agent = false
+command = "tamagi-gaming ge-proton install"
+keywords = "ge-proton proton-ge steam gamescope mangohud wine jogos games compatibility"
+[action.title]
+pt = "Instalar ou atualizar GE-Proton (Steam nativo)"
+en = "Install or update GE-Proton (native Steam)"
+es = "Instalar o actualizar GE-Proton (Steam nativo)"
+fr = "Installer ou mettre à jour GE-Proton (Steam natif)"
+[action.subtitle]
+pt = "Baixa e verifica SHA-512 do GE-Proton direto para o Steam nativo + gamescope + MangoHud"
+en = "Downloads and SHA-512 verifies GE-Proton straight into native Steam + gamescope + MangoHud"
+es = "Descarga y verifica SHA-512 de GE-Proton directamente en Steam nativo + gamescope + MangoHud"
+fr = "Télécharge et vérifie SHA-512 de GE-Proton directement dans Steam natif + gamescope + MangoHud"
+
+[[action]]
 id = "install.lazyvim"
 category = "install"
 icon = "accessories-text-editor-symbolic"
@@ -564,7 +606,7 @@ fr = "Claude Code, Antigravity, Codex, Qwen Code, opencode, Gemini, OpenClaw ou 
 [[action]]
 id = "appearance.theme"
 category = "appearance"
-icon = "preferences-desktop-theme-symbolic"
+icon = "preferences-desktop-appearance-symbolic"
 risk = "user"
 terminal = true
 confirm = false
@@ -839,7 +881,7 @@ fr = "Terminal, éditeur et applications d'un coup"
 [[action]]
 id = "system.update"
 category = "system"
-icon = "system-software-update-symbolic"
+icon = "software-update-available-symbolic"
 risk = "system"
 terminal = true
 confirm = false
@@ -1054,18 +1096,39 @@ risk = "read"
 terminal = true
 confirm = false
 agent = true
-command = "tamagi diff"
+command = "tamagi sys diff"
 keywords = "tamagi.toml diff declarativo declarative config"
 [action.title]
-pt = "Sistema num arquivo (tamagi diff)"
-en = "System in a file (tamagi diff)"
-es = "Sistema en un archivo (tamagi diff)"
-fr = "Système dans un fichier (tamagi diff)"
+pt = "Sistema num arquivo (tamagi sys diff)"
+en = "System in a file (tamagi sys diff)"
+es = "Sistema en un archivo (tamagi sys diff)"
+fr = "Système dans un fichier (tamagi sys diff)"
 [action.subtitle]
 pt = "Compara esta máquina com ~/.config/tamagi/tamagi.toml"
 en = "Compares this machine against ~/.config/tamagi/tamagi.toml"
 es = "Compara este equipo con ~/.config/tamagi/tamagi.toml"
 fr = "Compare cette machine avec ~/.config/tamagi/tamagi.toml"
+
+[[action]]
+id = "system.cfs"
+category = "system"
+icon = "drive-harddisk-symbolic"
+risk = "read"
+terminal = true
+confirm = false
+agent = true
+command = "tamagi sys cfs status"
+keywords = "composefs cfsctl fsverity verity bootc erofs imutavel integridade"
+[action.title]
+pt = "Integridade composefs-rs e bootc (fs-verity)"
+en = "Composefs-rs & bootc integrity (fs-verity)"
+es = "Integridad composefs-rs y bootc (fs-verity)"
+fr = "Intégrité composefs-rs et bootc (fs-verity)"
+[action.subtitle]
+pt = "Inspeciona o digest criptográfico da raiz somente-leitura e deployments do bootc"
+en = "Inspects the cryptographic read-only root digest and bootc deployments"
+es = "Inspecciona el digest criptográfico de la raíz de solo lectura y despliegues de bootc"
+fr = "Inspecte l'empreinte cryptographique de la racine en lecture seule et les déploiements bootc"
 
 [[action]]
 id = "system.harden"
@@ -1138,18 +1201,18 @@ risk = "read"
 terminal = true
 confirm = false
 agent = true
-command = "fastfetch"
-keywords = "info hardware fastfetch specs cpu gpu ram"
+command = "hostnamectl && echo && tamagi-doctor --report"
+keywords = "info hardware specs cpu gpu ram npu kernel edition"
 [action.title]
 pt = "Informações da máquina"
 en = "Machine information"
 es = "Información del equipo"
 fr = "Informations de la machine"
 [action.subtitle]
-pt = "Resumo de hardware, kernel e sessão (fastfetch)"
-en = "Hardware, kernel, and session summary (fastfetch)"
-es = "Resumen de hardware, kernel y sesión (fastfetch)"
-fr = "Résumé du matériel, noyau et session (fastfetch)"
+pt = "Resumo de hardware, kernel, GPU/NPU e diagnóstico (tamagi-doctor)"
+en = "Hardware, kernel, GPU/NPU, and diagnostics summary (tamagi-doctor)"
+es = "Resumen de hardware, kernel, GPU/NPU y diagnóstico (tamagi-doctor)"
+fr = "Résumé du matériel, noyau, GPU/NPU et diagnostic (tamagi-doctor)"
 
 [[action]]
 id = "system.clean"
@@ -1282,7 +1345,7 @@ fr = "Redémarre et active toute image atomique préparée"
 [[action]]
 id = "system.perf"
 category = "system"
-icon = "speedometer-symbolic"
+icon = "power-profile-performance-symbolic"
 risk = "system"
 terminal = true
 confirm = false

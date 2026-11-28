@@ -44,16 +44,20 @@ pub fn uefi() -> bool {
     env("TAMAGI_SETUP_LSBLK").is_some() || std::path::Path::new("/sys/firmware/efi").is_dir()
 }
 
-/// Edition picked at ISO boot (`tamagi.edition=dxai|skl`), overridable via env.
+/// Edition picked at ISO boot (`tamagi.edition=dxai|skl|skl-os`), overridable via env.
 pub fn edition() -> String {
     if let Some(v) = env("TAMAGI_SETUP_EDITION") {
-        return if v == "skl" { "skl".into() } else { "dxai".into() };
+        return match v.as_str() {
+            "skl-os" => "skl-os".into(),
+            "skl" => "skl".into(),
+            _ => "dxai".into(),
+        };
     }
     if let Ok(cmdline) = std::fs::read_to_string("/proc/cmdline") {
         for tok in cmdline.split_whitespace() {
             if let Some(val) = tok.strip_prefix("tamagi.edition=") {
-                if val == "skl" {
-                    return "skl".into();
+                if val == "skl" || val == "skl-os" {
+                    return val.into();
                 }
             }
         }

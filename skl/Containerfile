@@ -1,0 +1,100 @@
+# SKL — Standalone fork of Tamagi-SKL (temporary codename: SKL)
+# Built on Universal Blue / Fedora bootc with COSMIC and the OGC kernel.
+#   just build-skl-fork
+
+ARG FEDORA_VERSION=45
+ARG BASE_IMAGE=quay.io/fedora/fedora-bootc
+ARG KERNEL_FLAVOR=ogc
+ARG TAMAGI_DEFAULT_LANG=en
+ARG AKMODS_FLAVOR=${KERNEL_FLAVOR}
+
+# ── Stage 1: COSMIC Rust apps (classic-menu, welcome) ────────────────────────
+FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS rustdesk
+ARG CLASSIC_MENU_REF=1.1.0
+RUN dnf -y install --setopt=install_weak_deps=False \
+        git-core cargo rust just gcc clang clang-libs pkgconf-pkg-config \
+        libxkbcommon-devel wayland-devel fontconfig-devel freetype-devel \
+        openssl-devel \
+    && dnf clean all
+ENV CARGO_HOME=/cargo CARGO_TERM_COLOR=never CARGO_NET_GIT_FETCH_WITH_CLI=true
+RUN git clone --depth 1 --branch "${CLASSIC_MENU_REF}" \
+        https://github.com/championpeak87/cosmic-ext-classic-menu /src/menu \
+    && cd /src/menu && just build-release --locked \
+    && just rootdir=/out install \
+    && strip /out/usr/bin/cosmic-ext-classic-menu-* \
+    && install -Dm644 LICENSE /out/usr/share/licenses/cosmic-ext-classic-menu/LICENSE
+COPY welcome /src/welcome
+RUN cd /src/welcome && CARGO_TARGET_DIR=/target-welcome cargo test --release --locked \
+    && CARGO_TARGET_DIR=/target-welcome cargo build --release --locked \
+    && install -Dm755 /target-welcome/release/tamagi-welcome /out/usr/bin/tamagi-welcome \
+    && strip /out/usr/bin/tamagi-welcome
+
+# ── Stage 2: Static Rust CLI tools (rust/) ──────────────────────────────────
+FROM quay.io/fedora/fedora:${FEDORA_VERSION} AS tamagitools
+RUN dnf -y install --setopt=install_weak_deps=False cargo rust gcc glibc-static \
+    && dnf clean all
+ENV CARGO_HOME=/cargo CARGO_TERM_COLOR=never CARGO_TARGET_DIR=/target
+COPY rust /src
+WORKDIR /src
+RUN cargo test --release --locked \
+    && RUSTFLAGS="-C target-feature=+crt-static" cargo build --release --locked --target x86_64-unknown-linux-gnu \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/agent-jail /out/usr/libexec/tamagi/agent-jail \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi /out/usr/bin/tamagi \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-layer /out/usr/bin/tamagi-layer \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-doctor /out/usr/bin/tamagi-doctor \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-install /out/usr/bin/tamagi-install \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-why /out/usr/bin/tamagi-why \
+    && install -Dm755 /target/x86_64-unknown-linux-gnu/release/tamagi-boot /out/usr/libexec/tamagi/tamagi-boot \
+    && ln -sf tamagi-boot /out/usr/libexec/tamagi/once-per-image \
+    && ln -sf tamagi-boot /out/usr/libexec/tamagi/loader-conf
+
+# ── Signed Universal Blue OGC kernel & akmods ────────────────────────────────
+FROM ghcr.io/ublue-os/akmods:${AKMODS_FLAVOR}-${FEDORA_VERSION} AS akmods
+
+# ── Build context ────────────────────────────────────────────────────────────
+FROM scratch AS ctx
+COPY build_files /build_files
+COPY system_files /system_files
+COPY README.md /README.md
+COPY NOTICE /NOTICE
+
+# ── Final SKL OS image ───────────────────────────────────────────────────────
+FROM ${BASE_IMAGE}:${FEDORA_VERSION}
+
+ARG FEDORA_VERSION=45
+ARG TAMAGI_EDITION=skl-os
+ARG IMAGE_NAME=skl
+ARG TAMAGI_VERSION=0.1
+ARG TAMAGI_CODENAME="Semente"
+ARG IMAGE_VENDOR=local
+ARG IMAGE_REF=
+ARG STARSHIP_VERSION=v1.27.0
+ARG BOTTOM_VERSION=0.15.0
+ARG BOTTOM_SHA256=051888e0e064aa037728efed3fcf77820714f8f4dc7bea2b0179d40c54400c26
+ARG MISE_VERSION=v2026.11.9
+ARG KERNEL_FLAVOR=ogc
+ARG TAMAGI_DEFAULT_LANG=en
+
+COPY --from=rustdesk /out/usr /usr
+COPY --from=ctx /system_files /
+COPY --from=tamagitools /out/usr /usr
+
+RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
+    --mount=type=bind,from=akmods,source=/,target=/akmods \
+    --mount=type=cache,dst=/var/cache/libdnf5 \
+    --mount=type=tmpfs,dst=/tmp \
+    --mount=type=tmpfs,dst=/run \
+    FEDORA_VERSION=${FEDORA_VERSION} TAMAGI_EDITION=${TAMAGI_EDITION} \
+    IMAGE_NAME=${IMAGE_NAME} \
+    TAMAGI_VERSION="${TAMAGI_VERSION}" TAMAGI_CODENAME="${TAMAGI_CODENAME}" \
+    IMAGE_VENDOR=${IMAGE_VENDOR} IMAGE_REF=${IMAGE_REF} \
+    STARSHIP_VERSION=${STARSHIP_VERSION} \
+    BOTTOM_VERSION=${BOTTOM_VERSION} BOTTOM_SHA256=${BOTTOM_SHA256} \
+    MISE_VERSION=${MISE_VERSION} \
+    KERNEL_FLAVOR=${KERNEL_FLAVOR} TAMAGI_DEFAULT_LANG=${TAMAGI_DEFAULT_LANG} \
+    /ctx/build_files/build.sh
+
+LABEL org.opencontainers.image.title="SKL" \
+      org.opencontainers.image.version="${TAMAGI_VERSION}"
+
+RUN bootc container lint

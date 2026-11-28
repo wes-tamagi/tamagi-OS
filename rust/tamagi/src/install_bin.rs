@@ -176,6 +176,9 @@ fn is_installed(it: &CatalogItem) -> bool {
         return run_quiet("flatpak", &["info", "--user", app]) || run_quiet("flatpak", &["info", app]);
     }
     if let Some(key) = a.strip_prefix("gaming:") {
+        if key == "steam" && which("steam") {
+            return true;
+        }
         let pkg = match key {
             "base" => "gamescope",
             "overlay" => "goverlay",
@@ -183,6 +186,12 @@ fn is_installed(it: &CatalogItem) -> bool {
         };
         return fs::read_to_string("/var/lib/tamagi/layers/gaming.request")
             .map(|s| s.lines().any(|l| l.trim() == pkg))
+            .unwrap_or(false);
+    }
+    if a.starts_with("run:tamagi-gaming ge-proton") {
+        let compat = user_home().join(".local/share/Steam/compatibilitytools.d");
+        return fs::read_dir(compat)
+            .map(|rd| rd.flatten().any(|e| e.file_name().to_string_lossy().starts_with("GE-Proton")))
             .unwrap_or(false);
     }
     if a == "agent:local" {
@@ -225,6 +234,18 @@ fn is_installed(it: &CatalogItem) -> bool {
     }
     if a.contains("lazydocker-setup") {
         return fs::metadata(user_home().join(".local/bin/lazydocker")).map(|m| (m.permissions().mode() & 0o111) != 0).unwrap_or(false);
+    }
+    if a.contains("nvidia-setup cuda") {
+        return Path::new("/var/lib/tamagi/layers/nvidia-cuda.request").is_file();
+    }
+    if a.contains("nvidia-setup") {
+        return Path::new("/var/lib/tamagi/layers/video-nvidia.request").is_file();
+    }
+    if a.contains("lark-setup") {
+        return Path::new("/var/lib/tamagi/layers/lark.request").is_file();
+    }
+    if a.contains("sniffnet-setup") {
+        return which("sniffnet");
     }
     if a.contains("docker-setup") {
         return which("dockerd");
@@ -601,6 +622,12 @@ fn remove_one(items: &[CatalogItem], target: &str) -> bool {
         if let Some(rest) = it.action.strip_prefix("run:tamagi-webapp install ") {
             let name = rest.split_whitespace().next().unwrap_or(target);
             return Command::new("tamagi-webapp").args(["remove", name]).status().is_ok_and(|s| s.success());
+        }
+        if it.action == "run:/usr/libexec/tamagi/nvidia-setup cuda" {
+            return Command::new("/usr/libexec/tamagi/nvidia-setup").arg("remove-cuda").status().is_ok_and(|s| s.success());
+        }
+        if it.action.starts_with("run:tamagi-gaming ge-proton") {
+            return Command::new("tamagi-gaming").args(["ge-proton", "remove"]).status().is_ok_and(|s| s.success());
         }
         if let Some(script) = it.action.strip_prefix("run:/usr/libexec/tamagi/") {
             let bin = format!("/usr/libexec/tamagi/{}", script.split_whitespace().next().unwrap_or(""));

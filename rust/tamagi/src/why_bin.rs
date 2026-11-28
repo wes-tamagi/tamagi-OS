@@ -45,8 +45,18 @@ fn edition_label() -> String {
     let ed = fs::read_to_string("/usr/share/tamagi/edition").unwrap_or_else(|_| "dxai".into());
     match ed.trim() {
         "skl" => "Tamagi-SKL".into(),
+        "skl-os" => "SKL".into(),
         _ => "Tamagi-DxAI".into(),
     }
+}
+
+fn composefs_tag() -> &'static str {
+    if let Ok(cmdline) = fs::read_to_string("/proc/cmdline") {
+        if cmdline.split_whitespace().any(|t| t.starts_with("composefs.digest=") || t.starts_with("composefs=")) {
+            return " [composefs + fs-verity]";
+        }
+    }
+    ""
 }
 
 fn parse_port(target: &str) -> Option<u16> {
@@ -199,19 +209,21 @@ fn inspect_path(raw: &str, path: &Path) -> Vec<Finding> {
         return out;
     }
     if let Some(pkg) = run_stdout("rpm", &["-qf", "--qf", "%{NAME}", &s]) {
+        let cfs = composefs_tag();
         if let Some(layer) = find_layer_for_pkg(&pkg) {
             out.push(Finding { kind: "file".into(), origin: format!("sysext layer '{layer}'"), detail: format!("{s} (RPM: {pkg})") });
         } else {
-            out.push(Finding { kind: "file".into(), origin: format!("base image ({})", edition_label()), detail: format!("{s} (RPM: {pkg})") });
+            out.push(Finding { kind: "file".into(), origin: format!("base image ({}){cfs}", edition_label()), detail: format!("{s} (RPM: {pkg})") });
         }
         return out;
     }
     if s.starts_with("/usr/") {
+        let cfs = composefs_tag();
         // File in /usr not in host rpmdb: either Tamagi built-in compiled binary or active sysext
-        if raw.starts_with("tamagi") || s.contains("/tamagi/") || s.ends_with("/llama-server") || s.ends_with("/btm") || s.ends_with("/starship") || s.ends_with("/cosmic-ext-storage") {
-            out.push(Finding { kind: "file".into(), origin: format!("{} built-in", edition_label()), detail: s });
+        if raw.starts_with("tamagi") || s.contains("/tamagi/") || s.ends_with("/llama-server") || s.ends_with("/btm") || s.ends_with("/starship") || s.ends_with("/cfsctl") {
+            out.push(Finding { kind: "file".into(), origin: format!("{} built-in{cfs}", edition_label()), detail: s });
         } else {
-            out.push(Finding { kind: "file".into(), origin: "active sysext or image overlay (/usr)".into(), detail: s });
+            out.push(Finding { kind: "file".into(), origin: format!("active sysext or image overlay (/usr){cfs}"), detail: s });
         }
         return out;
     }

@@ -5,11 +5,14 @@ on  dev.edfloreshz.Calculator
 on  dev.edfloreshz.CosmicTweaks
 on  dev.mariinkys.Cedilla
 on  org.kde.okular
+off org.libreoffice.LibreOffice
 off io.github.cosmic_utils.Examine
 off dev.edfloreshz.Tasks
 off com.jwestall.Forecast
 off com.francescogaglione.chronos
 off com.system76.Popsicle
+off ge-proton
+off opencode
 off sniffnet
 off app.drey.KeyRack
 off com.github.flxzt.rnote

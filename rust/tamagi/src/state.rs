@@ -13,12 +13,12 @@ pub const BROWSERS: &[&str] = &["chrome", "firefox", "vivaldi", "chromium"];
 pub const BROWSER_METHODS: &[&str] = &["flatpak", "native", "box"];
 pub const BOX_DISTROS: &[&str] = &["fedora", "ubuntu", "opensuse", "arch"];
 pub const AGENTS: &[&str] = &["claude", "antigravity", "codex", "clio", "qwen", "opencode", "gemini", "openclaw"];
-pub const MCP_SERVERS: &[&str] = &["fetch", "memory", "git", "postgres", "playwright", "filesystem"];
+pub const MCP_SERVERS: &[&str] = &["os", "fetch", "memory", "git", "postgres", "playwright", "filesystem"];
 pub const PERF_PROFILES: &[&str] = &["eco", "balanced", "performance", "latency", "ai"];
 /// Layers made by other commands (tamagi vm, gaming, browser --native,
-/// Tailscale, VS Code, Docker) carry options a plain `tamagi layer add` has
-/// not: they are described by [catalog] and [browsers], not by [layers].
-pub const MANAGED_LAYERS: &[&str] = &["virt", "gaming", "tailscale", "vscode", "docker"];
+/// Tailscale, VS Code, Docker, NVIDIA, Lark, Sniffnet) carry options a plain
+/// `tamagi layer add` has not: they are described by [catalog] and [browsers], not by [layers].
+pub const MANAGED_LAYERS: &[&str] = &["virt", "gaming", "tailscale", "vscode", "docker", "video-nvidia", "nvidia-cuda", "lark", "sniffnet"];
 
 // ── Folders ─────────────────────────────────────────────────────────────────
 

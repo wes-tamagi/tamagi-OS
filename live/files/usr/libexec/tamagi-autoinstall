@@ -68,11 +68,16 @@ rm -f "$KEY"
 [[ -z $luks ]] || ( umask 077; printf '%s' "$luks" > "$KEY" )
 
 edition=$(karg tamagi.edition)
-[[ $edition == skl ]] || edition=dxai
+case "$edition" in
+    skl|skl-os) ;;
+    *) edition=dxai ;;
+esac
 default_host=tamagi-dxai
 [[ $edition == skl ]] && default_host=tamagi-skl
+[[ $edition == skl-os ]] && default_host=skl
 student=$(karg tamagi.autoinstall.student)
 homepage=$(karg tamagi.autoinstall.homepage)
+extra_disks=$(karg tamagi.autoinstall.extra_disks)
 
 ( umask 077
   {
@@ -86,9 +91,12 @@ homepage=$(karg tamagi.autoinstall.homepage)
       echo "USER=$user"
       echo "FULLNAME=$user"
       echo "PASSWORD_HASH=$hash"
-      if [[ $edition == skl ]]; then
+      if [[ $edition == skl || $edition == skl-os ]]; then
           echo "STUDENT_USER=${student:-aluno}"
           echo "SKL_HOMEPAGE=${homepage:-https://classroom.google.com}"
+      fi
+      if [[ $extra_disks == mnt || $extra_disks == run-media ]]; then
+          echo "EXTRA_DISKS_MOUNT=$extra_disks"
       fi
       if [[ -s $KEY ]]; then
           echo "LUKS_KEYFILE=$KEY"

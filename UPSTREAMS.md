@@ -32,11 +32,23 @@ a change we need that upstream has not merged.
 
 ## Referenced only
 
+- **bootc** ([bootc.dev](https://bootc.dev/bootc/),
+  [github.com/bootc-dev/bootc](https://github.com/bootc-dev/bootc)), Apache-2.0 / MIT —
+  transactional OCI operating system engine (`bootc 1.17.5+`) powering deployments,
+  `systemd-boot`, soft-reboot preparation, and `tamagi sys cfs`.
+- **composefs-rs** ([github.com/containers/composefs-rs](https://github.com/containers/composefs-rs),
+  formerly `cgwalters/composefs-rs`), Apache-2.0 / MIT — Rust implementation of
+  EROFS + `fs-verity` content-addressed root filesystems, exposed via `cfsctl`
+  (`bootc internals cfs`) and `tamagi-cfs`.
+- **OpenCode** ([github.com/anomalyco/opencode](https://github.com/anomalyco/opencode)), MIT —
+  open-source terminal coding agent integrated via `/usr/bin/opencode`
+  (SHA-256 verified on-demand installer, AVX2/baseline selection, automatic
+  COSMIC theme sync, local `llama.cpp` wiring, and `mcp-tamagi-os`).
 - **Ptyxis** ([gitlab.gnome.org/chergert/ptyxis](https://gitlab.gnome.org/chergert/ptyxis)),
-  GPL-3.0 — the system terminal today, from the Fedora package. Hosted on
-  GNOME's GitLab, not GitHub.
+  GPL-3.0 — the system terminal today (`Super+Enter`, `restore-session=false`), from the Fedora package.
 - **foot** ([codeberg.org/dnkl/foot](https://codeberg.org/dnkl/foot)), MIT —
-  the terminal behind Tamagi's own windows, from the Fedora package.
+  lightweight Wayland terminal running Tamagi's popup/tiled tool windows and
+  serving as terminal fallback (`cosmic-term` is removed from the built image).
 - **cosmic-utils** ([github.com/cosmic-utils](https://github.com/cosmic-utils)) —
   community apps written for COSMIC (Tasks, Forecast, Examine, Calculator,
   Camera). Candidates for an optional "COSMIC apps" catalog category,

@@ -1,10 +1,10 @@
 # Tamagi profile: games, native like on Bazzite.
-# Steam with steam-devices, gamescope (the HDR gaming session), MangoHud and
-# GameMode in one native layer, plus Heroic for Epic and GOG.
-# Apply with: tamagi apply gamer   (asks for the password: it builds a layer)
+# Native Steam (built in on Tamagi-DxAI), GE-Proton, gamescope HDR session,
+# MangoHud and GameMode, plus Heroic for Epic and GOG.
+# Apply with: tamagi sys apply gamer
 
 [catalog]
-install = ["steam", "gaming-tools"]
+install = ["steam", "ge-proton", "gaming-tools"]
 
 [flatpak]
 apps = ["com.heroicgameslauncher.hgl"]

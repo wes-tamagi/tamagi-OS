@@ -21,6 +21,8 @@ pages() {
     click 400 "${Y_ONLYOFFICE:-560}"   # a row of the list: the whole row ticks
     shot 2b-apps-ticked
     next
+    shot 2c-drivers
+    next
     shot 3-browser
     click 200 "${Y_CHROME:-300}"       # Google Chrome: three ways to install
     shot 3b-browser-chrome
@@ -45,7 +47,7 @@ defaults() {
     echo "defaults (Enter all the way)"
     STUB_SLEEP=1 session_start $W $H
     STUB_SLEEP=1 app
-    key Return; key Return; key Return
+    key Return; key Return; key Return; key Return
     shot d6-review
     key Return
     sleep 6
@@ -62,6 +64,8 @@ laptop() {
     key Return
     shot laptop-2-apps
     next
+    shot laptop-2c-drivers
+    next
     shot laptop-3-browser
     session_end
 }
@@ -75,6 +79,8 @@ pt() {
     key Return
     shot pt-2-apps
     next
+    shot pt-2c-drivers
+    next
     shot pt-3-browser
     cat "$HOME/.config/cosmic/com.system76.CosmicAppletTime/v1/military_time"
     session_end
@@ -87,7 +93,7 @@ light() {
     app
     key Return
     shot light-2-apps
-    key Return; key Return
+    key Return; key Return; key Return
     shot light-6-review
     session_end
 }
@@ -97,7 +103,7 @@ failure() {
     echo "failure"
     STUB_FAIL="Calculator" STUB_SLEEP=0.3 session_start $W $H
     STUB_FAIL="Calculator" STUB_SLEEP=0.3 app
-    key Return; key Return; key Return; key Return
+    key Return; key Return; key Return; key Return; key Return
     sleep 5
     shot fail-8-done
     session_end
@@ -139,7 +145,7 @@ sudo_dialog() {
     echo "sudo through SUDO_ASKPASS (password: ${SUDO_TEST_PASSWORD:?})"
     TAMAGI_WELCOME_TPM=1 STUB_SUDO=1 STUB_SLEEP=1 session_start $W $H
     TAMAGI_WELCOME_TPM=1 STUB_SUDO=1 STUB_SLEEP=1 app
-    key Return; next; next
+    key Return; next; next; next
     click 450 "${Y_TPM:-190}"          # unlock with the TPM
     next
     shot sudo-6-review

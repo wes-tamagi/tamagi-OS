@@ -78,15 +78,16 @@ if [[ -n $live_src ]]; then
     [[ $DISK != "${live_disk:-$live_src}" && $DISK != "$live_src" ]] || die "$DISK é a própria mídia de instalação"
 fi
 
-# Edição escolhida (dxai = Tamagi-DxAI | skl = Tamagi-SKL): vem das respostas
-# do instalador ou da linha do kernel (GRUB: tamagi.edition=dxai|skl).
+# Edição escolhida (dxai = Tamagi-DxAI | skl = Tamagi-SKL | skl-os = SKL): vem
+# das respostas do instalador ou da linha do kernel (GRUB: tamagi.edition=...).
 EDITION=${A[EDITION]:-}
 if [[ -z $EDITION ]]; then
     EDITION=$(sed -nE 's/(^|.* )tamagi\.edition=([^ ]+).*/\2/p' /proc/cmdline 2>/dev/null || true)
 fi
 case "$EDITION" in
-    skl) EDITION=skl ;;
-    *)   EDITION=dxai ;;
+    skl)    EDITION=skl ;;
+    skl-os) EDITION=skl-os ;;
+    *)      EDITION=dxai ;;
 esac
 
 # De onde vem o sistema: a imagem da edição embutida na mídia; sem ela, o registry.
@@ -94,9 +95,14 @@ if [[ -d $PAYLOAD_DIR ]]; then
     if jq -e --arg tag "$EDITION" '.manifests[] | select(.annotations["org.opencontainers.image.ref.name"] == $tag)' \
             "$PAYLOAD_DIR/index.json" >/dev/null 2>&1; then
         SOURCE="oci:$PAYLOAD_DIR:$EDITION"
+    elif [[ $EDITION == skl-os ]] && jq -e '.manifests[] | select(.annotations["org.opencontainers.image.ref.name"] == "skl")' \
+            "$PAYLOAD_DIR/index.json" >/dev/null 2>&1; then
+        SOURCE="oci:$PAYLOAD_DIR:skl"
     else
         SOURCE="oci:$PAYLOAD_DIR"
     fi
+elif [[ $EDITION == skl-os && -n ${SKL_FORK_TARGET_IMGREF:-} ]]; then
+    SOURCE="docker://$SKL_FORK_TARGET_IMGREF"
 elif [[ $EDITION == skl && -n ${SKL_TARGET_IMGREF:-} ]]; then
     SOURCE="docker://$SKL_TARGET_IMGREF"
 elif [[ -n ${TARGET_IMGREF:-} ]]; then
@@ -568,6 +574,8 @@ ESP_UUID=$(blkid -s UUID -o value "$ESP")
 progress 12 copy
 if [[ -n ${A[TARGET_IMGREF]:-} ]]; then
     TARGET_REF=${A[TARGET_IMGREF]}
+elif [[ $EDITION == skl-os ]]; then
+    TARGET_REF=${SKL_FORK_TARGET_IMGREF:-localhost/skl:latest}
 elif [[ $EDITION == skl ]]; then
     TARGET_REF=${SKL_TARGET_IMGREF:-localhost/tamagi-skl:latest}
 else
@@ -677,6 +685,64 @@ UUID=$BTRFS_UUID /var/lib/libvirt/images btrfs subvol=var-libvirt,noatime 0 0
 UUID=$ESP_UUID /efi vfat umask=0077,shortname=winnt,x-systemd.automount,x-systemd.idle-timeout=2min 0 2
 FSTAB
 grep -q ' /var/home btrfs ' "$DEPLOY/etc/fstab" || die "não consegui registrar o subvolume home em /etc/fstab"
+
+# ── Outros discos internos (HDD/SSD/NVMe): /run/media (padrão) ou /mnt/<disco> ──
+configure_extra_disks() {
+    [[ ${A[EXTRA_DISKS_MOUNT]:-run-media} == mnt ]] || return 0
+    local line edisk erm ero etype pname pfstype puuid plabel pparttype slug base n popts
+    local -A used_slugs=([efi]=1 [home]=1 [root]=1)
+    udevadm settle 2>/dev/null || true
+    while IFS= read -r line; do
+        edisk=$(sed -n 's/.*PATH="\([^"]*\)".*/\1/p' <<<"$line")
+        etype=$(sed -n 's/.*TYPE="\([^"]*\)".*/\1/p' <<<"$line")
+        erm=$(sed -n 's/.*RM="\([^"]*\)".*/\1/p' <<<"$line")
+        ero=$(sed -n 's/.*RO="\([^"]*\)".*/\1/p' <<<"$line")
+        [[ $etype == disk && $erm != 1 && $ero != 1 ]] || continue
+        [[ -n $edisk && $edisk != "$DISK" && $edisk != "${live_disk:-}" && $edisk != "${live_src:-}" ]] || continue
+        [[ $edisk == /dev/zram* || $edisk == /dev/loop* || $edisk == /dev/sr* ]] && continue
+        local parts=()
+        mapfile -t parts < <(lsblk -nrpo NAME,TYPE "$edisk" 2>/dev/null | awk '$2 == "part" { print $1 }')
+        (( ${#parts[@]} )) || parts=("$edisk")
+        for pname in "${parts[@]}"; do
+            [[ -b $pname ]] || continue
+            pfstype=$(blkid -s TYPE -o value "$pname" 2>/dev/null || true)
+            puuid=$(blkid -s UUID -o value "$pname" 2>/dev/null || true)
+            plabel=$(blkid -s LABEL -o value "$pname" 2>/dev/null || true)
+            pparttype=$(blkid -p -s PART_ENTRY_TYPE -o value "$pname" 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)
+            [[ -n $puuid && -n $pfstype ]] || continue
+            [[ $pparttype == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" || $pparttype == "21686148-6449-6e6f-744e-656564454649" ]] && continue
+            [[ $plabel == EFI-SYSTEM || $plabel == TAMAGI_EFI || $plabel == TAMAGI_LIVE || $plabel == combustion || $plabel == ignition ]] && continue
+            grep -qF "UUID=$puuid" "$DEPLOY/etc/fstab" && continue
+            case "$pfstype" in
+                btrfs)
+                    popts="defaults,noatime,nofail,x-systemd.device-timeout=5s 0 0" ;;
+                ext4|xfs)
+                    popts="defaults,noatime,nofail,x-systemd.device-timeout=5s 0 2" ;;
+                ntfs|ntfs3)
+                    pfstype="ntfs3"
+                    popts="uid=1000,gid=1000,umask=0022,nofail,x-systemd.device-timeout=5s 0 0" ;;
+                exfat|vfat)
+                    popts="uid=1000,gid=1000,umask=0022,nofail,x-systemd.device-timeout=5s 0 0" ;;
+                *) continue ;;
+            esac
+            base=$(tr '[:upper:] ' '[:lower:]-' <<<"${plabel:-$(basename "$pname")}" | tr -cd 'a-z0-9_-' | sed 's/^-*//; s/-*$//' | cut -c1-28)
+            [[ -n $base ]] || base=$(basename "$pname")
+            slug=$base
+            n=2
+            while [[ -n ${used_slugs[$slug]:-} ]]; do slug="${base}-${n}"; n=$(( n + 1 )); done
+            used_slugs[$slug]=1
+            # Em composefs/bootc, /mnt aponta para var/mnt: monta em /var/mnt/$slug (acessível em /mnt/$slug).
+            install -d -m 0755 "$MNT/state/os/default/var/mnt" "$MNT/state/os/default/var/mnt/$slug"
+            chcon system_u:object_r:mnt_t:s0 "$MNT/state/os/default/var/mnt" "$MNT/state/os/default/var/mnt/$slug" 2>/dev/null || true
+            install -d -m 0755 "$DEPLOY/etc/tmpfiles.d"
+            echo "d /var/mnt/$slug 0755 root root -" >> "$DEPLOY/etc/tmpfiles.d/tamagi-extra-disks.conf"
+            chcon system_u:object_r:etc_t:s0 "$DEPLOY/etc/tmpfiles.d" "$DEPLOY/etc/tmpfiles.d/tamagi-extra-disks.conf" 2>/dev/null || true
+            echo "UUID=$puuid /var/mnt/$slug $pfstype $popts" >> "$DEPLOY/etc/fstab"
+            echo "disco secundário montado em /mnt/$slug (/var/mnt/$slug): $pname (UUID=$puuid, $pfstype)" >&2
+        done
+    done < <(lsblk -dbnP -o PATH,TYPE,RM,RO 2>/dev/null || true)
+}
+configure_extra_disks
 
 progress 96 finish
 # Só é sucesso se o sistema novo está completo: deployment, entrada de boot e

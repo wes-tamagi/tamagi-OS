@@ -1,0 +1,97 @@
+#!/usr/bin/bash
+# tamagi-cfs — composefs-rs + bootc cryptographic integrity & repository manager.
+#
+#   tamagi sys cfs [status]         composefs.digest, EROFS/overlay mount, and bootc deployments
+#   tamagi sys cfs fsck             verify fs-verity digests & composefs object store (sudo)
+#   tamagi sys cfs images           list composefs deployment images in /sysroot/composefs
+#   tamagi sys cfs measure <file>   compute kernel fs-verity digest of a file
+#   tamagi sys cfs gc               garbage-collect unreferenced composefs objects (sudo)
+set -euo pipefail
+. /usr/libexec/tamagi/i18n
+
+STATUS="${TAMAGI_BOOTC_STATUS:-/run/tamagi/bootc-status.json}"
+
+as_root() {
+    if [[ $(id -u) == 0 ]]; then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+cmd_status() {
+    local cmdline digest="-" root_mnt booted_verity="-" staged_verity="-" rollback_verity="-" kver verity_cfg="no"
+    cmdline=$(cat /proc/cmdline 2>/dev/null || true)
+    for tok in $cmdline; do
+        case "$tok" in
+            composefs.digest=*|composefs=*) digest=${tok#*=} ;;
+        esac
+    done
+    root_mnt=$(findmnt -rno FSTYPE,OPTIONS / 2>/dev/null || echo "-")
+    kver=$(uname -r 2>/dev/null || true)
+    if [[ -r "/usr/lib/modules/$kver/config" ]] && grep -qE '^CONFIG_FS_VERITY=[ym]' "/usr/lib/modules/$kver/config"; then
+        verity_cfg="yes"
+    elif [[ -d /sys/fs/erofs ]]; then
+        verity_cfg="yes"
+    fi
+    if [[ -r $STATUS ]]; then
+        booted_verity=$(jq -r '.status.booted.composefs.verity // "-"' "$STATUS" 2>/dev/null || echo "-")
+        staged_verity=$(jq -r '.status.staged.composefs.verity // "-"' "$STATUS" 2>/dev/null || echo "-")
+        rollback_verity=$(jq -r '.status.rollback.composefs.verity // "-"' "$STATUS" 2>/dev/null || echo "-")
+    fi
+    if [[ ${1:-} == --json ]]; then
+        jq -n \
+            --arg bootc "$(bootc --version 2>/dev/null | head -1)" \
+            --arg digest "$digest" \
+            --arg root "$root_mnt" \
+            --arg fsverity "$verity_cfg" \
+            --arg booted "$booted_verity" \
+            --arg staged "$staged_verity" \
+            --arg rollback "$rollback_verity" \
+            '{bootc: $bootc, cmdline_digest: $digest, root_mount: $root, kernel_fsverity: ($fsverity == "yes"), verity: {booted: $booted, staged: $staged, rollback: $rollback}}'
+        return 0
+    fi
+    echo ":: $(t "Composefs & bootc integrity")"
+    echo "   bootc           : $(bootc --version 2>/dev/null | head -1 || echo -)"
+    echo "   cfsctl engine   : composefs-rs ($(command -v cfsctl || echo /usr/bin/bootc))"
+    echo "   fs-verity (kern): $verity_cfg"
+    echo "   Root mount (/)  : $root_mnt"
+    echo "   Kernel digest   : $digest"
+    echo "   Booted verity   : $booted_verity"
+    echo "   Staged verity   : $staged_verity"
+    echo "   Rollback verity : $rollback_verity"
+}
+
+case "${1:-status}" in
+    status)
+        shift || true
+        cmd_status "$@"
+        ;;
+    fsck)
+        echo ":: $(t "Verifying composefs-rs repository & fs-verity digests")"
+        if [[ -d /sysroot/composefs ]]; then
+            as_root bootc internals cfs --system --require-verity fsck
+        fi
+        as_root bootc internals fsck
+        tl "Composefs and bootc consistency checks passed."
+        ;;
+    images|ls)
+        as_root bootc internals cfs --system images
+        ;;
+    measure)
+        [[ -n ${2:-} ]] || { echo "usage: tamagi sys cfs measure <file>" >&2; exit 2; }
+        bootc internals fsverity measure "$2"
+        ;;
+    gc)
+        echo ":: $(t "Pruning unreferenced composefs objects")"
+        as_root bootc internals composefs-gc --prune-repo
+        tl "Composefs garbage collection complete."
+        ;;
+    -h|--help|help)
+        sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'
+        ;;
+    *)
+        echo "usage: tamagi sys cfs [status [--json]|fsck|images|measure <file>|gc]" >&2
+        exit 2
+        ;;
+esac

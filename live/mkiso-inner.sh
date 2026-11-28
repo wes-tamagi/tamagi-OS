@@ -25,7 +25,7 @@ fi
 # ROMs/binários de máquinas virtuais, documentação e manuais.
 exclude=(
     'usr/lib/modules/*/initramfs.img' 'usr/lib/modules/*/initramfs-live.img'
-    usr/bin/claude
+    usr/bin/claude usr/bin/opencode
     usr/share/edk2 usr/share/qemu usr/lib64/qemu
     usr/share/doc usr/share/man
 )
@@ -46,8 +46,12 @@ set default=0
 set timeout=8
 search --no-floppy --set=root --label $LABEL
 
-menuentry "Tamagi-DxAI — Install or Try (Regular / AI & Dev)" {
+menuentry "Tamagi-DxAI — Install or Try (Regular / AI, Dev & Gaming)" {
     linux /boot/vmlinuz $BASE tamagi.edition=dxai quiet
+    initrd /boot/initrd.img
+}
+menuentry "SKL — Install or Try (School / Institutional Fork)" {
+    linux /boot/vmlinuz $BASE tamagi.edition=skl-os quiet
     initrd /boot/initrd.img
 }
 menuentry "Tamagi-SKL — Install or Try (School / Escola)" {
@@ -58,8 +62,8 @@ menuentry "Tamagi-DxAI — Safe Graphics Mode (nomodeset)" {
     linux /boot/vmlinuz $BASE tamagi.edition=dxai nomodeset
     initrd /boot/initrd.img
 }
-menuentry "Tamagi-SKL — Safe Graphics Mode (nomodeset)" {
-    linux /boot/vmlinuz $BASE tamagi.edition=skl nomodeset
+menuentry "SKL — Safe Graphics Mode (nomodeset)" {
+    linux /boot/vmlinuz $BASE tamagi.edition=skl-os nomodeset
     initrd /boot/initrd.img
 }
 menuentry "Tamagi — Boot Diagnostics (verbose)" {

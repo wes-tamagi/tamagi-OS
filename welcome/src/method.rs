@@ -97,6 +97,10 @@ pub fn classify(action: &str) -> Method {
             // tamagi-browser's own default.
             Method::Flatpak
         }
+        "tamagi-gaming" => match words.next() {
+            Some("ge-proton" | "proton-ge" | "mangohud" | "flatpak") => Method::User,
+            _ => Method::Native,
+        },
         // A Fedora package in a layer over the image.
         "tamagi-vm" | "tamagi-layer" => Method::Native,
         "tamagi-devbox" => Method::Box,
@@ -104,7 +108,7 @@ pub fn classify(action: &str) -> Method {
         // Before docker-setup: "lazydocker-setup" also ends in "docker-setup".
         // A web app is a menu entry in the home folder.
         "lazydocker-setup" | "llm-scripts-setup" | "tamagi-webapp" => Method::User,
-        "docker-setup" | "vscode-setup" | "tailscale-setup" => Method::Native,
+        "docker-setup" | "vscode-setup" | "tailscale-setup" | "nvidia-setup" | "lark-setup" | "sniffnet-setup" => Method::Native,
         _ => Method::Command,
     }
 }

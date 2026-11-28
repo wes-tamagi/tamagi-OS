@@ -5,4 +5,4 @@
 install = ["firefox"]
 
 [flatpak]
-apps = ["org.onlyoffice.desktopeditors", "org.mozilla.Thunderbird"]
+apps = ["org.libreoffice.LibreOffice", "org.onlyoffice.desktopeditors", "org.mozilla.Thunderbird"]

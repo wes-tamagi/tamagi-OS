@@ -39,13 +39,15 @@ BOX="${TAMAGI_AGENTS_BOX:-dev}"
 ORDER=(claude antigravity codex clio qwen opencode gemini openclaw local)
 declare -A TITLE=(
     [claude]="Claude Code — Anthropic" [antigravity]="Antigravity CLI (agy) — Google" [codex]="Codex CLI — OpenAI"
-    [clio]="CLIO — pure Perl, local models" [qwen]="Qwen Code — Alibaba" [opencode]="opencode — open source" [gemini]="Gemini CLI — Google"
+    [clio]="CLIO — pure Perl, local models" [qwen]="Qwen Code — Alibaba" [opencode]="OpenCode — anomalyco open-source agent" [gemini]="Gemini CLI — Google"
     [openclaw]="OpenClaw — open source" [local]="Tamagi agent + local model (llama.cpp)"
 )
 declare -A NPM=([qwen]="@qwen-code/qwen-code" [gemini]="@google/gemini-cli" [openclaw]="openclaw")
 declare -A GH_REPO=([codex]="openai/codex" [opencode]="anomalyco/opencode" [clio]="SyntheticAutonomicMind/CLIO")
 CLIO_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tamagi/clio"
-declare -A GH_ASSET=([codex]='^codex-x86_64-unknown-linux-musl\.tar\.gz$' [opencode]='^opencode-linux-x64-baseline\.tar\.gz$'
+OPENCODE_RE='^opencode-linux-x64-baseline\.tar\.gz$'
+grep -qwi avx2 /proc/cpuinfo 2>/dev/null && OPENCODE_RE='^opencode-linux-x64\.tar\.gz$'
+declare -A GH_ASSET=([codex]='^codex-x86_64-unknown-linux-musl\.tar\.gz$' [opencode]="$OPENCODE_RE"
                      [clio]='^clio-[0-9.]+\.tar\.gz$')
 
 die() { echo "$(t "error"): $*" >&2; exit 1; }
@@ -122,6 +124,10 @@ install_github() {
     json=$(curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GH_REPO[$name]}/releases/latest")
     url=$(jq -r --arg re "${GH_ASSET[$name]}" '.assets[] | select(.name | test($re)) | .browser_download_url' <<<"$json" | head -1)
     digest=$(jq -r --arg re "${GH_ASSET[$name]}" '.assets[] | select(.name | test($re)) | .digest // ""' <<<"$json" | head -1)
+    if [[ -z $url && $name == opencode ]]; then
+        url=$(jq -r '.assets[] | select(.name | test("^opencode-linux-x64(-baseline)?\\.tar\\.gz$")) | .browser_download_url' <<<"$json" | head -1)
+        digest=$(jq -r '.assets[] | select(.name | test("^opencode-linux-x64(-baseline)?\\.tar\\.gz$")) | .digest // ""' <<<"$json" | head -1)
+    fi
     [[ -n $url ]] || die "$name: $(t "could not find the binary in the latest release")"
     [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || die "$name: $(t "the release does not carry the SHA-256 digest; nothing was installed")"
     curl -fL --progress-bar -o "$tmp/pkg.tar.gz" "$url"
@@ -186,7 +192,10 @@ install_one() {
     case $name in
         claude)      claude --version </dev/null && menu_entry claude-code ;;
         antigravity) install_agy && menu_entry agy ;;
-        codex|opencode|clio) install_github "$name" ;;
+        opencode)    install_github opencode && menu_entry opencode
+                     command -v tamagi-ai >/dev/null 2>&1 && tamagi-ai sync 2>/dev/null || true
+                     command -v tamagi-mcp >/dev/null 2>&1 && { tamagi-mcp add --no-pull os >/dev/null 2>&1 || tamagi-mcp sync 2>/dev/null || true; } ;;
+        codex|clio)  install_github "$name" ;;
         qwen|gemini|openclaw) install_npm "$name" ;;
         local)       tamagi-ai setup ;;
     esac
@@ -198,7 +207,8 @@ remove_one() {
     case $name in
         claude)      rm -f "$BIN_DIR/claude" "$APPS/claude-code.desktop"; rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/claude" ;;
         antigravity) rm -f "$BIN_DIR/agy" "$APPS/agy.desktop" ;;
-        codex|opencode) rm -f "$BIN_DIR/$name" ;;
+        opencode)    rm -f "$BIN_DIR/opencode" "$APPS/opencode.desktop" ;;
+        codex)       rm -f "$BIN_DIR/$name" ;;
         clio)        rm -f "$BIN_DIR/clio"; [[ -d $CLIO_DIR ]] && rm -rf -- "${CLIO_DIR:?}" ;;
         qwen|gemini|openclaw)
             if has_host_mise && mise which npm >/dev/null 2>&1; then

@@ -69,10 +69,78 @@ apply_ptyxis() { # the terminal of the system: a palette "Tamagi" with the colou
         done
     } > "$dir/tamagi.palette"
     # Chosen for the default profile, when Ptyxis has already made one.
+    gsettings set org.gnome.Ptyxis restore-session false 2>/dev/null || true
     uuid=$(gsettings get org.gnome.Ptyxis default-profile-uuid 2>/dev/null | tr -d "'") || true
     if [[ -n $uuid ]]; then
         gsettings set "org.gnome.Ptyxis.Profile:/org/gnome/Ptyxis/Profiles/$uuid/" palette tamagi 2>/dev/null || true
     fi
+}
+
+apply_foot() { # lightweight Wayland terminal for popups and quick windows
+    local dir="$CONFIG/foot" font
+    font=$(mono_font)
+    mkdir -p "$dir"
+    cat > "$dir/foot.ini" <<INI
+[main]
+font=${font}:size=11
+pad=14x12 center
+dpi-aware=yes
+
+[scrollback]
+lines=10000
+
+[cursor]
+style=block
+color=${BG#\#} ${CURSOR#\#}
+
+[colors]
+background=${BG#\#}
+foreground=${FG#\#}
+regular0=${PALETTE[0]#\#}
+regular1=${PALETTE[1]#\#}
+regular2=${PALETTE[2]#\#}
+regular3=${PALETTE[3]#\#}
+regular4=${PALETTE[4]#\#}
+regular5=${PALETTE[5]#\#}
+regular6=${PALETTE[6]#\#}
+regular7=${PALETTE[7]#\#}
+bright0=${PALETTE[8]#\#}
+bright1=${PALETTE[9]#\#}
+bright2=${PALETTE[10]#\#}
+bright3=${PALETTE[11]#\#}
+bright4=${PALETTE[12]#\#}
+bright5=${PALETTE[13]#\#}
+bright6=${PALETTE[14]#\#}
+bright7=${PALETTE[15]#\#}
+INI
+}
+
+apply_opencode() { # OpenCode TUI theme synced to the active Tamagi palette
+    local dir="$CONFIG/opencode/themes"
+    [[ -d "$CONFIG/opencode" || -x "$HOME/.local/bin/opencode" ]] || return 0
+    mkdir -p "$dir"
+    cat > "$dir/tamagi.json" <<JSON
+{
+  "\$schema": "https://opencode.ai/theme.json",
+  "theme": {
+    "primary": "${WALL[2]}",
+    "secondary": "${PALETTE[4]}",
+    "accent": "${CURSOR}",
+    "error": "${PALETTE[1]}",
+    "warning": "${PALETTE[3]}",
+    "success": "${PALETTE[2]}",
+    "info": "${PALETTE[6]}",
+    "text": "${FG}",
+    "textMuted": "${PALETTE[8]}",
+    "background": "${BG}",
+    "backgroundPanel": "${PALETTE[0]}",
+    "backgroundElement": "${PALETTE[0]}",
+    "border": "${PALETTE[8]}",
+    "borderActive": "${WALL[2]}",
+    "borderSubtle": "${PALETTE[0]}"
+  }
+}
+JSON
 }
 
 nvim_spec() { # plugin de cores do LazyVim para o tema (os mesmos do Omarchy)
@@ -148,12 +216,14 @@ RON
         "$([[ $SCHEME == dark ]] && echo prefer-dark || echo default)" 2>/dev/null || true
 }
 
-apply_terminal() { # Ptyxis and Neovim
+apply_terminal() { # Ptyxis, foot, OpenCode and Neovim
     local name=$1
     load "$name"
     mkdir -p "$CONFIG/tamagi"
     rm -f "$CONFIG/tamagi/alacritty.toml" "$CONFIG/tamagi/foot.ini"
     apply_ptyxis
+    apply_foot
+    apply_opencode
     apply_nvim "$name"
     echo "$name" > "$STATE"
 }

@@ -7,7 +7,7 @@
 install = ["claude", "codex", "opencode", "clio"]
 
 [mcp]
-servers = ["memory", "git"]
+servers = ["os", "memory", "git"]
 
 [boxes]
 dev = "fedora"

@@ -4,20 +4,33 @@
 
 EDITION=${TAMAGI_EDITION:-dxai}
 case "$EDITION" in
-    dxai) PKG_FILE=/ctx/build_files/packages.txt ;;
-    skl)  PKG_FILE=/ctx/build_files/packages-skl.txt ;;
-    *)    echo "TAMAGI_EDITION inválido: $EDITION (use dxai ou skl)" >&2; exit 1 ;;
+    dxai)       PKG_FILE=/ctx/build_files/packages.txt ;;
+    skl|skl-os) PKG_FILE=/ctx/build_files/packages-skl.txt ;;
+    *)          echo "TAMAGI_EDITION inválido: $EDITION (use dxai, skl ou skl-os)" >&2; exit 1 ;;
 esac
 
 mapfile -t PACKAGES < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' "$PKG_FILE" | grep -v '^$')
 dnf5 -y install --setopt=install_weak_deps=False --allowerasing "${PACKAGES[@]}"
 
-# Codecs multimídia completos via RPM Fusion Free (desabilitado após o build
-# para a imagem não consultar repos externos em runtime).
-dnf5 -y install --setopt=install_weak_deps=False \
-    "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm"
+# Subpacotes opcionais de variantes escura/clara do Papirus (quando separados no Fedora).
+dnf5 -y install --setopt=install_weak_deps=False papirus-icon-theme-dark papirus-icon-theme-light 2>/dev/null || true
+
+# Codecs multimídia completos via RPM Fusion Free (+ Steam nativo em DxAI via
+# RPM Fusion Nonfree; ambos desabilitados após o build para determinismo em runtime).
+rpmfusion_rpms=("https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm")
+if [[ $EDITION == dxai ]]; then
+    rpmfusion_rpms+=("https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm")
+fi
+dnf5 -y install --setopt=install_weak_deps=False "${rpmfusion_rpms[@]}"
 dnf5 -y install --setopt=install_weak_deps=False --allowerasing \
     ffmpeg mesa-va-drivers-freeworld gstreamer1-plugins-bad-free gstreamer1-plugins-ugly-free
+if [[ $EDITION == dxai ]]; then
+    # Steam nativo + bibliotecas 32-bit de áudio/rede/gamescope para compatibilidade
+    # máxima com GE-Proton, gamescope e MangoHud (estilo Bazzite).
+    dnf5 -y install --setopt=install_weak_deps=False --allowerasing \
+        steam pipewire-alsa.i686 alsa-plugins-pulseaudio.i686
+    dnf5 -y install --setopt=install_weak_deps=False gamescope-libs gamescope-libs.i686 2>/dev/null || true
+fi
 for r in /etc/yum.repos.d/*rpmfusion*.repo /usr/lib/yum.repos.d/*rpmfusion*.repo; do
     [[ -f $r ]] && sed -i 's/^enabled=1/enabled=0/' "$r"
 done
@@ -50,25 +63,30 @@ fi
 
 # Navegador padrão é Chromium nativo; Firefox sai da imagem.
 dnf5 -y remove firefox firefox-langpacks 2>/dev/null || true
-# Player de vídeo do COSMIC é opcional (`tamagi install cosmic-player`).
-dnf5 -y remove --no-autoremove cosmic-player
-rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover cosmic-player levou parte do COSMIC junto" >&2; exit 1; }
+# Player de vídeo do COSMIC é opcional (`tamagi install cosmic-player`);
+# terminais do sistema são Ptyxis + foot leve (sem cosmic-term; usa rpm -e --nodeps
+# porque cosmic-session declara Requires: cosmic-term mesmo com Terminal trocado).
+dnf5 -y remove --no-autoremove cosmic-player 2>/dev/null || true
+rpm -e --nodeps cosmic-term 2>/dev/null || true
+rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover cosmic-player/cosmic-term levou parte do COSMIC junto" >&2; exit 1; }
+if command -v cosmic-term >/dev/null 2>&1; then echo "cosmic-term ainda está na imagem" >&2; exit 1; fi
 # Um comando só: `tamagi` (sem ujust).
 dnf5 -y remove --no-autoremove ublue-os-just 2>/dev/null || true
 if command -v ujust >/dev/null 2>&1; then echo "ujust ainda está na imagem" >&2; exit 1; fi
 
-# Edição Tamagi-SKL (Escola): sem loja gráfica (Flatpaks só via terminal),
+# Edição Tamagi-SKL / SKL (Escola): sem loja gráfica (Flatpaks só via terminal),
 # sem llama.cpp, sem chromedriver, sem ferramentas de IA/dev pesado.
-if [[ $EDITION == skl ]]; then
+if [[ $EDITION == skl || $EDITION == skl-os ]]; then
     dnf5 -y remove --no-autoremove cosmic-store 2>/dev/null || true
     rpm -q cosmic-session cosmic-comp cosmic-files >/dev/null || { echo "remover cosmic-store levou parte do COSMIC junto" >&2; exit 1; }
     rm -rf /usr/bin/llama-* /usr/lib64/ggml /usr/lib64/libllama* /usr/lib64/libggml* \
-           /usr/share/licenses/llama.cpp /usr/bin/claude \
+           /usr/share/licenses/llama.cpp /usr/bin/claude /usr/bin/opencode \
            /usr/lib/systemd/user/llama-server.service
-    echo "Tamagi-SKL: cosmic-store, llama.cpp e extras de IA removidos da imagem"
+    echo "$EDITION: cosmic-store, llama.cpp e extras de IA removidos da imagem"
 else
     command -v gnome-disks >/dev/null || { echo "gnome-disk-utility ausente no Tamagi-DxAI" >&2; exit 1; }
     command -v rclone >/dev/null || { echo "rclone ausente no Tamagi-DxAI" >&2; exit 1; }
+    command -v steam >/dev/null || { echo "steam nativo ausente no Tamagi-DxAI" >&2; exit 1; }
 fi
 
 # Ferramentas sem pacote no Fedora: binários oficiais com SHA-256 conferido.
@@ -89,7 +107,7 @@ install -Dm755 btm /usr/bin/btm
 
 # mise (somente Tamagi-DxAI): gerenciador de runtimes em ~/.local/share/mise
 # (sem root e sem tocar em /usr) para agentes Node/Python, MCPs e projetos.
-if [[ $EDITION != skl ]]; then
+if [[ $EDITION != skl && $EDITION != skl-os ]]; then
     curl -fsSLO "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64"
     curl -fsSLO "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/SHASUMS256.txt"
     grep -E " (\./)?mise-${MISE_VERSION}-linux-x64\$" SHASUMS256.txt | sha256sum -c -

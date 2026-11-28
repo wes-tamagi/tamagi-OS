@@ -13,12 +13,21 @@ case "$EDITION" in
         PRODUCT_VARIANT="Tamagi-DxAI"
         PRODUCT_VARIANT_ID="tamagi-dxai"
         PRODUCT_HOST="tamagi-dxai"
+        LOGO_NAME="tamagi"
         ;;
     skl)
         PRODUCT_NAME="Tamagi-SKL"
         PRODUCT_VARIANT="Tamagi-SKL"
         PRODUCT_VARIANT_ID="tamagi-skl"
         PRODUCT_HOST="tamagi-skl"
+        LOGO_NAME="tamagi"
+        ;;
+    skl-os)
+        PRODUCT_NAME="SKL"
+        PRODUCT_VARIANT="SKL"
+        PRODUCT_VARIANT_ID="skl"
+        PRODUCT_HOST="skl"
+        LOGO_NAME="skl"
         ;;
     *)
         echo "TAMAGI_EDITION inválido: $EDITION" >&2
@@ -41,7 +50,7 @@ sed -i \
     -e '/^VARIANT=/d' -e '/^VARIANT_ID=/d' \
     -e "s|^DEFAULT_HOSTNAME=.*|DEFAULT_HOSTNAME=\"${PRODUCT_HOST}\"|" \
     -e '/^BUG_REPORT_URL=/d' \
-    -e 's|^LOGO=.*|LOGO=tamagi|' \
+    -e "s|^LOGO=.*|LOGO=${LOGO_NAME}|" \
     -e "s|^HOME_URL=.*|HOME_URL=\"${TAMAGI_URL}\"|" \
     -e "s|^DOCUMENTATION_URL=.*|DOCUMENTATION_URL=\"${TAMAGI_URL}#readme\"|" \
     -e "s|^SUPPORT_URL=.*|SUPPORT_URL=\"${TAMAGI_URL}/issues\"|" \
@@ -76,8 +85,8 @@ JSON
 
 install -Dm644 /ctx/README.md /usr/share/doc/tamagi/README.md
 install -Dm644 /ctx/NOTICE /usr/share/doc/tamagi/NOTICE
-grep -q '^LOGO=tamagi$' "$OS_RELEASE" && [[ -f /usr/share/icons/hicolor/scalable/apps/tamagi.svg ]] \
-    || { echo "os-release sem o logo do Tamagi" >&2; exit 1; }
+grep -q "^LOGO=${LOGO_NAME}\$" "$OS_RELEASE" && [[ -f /usr/share/icons/hicolor/scalable/apps/${LOGO_NAME}.svg ]] \
+    || { echo "os-release sem o logo (${LOGO_NAME})" >&2; exit 1; }
 grep -qi 'fedoraproject' <(grep -E '^(HOME|DOCUMENTATION|SUPPORT)_URL=' "$OS_RELEASE") \
     && { echo "os-release ainda aponta para o Fedora" >&2; exit 1; } || true
 

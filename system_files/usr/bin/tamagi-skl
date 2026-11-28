@@ -36,7 +36,9 @@ cmd_status() {
     if [[ -n $home && -e $home/.config/cosmic/com.system76.CosmicPanel/v1/entries ]]; then
         lsattr -d "$home/.config/cosmic/com.system76.CosmicPanel/v1/entries" 2>/dev/null | grep -q 'i' && locked="yes"
     fi
-    echo "Edition       : Tamagi-SKL"
+    local ed_label="Tamagi-SKL"
+    [[ $(cat /usr/share/tamagi/edition 2>/dev/null || true) == skl-os ]] && ed_label="SKL"
+    echo "Edition       : $ed_label"
     echo "Student user  : $u (auto-login, no sudo)"
     echo "Homepage URL  : $url"
     echo "Panel locked  : $locked"

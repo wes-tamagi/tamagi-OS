@@ -71,8 +71,10 @@ update_system() {
             fi
         fi
     else
-        local edition_img="tamagi"
-        [[ $(cat /usr/share/tamagi/edition 2>/dev/null || true) == skl ]] && edition_img="tamagi-skl"
+        local edition_img="tamagi" ed_cur
+        ed_cur=$(cat /usr/share/tamagi/edition 2>/dev/null || true)
+        [[ $ed_cur == skl ]] && edition_img="tamagi-skl"
+        [[ $ed_cur == skl-os ]] && edition_img="skl"
         tl "Could not update the image. If installed from a local build, publish it first"
         echo "  sudo bootc switch ghcr.io/wes-tamagi/${edition_img}:latest"
         failed+=(sistema)

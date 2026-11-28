@@ -1,0 +1,138 @@
+#!/usr/bin/python3
+"""mcp-tamagi-os — read-only Model Context Protocol (MCP) server for Tamagi OS.
+
+Exposes structured, strictly read-only system diagnostics over stdio JSON-RPC 2.0
+to OpenCode (anomalyco/opencode), Claude Code, Gemini CLI, Antigravity, and Codex
+with 0 MB idle RAM and zero write capability:
+  - tamagi_doctor      -> structured JSON from `tamagi-doctor --json`
+  - tamagi_composefs   -> composefs-rs & bootc verity status (`tamagi-cfs status --json`)
+  - tamagi_why         -> provenance of a file, command, port, or systemd unit
+  - tamagi_layers      -> active systemd-sysext layers (`tamagi-layer list`)
+"""
+
+import json
+import re
+import subprocess
+import sys
+
+SAFE_TARGET = re.compile(r"^[A-Za-z0-9_./:@+-]{1,160}$")
+
+TOOLS = [
+    {
+        "name": "tamagi_doctor",
+        "description": "Run read-only Tamagi OS health diagnostics across bootc, composefs, kernel, storage, GPU, network, and AI.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "tamagi_composefs",
+        "description": "Inspect composefs-rs root digest, fs-verity status, and bootc active/staged/rollback deployments.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "tamagi_why",
+        "description": "Explain the provenance of a path, command, TCP/UDP port, or systemd unit on Tamagi OS.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "File path, command name, port number, or .service/.socket/.timer unit"}
+            },
+            "required": ["target"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "tamagi_layers",
+        "description": "List reversible systemd-sysext layers installed over /usr.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+]
+
+
+def run_ro(argv: list[str]) -> str:
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=10, check=False)
+        out = (r.stdout or "").strip()
+        err = (r.stderr or "").strip()
+        return out if out else (err or f"exit {r.returncode}")
+    except Exception as exc:
+        return f"error: {exc}"
+
+
+def call_tool(name: str, args: dict) -> tuple[str, bool]:
+    if name == "tamagi_doctor":
+        return run_ro(["/usr/bin/tamagi-doctor", "--json"]), False
+    if name == "tamagi_composefs":
+        return run_ro(["/usr/bin/tamagi-cfs", "status", "--json"]), False
+    if name == "tamagi_layers":
+        return run_ro(["/usr/bin/tamagi-layer", "list"]), False
+    if name == "tamagi_why":
+        target = str(args.get("target", "")).strip()
+        if not SAFE_TARGET.match(target) or ".." in target:
+            return "invalid target", True
+        return run_ro(["/usr/bin/tamagi-why", target, "--json"]), False
+    return f"unknown tool: {name}", True
+
+
+def send(msg: dict) -> None:
+    sys.stdout.write(json.dumps(msg) + "\n")
+    sys.stdout.flush()
+
+
+def handle(req: dict) -> None:
+    method = req.get("method", "")
+    req_id = req.get("id")
+    if method == "initialize":
+        if req_id is not None:
+            send({
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "tamagi-os", "version": "1.7.0"},
+                },
+            })
+        return
+    if method in ("notifications/initialized", "ping"):
+        if req_id is not None:
+            send({"jsonrpc": "2.0", "id": req_id, "result": {}})
+        return
+    if method == "tools/list":
+        if req_id is not None:
+            send({"jsonrpc": "2.0", "id": req_id, "result": {"tools": TOOLS}})
+        return
+    if method == "tools/call":
+        params = req.get("params") or {}
+        text, is_err = call_tool(str(params.get("name", "")), params.get("arguments") or {})
+        if req_id is not None:
+            send({
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {"content": [{"type": "text", "text": text}], "isError": is_err},
+            })
+        return
+    if req_id is not None:
+        send({"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": f"Method not found: {method}"}})
+
+
+def main() -> int:
+    if "--self-test" in sys.argv:
+        txt, err = call_tool("tamagi_composefs", {})
+        assert not err and "bootc" in txt, txt
+        print("mcp-tamagi-os: ok")
+        return 0
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(req, dict):
+            handle(req)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
